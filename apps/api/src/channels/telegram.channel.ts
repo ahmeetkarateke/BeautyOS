@@ -109,7 +109,7 @@ export class TelegramChannel implements MessagingChannel {
       return {
         channelType: 'telegram',
         from: String(cq.message?.chat.id ?? cq.from.id),
-        text: cq.data,
+        text: cq.data!,
         messageId: cq.id,
         timestamp: new Date(),
         rawPayload: payload,
