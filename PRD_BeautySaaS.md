@@ -13,7 +13,7 @@
 
 ### Geliştirme Durumu (Nisan 2026)
 
-**Son güncelleme: 20 Nisan 2026**
+**Son güncelleme: 21 Nisan 2026**
 
 | Bileşen | Durum | Notlar |
 |---|---|---|
@@ -22,11 +22,11 @@
 | Messaging Abstraction Layer | ✅ Tamamlandı | `apps/api/src/channels/` — Telegram + WhatsApp stub |
 | Telegram Bot (AI akışı) | ✅ Canlıda | Gemini 2.5 Flash/Pro, Redis session, tam booking flow test edildi |
 | Railway Deployment | ✅ Canlıda | `https://beautyosapi-production.up.railway.app` — tüm env var'lar set |
-| Supabase (PostgreSQL) | ✅ Bağlı | Session pooler üzerinden IPv4 bağlantısı, Prisma hazır |
+| Supabase (PostgreSQL) | ✅ Bağlı | Session pooler üzerinden IPv4 bağlantısı, Prisma v7 aktif |
 | Redis (Upstash) | ✅ Bağlı | TLS bağlantısı aktif, session yönetimi çalışıyor |
 | Gemini API | ✅ Bağlı | Billing aktif — gemini-2.5-flash (intent) + gemini-2.5-pro (karmaşık tur) |
 | WhatsApp Bot | ⏳ Beklemede | Meta BSP onayı bekleniyor — stub hazır, geçiş 1-2 gün |
-| Prisma Şeması | ❌ Başlanmadı | Sıradaki kritik görev |
+| Prisma Şeması | ✅ Tamamlandı | 11 model, migration uygulandı, gerçek slot + booking DB'ye kaydediliyor |
 | Frontend (Next.js) | ❌ Başlanmadı | Faza 2'de başlanacak |
 | Ödeme (iyzico/Stripe) | ❌ Başlanmadı | Phase 1 dışı kapsam |
 
@@ -71,12 +71,12 @@ BeautyOS/
 
 ### Bir Sonraki Oturumda Yapılacaklar (Öncelik Sırası)
 
-> **Altyapı tamamen hazır ve canlı.** Sıradaki görevler iş mantığına odaklanıyor.
+> **Altyapı + DB katmanı hazır ve canlı.** Sıradaki görevler test tenant oluşturma ve production'a deploy.
 
-1. **Prisma şeması yaz** — `Tenant`, `Salon`, `Staff`, `Service`, `Appointment`, `Customer` modelleri (Database Agent ile)
-2. **Gerçek slot sorgusu** — Mock `['10:00', '13:00', '15:30']` yerine DB'den müsait saatler
-3. **Randevu DB'ye kaydet** — `confirmBooking()` içindeki TODO'yu gerçek Prisma insert ile doldur
-4. **Sentry entegrasyonu** — Production hata takibi
+1. **Test tenant seed** — Supabase'e ilk Tenant + Staff + Service kayıtlarını ekle (Prisma seed scripti)
+2. **Bot flow'da `tenantId` çözümlemesi** — `'test-tenant'` sabitini kaldır; `phoneNumberId → tenantId` lookup tablosu yaz
+3. **Sentry entegrasyonu** — Production hata takibi (`@sentry/node`)
+4. **Railway deploy** — Yeni bağımlılıkları (pg, adapter) push et, build log kontrol et
 5. **Vercel** — Frontend başlamadan önce CI/CD altyapısı
 
 **Canlı servisler özeti:**

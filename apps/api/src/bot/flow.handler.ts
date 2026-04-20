@@ -2,6 +2,12 @@ import { logger } from '../lib/logger'
 import type { MessagingChannel, IncomingMessage } from '../channels/types'
 import type { SessionService, ConversationSession } from '../session/session.service'
 import type { IntentService, SalonContext } from '../ai/intent.service'
+import {
+  getAvailableSlots,
+  createAppointment,
+  cancelAppointmentByRef,
+  type AvailableSlot,
+} from './booking.service'
 
 // ─── 3 Katman Hata Yönetimi Eşikleri ─────────────────────────────────────────
 const CLARIFY_LIMIT = 2    // Bu kadar netleştirme turdan sonra → basit mod
@@ -288,16 +294,25 @@ export class FlowHandler {
   ): Promise<void> {
     session.step = 'awaiting_slot_confirm'
 
-    // TODO: Gerçek slot sorgulaması — şimdilik mock veriler
-    const mockSlots = ['10:00', '13:00', '15:30']
+    const slots = await getAvailableSlots(
+      session.tenantId,
+      session.entities.service ?? '',
+      session.entities.datePreference,
+      session.entities.timePreference,
+    )
+
+    // Slot ID'lerini session'da sakla (confirmBooking'de kullanmak için)
+    session.entities = { ...session.entities, _slots: slots as unknown as string } as typeof session.entities
+
+    const dateLabel = session.entities.datePreference?.replace('date:', '') ?? 'Uygun saatler'
 
     await channel.sendList(msg.from, REPLIES.slotOptions, [
       {
-        title: `${session.entities.datePreference?.replace('date:', '') ?? 'Uygun saatler'}`,
-        items: mockSlots.map((t) => ({
-          id: `slot:${t}`,
-          label: `🕐 ${t}`,
-          description: session.entities.service,
+        title: dateLabel,
+        items: slots.map((s: AvailableSlot) => ({
+          id: `slot:${s.id}`,
+          label: `🕐 ${s.label}`,
+          description: `${session.entities.service} — ${s.staffName}`,
         })),
       },
     ])
@@ -308,14 +323,43 @@ export class FlowHandler {
     msg: IncomingMessage,
     session: ConversationSession,
   ): Promise<void> {
-    const time = msg.text.replace('slot:', '')
-    const date = session.entities.datePreference?.replace('date:', '') ?? ''
+    const slotId = msg.text.replace('slot:', '')
     const service = session.entities.service ?? ''
+    const channel_type = session.channelType === 'telegram' ? 'telegram' : 'whatsapp'
 
-    // TODO: Veritabanına kaydet — şimdilik referans kodu simüle et
-    const ref = `RDV-TEST-${Date.now().toString(36).toUpperCase()}`
+    let ref: string
+    let staffName = 'Uygun Uzman'
 
-    const reply = REPLIES.bookingConfirmed(service, `${date} ${time}`, 'Uygun uzman', ref)
+    try {
+      // slotId: "YYYY-MM-DDTHH:MM:SS__staffId" ya da "mock-staff" içeriyorsa mock
+      if (slotId.includes('mock-staff')) {
+        ref = `RDV-${Date.now().toString(36).toUpperCase()}`
+      } else {
+        ref = await createAppointment({
+          tenantId: session.tenantId,
+          customerPhone: session.from,
+          customerName: session.from, // WhatsApp numarasından isim bilinmiyor
+          serviceName: service,
+          slotId,
+          channel: channel_type as 'telegram' | 'whatsapp',
+        })
+
+        // Slot listesinden staff adını bul
+        const storedSlots = (session.entities as Record<string, unknown>)['_slots'] as AvailableSlot[] | undefined
+        const matched = storedSlots?.find((s: AvailableSlot) => s.id === slotId)
+        if (matched) staffName = matched.staffName
+      }
+    } catch (error) {
+      logger.error({ error, slotId }, 'Randevu kaydetme hatası')
+      await channel.sendText(msg.from, '❌ Randevu oluşturulurken bir sorun oluştu. Lütfen tekrar deneyin.')
+      return
+    }
+
+    // Tarih/saat etiketini oluştur
+    const dateStr = slotId.split('T')[0] ?? ''
+    const timeStr = slotId.split('T')[1]?.slice(0, 5) ?? ''
+
+    const reply = REPLIES.bookingConfirmed(service, `${dateStr} ${timeStr}`, staffName, ref)
     this.sessionService.addMessage(session, 'assistant', reply)
     await channel.sendText(msg.from, reply)
     await this.sessionService.reset(session)
@@ -338,8 +382,13 @@ export class FlowHandler {
     session: ConversationSession,
     _salon: SalonContext,
   ): Promise<void> {
-    // TODO: Referans kodu ile veritabanında randevu bul ve iptal et
-    const reply = REPLIES.cancelConfirmed
+    const refCode = msg.text.trim().toUpperCase()
+    const cancelled = await cancelAppointmentByRef(session.tenantId, refCode)
+
+    const reply = cancelled
+      ? REPLIES.cancelConfirmed
+      : `❓ "${refCode}" referans kodlu aktif randevu bulunamadı. Lütfen kontrol edip tekrar deneyin.`
+
     this.sessionService.addMessage(session, 'assistant', reply)
     await channel.sendText(msg.from, reply)
     await this.sessionService.reset(session)
