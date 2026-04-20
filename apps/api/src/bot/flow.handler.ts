@@ -94,8 +94,9 @@ export class FlowHandler {
     session: ConversationSession,
     salon: SalonContext,
   ): Promise<void> {
-    // İlk mesaj → karşılama
-    if (session.turnCount === 1 && session.step === 'idle') {
+    // /start komutu veya ilk mesaj → karşılama + session sıfırla
+    if (msg.text === '/start' || (session.turnCount === 1 && session.step === 'idle')) {
+      await this.sessionService.reset(session)
       await channel.sendText(msg.from, REPLIES.welcome(salon.name))
       return
     }

@@ -34,9 +34,9 @@ export interface SalonContext {
 
 export class IntentService {
   // Basit niyet + entity çıkarma için ekonomik model
-  private readonly flashModel = 'gemini-2.0-flash'
+  private readonly flashModel = 'gemini-2.5-flash'
   // Karmaşık diyalog, belirsiz girdi için güçlü model
-  private readonly proModel = 'gemini-1.5-pro'
+  private readonly proModel = 'gemini-2.5-pro'
   // Güven eşiği — bu değerin altında netleştirme sorusu sorulur
   private readonly CONFIDENCE_THRESHOLD = 0.75
 
