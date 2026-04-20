@@ -1,0 +1,70 @@
+import 'dotenv/config'
+import express from 'express'
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import { initChannels, getChannel } from './channels/channel.factory'
+import { SessionService } from './session/session.service'
+import { IntentService } from './ai/intent.service'
+import { FlowHandler } from './bot/flow.handler'
+import { createWebhookRouter } from './routes/webhook.route'
+import { logger } from './lib/logger'
+
+async function bootstrap(): Promise<void> {
+  // ─── Bağımlılıkları başlat ─────────────────────────────────────────────────
+
+  const sessionService = new SessionService(process.env.REDIS_URL ?? 'redis://localhost:6379')
+  await sessionService.connect()
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
+  const intentService = new IntentService(genAI)
+  const flowHandler = new FlowHandler(sessionService, intentService)
+
+  initChannels()
+
+  // ─── Express app ──────────────────────────────────────────────────────────
+
+  const app = express()
+
+  // rawBody middleware — webhook imza doğrulaması için gerekli
+  app.use(
+    express.json({
+      verify: (req, _res, buf) => {
+        ;(req as express.Request & { rawBody?: string }).rawBody = buf.toString()
+      },
+    }),
+  )
+
+  app.use('/webhook', createWebhookRouter(flowHandler))
+
+  // ─── Root health check ────────────────────────────────────────────────────
+
+  app.get('/', (_req, res) => {
+    res.json({ service: 'BeautyOS API', version: '1.0.0', status: 'ok' })
+  })
+
+  // ─── Telegram webhook kaydet ──────────────────────────────────────────────
+
+  const port = Number(process.env.PORT ?? 3001)
+  app.listen(port, async () => {
+    logger.info({ port }, 'BeautyOS API sunucusu başlatıldı')
+
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.PUBLIC_URL) {
+      try {
+        const telegram = getChannel('telegram') as import('./channels/telegram.channel').TelegramChannel
+        const webhookUrl = `${process.env.PUBLIC_URL}/webhook/telegram`
+        await telegram.setWebhook(webhookUrl)
+
+        const me = await telegram.getMe()
+        logger.info({ username: me.username, webhookUrl }, 'Telegram bot hazır')
+      } catch (error) {
+        logger.error({ error }, 'Telegram webhook kaydı başarısız')
+      }
+    } else {
+      logger.warn('PUBLIC_URL veya TELEGRAM_BOT_TOKEN eksik — webhook kaydedilmedi')
+    }
+  })
+}
+
+bootstrap().catch((error) => {
+  logger.error({ error }, 'Başlatma hatası')
+  process.exit(1)
+})

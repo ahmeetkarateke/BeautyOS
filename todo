@@ -1,0 +1,685 @@
+Update Todos
+
+FAZA 0 — HAZIRLIK: Tüm hesapları aç ve API başvurularını yap
+
+FAZA 0 — Meta WhatsApp Business API başvurusu yap (en uzun süreç, hemen başla)
+
+FAZA 0 — Geliştirme ortamını kur (Node.js, Git, VS Code, Claude Code CLI)
+
+FAZA 0 — GitHub monorepo oluştur, branch stratejisini kur (main/develop)
+
+FAZA 0 — Supabase, Vercel, Railway, Upstash Redis hesaplarını aç
+
+FAZA 0 — .env.example dosyasını hazırla, tüm API key'leri topla
+
+FAZA 1 — Monorepo yapısını kur (apps/web + apps/api + packages/shared)
+
+FAZA 1 — Prisma schema.prisma yaz: tüm PRD tablolarını implement et
+
+FAZA 1 — PostgreSQL RLS politikalarını kur, multi-tenant middleware yaz
+
+FAZA 1 — Auth sistemi: NextAuth + JWT + refresh token rotation
+
+FAZA 1 — GitHub Actions CI/CD pipeline kur (lint + test + deploy)
+
+FAZA 1 — Onboarding sihirbazı (5 adım): salon bilgisi, hizmet, personel, WhatsApp bağlama
+
+FAZA 2 — Hizmet ve personel CRUD API + UI (çalışma saatleri, prim oranları)
+
+FAZA 2 — Takvim bileşeni: günlük/haftalık çoklu personel görünümü, drag-drop
+
+FAZA 2 — Slot müsaitlik motoru: çakışma önleme, buffer süresi, Redis lock
+
+FAZA 2 — Manuel randevu oluşturma (panel üzerinden)
+
+FAZA 3 — WhatsApp webhook altyapısı + HMAC doğrulama + tenant routing
+
+FAZA 3 — AI niyet tespiti (GPT-4o mini + GPT-4o hibrit), sistem prompt tasarımı
+
+FAZA 3 — WhatsApp bot tam akışı: randevu al, iptal et, fiyat sor, 3 katman hata yönetimi
+
+FAZA 3 — BullMQ hatırlatma sistemi: T-24h ve T-2h WhatsApp mesajları
+
+FAZA 4 — Kasa yönetimi: nakit/kart girişi, günlük kapama, dijital makbuz
+
+FAZA 4 — Prim hesaplama motoru: hizmet bazlı, personel özet görünümü
+
+FAZA 4 — Aylık gelir raporu (temel)
+
+FAZA 5 — Müşteri profili: işlem geçmişi, alerji notları, WhatsApp tanıma
+
+FAZA 5 — Dashboard KPI widget'ları: bugünkü gelir, doluluk, bekleyen randevular
+
+FAZA 6 — Security audit: OWASP kontrol listesi, KVKK uyumluluk
+
+FAZA 6 — 5 pilot salon ile beta test, geri bildirimleri topla
+
+FAZA 6 — Landing page + SEO + fiyatlandırma sayfası
+
+FAZA 6 — Resmi lansman: ilk 50 ödeme yapan müşteriyi kazan
+BeautyOS — Başlangıç Planı & Tam Rehber
+FAZA 0 — HAZIRLIK (Bu Hafta, Koddan Önce)
+Bu faza en kritik fazadır. Kod yazmadan önce her şeyi hazırlamazsanız ilerleyen haftalarda günler kaybedersiniz.
+
+A. Açmanız Gereken Hesaplar
+Servis	Link	Ne İçin	Süre
+GitHub	github.com	Kod deposu, CI/CD	5 dk
+Supabase	supabase.com	PostgreSQL + RLS	10 dk
+Vercel	vercel.com	Frontend deploy	5 dk
+Railway	railway.app	Backend deploy	5 dkUpdate Todos
+
+FAZA 0 — HAZIRLIK: Tüm hesapları aç ve API başvurularını yap
+
+FAZA 0 — Meta WhatsApp Business API başvurusu yap (en uzun süreç, hemen başla)
+
+FAZA 0 — Geliştirme ortamını kur (Node.js, Git, VS Code, Claude Code CLI)
+
+FAZA 0 — GitHub monorepo oluştur, branch stratejisini kur (main/develop)
+
+FAZA 0 — Supabase, Vercel, Railway, Upstash Redis hesaplarını aç
+
+FAZA 0 — .env.example dosyasını hazırla, tüm API key'leri topla
+
+FAZA 1 — Monorepo yapısını kur (apps/web + apps/api + packages/shared)
+
+FAZA 1 — Prisma schema.prisma yaz: tüm PRD tablolarını implement et
+
+FAZA 1 — PostgreSQL RLS politikalarını kur, multi-tenant middleware yaz
+
+FAZA 1 — Auth sistemi: NextAuth + JWT + refresh token rotation
+
+FAZA 1 — GitHub Actions CI/CD pipeline kur (lint + test + deploy)
+
+FAZA 1 — Onboarding sihirbazı (5 adım): salon bilgisi, hizmet, personel, WhatsApp bağlama
+
+FAZA 2 — Hizmet ve personel CRUD API + UI (çalışma saatleri, prim oranları)
+
+FAZA 2 — Takvim bileşeni: günlük/haftalık çoklu personel görünümü, drag-drop
+
+FAZA 2 — Slot müsaitlik motoru: çakışma önleme, buffer süresi, Redis lock
+
+FAZA 2 — Manuel randevu oluşturma (panel üzerinden)
+
+FAZA 3 — WhatsApp webhook altyapısı + HMAC doğrulama + tenant routing
+
+FAZA 3 — AI niyet tespiti (GPT-4o mini + GPT-4o hibrit), sistem prompt tasarımı
+
+FAZA 3 — WhatsApp bot tam akışı: randevu al, iptal et, fiyat sor, 3 katman hata yönetimi
+
+FAZA 3 — BullMQ hatırlatma sistemi: T-24h ve T-2h WhatsApp mesajları
+
+FAZA 4 — Kasa yönetimi: nakit/kart girişi, günlük kapama, dijital makbuz
+
+FAZA 4 — Prim hesaplama motoru: hizmet bazlı, personel özet görünümü
+
+FAZA 4 — Aylık gelir raporu (temel)
+
+FAZA 5 — Müşteri profili: işlem geçmişi, alerji notları, WhatsApp tanıma
+
+FAZA 5 — Dashboard KPI widget'ları: bugünkü gelir, doluluk, bekleyen randevular
+
+FAZA 6 — Security audit: OWASP kontrol listesi, KVKK uyumluluk
+
+FAZA 6 — 5 pilot salon ile beta test, geri bildirimleri topla
+
+FAZA 6 — Landing page + SEO + fiyatlandırma sayfası
+
+FAZA 6 — Resmi lansman: ilk 50 ödeme yapan müşteriyi kazan
+BeautyOS — Başlangıç Planı & Tam Rehber
+FAZA 0 — HAZIRLIK (Bu Hafta, Koddan Önce)
+Bu faza en kritik fazadır. Kod yazmadan önce her şeyi hazırlamazsanız ilerleyen haftalarda günler kaybedersiniz.
+
+A. Açmanız Gereken Hesaplar
+Servis	Link	Ne İçin	Süre
+GitHub	github.com	Kod deposu, CI/CD	5 dk
+Supabase	supabase.com	PostgreSQL + RLS	10 dk
+Vercel	vercel.com	Frontend deploy	5 dk
+Railway	railway.app	Backend deploy	5 dk
+Upstash	upstash.com	Redis	5 dk
+Cloudflare	cloudflare.com	R2 depolama, DNS	10 dk
+OpenAI	platform.openai.com	GPT-4o API	10 dk + ödeme
+Anthropic	console.anthropic.com	Claude API (yedek)	10 dk + ödeme
+Resend	resend.com	E-posta	5 dk
+Sentry	sentry.io	Hata takibi	5 dk
+PostHog	posthog.com	Analitik	5 dk
+NanoBanana	nanobanana.com	Görsel üretim	5 dk
+B. 🚨 EN KRİTİK: Meta WhatsApp Business API (HEMEN BAŞLAYIN)
+Bu süreç 2–8 hafta sürüyor. Kod yazmaya başlamadan önce bugün başvuruda bulunun.
+
+Adımlar:
+
+business.facebook.com → Facebook Business Manager hesabı aç
+İşletme adı: BeautyOS Teknoloji (veya şirket adınız)
+İşletme doğrulama belgelerini yükle (vergi levhası / imza sirküleri)
+WhatsApp Business hesabı talep et
+360dialog.com'a BSP ortağı olarak kayıt ol (onayı hızlandırır)
+⚠️ Bu başvuru olmadan WhatsApp AI özelliği çalışmaz. Her şeyden önce yapın.
+
+C. Development Environment
+
+# Bilgisayarınızda kurulu olması gerekenler
+node --version   # v20 LTS olmalı
+git --version
+code --version   # VS Code
+
+# Claude Code CLI kurulumu
+npm install -g @anthropic-ai/claude-code
+
+# Proje klasörüne girin
+cd BeautyOS
+claude   # Claude Code başlatır
+D. Hazırlamanız Gereken .env Dosyası
+Tüm API key'lerinizi toplamadan koda başlamayın. Şu şablonu bir yere kopyalayın, doldururken ilerleyin:
+
+
+# Veritabanı (Supabase'den alınır)
+DATABASE_URL=""
+DIRECT_URL=""
+
+# Auth
+NEXTAUTH_SECRET=""           # openssl rand -base64 32
+NEXTAUTH_URL="http://localhost:3000"
+
+# AI
+OPENAI_API_KEY=""
+ANTHROPIC_API_KEY=""
+
+# WhatsApp (Başvuru onaylanınca gelir)
+WHATSAPP_API_TOKEN=""
+WHATSAPP_PHONE_NUMBER_ID=""
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=""  # Kendiniz belirleyin
+
+# Ödeme
+IYZICO_API_KEY=""
+IYZICO_SECRET_KEY=""
+STRIPE_SECRET_KEY=""
+
+# Redis (Upstash'ten alınır)
+REDIS_URL=""
+
+# Depolama (Cloudflare R2)
+CLOUDFLARE_R2_ACCESS_KEY=""
+CLOUDFLARE_R2_SECRET_KEY=""
+CLOUDFLARE_R2_BUCKET="beautyos-media"
+
+# E-posta
+RESEND_API_KEY=""
+
+# Monitoring
+SENTRY_DSN=""
+NEXT_PUBLIC_POSTHOG_KEY=""
+FAZA PLANI (16 Hafta)
+
+Hafta 1-2:   FAZA 0+1 — Hazırlık + Temel Altyapı
+Hafta 3-4:   FAZA 1 — Auth, Onboarding, CI/CD
+Hafta 5-7:   FAZA 2 — Takvim & Randevu Yönetimi
+Hafta 8-10:  FAZA 3 — WhatsApp AI Entegrasyonu
+Hafta 11-12: FAZA 4 — Finans & Prim Modülü
+Hafta 13-14: FAZA 5 — CRM & Dashboard
+Hafta 15:    FAZA 6 — Güvenlik + Beta Test
+Hafta 16:    FAZA 6 — Lansman
+Claude ile Nasıl İletişim Kurmalısınız?
+Bu bölümü ezberleyin. Doğru şekilde iletişim kurduğunuzda Claude'dan 10 kat daha iyi sonuç alırsınız.
+
+Altın Kural: Agent + Bağlam + Kısıt + Format
+Her mesajınız şu yapıyı izlesin:
+
+
+[Hangi agent rolü] + [Ne yapmak istiyorum] + [Mevcut durum/kısıtlar] + [Çıktı formatı]
+Kötü örnek:
+
+"Takvim yap"
+
+İyi örnek:
+
+"agents/01_frontend.md rolünü üstlen. BeautyOS takvim sayfasını oluştur:
+haftalık görünümde yan yana personel sütunları, FullCalendar kullanarak,
+Tailwind + shadcn/ui ile stillendir. Prisma'daki appointments tablosu zaten
+var. TanStack Query ile /api/v1/tenants/:id/appointments?date=&view=week
+endpoint'inden veri çekecek. TypeScript bileşen kodu + kullanım örneği istiyorum."
+
+Etkili Claude Oturumu Başlatma
+Her geliştirme oturumu başında Claude'a şunu verin:
+
+
+Bu oturumda BeautyOS projesinde çalışıyorum.
+Stack: Next.js 14 App Router, TypeScript, Tailwind, shadcn/ui (frontend)
+       Node.js + Express + Prisma + PostgreSQL (backend)
+Mevcut durum: [ne tamamlandı, ne tamamlanmadı]
+Bu oturumda yapmak istediğim: [tek bir görev]
+Her Faz İçin Kullanacağınız Agent'lar
+Faz	Kullanacağınız Agent Dosyaları
+Faza 0 (Hazırlık)	09_devops.md, 06_database.md
+Faza 1 (Altyapı)	06_database.md → 02_backend.md → 09_devops.md
+Faza 2 (Takvim)	02_backend.md + 01_frontend.md
+Faza 3 (WhatsApp AI)	03_whatsapp_ai.md + 02_backend.md
+Faza 4 (Finans)	02_backend.md + 01_frontend.md + 08_payment.md
+Faza 5 (CRM)	01_frontend.md + 02_backend.md
+Faza 6 (Launch)	07_security.md + 11_seo_content.md + 04_marketing.md + 05_visual_design.md
+Her Sprint Sonunda Yapmanız Gereken Kontroller
+
+KOD KALİTESİ
+[ ] TypeScript hata yok (npm run type-check)
+[ ] ESLint uyarı yok (npm run lint)
+[ ] Testler geçiyor (npm run test)
+[ ] npm audit temiz (high/critical CVE yok)
+
+GÜVENLİK (Security Agent ile haftada bir)
+[ ] Yeni endpoint'lerde tenant_id kontrolü var mı?
+[ ] Ham kullanıcı input'u SQL'e doğrudan giriyor mu? (Hayır olmalı)
+[ ] Hassas veri log'a yazılıyor mu? (Hayır olmalı)
+[ ] Rate limiting uygulandı mı?
+
+VERİTABANI
+[ ] Migration geri alınabilir mi? (down migration var mı?)
+[ ] Yeni sorgu için index gerekli mi?
+[ ] RLS politikası güncellendi mi?
+
+DEPLOYMENT
+[ ] Staging'de test edildi mi?
+[ ] Environment variable eklendiyse Vercel/Railway'e de girildi mi?
+[ ] Sentry'de yeni hata var mı?
+Sık Yapılan Hatalar ve Kaçınma Yolları
+Hata	Kaçınma Yolu
+"Her şeyi tek seferde yaz" demek	Küçük parçalar: önce API, sonra UI
+Kodu test etmeden ilerlemek	Her endpoint için en az 1 Supertest testi
+.env dosyasını GitHub'a göndermek	.gitignore'a ekleyin, git add yapmadan önce git status bakın
+WhatsApp API başvurusunu ertelemek	Bugün yapın
+Güvenliği sona bırakmak	Her yeni endpoint'ten sonra Security Agent ile review
+Migration'ı üretimde test etmek	Her zaman önce staging
+İlk Adım — Şimdi Yapın
+Bugün sadece şunu yapın:
+
+Meta Business Manager hesabı aç ve WhatsApp API başvurusu yap
+GitHub'da beautyos adında private repo oluştur
+Yukarıdaki hesapları aç
+.env.example dosyasını proje klasörüne koy
+Hazır olduğunuzda bana "İlk adımı tamamladım, Faza 1'e başlayalım" deyin — monorepo yapısını, Prisma şemasını ve auth sistemini birlikte kuracağız.Update Todos
+
+FAZA 0 — HAZIRLIK: Tüm hesapları aç ve API başvurularını yap
+
+FAZA 0 — Meta WhatsApp Business API başvurusu yap (en uzun süreç, hemen başla)
+
+FAZA 0 — Geliştirme ortamını kur (Node.js, Git, VS Code, Claude Code CLI)
+
+FAZA 0 — GitHub monorepo oluştur, branch stratejisini kur (main/develop)
+
+FAZA 0 — Supabase, Vercel, Railway, Upstash Redis hesaplarını aç
+
+FAZA 0 — .env.example dosyasını hazırla, tüm API key'leri topla
+
+FAZA 1 — Monorepo yapısını kur (apps/web + apps/api + packages/shared)
+
+FAZA 1 — Prisma schema.prisma yaz: tüm PRD tablolarını implement et
+
+FAZA 1 — PostgreSQL RLS politikalarını kur, multi-tenant middleware yaz
+
+FAZA 1 — Auth sistemi: NextAuth + JWT + refresh token rotation
+
+FAZA 1 — GitHub Actions CI/CD pipeline kur (lint + test + deploy)
+
+FAZA 1 — Onboarding sihirbazı (5 adım): salon bilgisi, hizmet, personel, WhatsApp bağlama
+
+FAZA 2 — Hizmet ve personel CRUD API + UI (çalışma saatleri, prim oranları)
+
+FAZA 2 — Takvim bileşeni: günlük/haftalık çoklu personel görünümü, drag-drop
+
+FAZA 2 — Slot müsaitlik motoru: çakışma önleme, buffer süresi, Redis lock
+
+FAZA 2 — Manuel randevu oluşturma (panel üzerinden)
+
+FAZA 3 — WhatsApp webhook altyapısı + HMAC doğrulama + tenant routing
+
+FAZA 3 — AI niyet tespiti (GPT-4o mini + GPT-4o hibrit), sistem prompt tasarımı
+
+FAZA 3 — WhatsApp bot tam akışı: randevu al, iptal et, fiyat sor, 3 katman hata yönetimi
+
+FAZA 3 — BullMQ hatırlatma sistemi: T-24h ve T-2h WhatsApp mesajları
+
+FAZA 4 — Kasa yönetimi: nakit/kart girişi, günlük kapama, dijital makbuz
+
+FAZA 4 — Prim hesaplama motoru: hizmet bazlı, personel özet görünümü
+
+FAZA 4 — Aylık gelir raporu (temel)
+
+FAZA 5 — Müşteri profili: işlem geçmişi, alerji notları, WhatsApp tanıma
+
+FAZA 5 — Dashboard KPI widget'ları: bugünkü gelir, doluluk, bekleyen randevular
+
+FAZA 6 — Security audit: OWASP kontrol listesi, KVKK uyumluluk
+
+FAZA 6 — 5 pilot salon ile beta test, geri bildirimleri topla
+
+FAZA 6 — Landing page + SEO + fiyatlandırma sayfası
+
+FAZA 6 — Resmi lansman: ilk 50 ödeme yapan müşteriyi kazan
+BeautyOS — Başlangıç Planı & Tam Rehber
+FAZA 0 — HAZIRLIK (Bu Hafta, Koddan Önce)
+Bu faza en kritik fazadır. Kod yazmadan önce her şeyi hazırlamazsanız ilerleyen haftalarda günler kaybedersiniz.
+
+A. Açmanız Gereken Hesaplar
+Servis	Link	Ne İçin	Süre
+GitHub	github.com	Kod deposu, CI/CD	5 dk
+Supabase	supabase.com	PostgreSQL + RLS	10 dk
+Vercel	vercel.com	Frontend deploy	5 dk
+Railway	railway.app	Backend deploy	5 dk
+Upstash	upstash.com	Redis	5 dk
+Cloudflare	cloudflare.com	R2 depolama, DNS	10 dk
+OpenAI	platform.openai.com	GPT-4o API	10 dk + ödeme
+Anthropic	console.anthropic.com	Claude API (yedek)	10 dk + ödeme
+Resend	resend.com	E-posta	5 dk
+Sentry	sentry.io	Hata takibi	5 dk
+PostHog	posthog.com	Analitik	5 dk
+NanoBanana	nanobanana.com	Görsel üretim	5 dk
+B. 🚨 EN KRİTİK: Meta WhatsApp Business API (HEMEN BAŞLAYIN)
+Bu süreç 2–8 hafta sürüyor. Kod yazmaya başlamadan önce bugün başvuruda bulunun.
+
+Adımlar:
+
+business.facebook.com → Facebook Business Manager hesabı aç
+İşletme adı: BeautyOS Teknoloji (veya şirket adınız)
+İşletme doğrulama belgelerini yükle (vergi levhası / imza sirküleri)
+WhatsApp Business hesabı talep et
+360dialog.com'a BSP ortağı olarak kayıt ol (onayı hızlandırır)
+⚠️ Bu başvuru olmadan WhatsApp AI özelliği çalışmaz. Her şeyden önce yapın.
+
+C. Development Environment
+
+# Bilgisayarınızda kurulu olması gerekenler
+node --version   # v20 LTS olmalı
+git --version
+code --version   # VS Code
+
+# Claude Code CLI kurulumu
+npm install -g @anthropic-ai/claude-code
+
+# Proje klasörüne girin
+cd BeautyOS
+claude   # Claude Code başlatır
+D. Hazırlamanız Gereken .env Dosyası
+Tüm API key'lerinizi toplamadan koda başlamayın. Şu şablonu bir yere kopyalayın, doldururken ilerleyin:
+
+
+# Veritabanı (Supabase'den alınır)
+DATABASE_URL=""
+DIRECT_URL=""
+
+# Auth
+NEXTAUTH_SECRET=""           # openssl rand -base64 32
+NEXTAUTH_URL="http://localhost:3000"
+
+# AI
+OPENAI_API_KEY=""
+ANTHROPIC_API_KEY=""
+
+# WhatsApp (Başvuru onaylanınca gelir)
+WHATSAPP_API_TOKEN=""
+WHATSAPP_PHONE_NUMBER_ID=""
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=""  # Kendiniz belirleyin
+
+# Ödeme
+IYZICO_API_KEY=""
+IYZICO_SECRET_KEY=""
+STRIPE_SECRET_KEY=""
+
+# Redis (Upstash'ten alınır)
+REDIS_URL=""
+
+# Depolama (Cloudflare R2)
+CLOUDFLARE_R2_ACCESS_KEY=""
+CLOUDFLARE_R2_SECRET_KEY=""
+CLOUDFLARE_R2_BUCKET="beautyos-media"
+
+# E-posta
+RESEND_API_KEY=""
+
+# Monitoring
+SENTRY_DSN=""
+NEXT_PUBLIC_POSTHOG_KEY=""
+FAZA PLANI (16 Hafta)
+
+Hafta 1-2:   FAZA 0+1 — Hazırlık + Temel Altyapı
+Hafta 3-4:   FAZA 1 — Auth, Onboarding, CI/CD
+Hafta 5-7:   FAZA 2 — Takvim & Randevu Yönetimi
+Hafta 8-10:  FAZA 3 — WhatsApp AI Entegrasyonu
+Hafta 11-12: FAZA 4 — Finans & Prim Modülü
+Hafta 13-14: FAZA 5 — CRM & Dashboard
+Hafta 15:    FAZA 6 — Güvenlik + Beta Test
+Hafta 16:    FAZA 6 — Lansman
+Claude ile Nasıl İletişim Kurmalısınız?
+Bu bölümü ezberleyin. Doğru şekilde iletişim kurduğunuzda Claude'dan 10 kat daha iyi sonuç alırsınız.
+
+Altın Kural: Agent + Bağlam + Kısıt + Format
+Her mesajınız şu yapıyı izlesin:
+
+
+[Hangi agent rolü] + [Ne yapmak istiyorum] + [Mevcut durum/kısıtlar] + [Çıktı formatı]
+Kötü örnek:
+
+"Takvim yap"
+
+İyi örnek:
+
+"agents/01_frontend.md rolünü üstlen. BeautyOS takvim sayfasını oluştur:
+haftalık görünümde yan yana personel sütunları, FullCalendar kullanarak,
+Tailwind + shadcn/ui ile stillendir. Prisma'daki appointments tablosu zaten
+var. TanStack Query ile /api/v1/tenants/:id/appointments?date=&view=week
+endpoint'inden veri çekecek. TypeScript bileşen kodu + kullanım örneği istiyorum."
+
+Etkili Claude Oturumu Başlatma
+Her geliştirme oturumu başında Claude'a şunu verin:
+
+
+Bu oturumda BeautyOS projesinde çalışıyorum.
+Stack: Next.js 14 App Router, TypeScript, Tailwind, shadcn/ui (frontend)
+       Node.js + Express + Prisma + PostgreSQL (backend)
+Mevcut durum: [ne tamamlandı, ne tamamlanmadı]
+Bu oturumda yapmak istediğim: [tek bir görev]
+Her Faz İçin Kullanacağınız Agent'lar
+Faz	Kullanacağınız Agent Dosyaları
+Faza 0 (Hazırlık)	09_devops.md, 06_database.md
+Faza 1 (Altyapı)	06_database.md → 02_backend.md → 09_devops.md
+Faza 2 (Takvim)	02_backend.md + 01_frontend.md
+Faza 3 (WhatsApp AI)	03_whatsapp_ai.md + 02_backend.md
+Faza 4 (Finans)	02_backend.md + 01_frontend.md + 08_payment.md
+Faza 5 (CRM)	01_frontend.md + 02_backend.md
+Faza 6 (Launch)	07_security.md + 11_seo_content.md + 04_marketing.md + 05_visual_design.md
+Her Sprint Sonunda Yapmanız Gereken Kontroller
+
+KOD KALİTESİ
+[ ] TypeScript hata yok (npm run type-check)
+[ ] ESLint uyarı yok (npm run lint)
+[ ] Testler geçiyor (npm run test)
+[ ] npm audit temiz (high/critical CVE yok)
+
+GÜVENLİK (Security Agent ile haftada bir)
+[ ] Yeni endpoint'lerde tenant_id kontrolü var mı?
+[ ] Ham kullanıcı input'u SQL'e doğrudan giriyor mu? (Hayır olmalı)
+[ ] Hassas veri log'a yazılıyor mu? (Hayır olmalı)
+[ ] Rate limiting uygulandı mı?
+
+VERİTABANI
+[ ] Migration geri alınabilir mi? (down migration var mı?)
+[ ] Yeni sorgu için index gerekli mi?
+[ ] RLS politikası güncellendi mi?
+
+DEPLOYMENT
+[ ] Staging'de test edildi mi?
+[ ] Environment variable eklendiyse Vercel/Railway'e de girildi mi?
+[ ] Sentry'de yeni hata var mı?
+Sık Yapılan Hatalar ve Kaçınma Yolları
+Hata	Kaçınma Yolu
+"Her şeyi tek seferde yaz" demek	Küçük parçalar: önce API, sonra UI
+Kodu test etmeden ilerlemek	Her endpoint için en az 1 Supertest testi
+.env dosyasını GitHub'a göndermek	.gitignore'a ekleyin, git add yapmadan önce git status bakın
+WhatsApp API başvurusunu ertelemek	Bugün yapın
+Güvenliği sona bırakmak	Her yeni endpoint'ten sonra Security Agent ile review
+Migration'ı üretimde test etmek	Her zaman önce staging
+İlk Adım — Şimdi Yapın
+Bugün sadece şunu yapın:
+
+Meta Business Manager hesabı aç ve WhatsApp API başvurusu yap
+GitHub'da beautyos adında private repo oluştur
+Yukarıdaki hesapları aç
+.env.example dosyasını proje klasörüne koy
+Hazır olduğunuzda bana "İlk adımı tamamladım, Faza 1'e başlayalım" deyin — monorepo yapısını, Prisma şemasını ve auth sistemini birlikte kuracağız.
+Upstash	upstash.com	Redis	5 dk
+Cloudflare	cloudflare.com	R2 depolama, DNS	10 dk
+OpenAI	platform.openai.com	GPT-4o API	10 dk + ödeme
+Anthropic	console.anthropic.com	Claude API (yedek)	10 dk + ödeme
+Resend	resend.com	E-posta	5 dk
+Sentry	sentry.io	Hata takibi	5 dk
+PostHog	posthog.com	Analitik	5 dk
+NanoBanana	nanobanana.com	Görsel üretim	5 dk
+B. 🚨 EN KRİTİK: Meta WhatsApp Business API (HEMEN BAŞLAYIN)
+Bu süreç 2–8 hafta sürüyor. Kod yazmaya başlamadan önce bugün başvuruda bulunun.
+
+Adımlar:
+
+business.facebook.com → Facebook Business Manager hesabı aç
+İşletme adı: BeautyOS Teknoloji (veya şirket adınız)
+İşletme doğrulama belgelerini yükle (vergi levhası / imza sirküleri)
+WhatsApp Business hesabı talep et
+360dialog.com'a BSP ortağı olarak kayıt ol (onayı hızlandırır)
+⚠️ Bu başvuru olmadan WhatsApp AI özelliği çalışmaz. Her şeyden önce yapın.
+
+C. Development Environment
+
+# Bilgisayarınızda kurulu olması gerekenler
+node --version   # v20 LTS olmalı
+git --version
+code --version   # VS Code
+
+# Claude Code CLI kurulumu
+npm install -g @anthropic-ai/claude-code
+
+# Proje klasörüne girin
+cd BeautyOS
+claude   # Claude Code başlatır
+D. Hazırlamanız Gereken .env Dosyası
+Tüm API key'lerinizi toplamadan koda başlamayın. Şu şablonu bir yere kopyalayın, doldururken ilerleyin:
+
+
+# Veritabanı (Supabase'den alınır)
+DATABASE_URL=""
+DIRECT_URL=""
+
+# Auth
+NEXTAUTH_SECRET=""           # openssl rand -base64 32
+NEXTAUTH_URL="http://localhost:3000"
+
+# AI
+OPENAI_API_KEY=""
+ANTHROPIC_API_KEY=""
+
+# WhatsApp (Başvuru onaylanınca gelir)
+WHATSAPP_API_TOKEN=""
+WHATSAPP_PHONE_NUMBER_ID=""
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=""  # Kendiniz belirleyin
+
+# Ödeme
+IYZICO_API_KEY=""
+IYZICO_SECRET_KEY=""
+STRIPE_SECRET_KEY=""
+
+# Redis (Upstash'ten alınır)
+REDIS_URL=""
+
+# Depolama (Cloudflare R2)
+CLOUDFLARE_R2_ACCESS_KEY=""
+CLOUDFLARE_R2_SECRET_KEY=""
+CLOUDFLARE_R2_BUCKET="beautyos-media"
+
+# E-posta
+RESEND_API_KEY=""
+
+# Monitoring
+SENTRY_DSN=""
+NEXT_PUBLIC_POSTHOG_KEY=""
+FAZA PLANI (16 Hafta)
+
+Hafta 1-2:   FAZA 0+1 — Hazırlık + Temel Altyapı
+Hafta 3-4:   FAZA 1 — Auth, Onboarding, CI/CD
+Hafta 5-7:   FAZA 2 — Takvim & Randevu Yönetimi
+Hafta 8-10:  FAZA 3 — WhatsApp AI Entegrasyonu
+Hafta 11-12: FAZA 4 — Finans & Prim Modülü
+Hafta 13-14: FAZA 5 — CRM & Dashboard
+Hafta 15:    FAZA 6 — Güvenlik + Beta Test
+Hafta 16:    FAZA 6 — Lansman
+Claude ile Nasıl İletişim Kurmalısınız?
+Bu bölümü ezberleyin. Doğru şekilde iletişim kurduğunuzda Claude'dan 10 kat daha iyi sonuç alırsınız.
+
+Altın Kural: Agent + Bağlam + Kısıt + Format
+Her mesajınız şu yapıyı izlesin:
+
+
+[Hangi agent rolü] + [Ne yapmak istiyorum] + [Mevcut durum/kısıtlar] + [Çıktı formatı]
+Kötü örnek:
+
+"Takvim yap"
+
+İyi örnek:
+
+"agents/01_frontend.md rolünü üstlen. BeautyOS takvim sayfasını oluştur:
+haftalık görünümde yan yana personel sütunları, FullCalendar kullanarak,
+Tailwind + shadcn/ui ile stillendir. Prisma'daki appointments tablosu zaten
+var. TanStack Query ile /api/v1/tenants/:id/appointments?date=&view=week
+endpoint'inden veri çekecek. TypeScript bileşen kodu + kullanım örneği istiyorum."
+
+Etkili Claude Oturumu Başlatma
+Her geliştirme oturumu başında Claude'a şunu verin:
+
+
+Bu oturumda BeautyOS projesinde çalışıyorum.
+Stack: Next.js 14 App Router, TypeScript, Tailwind, shadcn/ui (frontend)
+       Node.js + Express + Prisma + PostgreSQL (backend)
+Mevcut durum: [ne tamamlandı, ne tamamlanmadı]
+Bu oturumda yapmak istediğim: [tek bir görev]
+Her Faz İçin Kullanacağınız Agent'lar
+Faz	Kullanacağınız Agent Dosyaları
+Faza 0 (Hazırlık)	09_devops.md, 06_database.md
+Faza 1 (Altyapı)	06_database.md → 02_backend.md → 09_devops.md
+Faza 2 (Takvim)	02_backend.md + 01_frontend.md
+Faza 3 (WhatsApp AI)	03_whatsapp_ai.md + 02_backend.md
+Faza 4 (Finans)	02_backend.md + 01_frontend.md + 08_payment.md
+Faza 5 (CRM)	01_frontend.md + 02_backend.md
+Faza 6 (Launch)	07_security.md + 11_seo_content.md + 04_marketing.md + 05_visual_design.md
+Her Sprint Sonunda Yapmanız Gereken Kontroller
+
+KOD KALİTESİ
+[ ] TypeScript hata yok (npm run type-check)
+[ ] ESLint uyarı yok (npm run lint)
+[ ] Testler geçiyor (npm run test)
+[ ] npm audit temiz (high/critical CVE yok)
+
+GÜVENLİK (Security Agent ile haftada bir)
+[ ] Yeni endpoint'lerde tenant_id kontrolü var mı?
+[ ] Ham kullanıcı input'u SQL'e doğrudan giriyor mu? (Hayır olmalı)
+[ ] Hassas veri log'a yazılıyor mu? (Hayır olmalı)
+[ ] Rate limiting uygulandı mı?
+
+VERİTABANI
+[ ] Migration geri alınabilir mi? (down migration var mı?)
+[ ] Yeni sorgu için index gerekli mi?
+[ ] RLS politikası güncellendi mi?
+
+DEPLOYMENT
+[ ] Staging'de test edildi mi?
+[ ] Environment variable eklendiyse Vercel/Railway'e de girildi mi?
+[ ] Sentry'de yeni hata var mı?
+Sık Yapılan Hatalar ve Kaçınma Yolları
+Hata	Kaçınma Yolu
+"Her şeyi tek seferde yaz" demek	Küçük parçalar: önce API, sonra UI
+Kodu test etmeden ilerlemek	Her endpoint için en az 1 Supertest testi
+.env dosyasını GitHub'a göndermek	.gitignore'a ekleyin, git add yapmadan önce git status bakın
+WhatsApp API başvurusunu ertelemek	Bugün yapın
+Güvenliği sona bırakmak	Her yeni endpoint'ten sonra Security Agent ile review
+Migration'ı üretimde test etmek	Her zaman önce staging
+İlk Adım — Şimdi Yapın
+Bugün sadece şunu yapın:
+
+Meta Business Manager hesabı aç ve WhatsApp API başvurusu yap
+GitHub'da beautyos adında private repo oluştur
+Yukarıdaki hesapları aç
+.env.example dosyasını proje klasörüne koy
+Hazır olduğunuzda bana "İlk adımı tamamladım, Faza 1'e başlayalım" deyin — monorepo yapısını, Prisma şemasını ve auth sistemini birlikte kuracağız.
