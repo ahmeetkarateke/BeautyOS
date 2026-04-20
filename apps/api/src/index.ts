@@ -12,7 +12,11 @@ async function bootstrap(): Promise<void> {
   // ─── Bağımlılıkları başlat ─────────────────────────────────────────────────
 
   const sessionService = new SessionService(process.env.REDIS_URL ?? 'redis://localhost:6379')
-  await sessionService.connect()
+  try {
+    await sessionService.connect()
+  } catch (error) {
+    logger.error({ error }, 'Redis bağlantısı kurulamadı — uygulama yine de başlatılıyor')
+  }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
   const intentService = new IntentService(genAI)
