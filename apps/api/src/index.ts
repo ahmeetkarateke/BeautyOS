@@ -45,6 +45,36 @@ async function bootstrap(): Promise<void> {
     res.json({ service: 'BeautyOS API', version: '1.0.0', status: 'ok' })
   })
 
+  // ─── Geçici debug endpoint (AI + Redis bağlantı testi) ───────────────────
+
+  app.get('/debug', async (_req, res) => {
+    const results: Record<string, unknown> = {}
+
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+      const r = await model.generateContent('Say "ok"')
+      results.gemini = { ok: true, reply: r.response.text().slice(0, 50) }
+    } catch (e: unknown) {
+      results.gemini = { ok: false, error: (e as Error).message?.slice(0, 200) }
+    }
+
+    try {
+      const alive = await sessionService.ping()
+      results.redis = { ok: alive }
+    } catch (e: unknown) {
+      results.redis = { ok: false, error: (e as Error).message?.slice(0, 100) }
+    }
+
+    results.env = {
+      hasGeminiKey: !!process.env.GEMINI_API_KEY,
+      hasTelegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
+      hasRedisUrl: !!process.env.REDIS_URL,
+      publicUrl: process.env.PUBLIC_URL,
+    }
+
+    res.json(results)
+  })
+
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
 
   const port = Number(process.env.PORT ?? 3001)
