@@ -160,4 +160,8 @@ export class SessionService {
       return false
     }
   }
+
+  getRedis(): Redis {
+    return this.redis
+  }
 }

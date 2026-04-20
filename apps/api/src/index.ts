@@ -6,6 +6,7 @@ import { SessionService } from './session/session.service'
 import { IntentService } from './ai/intent.service'
 import { FlowHandler } from './bot/flow.handler'
 import { createWebhookRouter } from './routes/webhook.route'
+import { TenantRegistry } from './lib/tenant.registry'
 import { logger } from './lib/logger'
 
 async function bootstrap(): Promise<void> {
@@ -17,6 +18,8 @@ async function bootstrap(): Promise<void> {
   } catch (error) {
     logger.error({ error }, 'Redis bağlantısı kurulamadı — uygulama yine de başlatılıyor')
   }
+
+  const tenantRegistry = new TenantRegistry(sessionService.getRedis())
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
   const intentService = new IntentService(genAI)
@@ -37,7 +40,7 @@ async function bootstrap(): Promise<void> {
     }),
   )
 
-  app.use('/webhook', createWebhookRouter(flowHandler))
+  app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
 
   // ─── Root health check ────────────────────────────────────────────────────
 
