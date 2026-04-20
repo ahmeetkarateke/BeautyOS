@@ -1,6 +1,6 @@
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
-import type { BookingChannel } from '../generated/prisma/enums'
+import type { BookingChannel } from '@prisma/client'
 
 // ─── Saat dilimleri (Türkiye: UTC+3) ─────────────────────────────────────────
 
