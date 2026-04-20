@@ -3,7 +3,7 @@ FROM node:24-slim
 WORKDIR /app
 
 COPY apps/api/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY apps/api/ ./
 
