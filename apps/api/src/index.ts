@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import * as Sentry from '@sentry/node'
 import express from 'express'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { initChannels, getChannel } from './channels/channel.factory'
@@ -8,6 +9,14 @@ import { FlowHandler } from './bot/flow.handler'
 import { createWebhookRouter } from './routes/webhook.route'
 import { TenantRegistry } from './lib/tenant.registry'
 import { logger } from './lib/logger'
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: 0.2,
+  })
+}
 
 async function bootstrap(): Promise<void> {
   // ─── Bağımlılıkları başlat ─────────────────────────────────────────────────
@@ -39,6 +48,8 @@ async function bootstrap(): Promise<void> {
       },
     }),
   )
+
+  Sentry.setupExpressErrorHandler(app)
 
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
 

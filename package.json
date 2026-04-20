@@ -6,11 +6,13 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=apps/api",
-    "build": "npm run build --workspace=apps/api",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web",
     "test": "npm run test --workspace=apps/api",
-    "lint": "npm run lint --workspace=apps/api",
-    "type-check": "npm run type-check --workspace=apps/api"
+    "lint": "npm run lint --workspace=apps/api && npm run lint --workspace=apps/web",
+    "type-check": "npm run type-check --workspace=apps/api && npm run type-check --workspace=apps/web"
   },
   "engines": {
     "node": ">=20.0.0"
