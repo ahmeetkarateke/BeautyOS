@@ -13,26 +13,32 @@
 
 ### Geliştirme Durumu (Nisan 2026)
 
+**Son güncelleme: 20 Nisan 2026**
+
 | Bileşen | Durum | Notlar |
 |---|---|---|
 | PRD & Mimari | ✅ Tamamlandı | v1.2, maliyet analizi ve risk bölümleri dahil |
 | Agent Ekibi (12 agent) | ✅ Tamamlandı | `agents/` klasöründe, her domain için ayrı .md |
 | Messaging Abstraction Layer | ✅ Tamamlandı | `apps/api/src/channels/` — Telegram + WhatsApp stub |
-| Telegram Bot (AI akışı) | ✅ Tamamlandı | GPT-4o hibrit, Redis session, 3 katman hata yönetimi |
+| Telegram Bot (AI akışı) | ✅ Canlıda | Gemini 2.5 Flash/Pro, Redis session, tam booking flow test edildi |
+| Railway Deployment | ✅ Canlıda | `https://beautyosapi-production.up.railway.app` — tüm env var'lar set |
+| Supabase (PostgreSQL) | ✅ Bağlı | Session pooler üzerinden IPv4 bağlantısı, Prisma hazır |
+| Redis (Upstash) | ✅ Bağlı | TLS bağlantısı aktif, session yönetimi çalışıyor |
+| Gemini API | ✅ Bağlı | Billing aktif — gemini-2.5-flash (intent) + gemini-2.5-pro (karmaşık tur) |
 | WhatsApp Bot | ⏳ Beklemede | Meta BSP onayı bekleniyor — stub hazır, geçiş 1-2 gün |
-| Backend API (Express) | 🔄 Başlangıç | Temel yapı kuruldu, iş mantığı henüz yazılmadı |
+| Prisma Şeması | ❌ Başlanmadı | Sıradaki kritik görev |
 | Frontend (Next.js) | ❌ Başlanmadı | Faza 2'de başlanacak |
-| Veritabanı (Prisma) | ❌ Başlanmadı | Faza 1'in ilk görevi |
 | Ödeme (iyzico/Stripe) | ❌ Başlanmadı | Phase 1 dışı kapsam |
 
 ### Kritik Mimari Kararlar
 
 1. **Telegram-first geliştirme:** Meta WhatsApp API onayı 2-8 hafta sürdüğü için geliştirme ve testler Telegram üzerinden yürütülüyor. WhatsApp geçişi sıfır kod değişikliği gerektirir.
 2. **Messaging Abstraction Layer:** `MessagingChannel` interface'i tüm kanalları soyutlar. Bot mantığı (AI, session, flow) kanala bağımlı değildir.
-3. **AI Hibrit Model:** Konuşmaların %70'i GPT-4o mini (ekonomik), %30'u GPT-4o (karmaşık diyalog). Ortalama maliyet: ~₺45/salon/ay.
+3. **AI: OpenAI → Gemini geçişi (20 Nisan 2026):** GPT-4o yerine Gemini 2.5 Flash (ekonomik, intent) + Gemini 2.5 Pro (karmaşık diyalog) kullanılıyor. Maliyet %60+ düşük, Gemini görüntü üretimi (Faza 2) da aynı API ile kullanılabilir.
 4. **BSP Stratejisi:** Phase 1'de 360dialog üzerinden BSP ortağı, Phase 2'de direkt Meta BSP başvurusu (%30 maliyet düşüşü).
 5. **Multi-tenant DB:** Paylaşımlı şema + `tenant_id` + PostgreSQL RLS politikaları.
 6. **Fiyatlandırma revizyonu:** Eski ₺299-₺1.199 negatif margin'e yol açıyordu. Yeni: ₺499-₺1.999 (bkz. Bölüm 8).
+7. **Supabase Session Pooler:** Direkt DB bağlantısı (port 5432) IPv4 uyumsuz. Session Pooler (`aws-0-eu-west-1.pooler.supabase.com:5432`) kullanılıyor.
 
 ### Proje Klasör Yapısı
 
@@ -65,10 +71,20 @@ BeautyOS/
 
 ### Bir Sonraki Oturumda Yapılacaklar (Öncelik Sırası)
 
-1. `npm install` → `apps/api/.env` doldur → `npm run dev` ile sunucuyu ayağa kaldır
-2. Telegram bot test et: "randevu almak istiyorum", "fiyat listesi"
-3. Prisma şemasını yaz (Database Agent ile)
-4. Auth sistemi + onboarding sihirbazı (Backend Agent ile)
+> **Altyapı tamamen hazır ve canlı.** Sıradaki görevler iş mantığına odaklanıyor.
+
+1. **Prisma şeması yaz** — `Tenant`, `Salon`, `Staff`, `Service`, `Appointment`, `Customer` modelleri (Database Agent ile)
+2. **Gerçek slot sorgusu** — Mock `['10:00', '13:00', '15:30']` yerine DB'den müsait saatler
+3. **Randevu DB'ye kaydet** — `confirmBooking()` içindeki TODO'yu gerçek Prisma insert ile doldur
+4. **Sentry entegrasyonu** — Production hata takibi
+5. **Vercel** — Frontend başlamadan önce CI/CD altyapısı
+
+**Canlı servisler özeti:**
+- API: `https://beautyosapi-production.up.railway.app`
+- Telegram bot: `@BeautyOSBot` — tam booking flow çalışıyor
+- DB: Supabase PostgreSQL (Session Pooler)
+- Cache/Session: Upstash Redis (TLS)
+- AI: Google Gemini (billing aktif)
 
 ---
 
