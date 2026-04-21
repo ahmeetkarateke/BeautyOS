@@ -89,7 +89,9 @@ export class IntentService {
 
     const systemPrompt = buildSystemPrompt(salon)
     const userPrompt = buildDetectionPrompt(userMessage, session)
-    const history = toGeminiHistory(session.messages.slice(-6))
+    // Son mesaj (mevcut user input) hariç — aksi hâlde history user ile bitiyor
+    // ve sendMessage da user rolünde gidiyor: Gemini arka arkaya iki user mesajı reddediyor
+    const history = toGeminiHistory(session.messages.slice(0, -1).slice(-6))
 
     try {
       const model = this.genAI.getGenerativeModel({
@@ -136,7 +138,7 @@ export class IntentService {
     instruction: string,
   ): Promise<string> {
     const modelName = session.turnCount > 6 ? this.proModel : this.flashModel
-    const history = toGeminiHistory(session.messages.slice(-8))
+    const history = toGeminiHistory(session.messages.slice(0, -1).slice(-8))
 
     try {
       const model = this.genAI.getGenerativeModel({
