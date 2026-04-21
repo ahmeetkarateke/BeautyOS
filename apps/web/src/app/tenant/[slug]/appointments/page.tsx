@@ -1,9 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { AppointmentCalendar } from '@/components/appointments/appointment-calendar'
+import { Skeleton } from '@/components/ui/skeleton'
+
+const AppointmentCalendar = dynamic(
+  () => import('@/components/appointments/appointment-calendar').then((m) => m.AppointmentCalendar),
+  { ssr: false, loading: () => <Skeleton className="h-[600px] w-full" /> },
+)
 
 interface PageProps {
   params: { slug: string }
