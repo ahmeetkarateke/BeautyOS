@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import * as Sentry from '@sentry/node'
 import express from 'express'
+import cors from 'cors'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { initChannels, getChannel } from './channels/channel.factory'
 import { SessionService } from './session/session.service'
@@ -51,6 +52,11 @@ async function bootstrap(): Promise<void> {
   // ─── Express app ──────────────────────────────────────────────────────────
 
   const app = express()
+
+  app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3000', /\.vercel\.app$/],
+    credentials: true,
+  }))
 
   // rawBody middleware — webhook imza doğrulaması için gerekli
   app.use(
