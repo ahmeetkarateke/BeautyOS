@@ -9,13 +9,13 @@ const IntentResultSchema = z.object({
   intent: z.enum(['book', 'cancel', 'query_price', 'query_availability', 'general', 'unknown']),
   confidence: z.number().min(0).max(1),
   entities: z.object({
-    service: z.string().optional(),
-    staffPreference: z.string().optional(),
-    datePreference: z.string().optional(),
-    timePreference: z.string().optional(),
-  }),
-  requiresClarification: z.boolean(),
-  clarificationQuestion: z.string().optional(),
+    service: z.string().nullable().optional(),
+    staffPreference: z.string().nullable().optional(),
+    datePreference: z.string().nullable().optional(),
+    timePreference: z.string().nullable().optional(),
+  }).optional().default({}),
+  requiresClarification: z.boolean().optional().default(false),
+  clarificationQuestion: z.string().nullable().optional(),
 })
 
 export type IntentResult = z.infer<typeof IntentResultSchema>
@@ -241,7 +241,7 @@ MEVCUT BİLGİLER: ${JSON.stringify(session.entities)}
 SALON HİZMETLERİ: ${serviceNames}
 
 DÖNDÜR:
-{"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":"hizmet adı veya null","staffPreference":"personel tercihi veya null","datePreference":"tarih ifadesi veya null","timePreference":"saat ifadesi veya null"},"requiresClarification":true/false,"clarificationQuestion":"soru veya null"}
+{"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":"hizmet adı (yoksa alanı atla)","staffPreference":"personel (yoksa atla)","datePreference":"tarih (yoksa atla)","timePreference":"saat (yoksa atla)"},"requiresClarification":true/false}
 
 ÖRNEKLER:
 "merhaba" → {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
