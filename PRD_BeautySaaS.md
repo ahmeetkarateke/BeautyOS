@@ -199,6 +199,13 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - `staffProfile.findMany` sorgusuna `include: { user: { select: { fullName: true } } }` eklendi.
 - `staffName: sp.title` → `staffName: sp.user.fullName` ile gerçek isim gösteriliyor.
 
+**Bug 8 — "Merhaba" → unknown (chat API history sorunu) ✅**
+- `chat.startChat + sendMessage` → `model.generateContent()` ile değiştirildi. Chat API'de `systemInstruction` + boş history kombinasyonu sessiz hata üretiyordu.
+- `buildDetectionPrompt()` fully self-contained hale getirildi: system instruction, salon context, session state ve örnekler tek prompt içinde.
+- `generateReply()` da aynı şekilde `generateContent()` kullanacak şekilde güncellendi.
+- `toGeminiHistory` ve `Content` import'u kaldırıldı (artık kullanılmıyor).
+- `logger.info({ raw })` ile Railway'de Gemini ham yanıtı görülebilir.
+
 **Bug 7 — Gemini "anlayamadım" döngüsü ✅**
 - Model isimleri `gemini-2.5-flash/pro` → `gemini-2.0-flash` (GA, JSON mode tam destekli).
 - `responseMimeType: 'application/json'` kaldırıldı; JSON prompt içinde isteniyor (bazı versiyonlarda uyumsuzluk vardı).

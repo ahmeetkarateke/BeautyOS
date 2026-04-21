@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, type Content } from '@google/generative-ai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { z } from 'zod'
 import { logger } from '../lib/logger'
 import type { Intent, BookingEntities, ConversationSession } from '../session/session.service'
@@ -87,29 +87,23 @@ export class IntentService {
       ? this.proModel
       : this.flashModel
 
-    const systemPrompt = buildDetectionSystemPrompt()
-    const userPrompt = buildDetectionPrompt(userMessage, session, salon)
-    const history = toGeminiHistory(session.messages.slice(0, -1).slice(-6))
-    // Gemini history model turn ile bitmeli — user ile biterse API hatası
-    while (history.length > 0 && history[history.length - 1].role === 'user') {
-      history.pop()
-    }
+    // Detection için tek seferlik generateContent — chat/history karmaşasını önler
+    const prompt = buildDetectionPrompt(userMessage, session, salon)
 
     try {
       const model = this.genAI.getGenerativeModel({
         model: modelName,
-        systemInstruction: systemPrompt,
         generationConfig: {
           temperature: 0,
           maxOutputTokens: 400,
         },
       })
 
-      const chat = model.startChat({ history })
-      const result = await chat.sendMessage(userPrompt)
+      const result = await model.generateContent(prompt)
       const raw = result.response.text()
+      logger.info({ raw, userMessage, model: modelName }, 'Gemini RAW response')
 
-      // JSON objesini response içinde ara — model öncesine/sonrasına Türkçe metin ekleyebilir
+      // JSON objesini response içinde ara — model öncesine/sonrasına metin ekleyebilir
       const jsonMatch = raw.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
         logger.warn({ raw }, 'Gemini JSON objesi bulunamadı')
@@ -144,23 +138,18 @@ export class IntentService {
     instruction: string,
   ): Promise<string> {
     const modelName = session.turnCount > 6 ? this.proModel : this.flashModel
-    const history = toGeminiHistory(session.messages.slice(0, -1).slice(-8))
-    while (history.length > 0 && history[history.length - 1].role === 'user') {
-      history.pop()
-    }
 
     try {
       const model = this.genAI.getGenerativeModel({
         model: modelName,
-        systemInstruction: `${buildReplySystemPrompt(salon)}\n\nGörev: ${instruction}. Türkçe, kısa (max 3 cümle), samimi yaz.`,
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: 200,
         },
       })
 
-      const chat = model.startChat({ history })
-      const result = await chat.sendMessage(userMessage)
+      const prompt = `${buildReplySystemPrompt(salon)}\n\nGörev: ${instruction}. Türkçe, kısa (max 3 cümle), samimi yaz.\n\nKullanıcı: ${userMessage}`
+      const result = await model.generateContent(prompt)
       return result.response.text().trim() || FALLBACK_MESSAGE
     } catch (error) {
       logger.error({ error }, 'Yanıt üretme hatası')
@@ -173,36 +162,7 @@ export class IntentService {
   }
 }
 
-// ─── OpenAI formatından Gemini formatına dönüştürme ──────────────────────────
-// Gemini: role 'user' | 'model', ardışık aynı roller birleştirilir
-
-function toGeminiHistory(
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-): Content[] {
-  const result: Content[] = []
-
-  for (const msg of messages) {
-    const role = msg.role === 'assistant' ? 'model' : 'user'
-    const last = result[result.length - 1]
-
-    if (last && last.role === role) {
-      last.parts.push({ text: msg.content })
-    } else {
-      result.push({ role, parts: [{ text: msg.content }] })
-    }
-  }
-
-  return result
-}
-
 // ─── Prompt inşacıları ────────────────────────────────────────────────────────
-
-// Detection için minimal sistem promptu — persona talimatları JSON çıktısını bozuyor
-function buildDetectionSystemPrompt(): string {
-  return `Sen bir güzellik salonu rezervasyon sisteminin intent detection motorusun.
-Görevin: kullanıcı mesajlarını analiz edip SADECE JSON döndürmek.
-Türkçe veya başka dilde hiçbir açıklama ekleme. Sadece JSON objesi döndür.`
-}
 
 function buildReplySystemPrompt(salon: SalonContext): string {
   const menu = salon.services.map((s) => `${s.name}(${s.duration}dk,₺${s.price})`).join(', ')
@@ -232,26 +192,40 @@ function buildDetectionPrompt(
 ): string {
   const serviceNames = salon.services.map((s) => s.name).join(', ')
 
-  return `Aşağıdaki kullanıcı mesajını analiz et. SADECE JSON döndür, başka hiçbir şey yazma.
+  return `Sen bir güzellik salonu rezervasyon botusun. Kullanıcı mesajını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir şey yazma, açıklama yapma.
 
-MESAJ: "${userMessage}"
+SALON HİZMETLERİ: ${serviceNames}
 MEVCUT ADIM: ${session.step}
 MEVCUT NİYET: ${session.currentIntent ?? 'yok'}
-MEVCUT BİLGİLER: ${JSON.stringify(session.entities)}
-SALON HİZMETLERİ: ${serviceNames}
 
-DÖNDÜR:
-{"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":"hizmet adı (yoksa alanı atla)","staffPreference":"personel (yoksa atla)","datePreference":"tarih (yoksa atla)","timePreference":"saat (yoksa atla)"},"requiresClarification":true/false}
+ANALİZ EDILECEK MESAJ: "${userMessage}"
 
-ÖRNEKLER:
-"merhaba" → {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
-"randevu almak istiyorum" → {"intent":"book","confidence":0.95,"entities":{},"requiresClarification":false}
-"manikür yaptırmak istiyorum" → {"intent":"book","confidence":0.95,"entities":{"service":"Manikür"},"requiresClarification":false}
-"ne kadar tutar" → {"intent":"query_price","confidence":0.9,"entities":{},"requiresClarification":false}
-"yarın müsait misiniz" → {"intent":"query_availability","confidence":0.9,"entities":{},"requiresClarification":false}
-"iptal etmek istiyorum" → {"intent":"cancel","confidence":0.95,"entities":{},"requiresClarification":false}
+ZORUNLU JSON FORMATI:
+{"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":"hizmet adı veya null","staffPreference":"personel veya null","datePreference":"tarih veya null","timePreference":"saat veya null"},"requiresClarification":false}
 
-KURAL: Selamlaşma ve anlamlı mesajlar → general. Sadece gerçek anlamsız içerik → unknown.`
+ÖRNEKLER (BUNLARI TAKLİT ET):
+Giriş: "merhaba"
+Çıkış: {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
+
+Giriş: "saç kestirmek istiyorum"
+Çıkış: {"intent":"book","confidence":0.95,"entities":{"service":"Saç Kesimi"},"requiresClarification":false}
+
+Giriş: "manikür yaptırmak istiyorum"
+Çıkış: {"intent":"book","confidence":0.95,"entities":{"service":"Manikür"},"requiresClarification":false}
+
+Giriş: "ne kadar tutar"
+Çıkış: {"intent":"query_price","confidence":0.9,"entities":{},"requiresClarification":false}
+
+Giriş: "yarın müsait misiniz"
+Çıkış: {"intent":"query_availability","confidence":0.9,"entities":{},"requiresClarification":false}
+
+Giriş: "iptal etmek istiyorum"
+Çıkış: {"intent":"cancel","confidence":0.95,"entities":{},"requiresClarification":false}
+
+KURALLAR:
+- Selamlama, teşekkür, genel sorular → "general"
+- Anlamsız/spam → "unknown"
+- SADECE JSON döndür, başka hiçbir şey yazma`
 }
 
 function fallbackResult(): IntentResult {
