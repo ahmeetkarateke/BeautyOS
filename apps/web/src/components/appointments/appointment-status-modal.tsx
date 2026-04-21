@@ -90,52 +90,14 @@ export function AppointmentStatusModal({
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Durum Güncelle</DialogTitle>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{closeModal ? 'Randevuyu Kapat' : 'Durum Güncelle'}</DialogTitle>
+        </DialogHeader>
 
-          <p className="text-sm text-salon-muted mb-4 truncate">{appointmentTitle}</p>
-
-          <div className="grid grid-cols-2 gap-2">
-            {statusOptions.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleStatusClick(opt.value)}
-                className={cn(
-                  'flex items-center justify-center px-3 py-2.5 rounded-md border text-sm font-medium transition-all',
-                  selected === opt.value
-                    ? cn(opt.className, 'ring-2 ring-offset-1 ring-current')
-                    : 'bg-white border-salon-border text-salon-muted hover:bg-salon-bg',
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-3 mt-4">
-            <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-              İptal
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={mutation.isPending || selected === currentStatus}
-              onClick={() => mutation.mutate(selected)}
-            >
-              {mutation.isPending ? 'Güncelleniyor...' : 'Kaydet'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {closeModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4 space-y-4">
-            <h2 className="text-base font-semibold text-gray-900">Randevuyu Kapat</h2>
-
+        {closeModal ? (
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm text-salon-muted">Tutar (₺)</label>
               <input
@@ -144,7 +106,7 @@ export function AppointmentStatusModal({
                 step={10}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -157,7 +119,7 @@ export function AppointmentStatusModal({
                     type="button"
                     onClick={() => setPaymentMethod(m)}
                     className={cn(
-                      'py-2 rounded-lg text-sm font-medium border transition-colors',
+                      'py-2.5 rounded-lg text-sm font-medium border transition-colors',
                       paymentMethod === m
                         ? 'bg-primary text-white border-primary'
                         : 'border-salon-border text-salon-muted hover:border-primary',
@@ -169,17 +131,51 @@ export function AppointmentStatusModal({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <Button variant="ghost" className="flex-1" onClick={() => setCloseModal(null)}>
-                İptal
+                Geri
               </Button>
               <Button className="flex-1" onClick={handleCloseAppointment}>
                 Kapat ve Kaydet
               </Button>
             </div>
           </div>
-        </div>
-      )}
-    </>
+        ) : (
+          <>
+            <p className="text-sm text-salon-muted mb-4 truncate">{appointmentTitle}</p>
+
+            <div className="grid grid-cols-2 gap-2">
+              {statusOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleStatusClick(opt.value)}
+                  className={cn(
+                    'flex items-center justify-center px-3 py-2.5 rounded-md border text-sm font-medium transition-all',
+                    selected === opt.value
+                      ? cn(opt.className, 'ring-2 ring-offset-1 ring-current')
+                      : 'bg-white border-salon-border text-salon-muted hover:bg-salon-bg',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+                İptal
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={mutation.isPending || selected === currentStatus}
+                onClick={() => mutation.mutate(selected)}
+              >
+                {mutation.isPending ? 'Güncelleniyor...' : 'Kaydet'}
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
