@@ -199,6 +199,14 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - `staffProfile.findMany` sorgusuna `include: { user: { select: { fullName: true } } }` eklendi.
 - `staffName: sp.title` → `staffName: sp.user.fullName` ile gerçek isim gösteriliyor.
 
+**Bug 7 — Gemini "anlayamadım" döngüsü ✅**
+- Model isimleri `gemini-2.5-flash/pro` → `gemini-2.0-flash` (GA, JSON mode tam destekli).
+- `responseMimeType: 'application/json'` kaldırıldı; JSON prompt içinde isteniyor (bazı versiyonlarda uyumsuzluk vardı).
+- JSON parse öncesi markdown code block temizleniyor (`cleaned`).
+- `catch` bloğu ve parse hataları tam bağlamla loglanıyor (`model`, `message`, `zodError`).
+- `buildDetectionPrompt()`: Türkçe örnekler + "sadece geçerli JSON döndür" kuralı eklendi.
+- `buildSystemPrompt()`: KURALLAR bölümü daha doğal konuşma için güncellendi.
+
 **Bug 4 — Sonsuz Döngü (unknown intent) ✅**
 - `flow.handler.ts`: `unknown` intent gelince artık `clarifyCount` artırılıyor ve "Tam anlayamadım" mesajı dönülüyor. Katman 2/3 eşiklerine göre yönlendirme yapılıyor; döngü kırıldı.
 

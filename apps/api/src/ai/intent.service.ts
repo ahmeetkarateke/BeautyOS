@@ -33,10 +33,9 @@ export interface SalonContext {
 // ─── Intent Servisi ───────────────────────────────────────────────────────────
 
 export class IntentService {
-  // Basit niyet + entity çıkarma için ekonomik model
-  private readonly flashModel = 'gemini-2.5-flash'
-  // Karmaşık diyalog, belirsiz girdi için güçlü model
-  private readonly proModel = 'gemini-2.5-pro'
+  // GA modeli — JSON mode tam destekli
+  private readonly flashModel = 'gemini-2.0-flash'
+  private readonly proModel = 'gemini-2.0-flash'
   // Güven eşiği — bu değerin altında netleştirme sorusu sorulur
   private readonly CONFIDENCE_THRESHOLD = 0.75
 
@@ -98,8 +97,7 @@ export class IntentService {
         systemInstruction: systemPrompt,
         generationConfig: {
           temperature: 0,
-          maxOutputTokens: 300,
-          responseMimeType: 'application/json',
+          maxOutputTokens: 400,
         },
       })
 
@@ -107,10 +105,12 @@ export class IntentService {
       const result = await chat.sendMessage(userPrompt)
       const raw = result.response.text()
 
-      const parsed = IntentResultSchema.safeParse(JSON.parse(raw))
+      // Markdown code block varsa temizle
+      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      const parsed = IntentResultSchema.safeParse(JSON.parse(cleaned))
 
       if (!parsed.success) {
-        logger.warn({ raw, error: parsed.error }, 'Intent parse hatası, unknown dönüyor')
+        logger.warn({ raw, zodError: parsed.error.flatten() }, 'Gemini JSON parse hatası')
         return fallbackResult()
       }
 
@@ -121,7 +121,7 @@ export class IntentService {
 
       return parsed.data
     } catch (error) {
-      logger.error({ error }, 'Intent servisi hatası')
+      logger.error({ error, model: modelName, message: userMessage }, 'Gemini API hatası — tam hata:')
       return fallbackResult()
     }
   }
@@ -201,9 +201,12 @@ MENÜ: ${menu}
 PERSONEL: ${staff}
 
 KURALLAR:
-- Sadece Türkçe yanıt ver
-- Maksimum 3 cümle
+- Sadece Türkçe yaz
+- Sıcak ve samimi ol, robot gibi değil
+- Maksimum 2-3 cümle
+- Kullanıcı ne istediğini bilmiyorsa sor, reddetme
 - Randevu kesinleşmeden asla "oluşturuldu" yazma
+- Selamlara samimi karşılık ver
 - Bilmediğin soruları salona yönlendir
 - Fiyat söylerken "₺X'dan başlayan" kullan
 
@@ -241,7 +244,18 @@ JSON formatı:
   "clarificationQuestion": "netleştirme sorusu (requiresClarification=true ise)"
 }
 
-Önemli: Selamlama (merhaba, selam), genel soru veya belirsiz ama anlamlı mesajlar için 'general' kullan, 'unknown' değil. Sadece anlamsız/spam mesajlar için 'unknown' döndür.`
+ÖRNEKLER:
+"merhaba" → intent: general, confidence: 0.9
+"randevu" → intent: book, confidence: 0.95
+"Tırnak yaptırmak istiyorum" → intent: book, confidence: 0.95, entities.service: "Tırnak"
+"ne kadar tutar" → intent: query_price, confidence: 0.9
+"yarın müsait misiniz" → intent: query_availability, confidence: 0.9
+"iptal etmek istiyorum" → intent: cancel, confidence: 0.95
+"asdfgh" → intent: unknown, confidence: 0.1
+
+ÖNEMLİ KURAL: Selamlama ve belirsiz ama anlamlı mesajlar için 'general' kullan. 'unknown' sadece gerçekten anlamsız içerik için.
+
+ÖNEMLİ: Sadece geçerli JSON döndür, başka hiçbir şey yazma. Markdown code block kullanma. Sadece { } ile başlayan JSON.`
 }
 
 function fallbackResult(): IntentResult {
