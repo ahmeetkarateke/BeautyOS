@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, UserX } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StaffModal } from '@/components/staff/staff-modal'
@@ -76,7 +77,7 @@ export default function StaffPage({ params }: PageProps) {
             const color = getStaffColor(member.colorCode)
             return (
               <div key={member.id} className="bg-white rounded-xl border border-salon-border p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
+                <Link href={`/tenant/${params.slug}/staff/${member.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0"
                     style={{ backgroundColor: color }}
@@ -87,7 +88,7 @@ export default function StaffPage({ params }: PageProps) {
                     <p className="font-medium text-gray-900 truncate">{member.fullName}</p>
                     <p className="text-xs text-salon-muted">{member.title}</p>
                   </div>
-                </div>
+                </Link>
                 <div className="flex gap-2 mt-auto">
                   <Button
                     size="sm"

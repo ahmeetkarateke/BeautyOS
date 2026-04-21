@@ -46,7 +46,7 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems(tenantSlug).map((item) => {
           const Icon = item.icon
-          const active = pathname === item.href
+          const active = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
             <Link
               key={item.href}
