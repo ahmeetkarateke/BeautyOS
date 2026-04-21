@@ -19,9 +19,10 @@ export type FlowStep =
   | 'awaiting_date'
   | 'awaiting_time'
   | 'awaiting_slot_confirm'
+  | 'awaiting_confirm'
   | 'awaiting_cancel_confirm'
   | 'completed'
-  | 'handed_off' // insan devreye girdi
+  | 'handed_off'
 
 export interface BookingEntities {
   service?: string

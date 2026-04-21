@@ -17,35 +17,56 @@ export function resolveDate(datePreference: string | undefined): Date {
   const today = nowTR()
   today.setHours(0, 0, 0, 0)
 
-  const pref = (datePreference ?? 'date:bugun').replace('date:', '')
+  if (!datePreference) return today
 
-  switch (pref) {
-    case 'bugun':
-      return today
-    case 'yarin': {
-      const d = new Date(today)
-      d.setDate(d.getDate() + 1)
-      return d
-    }
-    case 'bu_hafta': {
-      // Bu haftanın ilk müsait günü (yarından itibaren)
-      const d = new Date(today)
-      d.setDate(d.getDate() + 1)
-      return d
-    }
-    default:
-      return today
+  const pref = datePreference.replace('date:', '').toLowerCase().trim()
+
+  if (!pref || pref === 'bugun' || pref === 'bugün') return today
+
+  if (pref.includes('yarin') || pref.includes('yarın')) {
+    const d = new Date(today); d.setDate(d.getDate() + 1); return d
   }
+
+  const dayNames: Record<string, number> = {
+    pazartesi: 1, sali: 2, 'salı': 2, carsamba: 3, 'çarşamba': 3,
+    persembe: 4, 'perşembe': 4, cuma: 5, cumartesi: 6, pazar: 0,
+  }
+  for (const [name, dow] of Object.entries(dayNames)) {
+    if (pref.includes(name)) {
+      const d = new Date(today)
+      let diff = dow - d.getDay()
+      if (diff <= 0) diff += 7
+      d.setDate(d.getDate() + diff)
+      return d
+    }
+  }
+
+  if (pref.includes('bu hafta') || pref.includes('bu_hafta')) {
+    const d = new Date(today); d.setDate(d.getDate() + 1); return d
+  }
+
+  return today
 }
 
 function resolveTimeRange(timePreference: string | undefined): { start: number; end: number } {
-  const pref = (timePreference ?? 'time:sabah').replace('time:', '')
-  switch (pref) {
-    case 'sabah':  return { start: 9,  end: 12 }
-    case 'oglen':  return { start: 12, end: 15 }
-    case 'aksam':  return { start: 15, end: 19 }
-    default:       return { start: 9,  end: 19 }
+  if (!timePreference) return { start: 9, end: 19 }
+
+  const pref = timePreference.replace('time:', '').toLowerCase()
+
+  if (pref.includes('sabah')) return { start: 9, end: 12 }
+  if (pref.includes('öğleden sonra') || pref.includes('ogleden sonra')) return { start: 12, end: 17 }
+  if (pref.includes('öğlen') || pref.includes('oglen')) return { start: 11, end: 14 }
+  if (pref.includes('akşam') || pref.includes('aksam') || pref.includes('aksam')) return { start: 15, end: 19 }
+
+  // "saat 14", "14:00", "3 civarı", "15'te"
+  const hourMatch = pref.match(/(?:saat\s*)?(\d{1,2})(?::(\d{2}))?/)
+  if (hourMatch) {
+    let hour = parseInt(hourMatch[1])
+    if (hour < 9) hour += 12
+    return { start: Math.max(9, hour - 1), end: Math.min(19, hour + 2) }
   }
+
+  return { start: 9, end: 19 }
 }
 
 // ─── Mevcut randevulardan boş slotları hesapla ────────────────────────────────

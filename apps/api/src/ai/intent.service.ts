@@ -40,48 +40,11 @@ export class IntentService {
 
   constructor(private readonly genAI: GoogleGenerativeAI) {}
 
-  private detectByKeyword(message: string, salon: SalonContext): IntentResult | null {
-    const lower = message.toLowerCase().trim()
-
-    const bookKeywords = ['randevu', 'rezervasyon', 'almak istiyorum', 'gelmek istiyorum', 'appointment']
-    if (bookKeywords.some((k) => lower.includes(k))) {
-      return { intent: 'book', confidence: 0.95, entities: {}, requiresClarification: false }
-    }
-
-    for (const service of salon.services) {
-      if (lower.includes(service.name.toLowerCase())) {
-        return {
-          intent: 'book',
-          confidence: 0.9,
-          entities: { service: service.name },
-          requiresClarification: false,
-        }
-      }
-    }
-
-    const cancelKeywords = ['iptal', 'cancel', 'vazgeçtim', 'gelmeyeceğim']
-    if (cancelKeywords.some((k) => lower.includes(k))) {
-      return { intent: 'cancel', confidence: 0.95, entities: {}, requiresClarification: false }
-    }
-
-    const priceKeywords = ['fiyat', 'ücret', 'kaç lira', 'kaç tl', 'ne kadar', 'fiyatlar']
-    if (priceKeywords.some((k) => lower.includes(k))) {
-      return { intent: 'query_price', confidence: 0.95, entities: {}, requiresClarification: false }
-    }
-
-    return null
-  }
-
   async detect(
     session: ConversationSession,
     userMessage: string,
     salon: SalonContext,
   ): Promise<IntentResult> {
-    // Keyword eşleşmesi varsa Gemini'ye gitme
-    const keywordResult = this.detectByKeyword(userMessage, salon)
-    if (keywordResult) return keywordResult
-
-    // Karmaşık oturum (çok tur, belirsiz geçmiş) → güçlü model
     const modelName = session.turnCount > 4 || session.clarifyCount > 0
       ? this.proModel
       : this.flashModel

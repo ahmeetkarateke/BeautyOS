@@ -9,51 +9,51 @@ import {
   type AvailableSlot,
 } from './booking.service'
 
-// ─── 3 Katman Hata Yönetimi Eşikleri ─────────────────────────────────────────
-const CLARIFY_LIMIT = 2    // Bu kadar netleştirme turdan sonra → basit mod
-const HANDOFF_LIMIT = 4    // Bu kadar başarısız turdan sonra → insana yönlendir
+// ─── Eşikler ─────────────────────────────────────────────────────────────────
+const HANDOFF_LIMIT = 5
 
-// ─── Yanıt metinleri (ileride i18n dosyasına taşınabilir) ────────────────────
-const REPLIES = {
-  welcome: (name: string, services: SalonContext['services']) => {
-    const top3 = services.slice(0, 3).map((s) => s.name).join(', ')
-    return `Merhaba! 👋 Ben *${name}* salonunun asistanıyım. Size nasıl yardımcı olabilirim?\n\nRandevu almak için hizmet adı yazabilirsiniz.\nHizmetlerimiz: ${top3}`
-  },
+// ─── Yardımcılar ─────────────────────────────────────────────────────────────
 
-  askService: '📋 Hangi hizmet için randevu almak istersiniz?',
+function isAffirmative(text: string): boolean {
+  const t = text.toLowerCase().trim()
+  return ['evet', ' e ', 'yes', 'tamam', 'ok', 'onay', 'olur', 'oluyor', 'onaylıyorum'].some(
+    (k) => t === k.trim() || t.includes(k),
+  )
+}
 
-  askDate: (service: string) =>
-    `*${service}* için ne zaman gelmek istersiniz? (Örn: "yarın", "Cumartesi öğleden sonra")`,
+function isNegative(text: string): boolean {
+  const t = text.toLowerCase().trim()
+  return ['hayır', 'yok', 'no', 'iptal', 'vazgeç', 'istemiyorum'].some(
+    (k) => t === k.trim() || t.includes(k),
+  )
+}
 
-  askTime: (date: string) => `*${date}* için hangi saate gelmeniz uygun?`,
+function matchSlot(input: string, slots: AvailableSlot[]): AvailableSlot | undefined {
+  const t = input.trim().toLowerCase()
 
-  slotOptions: '🗓️ Uygun saatler:',
+  // Numara ile ("1", "2" …)
+  const num = parseInt(t)
+  if (!isNaN(num) && num >= 1 && num <= slots.length) return slots[num - 1]
 
-  bookingConfirmed: (service: string, date: string, staff: string, ref: string) =>
-    `✅ Randevunuz oluşturuldu!\n\n📋 *${service}*\n📅 ${date}\n👤 ${staff}\n🔖 Referans: \`${ref}\`\n\nSizi bekliyoruz! 🌸`,
+  // Saat ile ("14:00", "14", "14.00")
+  const hourMatch = t.match(/(\d{1,2})[.:h]?(\d{2})?/)
+  if (hourMatch) {
+    const hh = hourMatch[1].padStart(2, '0')
+    const mm = (hourMatch[2] ?? '00').padStart(2, '0')
+    const found = slots.find((s) => s.label === `${hh}:${mm}` || s.label.startsWith(`${hh}:`))
+    if (found) return found
+  }
 
-  cancelAsk: '❓ İptal etmek istediğiniz randevunuzun referans kodunu yazar mısınız?',
+  // Personel adı ile
+  return slots.find(
+    (s) =>
+      s.staffName.toLowerCase().includes(t) ||
+      t.includes(s.staffName.toLowerCase().split(' ')[0]),
+  )
+}
 
-  cancelConfirmed: '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋',
-
-  priceList: (services: SalonContext['services']) =>
-    '💰 *Fiyat Listemiz:*\n\n' +
-    services.map((s) => `• ${s.name}: ₺${s.price}'dan başlayan`).join('\n'),
-
-  // Katman 1 — netleştirme sorusu
-  clarify: (question: string) => question,
-
-  // Katman 2 — yapılandırılmış yönlendirme
-  simplify:
-    '🤔 Tam anlayamadım. Şu şekilde yazabilirsiniz:\n\n"*[Hizmet adı] [gün]*"\n\nÖrnek: _"Manikür yarın"_ veya _"Saç kesimi Cumartesi"_',
-
-  // Katman 3 — insana yönlendirme
-  handoff:
-    '🙏 Sizi salonumuzla bağlantı kurayım. Birkaç dakika içinde size dönecekler.\n\nAcil ihtiyaç için: 📞 {PHONE}',
-
-  notUnderstood: 'Üzgünüm, bunu tam anlayamadım. Randevu almak için "randevu" yazabilirsiniz.',
-
-  generalFallback: 'Bu konuda yardımcı olamıyorum. Başka bir isteğiniz var mı?',
+function slotListText(slots: AvailableSlot[]): string {
+  return slots.map((s, i) => `${i + 1}. ${s.label} — ${s.staffName}`).join('\n')
 }
 
 // ─── Ana Flow Handler ─────────────────────────────────────────────────────────
@@ -70,13 +70,7 @@ export class FlowHandler {
     salon: SalonContext,
     tenantId: string,
   ): Promise<void> {
-    // Oturumu yükle (veya oluştur)
-    const session = await this.sessionService.getOrCreate(
-      tenantId,
-      msg.channelType,
-      msg.from,
-    )
-
+    const session = await this.sessionService.getOrCreate(tenantId, msg.channelType, msg.from)
     this.sessionService.addMessage(session, 'user', msg.text)
 
     logger.info(
@@ -88,7 +82,7 @@ export class FlowHandler {
       await this.route(channel, msg, session, salon)
     } catch (error) {
       logger.error({ error, from: msg.from }, 'Flow handler hatası')
-      await channel.sendText(msg.from, REPLIES.notUnderstood)
+      await channel.sendText(msg.from, 'Bir sorun oluştu, lütfen tekrar deneyin.')
     }
 
     await this.sessionService.save(session)
@@ -102,83 +96,53 @@ export class FlowHandler {
     session: ConversationSession,
     salon: SalonContext,
   ): Promise<void> {
-    // /start komutu veya ilk mesaj → karşılama + session sıfırla
+    // /start veya yeni oturum → karşılama
     if (msg.text === '/start' || (session.turnCount === 1 && session.step === 'idle')) {
       await this.sessionService.reset(session)
-      await channel.sendText(msg.from, REPLIES.welcome(salon.name, salon.services))
+      const top3 = salon.services.slice(0, 3).map((s) => s.name).join(', ')
+      const welcome = `Merhaba! 👋 Ben *${salon.name}* salonunun asistanıyım. Size nasıl yardımcı olabilirim?\n\nPopüler hizmetlerimiz: ${top3}`
+      await channel.sendText(msg.from, welcome)
       return
     }
 
-    // Handoff modunda → insan devredeyken bot sessiz kalır
-    if (session.step === 'handed_off') {
-      return
-    }
+    if (session.step === 'handed_off') return
 
-    // Aktif bir niyet varsa → akışa devam et
+    // Aktif randevu akışı devam ediyorsa
     if (session.currentIntent === 'book' && session.step !== 'idle') {
       await this.handleBookingStep(channel, msg, session, salon)
       return
     }
 
     if (session.currentIntent === 'cancel' && session.step !== 'idle') {
-      await this.handleCancelStep(channel, msg, session, salon)
+      await this.handleCancelStep(channel, msg, session)
       return
     }
 
-    // Yeni niyet tespit et
+    // Yeni niyet tespiti
     const result = await this.intentService.detect(session, msg.text, salon)
+    logger.info({ intent: result.intent, confidence: result.confidence }, 'Intent tespit')
 
-    // ── 3 Katman Hata Yönetimi ────────────────────────────────────────────
-
-    // Katman 3: Çok fazla başarısız tur → insana yönlendir
     if (session.clarifyCount >= HANDOFF_LIMIT) {
       session.step = 'handed_off'
-      const reply = REPLIES.handoff.replace('{PHONE}', salon.address)
-      await channel.sendText(msg.from, reply)
-      // TODO: işletme sahibine bildirim gönder
+      await channel.sendText(
+        msg.from,
+        `🙏 Sizi salonumuzla bağlantı kurayım. Birkaç dakika içinde size dönecekler.\n\nAdres: ${salon.address}`,
+      )
       return
     }
 
-    // Katman 2: 2+ netleştirme başarısız → basit format iste
-    if (session.clarifyCount >= CLARIFY_LIMIT && result.confidence < 0.5) {
-      session.clarifyCount++
-      await channel.sendText(msg.from, REPLIES.simplify)
-      return
-    }
-
-    // Katman 1: Düşük güven → netleştirme sorusu sor
-    if (this.intentService.isLowConfidence(result) && result.requiresClarification) {
-      session.clarifyCount++
-      const question =
-        result.clarificationQuestion ?? 'Ne yapmak istediğinizi biraz daha açar mısınız?'
-      await channel.sendText(msg.from, REPLIES.clarify(question))
-      return
-    }
-
-    // unknown intent → clarifyCount artır, döngüye girme
     if (result.intent === 'unknown') {
       session.clarifyCount++
-      if (session.clarifyCount >= HANDOFF_LIMIT) {
-        session.step = 'handed_off'
-        const reply = REPLIES.handoff.replace('{PHONE}', salon.address)
-        await channel.sendText(msg.from, reply)
-        return
-      }
-      if (session.clarifyCount >= CLARIFY_LIMIT) {
-        await channel.sendText(msg.from, REPLIES.simplify)
-      } else {
-        await channel.sendText(
-          msg.from,
-          '🤔 Tam anlayamadım — randevu almak, fiyat öğrenmek veya iptal için yazabilirsiniz.',
-        )
-      }
+      await channel.sendText(
+        msg.from,
+        'Anlayamadım. Randevu almak, fiyat öğrenmek veya randevu iptal etmek için yazabilirsiniz.',
+      )
       return
     }
 
-    // Niyet net → sıfırla ve yönlendir
     session.clarifyCount = 0
     session.currentIntent = result.intent
-    Object.assign(session.entities, result.entities)
+    if (result.entities) Object.assign(session.entities, result.entities)
 
     switch (result.intent) {
       case 'book':
@@ -192,17 +156,21 @@ export class FlowHandler {
         await this.sessionService.reset(session)
         break
       case 'query_availability':
-        await this.handleAvailabilityQuery(channel, msg, session, salon)
+      case 'general': {
+        const instruction =
+          result.intent === 'query_availability'
+            ? 'Müsaitlik sorusunu yanıtla, randevu almak istiyorsa yönlendir'
+            : 'Genel soruyu yanıtla, bilmiyorsan salona yönlendir'
+        const reply = await this.intentService.generateReply(session, msg.text, salon, instruction)
+        this.sessionService.addMessage(session, 'assistant', reply)
+        await channel.sendText(msg.from, reply)
+        await this.sessionService.reset(session)
         break
-      case 'general':
-        await this.handleGeneral(channel, msg, session, salon)
-        break
-      default:
-        await channel.sendText(msg.from, REPLIES.notUnderstood)
+      }
     }
   }
 
-  // ─── Randevu Akışı ────────────────────────────────────────────────────────
+  // ─── Randevu Başlat ───────────────────────────────────────────────────────
 
   private async startBooking(
     channel: MessagingChannel,
@@ -210,26 +178,21 @@ export class FlowHandler {
     session: ConversationSession,
     salon: SalonContext,
   ): Promise<void> {
-    session.step = 'awaiting_service'
-
     if (session.entities.service) {
-      // Hizmet zaten çıkarıldı, tarihe geç
-      await this.askForDate(channel, msg, session)
+      session.step = 'awaiting_date'
+      await channel.sendText(
+        msg.from,
+        `*${session.entities.service}* için randevu alalım! Ne zaman gelmek istersiniz?\n\n(Örnek: "yarın", "Cumartesi öğleden sonra", "Pazartesi saat 14")`,
+      )
       return
     }
 
-    // Hizmet listesi göster
-    await channel.sendList(msg.from, REPLIES.askService, [
-      {
-        title: 'Hizmetlerimiz',
-        items: salon.services.map((s) => ({
-          id: `service:${s.name}`,
-          label: s.name,
-          description: `${s.duration} dk • ₺${s.price}'dan başlayan`,
-        })),
-      },
-    ])
+    session.step = 'awaiting_service'
+    const list = salon.services.map((s, i) => `${i + 1}. ${s.name} — ${s.durationMinutes ?? s.duration} dk / ₺${s.price}'dan`).join('\n')
+    await channel.sendText(msg.from, `Hangi hizmetimizden randevu almak istersiniz?\n\n${list}\n\nHizmet adını veya numarasını yazabilirsiniz.`)
   }
+
+  // ─── Randevu Adımları ─────────────────────────────────────────────────────
 
   private async handleBookingStep(
     channel: MessagingChannel,
@@ -238,138 +201,148 @@ export class FlowHandler {
     salon: SalonContext,
   ): Promise<void> {
     switch (session.step) {
-      case 'awaiting_service': {
-        // Buton seçimi veya serbest metin
-        const serviceId = msg.text.startsWith('service:')
-          ? msg.text.replace('service:', '')
-          : msg.text
 
-        const matched = salon.services.find(
-          (s) => s.name.toLowerCase().includes(serviceId.toLowerCase()),
-        )
+      case 'awaiting_service': {
+        const num = parseInt(msg.text.trim())
+        let matched = !isNaN(num) && num >= 1 && num <= salon.services.length
+          ? salon.services[num - 1]
+          : salon.services.find((s) =>
+              msg.text.toLowerCase().includes(s.name.toLowerCase()) ||
+              s.name.toLowerCase().includes(msg.text.toLowerCase().trim()),
+            )
 
         if (!matched) {
-          await channel.sendText(msg.from, '❓ Bu hizmeti bulamadım. Listeden seçer misiniz?')
+          // Gemini ile çözmeyi dene
+          const r = await this.intentService.detect(session, msg.text, salon)
+          if (r.entities?.service) {
+            matched = salon.services.find((s) =>
+              s.name.toLowerCase().includes(r.entities!.service!.toLowerCase()),
+            )
+          }
+        }
+
+        if (!matched) {
+          const list = salon.services.map((s, i) => `${i + 1}. ${s.name}`).join('\n')
+          await channel.sendText(msg.from, `Bu hizmeti bulamadım. Lütfen listeden seçin:\n\n${list}`)
           return
         }
 
         session.entities.service = matched.name
-        await this.askForDate(channel, msg, session)
+        session.step = 'awaiting_date'
+        await channel.sendText(
+          msg.from,
+          `*${matched.name}* için ne zaman gelmek istersiniz?\n\n(Örnek: "yarın", "Cumartesi öğleden sonra", "bugün saat 15")`,
+        )
         break
       }
 
       case 'awaiting_date': {
         session.entities.datePreference = msg.text
-        await this.askForTime(channel, msg, session)
-        break
-      }
+        const slots = await getAvailableSlots(
+          session.tenantId,
+          session.entities.service ?? '',
+          msg.text,
+          msg.text,
+        )
 
-      case 'awaiting_time': {
-        session.entities.timePreference = msg.text
-        await this.showSlots(channel, msg, session)
+        if (slots.length === 0) {
+          await channel.sendText(
+            msg.from,
+            'Bu tarih için uygun saat bulunamadı. Başka bir gün dener misiniz?',
+          )
+          return
+        }
+
+        ;(session.entities as Record<string, unknown>)['_slots'] = slots
+        session.step = 'awaiting_slot_confirm'
+        await channel.sendText(
+          msg.from,
+          `Uygun saatler:\n\n${slotListText(slots)}\n\nHangisini tercih edersiniz? (numara veya saati yazabilirsiniz)`,
+        )
         break
       }
 
       case 'awaiting_slot_confirm': {
-        if (msg.text.startsWith('slot:')) {
+        const storedSlots = (session.entities as Record<string, unknown>)['_slots'] as AvailableSlot[] | undefined
+        if (!storedSlots?.length) {
+          session.step = 'awaiting_date'
+          await channel.sendText(msg.from, 'Bir sorun oluştu, tarih seçimini tekrar yapar mısınız?')
+          return
+        }
+
+        const slot = matchSlot(msg.text, storedSlots)
+        if (!slot) {
+          await channel.sendText(
+            msg.from,
+            `Anlayamadım. Numara veya saat yazın:\n\n${slotListText(storedSlots)}`,
+          )
+          return
+        }
+
+        session.entities.confirmedSlot = slot.id
+        ;(session.entities as Record<string, unknown>)['_selectedStaff'] = slot.staffName
+        ;(session.entities as Record<string, unknown>)['_selectedTime'] = slot.label
+
+        const [datePart, timePart] = slot.id.split('__')[0].split('T')
+        const displayDate = datePart
+        const displayTime = slot.label
+
+        session.step = 'awaiting_confirm'
+        const confirmText =
+          `Randevuyu onaylıyor musunuz?\n\n` +
+          `📋 *${session.entities.service}*\n` +
+          `📅 ${displayDate} saat ${displayTime}\n` +
+          `👤 ${slot.staffName}\n\n` +
+          `"evet" veya "hayır" yazın.`
+        await channel.sendText(msg.from, confirmText)
+        break
+      }
+
+      case 'awaiting_confirm': {
+        if (isAffirmative(msg.text)) {
           await this.confirmBooking(channel, msg, session)
+        } else if (isNegative(msg.text)) {
+          await channel.sendText(msg.from, 'Tamam, randevuyu iptal ettim. Başka bir konuda yardımcı olabilir miyim?')
+          await this.sessionService.reset(session)
         } else {
-          await channel.sendText(msg.from, '❓ Lütfen listeden bir saat seçin.')
+          const staff = (session.entities as Record<string, unknown>)['_selectedStaff'] as string ?? ''
+          const time = (session.entities as Record<string, unknown>)['_selectedTime'] as string ?? ''
+          const date = session.entities.confirmedSlot?.split('__')[0].split('T')[0] ?? ''
+          await channel.sendText(
+            msg.from,
+            `Onaylamak için "evet", iptal etmek için "hayır" yazın.\n\n📋 *${session.entities.service}*\n📅 ${date} saat ${time}\n👤 ${staff}`,
+          )
         }
         break
       }
     }
   }
 
-  private async askForDate(
-    channel: MessagingChannel,
-    msg: IncomingMessage,
-    session: ConversationSession,
-  ): Promise<void> {
-    session.step = 'awaiting_date'
-    await channel.sendButtons(msg.from, REPLIES.askDate(session.entities.service!), [
-      { id: 'date:bugun', label: '📅 Bugün' },
-      { id: 'date:yarin', label: '📅 Yarın' },
-      { id: 'date:bu_hafta', label: '📅 Bu hafta' },
-    ])
-  }
-
-  private async askForTime(
-    channel: MessagingChannel,
-    msg: IncomingMessage,
-    session: ConversationSession,
-  ): Promise<void> {
-    session.step = 'awaiting_time'
-
-    const dateLabel = session.entities.datePreference?.replace('date:', '') ?? 'seçilen gün'
-    await channel.sendButtons(msg.from, REPLIES.askTime(dateLabel), [
-      { id: 'time:sabah', label: '🌅 Sabah (09-12)' },
-      { id: 'time:oglen', label: '☀️ Öğlen (12-15)' },
-      { id: 'time:aksam', label: '🌆 Akşam (15-19)' },
-    ])
-  }
-
-  private async showSlots(
-    channel: MessagingChannel,
-    msg: IncomingMessage,
-    session: ConversationSession,
-  ): Promise<void> {
-    session.step = 'awaiting_slot_confirm'
-
-    const slots = await getAvailableSlots(
-      session.tenantId,
-      session.entities.service ?? '',
-      session.entities.datePreference,
-      session.entities.timePreference,
-    )
-
-    // Slot ID'lerini session'da sakla (confirmBooking'de kullanmak için)
-    session.entities = { ...session.entities, _slots: slots as unknown as string } as typeof session.entities
-
-    const dateLabel = session.entities.datePreference?.replace('date:', '') ?? 'Uygun saatler'
-
-    await channel.sendList(msg.from, REPLIES.slotOptions, [
-      {
-        title: dateLabel,
-        items: slots.map((s: AvailableSlot) => ({
-          id: `slot:${s.id}`,
-          label: `🕐 ${s.label}`,
-          description: `${session.entities.service} — ${s.staffName}`,
-        })),
-      },
-    ])
-  }
+  // ─── Randevu Onayla & Kaydet ──────────────────────────────────────────────
 
   private async confirmBooking(
     channel: MessagingChannel,
     msg: IncomingMessage,
     session: ConversationSession,
   ): Promise<void> {
-    const slotId = msg.text.replace('slot:', '')
+    const slotId = session.entities.confirmedSlot ?? ''
     const service = session.entities.service ?? ''
-    const channel_type = session.channelType === 'telegram' ? 'telegram' : 'whatsapp'
+    const staffName = ((session.entities as Record<string, unknown>)['_selectedStaff'] as string) ?? 'Uygun Uzman'
+    const displayTime = ((session.entities as Record<string, unknown>)['_selectedTime'] as string) ?? ''
 
     let ref: string
-    let staffName = 'Uygun Uzman'
-
     try {
-      // slotId: "YYYY-MM-DDTHH:MM:SS__staffId" ya da "mock-staff" içeriyorsa mock
       if (slotId.includes('mock-staff')) {
         ref = `RDV-${Date.now().toString(36).toUpperCase()}`
       } else {
         ref = await createAppointment({
           tenantId: session.tenantId,
           customerPhone: session.from,
-          customerName: session.from, // WhatsApp numarasından isim bilinmiyor
+          customerName: session.from,
           serviceName: service,
           slotId,
-          channel: channel_type as 'telegram' | 'whatsapp',
+          channel: session.channelType === 'telegram' ? 'telegram' : 'whatsapp',
         })
-
-        // Slot listesinden staff adını bul
-        const storedSlots = (session.entities as Record<string, unknown>)['_slots'] as AvailableSlot[] | undefined
-        const matched = storedSlots?.find((s: AvailableSlot) => s.id === slotId)
-        if (matched) staffName = matched.staffName
       }
     } catch (error) {
       logger.error({ error, slotId }, 'Randevu kaydetme hatası')
@@ -377,11 +350,15 @@ export class FlowHandler {
       return
     }
 
-    // Tarih/saat etiketini oluştur
-    const dateStr = slotId.split('T')[0] ?? ''
-    const timeStr = slotId.split('T')[1]?.slice(0, 5) ?? ''
+    const dateStr = slotId.split('__')[0].split('T')[0]
+    const reply =
+      `✅ Randevunuz oluşturuldu!\n\n` +
+      `📋 *${service}*\n` +
+      `📅 ${dateStr} saat ${displayTime}\n` +
+      `👤 ${staffName}\n` +
+      `🔖 Referans: \`${ref}\`\n\n` +
+      `Sizi bekliyoruz! 🌸`
 
-    const reply = REPLIES.bookingConfirmed(service, `${dateStr} ${timeStr}`, staffName, ref)
     this.sessionService.addMessage(session, 'assistant', reply)
     await channel.sendText(msg.from, reply)
     await this.sessionService.reset(session)
@@ -395,21 +372,20 @@ export class FlowHandler {
     session: ConversationSession,
   ): Promise<void> {
     session.step = 'awaiting_cancel_confirm'
-    await channel.sendText(msg.from, REPLIES.cancelAsk)
+    await channel.sendText(msg.from, 'İptal etmek istediğiniz randevunuzun referans kodunu yazar mısınız? (Örnek: RDV-ABC123)')
   }
 
   private async handleCancelStep(
     channel: MessagingChannel,
     msg: IncomingMessage,
     session: ConversationSession,
-    _salon: SalonContext,
   ): Promise<void> {
     const refCode = msg.text.trim().toUpperCase()
     const cancelled = await cancelAppointmentByRef(session.tenantId, refCode)
 
     const reply = cancelled
-      ? REPLIES.cancelConfirmed
-      : `❓ "${refCode}" referans kodlu aktif randevu bulunamadı. Lütfen kontrol edip tekrar deneyin.`
+      ? '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'
+      : `"${refCode}" referans kodlu aktif randevu bulunamadı. Lütfen kontrol edip tekrar deneyin.`
 
     this.sessionService.addMessage(session, 'assistant', reply)
     await channel.sendText(msg.from, reply)
@@ -423,43 +399,7 @@ export class FlowHandler {
     msg: IncomingMessage,
     salon: SalonContext,
   ): Promise<void> {
-    await channel.sendText(msg.from, REPLIES.priceList(salon.services))
-  }
-
-  // ─── Müsaitlik Sorgusu ────────────────────────────────────────────────────
-
-  private async handleAvailabilityQuery(
-    channel: MessagingChannel,
-    msg: IncomingMessage,
-    session: ConversationSession,
-    salon: SalonContext,
-  ): Promise<void> {
-    const reply = await this.intentService.generateReply(
-      session,
-      msg.text,
-      salon,
-      'Kullanıcının müsaitlik sorusunu yanıtla, randevu almak istiyorsa yönlendir',
-    )
-    this.sessionService.addMessage(session, 'assistant', reply)
-    await channel.sendText(msg.from, reply)
-  }
-
-  // ─── Genel Soru ───────────────────────────────────────────────────────────
-
-  private async handleGeneral(
-    channel: MessagingChannel,
-    msg: IncomingMessage,
-    session: ConversationSession,
-    salon: SalonContext,
-  ): Promise<void> {
-    const reply = await this.intentService.generateReply(
-      session,
-      msg.text,
-      salon,
-      'Kullanıcının genel sorusunu yanıtla, bilmiyorsan salona yönlendir',
-    )
-    this.sessionService.addMessage(session, 'assistant', reply)
-    await channel.sendText(msg.from, reply)
-    await this.sessionService.reset(session)
+    const list = salon.services.map((s) => `• ${s.name}: ₺${s.price}'dan başlayan`).join('\n')
+    await channel.sendText(msg.from, `💰 *Fiyat Listemiz:*\n\n${list}`)
   }
 }
