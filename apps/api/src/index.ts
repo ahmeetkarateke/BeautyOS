@@ -7,6 +7,8 @@ import { SessionService } from './session/session.service'
 import { IntentService } from './ai/intent.service'
 import { FlowHandler } from './bot/flow.handler'
 import { createWebhookRouter } from './routes/webhook.route'
+import { createAuthRouter } from './routes/auth.route'
+import { createTenantRouter } from './routes/tenant.route'
 import { TenantRegistry } from './lib/tenant.registry'
 import { logger } from './lib/logger'
 
@@ -52,6 +54,8 @@ async function bootstrap(): Promise<void> {
   Sentry.setupExpressErrorHandler(app)
 
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
+  app.use('/api/v1/auth', createAuthRouter())
+  app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   // ─── Root health check ────────────────────────────────────────────────────
 
