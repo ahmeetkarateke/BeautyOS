@@ -110,7 +110,7 @@ export default function StaffDetailPage({ params }: PageProps) {
           serviceId: skillForm.serviceId,
           commissionType: skillForm.commissionType,
           commissionValue: skillForm.commissionValue,
-          priceOverride: skillForm.priceOverride ? Number(skillForm.priceOverride) : null,
+          ...(skillForm.priceOverride ? { priceOverride: Number(skillForm.priceOverride) } : {}),
         }),
       }),
     onSuccess: () => {
@@ -144,7 +144,7 @@ export default function StaffDetailPage({ params }: PageProps) {
         body: JSON.stringify({
           leaveDate: leaveForm.leaveDate,
           leaveType: leaveForm.leaveType,
-          note: leaveForm.note || null,
+          ...(leaveForm.note ? { note: leaveForm.note } : {}),
         }),
       }),
     onSuccess: () => {
