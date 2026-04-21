@@ -44,7 +44,7 @@ async function main() {
     create: {
       tenantId: tenant.id,
       email: 'demo@beautyos.app',
-      passwordHash: 'PLACEHOLDER_HASH', // Gerçek auth Faza 2'de
+      passwordHash: '$2b$10$tzb9Iv1o1bugzFtr8ZmJ8ulMwRLVGTFx8gIJvo//7M/RZ9pZG9r42',
       role: 'owner',
       fullName: 'Demo Salon Sahibi',
       phone: '+90 555 000 00 00',
