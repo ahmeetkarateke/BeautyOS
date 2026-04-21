@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { db } from '../lib/db'
 import { authenticateJWT, requireTenantAccess } from '../middleware/auth.middleware'
@@ -776,17 +777,14 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
       }
 
+      const { workingHours, ...rest } = parsed.data
       const updated = await db.staffProfile.update({
         where: { id: staffId },
-        data: parsed.data,
-        select: {
-          id: true,
-          title: true,
-          bio: true,
-          colorCode: true,
-          workingHours: true,
-          user: { select: { fullName: true, email: true } },
+        data: {
+          ...rest,
+          ...(workingHours !== undefined && { workingHours: workingHours as Prisma.InputJsonValue }),
         },
+        include: { user: { select: { fullName: true, email: true } } },
       })
 
       return res.json({
