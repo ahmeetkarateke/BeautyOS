@@ -216,11 +216,12 @@ export function createTenantRouter(): Router {
       const staff = await db.staffProfile.findMany({
         where: { tenantId },
         orderBy: { createdAt: 'asc' },
-        select: {
-          id: true,
-          title: true,
-          colorCode: true,
-          user: { select: { fullName: true } },
+        include: {
+          user: { select: { fullName: true, email: true } },
+          serviceAssignments: {
+            where: { isActive: true },
+            include: { service: { select: { id: true, name: true, category: true } } },
+          },
         },
       })
 
@@ -230,6 +231,11 @@ export function createTenantRouter(): Router {
           title: s.title,
           fullName: s.user.fullName,
           colorCode: s.colorCode,
+          skills: s.serviceAssignments.map((a) => ({
+            serviceId: a.serviceId,
+            serviceName: a.service.name,
+            category: a.service.category,
+          })),
         })),
       })
     } catch (err) {
@@ -265,6 +271,16 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
       }
 
+      const assignment = await db.staffServiceAssignment.findFirst({
+        where: { staffId, serviceId, tenantId, isActive: true },
+      })
+      if (!assignment) {
+        return res.status(422).json({
+          error: { code: 'STAFF_NOT_SKILLED', message: 'Seçilen personel bu hizmeti yapamaz.' },
+        })
+      }
+      const priceCharged = assignment.priceOverride ?? service.price
+
       const startDate = new Date(startAt)
       const endDate = new Date(startDate.getTime() + service.durationMinutes * 60 * 1000)
 
@@ -291,7 +307,7 @@ export function createTenantRouter(): Router {
           staffId,
           startAt: startDate,
           endAt: endDate,
-          priceCharged: service.price,
+          priceCharged,
           referenceCode,
           notes,
           bookingChannel: 'manual',
@@ -1206,6 +1222,142 @@ export function createTenantRouter(): Router {
 
       await db.expense.delete({ where: { id: expenseId } })
 
+      return res.status(204).send()
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Staff Skills (StaffServiceAssignment) ───────────────────────────────────
+
+  const assignServiceSchema = z.object({
+    serviceId: z.string().uuid(),
+    commissionType: z.enum(['percentage', 'fixed']).default('percentage'),
+    commissionValue: z.coerce.number().min(0).default(0),
+    priceOverride: z.coerce.number().positive().optional(),
+  })
+
+  router.get('/staff/:staffId/services', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { staffId } = req.params
+      const tenantId = req.user!.tenantId
+      const assignments = await db.staffServiceAssignment.findMany({
+        where: { staffId, tenantId, isActive: true },
+        include: { service: { select: { id: true, name: true, category: true, durationMinutes: true, price: true } } },
+      })
+      return res.json({
+        data: assignments.map((a) => ({
+          id: a.id,
+          serviceId: a.serviceId,
+          serviceName: a.service.name,
+          serviceCategory: a.service.category,
+          durationMinutes: a.service.durationMinutes,
+          basePrice: Number(a.service.price),
+          priceOverride: a.priceOverride ? Number(a.priceOverride) : null,
+          commissionType: a.commissionType,
+          commissionValue: Number(a.commissionValue),
+        })),
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.post('/staff/:staffId/services', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+      }
+      const { staffId } = req.params
+      const tenantId = req.user!.tenantId
+      const parsed = assignServiceSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz veri.' } })
+      }
+      const result = await db.staffServiceAssignment.upsert({
+        where: { staffId_serviceId: { staffId, serviceId: parsed.data.serviceId } },
+        create: { staffId, tenantId, ...parsed.data, isActive: true },
+        update: { ...parsed.data, isActive: true },
+      })
+      return res.status(201).json(result)
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.delete('/staff/:staffId/services/:serviceId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+      }
+      const { staffId, serviceId } = req.params
+      await db.staffServiceAssignment.updateMany({
+        where: { staffId, serviceId, tenantId: req.user!.tenantId },
+        data: { isActive: false },
+      })
+      return res.status(204).send()
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Staff Leaves (StaffLeave) ────────────────────────────────────────────────
+
+  const createLeaveSchema = z.object({
+    leaveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    leaveType: z.enum(['day_off', 'sick_leave', 'vacation', 'other']).default('day_off'),
+    note: z.string().optional(),
+  })
+
+  router.get('/staff/:staffId/leaves', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const leaves = await db.staffLeave.findMany({
+        where: { staffId: req.params.staffId, tenantId },
+        orderBy: { leaveDate: 'asc' },
+      })
+      return res.json({ data: leaves })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.post('/staff/:staffId/leaves', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+      }
+      const parsed = createLeaveSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz veri.' } })
+      }
+      const leave = await db.staffLeave.create({
+        data: {
+          staffId: req.params.staffId,
+          tenantId: req.user!.tenantId,
+          leaveDate: new Date(`${parsed.data.leaveDate}T00:00:00.000Z`),
+          leaveType: parsed.data.leaveType,
+          note: parsed.data.note,
+        },
+      })
+      return res.status(201).json(leave)
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.delete('/staff/:staffId/leaves/:leaveId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+      }
+      const { leaveId } = req.params
+      const tenantId = req.user!.tenantId
+      const existing = await db.staffLeave.findFirst({ where: { id: leaveId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'İzin kaydı bulunamadı.' } })
+      }
+      await db.staffLeave.delete({ where: { id: leaveId } })
       return res.status(204).send()
     } catch (err) {
       next(err)
