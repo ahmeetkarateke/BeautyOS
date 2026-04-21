@@ -54,3 +54,15 @@
     min-width: 44px;
   }
 }
+
+.beautyos-calendar .fc-event {
+  border-radius: 4px !important;
+  border-width: 1px !important;
+  cursor: pointer;
+}
+.beautyos-calendar .fc-event-main {
+  padding: 0 !important;
+}
+.beautyos-calendar .fc-timegrid-event {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
