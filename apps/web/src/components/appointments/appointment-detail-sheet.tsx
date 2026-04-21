@@ -104,9 +104,11 @@ export function AppointmentDetailSheet({ open, onOpenChange, detail, onChangeSta
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Kapat
           </Button>
-          <Button className="flex-1" onClick={onChangeStatus}>
-            Durum Değiştir
-          </Button>
+          {!['completed', 'cancelled', 'no_show'].includes(detail.status) && (
+            <Button className="flex-1" onClick={onChangeStatus}>
+              Durum Değiştir
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

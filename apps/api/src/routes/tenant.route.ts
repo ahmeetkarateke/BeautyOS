@@ -523,6 +523,13 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
       }
 
+      const TERMINAL_STATUSES = ['completed', 'cancelled', 'no_show']
+      if (TERMINAL_STATUSES.includes(existing.status)) {
+        return res.status(409).json({
+          error: { code: 'STATUS_LOCKED', message: 'Tamamlanan veya iptal edilen randevunun durumu değiştirilemez.' },
+        })
+      }
+
       const updated = await db.appointment.update({
         where: { id: appointmentId },
         data: {
