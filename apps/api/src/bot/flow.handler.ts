@@ -66,11 +66,11 @@ export class FlowHandler {
     channel: MessagingChannel,
     msg: IncomingMessage,
     salon: SalonContext,
+    tenantId: string,
   ): Promise<void> {
     // Oturumu yükle (veya oluştur)
     const session = await this.sessionService.getOrCreate(
-      // MVP'de tenant sabit — ileride phoneNumberId → tenantId çözümlemesi yapılacak
-      'test-tenant',
+      tenantId,
       msg.channelType,
       msg.from,
     )

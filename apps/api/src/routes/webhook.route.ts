@@ -66,7 +66,7 @@ export function createWebhookRouter(
     )
 
     const salon = await getSalon(tenantId)
-    await flowHandler.handle(channel, msg, salon)
+    await flowHandler.handle(channel, msg, salon, tenantId)
   })
 
   // ─── WhatsApp Webhook ─────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ export function createWebhookRouter(
       const tenantId = await resolveTenantId(tenantRegistry, 'whatsapp', phoneNumberId)
       const salon = await getSalon(tenantId)
 
-      await flowHandler.handle(channel, msg, salon)
+      await flowHandler.handle(channel, msg, salon, tenantId)
     } catch (error) {
       logger.error({ error }, 'WhatsApp webhook işleme hatası')
     }
