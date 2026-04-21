@@ -129,7 +129,7 @@ export class FlowHandler {
     }
 
     if (session.currentIntent === 'cancel' && session.step !== 'idle') {
-      await this.handleCancelStep(channel, msg, session)
+      await this.handleCancelStep(channel, msg, session, salon)
       return
     }
 
@@ -409,24 +409,55 @@ export class FlowHandler {
     session: ConversationSession,
   ): Promise<void> {
     session.step = 'awaiting_cancel_confirm'
-    await channel.sendText(msg.from, 'İptal etmek istediğiniz randevunuzun referans kodunu yazar mısınız? (Örnek: RDV-ABC123)')
+    ;(session.entities as Record<string, unknown>)['_cancelAttempts'] = 0
+    await channel.sendText(
+      msg.from,
+      'Son randevunuzu iptal etmek istediğinizi anlıyorum.\nReferans kodunuzu paylaşır mısınız? (Örn: RDV-2024-1847)',
+    )
   }
 
   private async handleCancelStep(
     channel: MessagingChannel,
     msg: IncomingMessage,
     session: ConversationSession,
+    salon: SalonContext,
   ): Promise<void> {
     const refCode = msg.text.trim().toUpperCase()
-    const cancelled = await cancelAppointmentByRef(session.tenantId, refCode)
+    const result = await cancelAppointmentByRef(session.tenantId, refCode)
 
-    const reply = cancelled
-      ? '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'
-      : `"${refCode}" referans kodlu aktif randevu bulunamadı. Lütfen kontrol edip tekrar deneyin.`
+    if (result.ok) {
+      const reply = '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'
+      this.sessionService.addMessage(session, 'assistant', reply)
+      await channel.sendText(msg.from, reply)
+      await this.sessionService.reset(session)
+      return
+    }
 
-    this.sessionService.addMessage(session, 'assistant', reply)
-    await channel.sendText(msg.from, reply)
-    await this.sessionService.reset(session)
+    if (result.reason === 'too_soon') {
+      const contact = salon.phone ?? salon.address
+      const reply = `Maalesef randevunuza 2 saatten az kaldığı için iptal yapamıyoruz. Salonumuzu arayabilirsiniz: ${contact}`
+      this.sessionService.addMessage(session, 'assistant', reply)
+      await channel.sendText(msg.from, reply)
+      await this.sessionService.reset(session)
+      return
+    }
+
+    // not_found — retry takibi
+    const attempts = (((session.entities as Record<string, unknown>)['_cancelAttempts'] as number) ?? 0) + 1
+    ;(session.entities as Record<string, unknown>)['_cancelAttempts'] = attempts
+
+    if (attempts >= 2) {
+      session.step = 'handed_off'
+      const reply = `Bu koda ait randevu bulunamadı. Sizi salon yetkilisiyle bağlantıya geçiriyorum.\n\nAdres: ${salon.address}`
+      this.sessionService.addMessage(session, 'assistant', reply)
+      await channel.sendText(msg.from, reply)
+      return
+    }
+
+    await channel.sendText(
+      msg.from,
+      `"${refCode}" koduna ait randevu bulunamadı. Tekrar dener misiniz?`,
+    )
   }
 
   // ─── Fiyat Sorgusu ────────────────────────────────────────────────────────

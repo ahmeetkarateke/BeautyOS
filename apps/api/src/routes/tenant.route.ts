@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { db } from '../lib/db'
+import { logger } from '../lib/logger'
+import { remindersQueue } from '../lib/queue'
 import { authenticateJWT, requireTenantAccess } from '../middleware/auth.middleware'
 
 export function createTenantRouter(): Router {
@@ -296,6 +298,38 @@ export function createTenantRouter(): Router {
           staff: { select: { colorCode: true, user: { select: { fullName: true } } } },
         },
       })
+
+      // Hatırlatma job'larını fire-and-forget olarak ekle
+      void (async () => {
+        try {
+          const now = Date.now()
+          const startMs = appointment.startAt.getTime()
+          const delay24h = startMs - 24 * 60 * 60 * 1000 - now
+          const delay2h = startMs - 2 * 60 * 60 * 1000 - now
+
+          if (delay24h > 0) {
+            await remindersQueue.add(
+              'reminder',
+              { type: 'reminder_24h', appointmentId: appointment.id },
+              { delay: delay24h, jobId: `reminder-24h-${appointment.id}` },
+            )
+          } else {
+            logger.info({ appointmentId: appointment.id }, '24h hatırlatma zamanı geçmiş, eklenmedi')
+          }
+
+          if (delay2h > 0) {
+            await remindersQueue.add(
+              'reminder',
+              { type: 'reminder_2h', appointmentId: appointment.id },
+              { delay: delay2h, jobId: `reminder-2h-${appointment.id}` },
+            )
+          } else {
+            logger.info({ appointmentId: appointment.id }, '2h hatırlatma zamanı geçmiş, eklenmedi')
+          }
+        } catch (err) {
+          logger.warn({ err, appointmentId: appointment.id }, 'Hatırlatma job eklenemedi')
+        }
+      })()
 
       return res.status(201).json({
         id: appointment.id,

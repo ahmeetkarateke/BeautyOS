@@ -243,22 +243,33 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 
 // ─── Referans kodu ile randevu iptal et ───────────────────────────────────────
 
+export type CancelResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'too_soon' }
+
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+
 export async function cancelAppointmentByRef(
   tenantId: string,
   referenceCode: string,
-): Promise<boolean> {
+): Promise<CancelResult> {
   const appointment = await db.appointment.findFirst({
     where: { tenantId, referenceCode, status: { in: ['pending', 'confirmed'] } },
   })
 
-  if (!appointment) return false
+  if (!appointment) return { ok: false, reason: 'not_found' }
+
+  if (appointment.startAt.getTime() - Date.now() < TWO_HOURS_MS) {
+    return { ok: false, reason: 'too_soon' }
+  }
 
   await db.appointment.update({
     where: { id: appointment.id },
     data: { status: 'cancelled', cancellationReason: 'Müşteri talebiyle iptal' },
   })
 
-  return true
+  return { ok: true }
 }
 
 // ─── Mock slot (DB'de henüz tenant/personel yoksa) ────────────────────────────

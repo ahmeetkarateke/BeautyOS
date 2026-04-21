@@ -12,8 +12,10 @@ interface User {
 interface AuthState {
   user: User | null
   token: string | null
+  onboardingCompleted: boolean
   setAuth: (user: User, token: string) => void
   logout: () => void
+  completeOnboarding: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -21,18 +23,24 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
+      onboardingCompleted: false,
       setAuth: (user, token) => {
         localStorage.setItem('beautyos_token', token)
         set({ user, token })
       },
       logout: () => {
         localStorage.removeItem('beautyos_token')
-        set({ user: null, token: null })
+        set({ user: null, token: null, onboardingCompleted: false })
       },
+      completeOnboarding: () => set({ onboardingCompleted: true }),
     }),
     {
       name: 'beautyos-auth',
-      partialize: (state) => ({ user: state.user, token: state.token }),
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        onboardingCompleted: state.onboardingCompleted,
+      }),
     },
   ),
 )

@@ -1,0 +1,351 @@
+# BeautyOS — Proje İlerleme Takibi
+
+> Bu dosya tüm agent'ların ortak ilerleme kaydıdır.
+> Her agent yalnızca kendi bölümünü günceller.
+
+---
+
+## Backend İlerlemesi
+
+**Son güncelleme:** 21.04.2026
+
+### Altyapı
+
+| Bileşen | Durum | Notlar |
+|---|---|---|
+| Express + TypeScript kurulum | ✅ Tamamlandı | `apps/api/` |
+| Prisma 5 + PostgreSQL (Supabase) | ✅ Tamamlandı | `DATABASE_URL` + `DIRECT_URL` Railway env'de |
+| JWT kimlik doğrulama middleware | ✅ Tamamlandı | `auth.middleware.ts` — `authenticateJWT` + `requireTenantAccess` |
+| Bcryptjs şifre hashing | ✅ Tamamlandı | Native `bcrypt` yerine pure-JS `bcryptjs` (Railway Docker uyumlu) |
+| CORS middleware | ✅ Tamamlandı | `ALLOWED_ORIGINS` env var ile kontrol |
+| Global error handler | ✅ Tamamlandı | Tüm async route'larda try/catch + next(err) |
+| Startup DB health check | ✅ Tamamlandı | `SELECT 1` — başarısızsa process.exit(1) |
+| Sentry entegrasyonu | ✅ Tamamlandı | `SENTRY_DSN` env ile aktif |
+| Rate limiting | ✅ Tamamlandı | `express-rate-limit` — auth endpoint'leri 10 req/15min |
+| Railway deployment | ✅ Canlı | `beautyosapi-production.up.railway.app` |
+
+### API Endpoint'leri
+
+#### Auth
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `POST /api/v1/auth/login` | ✅ Tamamlandı | JWT 7 gün, bcryptjs verify, rate limited |
+
+#### Tenant — Dashboard & Genel
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `GET /api/v1/tenants/:slug/dashboard` | ✅ Tamamlandı | KPI: gelir, randevu, müşteri, doluluk, değişim % |
+| `GET /api/v1/tenants/:slug/settings` | ✅ Tamamlandı | Salon adı + settings JSON |
+| `PATCH /api/v1/tenants/:slug/settings` | ✅ Tamamlandı | owner/manager yetkisi, settings JSON merge |
+
+#### Randevular
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `GET /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | ?date + ?limit filtresi |
+| `POST /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | endAt otomatik, referenceCode, slot çakışma kontrolü (409) |
+| `PATCH /api/v1/tenants/:slug/appointments/:id/status` | ✅ Tamamlandı | 6 durum enum, iptal nedeni opsiyonel |
+
+#### Müşteriler
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `GET /api/v1/tenants/:slug/customers` | ✅ Tamamlandı | Sıralı liste |
+| `GET /api/v1/tenants/:slug/customers/:id` | ✅ Tamamlandı | Detay + son 20 randevu geçmişi |
+| `POST /api/v1/tenants/:slug/customers` | ✅ Tamamlandı | 409 duplicate phone (P2002) |
+| `PATCH /api/v1/tenants/:slug/customers/:id` | ✅ Tamamlandı | fullName, phone, email, birthDate, allergyNotes, preferenceNotes |
+
+#### Hizmetler
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `GET /api/v1/tenants/:slug/services` | ✅ Tamamlandı | Aktif hizmetler listesi |
+| `POST /api/v1/tenants/:slug/services` | ✅ Tamamlandı | owner/manager yetkisi |
+| `PATCH /api/v1/tenants/:slug/services/:id` | ✅ Tamamlandı | owner/manager yetkisi |
+| `DELETE /api/v1/tenants/:slug/services/:id` | ✅ Tamamlandı | Soft delete (isActive=false) |
+
+#### Personel
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `GET /api/v1/tenants/:slug/staff` | ✅ Tamamlandı | id, title, fullName, colorCode |
+| `POST /api/v1/tenants/:slug/staff` | ✅ Tamamlandı | User + StaffProfile transaction, duplicate email → 409 |
+| `PATCH /api/v1/tenants/:slug/staff/:id` | ✅ Tamamlandı | title, bio, colorCode, workingHours |
+| `DELETE /api/v1/tenants/:slug/staff/:id` | ✅ Tamamlandı | Soft delete (user.isActive=false) |
+
+#### Kullanıcı
+| Endpoint | Durum | Notlar |
+|---|---|---|
+| `PATCH /api/v1/tenants/:slug/users/:id/password` | ✅ Tamamlandı | self veya owner yetkisi |
+
+### Test Altyapısı
+
+**Son güncelleme:** 21.04.2026 — Görev 2 tamamlandı (42/42 green)
+
+| Dosya | Test Sayısı | Durum |
+|---|---|---|
+| `src/__tests__/auth.test.ts` | 7 | ✅ Green |
+| `src/__tests__/appointments.test.ts` | 9 | ✅ Green |
+| `src/__tests__/customers.test.ts` | 9 | ✅ Green |
+| `src/__tests__/services.test.ts` | 9 | ✅ Green |
+| `src/__tests__/reminders.test.ts` | 8 | ✅ Green |
+| **Toplam** | **42** | **✅ 42/42 passed** |
+
+**Altyapı:**
+- `vitest.config.ts` oluşturuldu — `globals: true`, `environment: node`, 30s timeout
+- `src/app.ts` — Express app factory (`createApp(options?)`) index.ts'den ayrıştırıldı; testlerde import edilebilir
+- `src/__tests__/helpers/dotenv.ts` — dotenv setup file (vitest setupFiles)
+- `src/__tests__/helpers/setup.ts` — tenant, user, staff, service, customer oluşturma + `cleanupTenant()` yardımcıları
+- Her describe bloğu kendi tenant'ını oluşturur ve `afterAll` ile temizler
+- Rate limit testi için ayrı `createApp({ rateLimitMax: 10 })` instance kullanıldı
+- Gerçek Supabase DB üzerinde çalışıyor — mock yok
+
+**BullMQ Hatırlatma Sistemi:**
+- `src/lib/queue.ts` — `remindersQueue` (BullMQ Queue) + `processReminderJob()` + `startReminderWorker()`
+- Queue adı: `reminders`, Redis bağlantısı: `REDIS_URL` env (Upstash TLS destekli)
+- Job tipleri: `reminder_24h` → "Yarın saat X'de..." / `reminder_2h` → "X'deki ... hatırlatmak istedik"
+- Hata toleransı: attempts:3, exponential backoff 5s; geçersiz appointmentId → log + skip (worker çökmez)
+- `POST /appointments` — randevu sonrası 2 job eklenir (delay negatifse atlanır), fire-and-forget
+- Job ID: `reminder-24h-{appointmentId}` — tekrar oluşturmada replace destekli
+- Worker: `src/index.ts`'de başlatılır, `app.ts`'de değil (testlerde worker açılmaz)
+- Telegram kanalı değişse sadece channel katmanı güncellenir, worker kodu değişmez
+
+**`npm run test` → 42 passed, ~25s**
+
+### Bekleyen / Sonraki Adımlar
+
+| Görev | Öncelik |
+|---|---|
+| ✅ BullMQ hatırlatma görevleri (T-24h, T-2h) | ~~Yüksek — Görev 2~~ |
+| `DELETE /appointments/:id` | Düşük |
+| Pagination (cursor-based) customers/appointments için | Düşük |
+
+---
+
+## Frontend İlerlemesi
+
+**Son güncelleme:** 21.04.2026 — Onboarding sihirbazı tamamlandı (Görev 3)
+
+### Deployment
+
+| Platform | URL | Durum |
+|---|---|---|
+| Vercel (Next.js 14, App Router) | production Vercel URL | ✅ Canlı |
+
+Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
+
+### Altyapı
+
+| Bileşen | Durum | Notlar |
+|---|---|---|
+| Next.js 14 App Router + TypeScript | ✅ Tamamlandı | `apps/web/` |
+| Tailwind CSS v4 | ✅ Tamamlandı | `@tailwindcss/postcss`, CSS `@theme` token'ları |
+| BeautyOS design token | ✅ Tamamlandı | Primary `#6B48FF`, salon-border, salon-muted, salon-bg, Inter font |
+| TanStack Query v5 | ✅ Tamamlandı | staleTime 60s, retry 1 |
+| Zustand + persist | ✅ Tamamlandı | `useAuthStore` — setAuth / logout, localStorage |
+| React Hook Form + Zod | ✅ Tamamlandı | Tüm formlarda validasyon |
+| `apiFetch<T>()` | ✅ Tamamlandı | Bearer token, Türkçe hata mesajları |
+| AuthGuard | ✅ Tamamlandı | Token yoksa `/login`'e yönlendirme |
+| Toast sistemi | ✅ Tamamlandı | Radix Toast üzerine global `toast()` helper |
+
+### Sayfalar
+
+| Sayfa | Rota | Durum |
+|---|---|---|
+| Login | `/login` | ✅ Tamamlandı |
+| Dashboard | `/tenant/:slug/dashboard` | ✅ Tamamlandı |
+| Randevular | `/tenant/:slug/appointments` | ✅ Tamamlandı |
+| Müşteriler | `/tenant/:slug/customers` | ✅ Tamamlandı |
+| Müşteri Detay | `/tenant/:slug/customers/:id` | ✅ Tamamlandı |
+| Ayarlar | `/tenant/:slug/settings` | ✅ Tamamlandı |
+| Hizmetler | `/tenant/:slug/services` | ✅ Tamamlandı |
+| Personel | `/tenant/:slug/staff` | ✅ Tamamlandı |
+| Onboarding Sihirbazı | `/onboarding` | ✅ Tamamlandı |
+
+### Bileşenler
+
+**Layout**
+- `Sidebar` — desktop navigasyon, kullanıcı bilgisi, çıkış butonu
+- `MobileNav` — sabit alt navigasyon (mobile)
+- `AuthGuard` — kimlik doğrulama koruyucusu
+
+**UI Primitives** (`src/components/ui/`)
+- Button, Input, Label, Card, Skeleton, Select, Textarea, Dialog, Toaster
+
+**Dashboard**
+- `KpiCard` — değer, ikon, trend, skeleton loading
+- `TodaysAppointments` — bugünün randevu listesi, durum badge'leri
+
+**Randevular**
+- `AppointmentCalendar` — FullCalendar (`ssr:false`), Türkçe locale, personel renk kodlaması
+- `NewAppointmentModal` — müşteri / hizmet / personel dropdown, datetime picker
+- `AppointmentStatusModal` — 6 durum seçeneği
+
+**Müşteriler**
+- `NewCustomerModal` — ad-soyad, telefon, e-posta, doğum tarihi
+- `EditCustomerModal` — fullName, phone, email, birthDate, allergyNotes, preferenceNotes
+
+**Hizmetler**
+- `ServiceModal` — ekle/düzenle (isim, kategori, süre, fiyat, isActive)
+- Kategori bazlı gruplandırılmış liste, soft delete
+
+**Personel**
+- `StaffModal` — ekle (fullName, email, şifre, title, renk) / düzenle (title, bio, renk)
+- `ColorPicker` — 8 renk swatchi, integer index olarak saklanır
+- Kart grid görünümü
+
+**UI Primitives (yeni)**
+- `ConfirmDialog` — yeniden kullanılabilir onay dialogu
+
+**Onboarding**
+- `OnboardingProgress` — animasyonlu progress bar (%20→%100)
+- `Step1Salon` — salon bilgileri formu, PATCH /settings
+- `Step2Services` — dinamik hizmet listesi (max 5), POST /services
+- `Step3Staff` — dinamik personel listesi (max 3), renk swatchi, POST /staff
+- `Step4WhatsApp` — bilgi ekranı, mock e-posta toast, atla butonu
+- `Step5Done` — CSS animasyonlu tik, `onboardingCompleted=true` set
+- `store/auth.ts` — `onboardingCompleted` + `completeOnboarding()` persist'e eklendi
+- Login sonrası yönlendirme: `onboardingCompleted` false ise `/onboarding`, değilse dashboard
+
+### Düzeltilen Bug'lar
+
+| Bug | Çözüm |
+|---|---|
+| FullCalendar SSR crash | `dynamic(() => import(...), { ssr: false })` |
+| `next.config.ts` Vercel crash | `.ts` → `.mjs`, eski dosya git'ten silindi |
+| Tailwind v4 PostCSS hatası | `@tailwindcss/postcss` + CSS `@theme` |
+| `staff.user.fullName` interface hatası | Backend flat `fullName` döndürüyor, interface güncellendi |
+| `apt.startAt` → `apt.startTime` | Customer detail sayfasında field adı düzeltildi |
+| `['appointments-today']` query key uyumsuzluğu | `['appointments']` olarak düzeltildi — randevu sonrası dashboard güncellenmiyordu |
+
+### Bekleyen / Sonraki Adımlar
+
+| Görev | Öncelik |
+|---|---|
+| Dashboard tarih filtresi backend desteği (`?period=week\|month`) | Orta |
+| Randevu detay sayfası | Düşük |
+| PWA manifest + service worker | Düşük |
+| Dark mode | Düşük |
+
+---
+
+## Veritabanı İlerlemesi
+
+<!-- Database agent bu bölümü dolduracak -->
+
+---
+
+## WhatsApp AI İlerlemesi
+
+### Tamamlanan Bugfix'ler (2026-04-21)
+
+**Bug 1 — Saat Kayması (KRİTİK) ✅**
+- `getAvailableSlots` içinde `setHours()` yerine UTC ofset tabanlı hesaplama kullanıldı.
+- `dayStart/dayEnd` artık `date.getTime() + (hour - 3) * 3600 * 1000` formülüyle doğru UTC timestamp üretiyor.
+- Slot `label` TR saatini gösteriyor (`trCursor.getUTCHours()`); `id` ise UTC ISO string saklıyor (createAppointment parse'da doğru çalışıyor).
+
+**Bug 2 — Personel Adı Unvan Çıkıyor ✅**
+- `staffProfile.findMany` sorgusuna `include: { user: { select: { fullName: true } } }` eklendi.
+- `staffName: sp.title` → `staffName: sp.user.fullName` ile gerçek isim gösteriliyor.
+
+**Bug 8 — "Merhaba" → unknown (chat API history sorunu) ✅**
+- `chat.startChat + sendMessage` → `model.generateContent()` ile değiştirildi. Chat API'de `systemInstruction` + boş history kombinasyonu sessiz hata üretiyordu.
+- `buildDetectionPrompt()` fully self-contained hale getirildi: system instruction, salon context, session state ve örnekler tek prompt içinde.
+- `generateReply()` da aynı şekilde `generateContent()` kullanacak şekilde güncellendi.
+- `toGeminiHistory` ve `Content` import'u kaldırıldı (artık kullanılmıyor).
+- `logger.info({ raw })` ile Railway'de Gemini ham yanıtı görülebilir.
+
+**Bug 7 — Gemini "anlayamadım" döngüsü ✅**
+- Model isimleri `gemini-2.5-flash/pro` → `gemini-2.0-flash` (GA, JSON mode tam destekli).
+- `responseMimeType: 'application/json'` kaldırıldı; JSON prompt içinde isteniyor (bazı versiyonlarda uyumsuzluk vardı).
+- JSON parse öncesi markdown code block temizleniyor (`cleaned`).
+- `catch` bloğu ve parse hataları tam bağlamla loglanıyor (`model`, `message`, `zodError`).
+- `buildDetectionPrompt()`: Türkçe örnekler + "sadece geçerli JSON döndür" kuralı eklendi.
+- `buildSystemPrompt()`: KURALLAR bölümü daha doğal konuşma için güncellendi.
+
+**Bug 4 — Sonsuz Döngü (unknown intent) ✅**
+- `flow.handler.ts`: `unknown` intent gelince artık `clarifyCount` artırılıyor ve "Tam anlayamadım" mesajı dönülüyor. Katman 2/3 eşiklerine göre yönlendirme yapılıyor; döngü kırıldı.
+
+**Bug 5 — Keyword Fallback Kaldırıldı (refactor) ✅**
+- `detectByKeyword()` tamamen silindi — tüm intent tespiti Gemini üzerinden.
+- Önceki keyword fallback "randevu" kelimesini yakalarken entities boş dönüyordu (service çıkarılmıyordu), bu da servis listesi menüsünün gereksiz açılmasına yol açıyordu.
+
+**Bug 6 — Sistem Promptu Doğal Konuşmayı Desteklemiyor ✅**
+- `buildSystemPrompt()`: Niyet tespit örnekleri eklendi ("Tırnak" → book, "Merhaba" → general).
+- `buildDetectionPrompt()`: `unknown` vs `general` kuralı eklendi — selamlama/belirsiz mesajlar artık `general` sayılıyor.
+
+**İyileştirme — /start sonrası yönlendirme ✅**
+- `REPLIES.welcome` ilk 3 hizmet adını mesajda gösteriyor. `buildWelcome` salon context alacak şekilde güncellendi.
+
+**Bug 3 — Online Rezervasyona Kapalı Hizmetler ✅**
+- `prisma/schema.prisma` — `Service` modeline `isOnlineBookable Boolean @default(true)` eklendi.
+- Migration çalıştırıldı: `20260421040337_add_service_online_bookable` (mevcut hizmetler `true` değeriyle güncellendi).
+- `salon.context.ts` — `services` sorgusu `isOnlineBookable: true` filtresiyle güncellendi.
+- `GET /services?onlineOnly=true` query param desteği eklendi.
+- `PATCH /services/:id` — `updateServiceSchema`'ya `isOnlineBookable` alanı eklendi; response'a da dahil edildi.
+
+---
+
+### Tamamlanan İyileştirmeler — 2026-04-21 (Oturum 2)
+
+**Gemini Model Güncelleme ✅**
+- `gemini-2.0-flash` yeni API key'lerde HTTP 404 döndürdüğü keşfedildi (deprecated for new users).
+- `gemini-2.5-flash` olarak güncellendi.
+- `thinkingBudget: 0` eklendi — thinking token'lar output budget'ını tüketip JSON'u kesiyor.
+- Local test scriptiyle doğrulandı: "Merhaba" → `general`, "Saç kestirmek istiyorum" → `book`, "Yarın müsait misiniz?" → `query_availability`.
+
+**Tamamen Doğal Dil Akışı (Büyük Refactor) ✅**
+- Tüm `sendList` / `sendButtons` çağrıları kaldırıldı — saf metin tabanlı konuşma.
+- `detectByKeyword()` silindi — sadece Gemini kullanılıyor.
+- `awaiting_confirm` adımı eklendi (session step): randevu oluşturmadan önce kullanıcıdan "evet/hayır" onayı alınıyor.
+- Yeni akış: servis tespiti → tarih sorusu → numaralı slot listesi → özet onay → rezervasyon.
+
+**Tarih Çözücü İyileştirmeleri ✅**
+- `resolveDate()` artık Türkçe ay adlarını tanıyor: "22 Nisan", "3 Mayıs" gibi formatlar.
+- `resolveTimeRange()` doğal metin kabul ediyor: "öğleden sonra", "akşam", "saat 14" vb.
+- Slot listesi başlığına tarih eklendi (kullanıcı hangi gün için baktığını biliyor).
+
+**Akış Ortasında Tarih Değiştirme ✅**
+- `awaiting_slot_confirm` adımında kullanıcı yeni bir tarih söylerse (örn: "hayır cumartesi istiyorum") → slot listesi yeni tarih için yeniden yükleniyor.
+- `awaiting_confirm` adımında "Hayır ben 22 nisanda gelecem" → iptal değil, tarih değişikliği olarak algılanıyor.
+
+---
+
+### WhatsApp AI — Oturum 3 (2026-04-21)
+
+**İŞ 1 — Randevu İptal Akışı Geliştirildi ✅**
+
+- `cancelAppointmentByRef()` → `CancelResult` döndürüyor: `{ok:true}` | `{ok:false,reason:'not_found'}` | `{ok:false,reason:'too_soon'}`
+- 2 saat kuralı: `appointment.startAt - Date.now() < 7_200_000` ms ise `too_soon`
+- Geçersiz kodda retry takibi: `_cancelAttempts` session entities'de saklanıyor
+- 2 başarısız denemede `step='handed_off'` + salon adresine yönlendirme
+- `SalonContext`'e opsiyonel `phone?: string` alanı eklendi — `too_soon` durumunda iletişim bilgisi gösteriliyor
+- `startCancel()` mesajı güncellendi: referans kodu formatı açıklaması eklendi
+
+**İŞ 2 — Intent Test Veri Seti ✅**
+
+- `apps/api/src/__tests__/intent.test.ts` — 20 Türkçe konuşma
+- GERÇEK Gemini API çağrısı (mock yok)
+- Kategoriler: book (7), cancel (3), query_price (3), query_availability (3), general (4)
+- Yazım hatası test'leri: "rndy almak istiyorum", "pzrtsi için rnvu almk istyrm"
+- Hedef: 17/20 (%85) — `expect(passed).toBeGreaterThanOrEqual(17)` — 2 dk timeout
+- Başarısız testler konsola detaylı yazdırılıyor
+
+**İŞ 3 — Prompt Token Optimizasyonu ✅**
+
+| Prompt | Öncesi (kelime) | Sonrası (kelime) | Azalma |
+|---|---|---|---|
+| `buildDetectionPrompt` (sabit kısım) | ~134 | ~73 | **%46** |
+| `buildReplySystemPrompt` (sabit kısım) | ~100 | ~53 | **%47** |
+
+Yöntem:
+- `buildDetectionPrompt`: 6 örnek → 4 örnek (inline format, satır başı Giriş:/Çıkış: kaldırıldı)
+- `buildDetectionPrompt`: KURALLAR 3 madde → 1 satır inline
+- `buildDetectionPrompt`: "ZORUNLU JSON FORMATI" + açıklaması kısaltıldı
+- `buildReplySystemPrompt`: 8 madde → 3 madde inline KURALLAR
+- `buildReplySystemPrompt`: menü format `Name(Xdk,₺Y)` → `Name|Xdk|₺Y`
+- `buildReplySystemPrompt`: personel listesinde unvan kaldırıldı
+- Her iki fonksiyon başına `logger.info({ tokens: prompt.split(' ').length })` eklendi
+
+### Bilinen Açık Sorunlar
+
+| Sorun | Durum | Not |
+|---|---|---|
+| Personel adı "Güzellik Uzmanı" çıkıyor | Veri sorunu | Admin panelinden `user.fullName` güncellenmeli |
+| Intent test'leri henüz çalıştırılmadı | Bekliyor | `GEMINI_API_KEY` env gerekiyor |

@@ -34,6 +34,7 @@ interface LoginResponse {
 export default function LoginPage() {
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const onboardingCompleted = useAuthStore((s) => s.onboardingCompleted)
 
   const {
     register,
@@ -51,7 +52,12 @@ export default function LoginPage() {
       }),
     onSuccess: (data) => {
       setAuth(data.user, data.token)
-      router.push(`/tenant/${data.user.tenantSlug}/dashboard`)
+      const completed = useAuthStore.getState().onboardingCompleted
+      if (!completed) {
+        router.push('/onboarding')
+      } else {
+        router.push(`/tenant/${data.user.tenantSlug}/dashboard`)
+      }
     },
   })
 

@@ -12,8 +12,10 @@ import { createWebhookRouter } from './routes/webhook.route'
 import { createAuthRouter } from './routes/auth.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { TenantRegistry } from './lib/tenant.registry'
+import { startReminderWorker } from './lib/queue'
 import { db } from './lib/db'
 import { logger } from './lib/logger'
+export { createApp } from './app'
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -125,6 +127,9 @@ async function bootstrap(): Promise<void> {
   })
 
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
+
+  startReminderWorker()
+  logger.info('BullMQ hatırlatma worker başlatıldı')
 
   const port = Number(process.env.PORT ?? 3001)
   app.listen(port, async () => {

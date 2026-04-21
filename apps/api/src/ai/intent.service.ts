@@ -28,6 +28,7 @@ export interface SalonContext {
   staff: Array<{ name: string; title: string }>
   workingHours: string
   address: string
+  phone?: string
 }
 
 // ─── Intent Servisi ───────────────────────────────────────────────────────────
@@ -131,24 +132,17 @@ export class IntentService {
 // ─── Prompt inşacıları ────────────────────────────────────────────────────────
 
 function buildReplySystemPrompt(salon: SalonContext): string {
-  const menu = salon.services.map((s) => `${s.name}(${s.duration}dk,₺${s.price})`).join(', ')
-  const staff = salon.staff.map((s) => `${s.name}/${s.title}`).join(', ')
+  const menu = salon.services.map((s) => `${s.name}|${s.duration}dk|₺${s.price}`).join(', ')
+  const staff = salon.staff.map((s) => s.name).join(', ')
 
-  return `Sen ${salon.name} salonunun AI asistanısın. Müşterilerin WhatsApp/Telegram üzerinden randevu almasına yardım ediyorsun.
-
-SALON: adres=${salon.address} | saat=${salon.workingHours}
+  const prompt = `${salon.name} AI asistanısın. Türkçe, kısa (max 3 cümle), samimi yanıt ver.
+SALON: ${salon.address} | ${salon.workingHours}
 MENÜ: ${menu}
 PERSONEL: ${staff}
+KURALLAR: Randevu kesinleşmeden "oluşturuldu" yazma. Bilmediğin soruları salona yönlendir. Ne istediği belirsizse sor.`
 
-KURALLAR:
-- Sadece Türkçe yaz
-- Sıcak ve samimi ol, robot gibi değil
-- Maksimum 2-3 cümle
-- Kullanıcı ne istediğini bilmiyorsa sor, reddetme
-- Randevu kesinleşmeden asla "oluşturuldu" yazma
-- Selamlara samimi karşılık ver
-- Bilmediğin soruları salona yönlendir
-- Fiyat söylerken "₺X'dan başlayan" kullan`
+  logger.info({ tokens: prompt.split(' ').length }, 'buildReplySystemPrompt token tahmini')
+  return prompt
 }
 
 function buildDetectionPrompt(
@@ -158,40 +152,24 @@ function buildDetectionPrompt(
 ): string {
   const serviceNames = salon.services.map((s) => s.name).join(', ')
 
-  return `Sen bir güzellik salonu rezervasyon botusun. Kullanıcı mesajını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir şey yazma, açıklama yapma.
+  const prompt = `Güzellik salonu rezervasyon botu. Mesajı analiz et, SADECE JSON döndür.
 
-SALON HİZMETLERİ: ${serviceNames}
-MEVCUT ADIM: ${session.step}
-MEVCUT NİYET: ${session.currentIntent ?? 'yok'}
+HİZMETLER: ${serviceNames}
+ADIM: ${session.step} | NİYET: ${session.currentIntent ?? 'yok'}
+MESAJ: "${userMessage}"
 
-ANALİZ EDILECEK MESAJ: "${userMessage}"
+FORMAT: {"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":null,"staffPreference":null,"datePreference":null,"timePreference":null},"requiresClarification":false}
 
-ZORUNLU JSON FORMATI:
-{"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":"hizmet adı veya null","staffPreference":"personel veya null","datePreference":"tarih veya null","timePreference":"saat veya null"},"requiresClarification":false}
+ÖRNEKLER:
+"merhaba" → {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
+"saç kestirmek istiyorum" → {"intent":"book","confidence":0.95,"entities":{"service":"Saç Kesimi"},"requiresClarification":false}
+"iptal etmek istiyorum" → {"intent":"cancel","confidence":0.95,"entities":{},"requiresClarification":false}
+"ne kadar tutar" → {"intent":"query_price","confidence":0.9,"entities":{},"requiresClarification":false}
 
-ÖRNEKLER (BUNLARI TAKLİT ET):
-Giriş: "merhaba"
-Çıkış: {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
+KURALLAR: selamlama/teşekkür → general | anlamsız/spam → unknown`
 
-Giriş: "saç kestirmek istiyorum"
-Çıkış: {"intent":"book","confidence":0.95,"entities":{"service":"Saç Kesimi"},"requiresClarification":false}
-
-Giriş: "manikür yaptırmak istiyorum"
-Çıkış: {"intent":"book","confidence":0.95,"entities":{"service":"Manikür"},"requiresClarification":false}
-
-Giriş: "ne kadar tutar"
-Çıkış: {"intent":"query_price","confidence":0.9,"entities":{},"requiresClarification":false}
-
-Giriş: "yarın müsait misiniz"
-Çıkış: {"intent":"query_availability","confidence":0.9,"entities":{},"requiresClarification":false}
-
-Giriş: "iptal etmek istiyorum"
-Çıkış: {"intent":"cancel","confidence":0.95,"entities":{},"requiresClarification":false}
-
-KURALLAR:
-- Selamlama, teşekkür, genel sorular → "general"
-- Anlamsız/spam → "unknown"
-- SADECE JSON döndür, başka hiçbir şey yazma`
+  logger.info({ tokens: prompt.split(' ').length }, 'buildDetectionPrompt token tahmini')
+  return prompt
 }
 
 function fallbackResult(): IntentResult {
