@@ -76,7 +76,85 @@
 
 ## Frontend İlerlemesi
 
-<!-- Frontend agent bu bölümü dolduracak -->
+**Son güncelleme:** 21.04.2026
+
+### Deployment
+
+| Platform | URL | Durum |
+|---|---|---|
+| Vercel (Next.js 14, App Router) | production Vercel URL | ✅ Canlı |
+
+Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
+
+### Altyapı
+
+| Bileşen | Durum | Notlar |
+|---|---|---|
+| Next.js 14 App Router + TypeScript | ✅ Tamamlandı | `apps/web/` |
+| Tailwind CSS v4 | ✅ Tamamlandı | `@tailwindcss/postcss`, CSS `@theme` token'ları |
+| BeautyOS design token | ✅ Tamamlandı | Primary `#6B48FF`, salon-border, salon-muted, salon-bg, Inter font |
+| TanStack Query v5 | ✅ Tamamlandı | staleTime 60s, retry 1 |
+| Zustand + persist | ✅ Tamamlandı | `useAuthStore` — setAuth / logout, localStorage |
+| React Hook Form + Zod | ✅ Tamamlandı | Tüm formlarda validasyon |
+| `apiFetch<T>()` | ✅ Tamamlandı | Bearer token, Türkçe hata mesajları |
+| AuthGuard | ✅ Tamamlandı | Token yoksa `/login`'e yönlendirme |
+| Toast sistemi | ✅ Tamamlandı | Radix Toast üzerine global `toast()` helper |
+
+### Sayfalar
+
+| Sayfa | Rota | Durum |
+|---|---|---|
+| Login | `/login` | ✅ Tamamlandı |
+| Dashboard | `/tenant/:slug/dashboard` | ✅ Tamamlandı |
+| Randevular | `/tenant/:slug/appointments` | ✅ Tamamlandı |
+| Müşteriler | `/tenant/:slug/customers` | ✅ Tamamlandı |
+| Müşteri Detay | `/tenant/:slug/customers/:id` | ✅ Tamamlandı |
+| Ayarlar | `/tenant/:slug/settings` | ✅ Tamamlandı |
+
+### Bileşenler
+
+**Layout**
+- `Sidebar` — desktop navigasyon, kullanıcı bilgisi, çıkış butonu
+- `MobileNav` — sabit alt navigasyon (mobile)
+- `AuthGuard` — kimlik doğrulama koruyucusu
+
+**UI Primitives** (`src/components/ui/`)
+- Button, Input, Label, Card, Skeleton, Select, Textarea, Dialog, Toaster
+
+**Dashboard**
+- `KpiCard` — değer, ikon, trend, skeleton loading
+- `TodaysAppointments` — bugünün randevu listesi, durum badge'leri
+
+**Randevular**
+- `AppointmentCalendar` — FullCalendar (`ssr:false`), Türkçe locale, personel renk kodlaması
+- `NewAppointmentModal` — müşteri / hizmet / personel dropdown, datetime picker
+- `AppointmentStatusModal` — 6 durum seçeneği
+
+**Müşteriler**
+- `NewCustomerModal` — ad-soyad, telefon, e-posta, doğum tarihi
+
+### Düzeltilen Bug'lar
+
+| Bug | Çözüm |
+|---|---|
+| FullCalendar SSR crash | `dynamic(() => import(...), { ssr: false })` |
+| `next.config.ts` Vercel crash | `.ts` → `.mjs`, eski dosya git'ten silindi |
+| Tailwind v4 PostCSS hatası | `@tailwindcss/postcss` + CSS `@theme` |
+| `staff.user.fullName` interface hatası | Backend flat `fullName` döndürüyor, interface güncellendi |
+| `apt.startAt` → `apt.startTime` | Customer detail sayfasında field adı düzeltildi |
+| `['appointments-today']` query key uyumsuzluğu | `['appointments']` olarak düzeltildi — randevu sonrası dashboard güncellenmiyordu |
+
+### Bekleyen / Sonraki Adımlar
+
+| Görev | Öncelik |
+|---|---|
+| Hizmetler yönetim sayfası (`/tenant/:slug/services`) | Orta |
+| Personel yönetim sayfası (`/tenant/:slug/staff`) | Orta |
+| Müşteri düzenleme modalı | Orta |
+| Dashboard tarih filtresi (bugün / bu hafta / bu ay) | Orta |
+| Randevu detay sayfası | Düşük |
+| PWA manifest + service worker | Düşük |
+| Dark mode | Düşük |
 
 ---
 
