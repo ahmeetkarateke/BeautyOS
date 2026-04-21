@@ -87,8 +87,8 @@ export class IntentService {
       ? this.proModel
       : this.flashModel
 
-    const systemPrompt = buildSystemPrompt(salon)
-    const userPrompt = buildDetectionPrompt(userMessage, session)
+    const systemPrompt = buildDetectionSystemPrompt()
+    const userPrompt = buildDetectionPrompt(userMessage, session, salon)
     const history = toGeminiHistory(session.messages.slice(0, -1).slice(-6))
     // Gemini history model turn ile bitmeli — user ile biterse API hatası
     while (history.length > 0 && history[history.length - 1].role === 'user') {
@@ -109,9 +109,13 @@ export class IntentService {
       const result = await chat.sendMessage(userPrompt)
       const raw = result.response.text()
 
-      // Markdown code block varsa temizle
-      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      const parsed = IntentResultSchema.safeParse(JSON.parse(cleaned))
+      // JSON objesini response içinde ara — model öncesine/sonrasına Türkçe metin ekleyebilir
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        logger.warn({ raw }, 'Gemini JSON objesi bulunamadı')
+        return fallbackResult()
+      }
+      const parsed = IntentResultSchema.safeParse(JSON.parse(jsonMatch[0]))
 
       if (!parsed.success) {
         logger.warn({ raw, zodError: parsed.error.flatten() }, 'Gemini JSON parse hatası')
@@ -148,7 +152,7 @@ export class IntentService {
     try {
       const model = this.genAI.getGenerativeModel({
         model: modelName,
-        systemInstruction: `${buildSystemPrompt(salon)}\n\nGörev: ${instruction}. Türkçe, kısa (max 3 cümle), samimi yaz.`,
+        systemInstruction: `${buildReplySystemPrompt(salon)}\n\nGörev: ${instruction}. Türkçe, kısa (max 3 cümle), samimi yaz.`,
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: 200,
@@ -193,12 +197,15 @@ function toGeminiHistory(
 
 // ─── Prompt inşacıları ────────────────────────────────────────────────────────
 
-function buildSystemPrompt(salon: SalonContext): string {
-  // Menü JSON formatında — Markdown'a göre %40 daha az token
-  const menu = salon.services
-    .map((s) => `${s.name}(${s.duration}dk,₺${s.price})`)
-    .join(', ')
+// Detection için minimal sistem promptu — persona talimatları JSON çıktısını bozuyor
+function buildDetectionSystemPrompt(): string {
+  return `Sen bir güzellik salonu rezervasyon sisteminin intent detection motorusun.
+Görevin: kullanıcı mesajlarını analiz edip SADECE JSON döndürmek.
+Türkçe veya başka dilde hiçbir açıklama ekleme. Sadece JSON objesi döndür.`
+}
 
+function buildReplySystemPrompt(salon: SalonContext): string {
+  const menu = salon.services.map((s) => `${s.name}(${s.duration}dk,₺${s.price})`).join(', ')
   const staff = salon.staff.map((s) => `${s.name}/${s.title}`).join(', ')
 
   return `Sen ${salon.name} salonunun AI asistanısın. Müşterilerin WhatsApp/Telegram üzerinden randevu almasına yardım ediyorsun.
@@ -215,54 +222,36 @@ KURALLAR:
 - Randevu kesinleşmeden asla "oluşturuldu" yazma
 - Selamlara samimi karşılık ver
 - Bilmediğin soruları salona yönlendir
-- Fiyat söylerken "₺X'dan başlayan" kullan
-
-NİYET TESPİT ÖRNEKLERİ:
-"Tırnak" → book, service: tırnak hizmeti
-"Merhaba saç kestirmek istiyorum" → book, service: saç kesimi
-"Yarın müsait misiniz" → query_availability
-"Ne kadar tutar" → query_price
-"Merhaba" → general
-"Teşekkürler" → general`
+- Fiyat söylerken "₺X'dan başlayan" kullan`
 }
 
 function buildDetectionPrompt(
   userMessage: string,
   session: ConversationSession,
+  salon: SalonContext,
 ): string {
-  return `Kullanıcı mesajını analiz et ve JSON döndür:
+  const serviceNames = salon.services.map((s) => s.name).join(', ')
 
-Mesaj: "${userMessage}"
-Mevcut adım: ${session.step}
-Mevcut niyet: ${session.currentIntent ?? 'yok'}
-Mevcut bilgiler: ${JSON.stringify(session.entities)}
+  return `Aşağıdaki kullanıcı mesajını analiz et. SADECE JSON döndür, başka hiçbir şey yazma.
 
-JSON formatı:
-{
-  "intent": "book|cancel|query_price|query_availability|general|unknown",
-  "confidence": 0.0-1.0,
-  "entities": {
-    "service": "varsa hizmet adı",
-    "staffPreference": "varsa tercih edilen personel",
-    "datePreference": "varsa tarih ifadesi (yarın, cumartesi, 15 haziran)",
-    "timePreference": "varsa saat ifadesi (öğleden sonra, 14:00)"
-  },
-  "requiresClarification": true/false,
-  "clarificationQuestion": "netleştirme sorusu (requiresClarification=true ise)"
-}
+MESAJ: "${userMessage}"
+MEVCUT ADIM: ${session.step}
+MEVCUT NİYET: ${session.currentIntent ?? 'yok'}
+MEVCUT BİLGİLER: ${JSON.stringify(session.entities)}
+SALON HİZMETLERİ: ${serviceNames}
+
+DÖNDÜR:
+{"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":"hizmet adı veya null","staffPreference":"personel tercihi veya null","datePreference":"tarih ifadesi veya null","timePreference":"saat ifadesi veya null"},"requiresClarification":true/false,"clarificationQuestion":"soru veya null"}
 
 ÖRNEKLER:
-"merhaba" → intent: general, confidence: 0.9
-"randevu" → intent: book, confidence: 0.95
-"Tırnak yaptırmak istiyorum" → intent: book, confidence: 0.95, entities.service: "Tırnak"
-"ne kadar tutar" → intent: query_price, confidence: 0.9
-"yarın müsait misiniz" → intent: query_availability, confidence: 0.9
-"iptal etmek istiyorum" → intent: cancel, confidence: 0.95
-"asdfgh" → intent: unknown, confidence: 0.1
+"merhaba" → {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
+"randevu almak istiyorum" → {"intent":"book","confidence":0.95,"entities":{},"requiresClarification":false}
+"manikür yaptırmak istiyorum" → {"intent":"book","confidence":0.95,"entities":{"service":"Manikür"},"requiresClarification":false}
+"ne kadar tutar" → {"intent":"query_price","confidence":0.9,"entities":{},"requiresClarification":false}
+"yarın müsait misiniz" → {"intent":"query_availability","confidence":0.9,"entities":{},"requiresClarification":false}
+"iptal etmek istiyorum" → {"intent":"cancel","confidence":0.95,"entities":{},"requiresClarification":false}
 
-ÖNEMLİ KURAL: Selamlama ve belirsiz ama anlamlı mesajlar için 'general' kullan. 'unknown' sadece gerçekten anlamsız içerik için.
-
-ÖNEMLİ: Sadece geçerli JSON döndür, başka hiçbir şey yazma. Markdown code block kullanma. Sadece { } ile başlayan JSON.`
+KURAL: Selamlaşma ve anlamlı mesajlar → general. Sadece gerçek anlamsız içerik → unknown.`
 }
 
 function fallbackResult(): IntentResult {
