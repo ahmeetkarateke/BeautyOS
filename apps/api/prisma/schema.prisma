@@ -83,6 +83,18 @@ enum NotificationType {
   cancellation
 }
 
+enum CommissionType {
+  percentage
+  fixed
+}
+
+enum LeaveType {
+  day_off
+  sick_leave
+  vacation
+  other
+}
+
 // ─── Tenant (Salon / İşletme) ─────────────────────────────────────────────────
 
 model Tenant {
@@ -100,15 +112,17 @@ model Tenant {
   updatedAt          DateTime  @updatedAt
 
   users              User[]
-  staffProfiles      StaffProfile[]
-  customers          Customer[]
-  services           Service[]
-  resources          Resource[]
-  appointments       Appointment[]
-  transactions       Transaction[]
-  expenses           Expense[]
-  inventory          InventoryItem[]
-  notificationLogs   NotificationLog[]
+  staffProfiles               StaffProfile[]
+  customers                   Customer[]
+  services                    Service[]
+  resources                   Resource[]
+  appointments                Appointment[]
+  transactions                Transaction[]
+  expenses                    Expense[]
+  inventory                   InventoryItem[]
+  notificationLogs            NotificationLog[]
+  staffServiceAssignments     StaffServiceAssignment[]
+  staffLeaves                 StaffLeave[]
 
   @@map("tenants")
 }
@@ -151,9 +165,11 @@ model StaffProfile {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id])
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  appointments Appointment[]
+  user               User                     @relation(fields: [userId], references: [id])
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id])
+  appointments       Appointment[]
+  serviceAssignments StaffServiceAssignment[]
+  leaves             StaffLeave[]
 
   @@index([tenantId])
   @@map("staff_profiles")
@@ -204,8 +220,9 @@ model Service {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  appointments Appointment[]
+  tenant           Tenant                   @relation(fields: [tenantId], references: [id])
+  appointments     Appointment[]
+  staffAssignments StaffServiceAssignment[]
 
   @@index([tenantId])
   @@map("services")
@@ -349,4 +366,47 @@ model NotificationLog {
   @@index([tenantId])
   @@index([appointmentId])
   @@map("notification_logs")
+}
+
+// ─── Staff Service Assignment (Personel-Hizmet Atama) ────────────────────────
+
+model StaffServiceAssignment {
+  id              String         @id @default(uuid()) @db.Uuid
+  staffId         String         @db.Uuid
+  serviceId       String         @db.Uuid
+  tenantId        String         @db.Uuid
+  commissionType  CommissionType @default(percentage)
+  commissionValue Decimal        @default(0) @db.Decimal(10, 2)
+  priceOverride   Decimal?       @db.Decimal(10, 2)
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+
+  staff   StaffProfile @relation(fields: [staffId], references: [id])
+  service Service      @relation(fields: [serviceId], references: [id])
+  tenant  Tenant       @relation(fields: [tenantId], references: [id])
+
+  @@unique([staffId, serviceId])
+  @@index([staffId])
+  @@index([serviceId])
+  @@index([tenantId])
+  @@map("staff_service_assignments")
+}
+
+// ─── Staff Leave (Personel İzin) ─────────────────────────────────────────────
+
+model StaffLeave {
+  id        String    @id @default(uuid()) @db.Uuid
+  staffId   String    @db.Uuid
+  tenantId  String    @db.Uuid
+  leaveDate DateTime  @db.Date
+  leaveType LeaveType @default(day_off)
+  note      String?
+  createdAt DateTime  @default(now())
+
+  staff  StaffProfile @relation(fields: [staffId], references: [id])
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+
+  @@index([staffId])
+  @@index([tenantId, leaveDate])
+  @@map("staff_leaves")
 }
