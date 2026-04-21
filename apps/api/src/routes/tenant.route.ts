@@ -260,6 +260,19 @@ export function createTenantRouter(): Router {
 
       const referenceCode = `APT-${Date.now().toString(36).toUpperCase()}`
 
+      const conflict = await db.appointment.findFirst({
+        where: {
+          staffId,
+          tenantId,
+          status: { notIn: ['cancelled', 'no_show'] },
+          startAt: { lt: endDate },
+          endAt: { gt: startDate },
+        },
+      })
+      if (conflict) {
+        return res.status(409).json({ error: { code: 'APPOINTMENT_CONFLICT', message: 'Seçilen personelin bu saatte başka bir randevusu var.' } })
+      }
+
       const appointment = await db.appointment.create({
         data: {
           tenantId,
@@ -570,6 +583,306 @@ export function createTenantRouter(): Router {
       await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } })
 
       return res.json({ ok: true })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Services CRUD ────────────────────────────────────────────────────────────
+
+  const createServiceSchema = z.object({
+    name: z.string().min(1).max(100),
+    category: z.string().max(50).optional(),
+    durationMinutes: z.number().int().min(5),
+    price: z.number().min(0),
+    bufferMinutes: z.number().int().min(0).optional().default(0),
+  })
+
+  const updateServiceSchema = z.object({
+    name: z.string().min(1).max(100).optional(),
+    category: z.string().max(50).optional(),
+    durationMinutes: z.number().int().min(5).optional(),
+    price: z.number().min(0).optional(),
+    bufferMinutes: z.number().int().min(0).optional(),
+    isActive: z.boolean().optional(),
+  })
+
+  router.post('/services', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = createServiceSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz hizmet verisi.' } })
+      }
+
+      const service = await db.service.create({
+        data: { ...parsed.data, tenantId: req.user!.tenantId },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true },
+      })
+
+      return res.status(201).json({ ...service, price: Number(service.price) })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.patch('/services/:serviceId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = updateServiceSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz hizmet verisi.' } })
+      }
+
+      const { serviceId } = req.params
+      const tenantId = req.user!.tenantId
+
+      const existing = await db.service.findFirst({ where: { id: serviceId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
+      }
+
+      const updated = await db.service.update({
+        where: { id: serviceId },
+        data: parsed.data,
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true },
+      })
+
+      return res.json({ ...updated, price: Number(updated.price) })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.delete('/services/:serviceId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const { serviceId } = req.params
+      const tenantId = req.user!.tenantId
+
+      const existing = await db.service.findFirst({ where: { id: serviceId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
+      }
+
+      await db.service.update({ where: { id: serviceId }, data: { isActive: false } })
+
+      return res.json({ ok: true })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Staff CRUD ────────────────────────────────────────────────────────────────
+
+  const createStaffSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+    fullName: z.string().min(2).max(100),
+    title: z.string().min(1).max(100),
+    bio: z.string().max(500).optional(),
+    colorCode: z.number().int().optional(),
+  })
+
+  const updateStaffSchema = z.object({
+    title: z.string().min(1).max(100).optional(),
+    bio: z.string().max(500).optional(),
+    colorCode: z.number().int().optional(),
+    workingHours: z.record(z.unknown()).optional(),
+  })
+
+  router.post('/staff', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = createStaffSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz personel verisi.' } })
+      }
+
+      const { email, password, fullName, title, bio, colorCode } = parsed.data
+      const tenantId = req.user!.tenantId
+
+      const existingUser = await db.user.findFirst({ where: { email, tenantId } })
+      if (existingUser) {
+        return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresiyle kayıtlı kullanıcı zaten var.' } })
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10)
+
+      const result = await db.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: { tenantId, email, passwordHash, fullName, role: 'staff' },
+        })
+        const staffProfile = await tx.staffProfile.create({
+          data: { userId: user.id, tenantId, title, bio, colorCode },
+          select: {
+            id: true,
+            title: true,
+            bio: true,
+            colorCode: true,
+            user: { select: { id: true, fullName: true, email: true } },
+          },
+        })
+        return staffProfile
+      })
+
+      return res.status(201).json({
+        id: result.id,
+        title: result.title,
+        bio: result.bio,
+        colorCode: result.colorCode,
+        fullName: result.user.fullName,
+        email: result.user.email,
+        userId: result.user.id,
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.patch('/staff/:staffId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = updateStaffSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz personel verisi.' } })
+      }
+
+      const { staffId } = req.params
+      const tenantId = req.user!.tenantId
+
+      const existing = await db.staffProfile.findFirst({ where: { id: staffId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
+      }
+
+      const updated = await db.staffProfile.update({
+        where: { id: staffId },
+        data: parsed.data,
+        select: {
+          id: true,
+          title: true,
+          bio: true,
+          colorCode: true,
+          workingHours: true,
+          user: { select: { fullName: true, email: true } },
+        },
+      })
+
+      return res.json({
+        id: updated.id,
+        title: updated.title,
+        bio: updated.bio,
+        colorCode: updated.colorCode,
+        workingHours: updated.workingHours,
+        fullName: updated.user.fullName,
+        email: updated.user.email,
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.delete('/staff/:staffId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const { staffId } = req.params
+      const tenantId = req.user!.tenantId
+
+      const profile = await db.staffProfile.findFirst({
+        where: { id: staffId, tenantId },
+        select: { userId: true },
+      })
+      if (!profile) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
+      }
+
+      await db.user.update({ where: { id: profile.userId }, data: { isActive: false } })
+
+      return res.json({ ok: true })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Customer PATCH ────────────────────────────────────────────────────────────
+
+  const updateCustomerSchema = z.object({
+    fullName: z.string().min(2).max(100).optional(),
+    phone: z.string().min(7).max(20).optional(),
+    email: z.string().email().optional().nullable(),
+    birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    allergyNotes: z.string().max(500).optional().nullable(),
+    preferenceNotes: z.string().max(500).optional().nullable(),
+  })
+
+  router.patch('/customers/:customerId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { customerId } = req.params
+      const tenantId = req.user!.tenantId
+
+      const parsed = updateCustomerSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz müşteri verisi.' } })
+      }
+
+      const existing = await db.customer.findFirst({ where: { id: customerId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
+      }
+
+      const { birthDate, ...rest } = parsed.data
+
+      try {
+        const updated = await db.customer.update({
+          where: { id: customerId },
+          data: {
+            ...rest,
+            ...(birthDate !== undefined ? { birthDate: birthDate ? new Date(birthDate) : null } : {}),
+          },
+          select: {
+            id: true, fullName: true, phone: true, email: true,
+            birthDate: true, allergyNotes: true, preferenceNotes: true,
+            totalVisits: true, segment: true, lastVisitAt: true, createdAt: true,
+          },
+        })
+
+        return res.json({
+          ...updated,
+          birthDate: updated.birthDate?.toISOString() ?? null,
+          lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
+          createdAt: updated.createdAt.toISOString(),
+        })
+      } catch (dbErr: unknown) {
+        if ((dbErr as { code?: string }).code === 'P2002') {
+          return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
+        }
+        throw dbErr
+      }
     } catch (err) {
       next(err)
     }

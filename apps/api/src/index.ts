@@ -2,6 +2,7 @@ import 'dotenv/config'
 import * as Sentry from '@sentry/node'
 import express from 'express'
 import cors from 'cors'
+import rateLimit from 'express-rate-limit'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { initChannels, getChannel } from './channels/channel.factory'
 import { SessionService } from './session/session.service'
@@ -69,8 +70,16 @@ async function bootstrap(): Promise<void> {
 
   Sentry.setupExpressErrorHandler(app)
 
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla istek gönderildi, lütfen 15 dakika sonra tekrar deneyin.' } },
+  })
+
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
-  app.use('/api/v1/auth', createAuthRouter())
+  app.use('/api/v1/auth', authLimiter, createAuthRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   // ─── Global error handler ─────────────────────────────────────────────────

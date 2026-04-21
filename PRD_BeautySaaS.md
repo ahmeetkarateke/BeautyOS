@@ -21,6 +21,7 @@
 | Global error handler | ✅ Tamamlandı | Tüm async route'larda try/catch + next(err) |
 | Startup DB health check | ✅ Tamamlandı | `SELECT 1` — başarısızsa process.exit(1) |
 | Sentry entegrasyonu | ✅ Tamamlandı | `SENTRY_DSN` env ile aktif |
+| Rate limiting | ✅ Tamamlandı | `express-rate-limit` — auth endpoint'leri 10 req/15min |
 | Railway deployment | ✅ Canlı | `beautyosapi-production.up.railway.app` |
 
 ### API Endpoint'leri
@@ -28,7 +29,7 @@
 #### Auth
 | Endpoint | Durum | Notlar |
 |---|---|---|
-| `POST /api/v1/auth/login` | ✅ Tamamlandı | JWT 7 gün, bcryptjs verify |
+| `POST /api/v1/auth/login` | ✅ Tamamlandı | JWT 7 gün, bcryptjs verify, rate limited |
 
 #### Tenant — Dashboard & Genel
 | Endpoint | Durum | Notlar |
@@ -40,8 +41,8 @@
 #### Randevular
 | Endpoint | Durum | Notlar |
 |---|---|---|
-| `GET /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | ?date + ?limit filtresi; `z.preprocess` fix uygulandı |
-| `POST /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | endAt otomatik hesaplama, referenceCode üretimi; datetime-local format fix uygulandı |
+| `GET /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | ?date + ?limit filtresi |
+| `POST /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | endAt otomatik, referenceCode, slot çakışma kontrolü (409) |
 | `PATCH /api/v1/tenants/:slug/appointments/:id/status` | ✅ Tamamlandı | 6 durum enum, iptal nedeni opsiyonel |
 
 #### Müşteriler
@@ -49,25 +50,34 @@
 |---|---|---|
 | `GET /api/v1/tenants/:slug/customers` | ✅ Tamamlandı | Sıralı liste |
 | `GET /api/v1/tenants/:slug/customers/:id` | ✅ Tamamlandı | Detay + son 20 randevu geçmişi |
-| `POST /api/v1/tenants/:slug/customers` | ✅ Tamamlandı | 409 duplicate phone kontrolü (P2002) |
+| `POST /api/v1/tenants/:slug/customers` | ✅ Tamamlandı | 409 duplicate phone (P2002) |
+| `PATCH /api/v1/tenants/:slug/customers/:id` | ✅ Tamamlandı | fullName, phone, email, birthDate, allergyNotes, preferenceNotes |
 
-#### Hizmetler & Personel
+#### Hizmetler
 | Endpoint | Durum | Notlar |
 |---|---|---|
-| `GET /api/v1/tenants/:slug/services` | ✅ Tamamlandı | Aktif hizmetler: id, name, durationMinutes, price |
+| `GET /api/v1/tenants/:slug/services` | ✅ Tamamlandı | Aktif hizmetler listesi |
+| `POST /api/v1/tenants/:slug/services` | ✅ Tamamlandı | owner/manager yetkisi |
+| `PATCH /api/v1/tenants/:slug/services/:id` | ✅ Tamamlandı | owner/manager yetkisi |
+| `DELETE /api/v1/tenants/:slug/services/:id` | ✅ Tamamlandı | Soft delete (isActive=false) |
+
+#### Personel
+| Endpoint | Durum | Notlar |
+|---|---|---|
 | `GET /api/v1/tenants/:slug/staff` | ✅ Tamamlandı | id, title, fullName, colorCode |
+| `POST /api/v1/tenants/:slug/staff` | ✅ Tamamlandı | User + StaffProfile transaction, duplicate email → 409 |
+| `PATCH /api/v1/tenants/:slug/staff/:id` | ✅ Tamamlandı | title, bio, colorCode, workingHours |
+| `DELETE /api/v1/tenants/:slug/staff/:id` | ✅ Tamamlandı | Soft delete (user.isActive=false) |
 
 #### Kullanıcı
 | Endpoint | Durum | Notlar |
 |---|---|---|
-| `PATCH /api/v1/tenants/:slug/users/:id/password` | ✅ Tamamlandı | self veya owner yetkisi, bcrypt verify + rehash |
+| `PATCH /api/v1/tenants/:slug/users/:id/password` | ✅ Tamamlandı | self veya owner yetkisi |
 
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
 |---|---|
-| Slot çakışma kontrolü (randevu oluştururken staff müsaitlik) | Orta |
-| Rate limiting (`express-rate-limit`) | Orta |
 | `DELETE /appointments/:id` | Düşük |
 | Pagination (cursor-based) customers/appointments için | Düşük |
 | BullMQ hatırlatma görevleri (T-24h, T-2h) | İleride |
