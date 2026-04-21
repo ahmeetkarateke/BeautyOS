@@ -47,7 +47,7 @@ export function AppointmentStatusModal({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appointments-calendar', tenantSlug] })
-      qc.invalidateQueries({ queryKey: ['appointments-today', tenantSlug] })
+      qc.invalidateQueries({ queryKey: ['appointments', tenantSlug] })
       qc.invalidateQueries({ queryKey: ['dashboard', tenantSlug] })
       toast('Randevu durumu güncellendi')
       onOpenChange(false)

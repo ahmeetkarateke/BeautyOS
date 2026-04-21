@@ -80,7 +80,7 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appointments-calendar', tenantSlug] })
-      qc.invalidateQueries({ queryKey: ['appointments-today', tenantSlug] })
+      qc.invalidateQueries({ queryKey: ['appointments', tenantSlug] })
       qc.invalidateQueries({ queryKey: ['dashboard', tenantSlug] })
       toast('Randevu oluşturuldu')
       reset()
