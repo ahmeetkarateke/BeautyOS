@@ -525,6 +525,31 @@ export function createTenantRouter(): Router {
         select: { id: true, status: true, cancellationReason: true },
       })
 
+      if (status === 'completed' && existing.status !== 'completed') {
+        const appt = await db.appointment.findFirst({
+          where: { id: appointmentId },
+          include: { service: true },
+        })
+        if (appt) {
+          const rate = Number(appt.service.commissionRate)
+          const gross = Number(appt.priceCharged)
+          await db.transaction.create({
+            data: {
+              tenantId,
+              appointmentId,
+              staffId: appt.staffId,
+              grossAmount: gross,
+              commissionRate: rate,
+              commissionAmount: gross * rate,
+              paymentMethod: 'cash',
+              cashAmount: gross,
+              status: 'completed',
+              completedAt: new Date(),
+            },
+          })
+        }
+      }
+
       return res.json(updated)
     } catch (err) {
       next(err)
@@ -918,6 +943,100 @@ export function createTenantRouter(): Router {
         }
         throw dbErr
       }
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD
+  router.get('/reports/daily', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const dateStr = (req.query.date as string | undefined) ?? new Date().toISOString().split('T')[0]
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+
+      const dayStart = new Date(`${dateStr}T00:00:00.000Z`)
+      const dayEnd = new Date(`${dateStr}T23:59:59.999Z`)
+
+      const [transactions, expenses] = await Promise.all([
+        db.transaction.findMany({
+          where: { tenantId, status: 'completed', completedAt: { gte: dayStart, lte: dayEnd } },
+          select: { grossAmount: true, paymentMethod: true, cashAmount: true, cardAmount: true },
+        }),
+        db.expense.findMany({
+          where: { tenantId, expenseDate: { gte: dayStart, lte: dayEnd } },
+          select: { title: true, category: true, amount: true },
+        }),
+      ])
+
+      const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.grossAmount), 0)
+      const cashRevenue = transactions.reduce((sum, t) => sum + Number(t.cashAmount), 0)
+      const cardRevenue = transactions.reduce((sum, t) => sum + Number(t.cardAmount), 0)
+      const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+
+      return res.json({
+        date: dateStr,
+        totalRevenue,
+        cashRevenue,
+        cardRevenue,
+        completedCount: transactions.length,
+        netRevenue: totalRevenue - totalExpenses,
+        expenses: expenses.map((e) => ({ title: e.title, category: e.category, amount: Number(e.amount) })),
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/reports/staff-commissions?date=YYYY-MM-DD
+  router.get('/reports/staff-commissions', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const dateStr = (req.query.date as string | undefined) ?? new Date().toISOString().split('T')[0]
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+
+      const dayStart = new Date(`${dateStr}T00:00:00.000Z`)
+      const dayEnd = new Date(`${dateStr}T23:59:59.999Z`)
+
+      const transactions = await db.transaction.findMany({
+        where: { tenantId, status: 'completed', completedAt: { gte: dayStart, lte: dayEnd } },
+        select: {
+          staffId: true,
+          grossAmount: true,
+          commissionAmount: true,
+        },
+      })
+
+      const staffIds = [...new Set(transactions.map((t) => t.staffId))]
+      const staffProfiles = await db.staffProfile.findMany({
+        where: { id: { in: staffIds } },
+        select: { id: true, user: { select: { fullName: true } } },
+      })
+      const staffMap = new Map(staffProfiles.map((s) => [s.id, s.user.fullName]))
+
+      const grouped = new Map<string, { staffName: string; completedCount: number; grossAmount: number; commissionAmount: number }>()
+      for (const t of transactions) {
+        const entry = grouped.get(t.staffId) ?? {
+          staffName: staffMap.get(t.staffId) ?? 'Bilinmiyor',
+          completedCount: 0,
+          grossAmount: 0,
+          commissionAmount: 0,
+        }
+        entry.completedCount += 1
+        entry.grossAmount += Number(t.grossAmount)
+        entry.commissionAmount += Number(t.commissionAmount)
+        grouped.set(t.staffId, entry)
+      }
+
+      return res.json({
+        data: [...grouped.entries()].map(([staffId, v]) => ({ staffId, ...v })),
+      })
     } catch (err) {
       next(err)
     }

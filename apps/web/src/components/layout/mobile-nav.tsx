@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Settings, Sparkles, UserCog } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Settings, Sparkles, UserCog, Banknote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface MobileNavProps {
@@ -15,6 +15,7 @@ const navItems = (slug: string) => [
   { href: `/tenant/${slug}/customers`, icon: Users, label: 'Müşteriler' },
   { href: `/tenant/${slug}/services`, icon: Sparkles, label: 'Hizmetler' },
   { href: `/tenant/${slug}/staff`, icon: UserCog, label: 'Personel' },
+  { href: `/tenant/${slug}/finance`, icon: Banknote, label: 'Kasa' },
   { href: `/tenant/${slug}/settings`, icon: Settings, label: 'Ayarlar' },
 ]
 
