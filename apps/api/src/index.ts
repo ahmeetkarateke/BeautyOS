@@ -10,6 +10,7 @@ import { createWebhookRouter } from './routes/webhook.route'
 import { createAuthRouter } from './routes/auth.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { TenantRegistry } from './lib/tenant.registry'
+import { db } from './lib/db'
 import { logger } from './lib/logger'
 
 if (process.env.SENTRY_DSN) {
@@ -22,6 +23,15 @@ if (process.env.SENTRY_DSN) {
 
 async function bootstrap(): Promise<void> {
   // ─── Bağımlılıkları başlat ─────────────────────────────────────────────────
+
+  // ─── DB bağlantı testi ────────────────────────────────────────────────────
+  try {
+    await db.$queryRaw`SELECT 1`
+    logger.info('Veritabanı bağlantısı OK')
+  } catch (error) {
+    logger.error({ error }, 'Veritabanı bağlantısı BAŞARISIZ — DATABASE_URL kontrol edin')
+    process.exit(1)
+  }
 
   const sessionService = new SessionService(process.env.REDIS_URL ?? 'redis://localhost:6379')
   try {
@@ -56,6 +66,12 @@ async function bootstrap(): Promise<void> {
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
   app.use('/api/v1/auth', createAuthRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
+
+  // ─── Global error handler ─────────────────────────────────────────────────
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    logger.error({ err }, 'Unhandled error')
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Sunucu hatası.' } })
+  })
 
   // ─── Root health check ────────────────────────────────────────────────────
 
