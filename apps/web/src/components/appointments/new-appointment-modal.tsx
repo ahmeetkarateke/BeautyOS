@@ -1,0 +1,174 @@
+'use client'
+
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { apiFetch } from '@/lib/api'
+import { toast } from '@/components/ui/toaster'
+
+interface Props {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  tenantSlug: string
+  defaultStart?: Date
+  defaultEnd?: Date
+}
+
+const schema = z.object({
+  customerId: z.string().min(1, 'Müşteri seçiniz'),
+  serviceId: z.string().min(1, 'Hizmet seçiniz'),
+  staffId: z.string().min(1, 'Personel seçiniz'),
+  startAt: z.string().min(1, 'Başlangıç tarihi giriniz'),
+  notes: z.string().optional(),
+})
+
+type FormValues = z.infer<typeof schema>
+
+interface Customer { id: string; fullName: string; phone: string }
+interface Service { id: string; name: string; durationMinutes: number }
+interface Staff { id: string; title: string; user: { fullName: string } }
+
+export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultStart, defaultEnd }: Props) {
+  const qc = useQueryClient()
+
+  const { data: customers } = useQuery({
+    queryKey: ['customers', tenantSlug],
+    queryFn: () => apiFetch<{ data: Customer[] }>(`/api/v1/tenants/${tenantSlug}/customers`),
+    enabled: open,
+  })
+
+  const { data: services } = useQuery({
+    queryKey: ['services', tenantSlug],
+    queryFn: () => apiFetch<{ data: Service[] }>(`/api/v1/tenants/${tenantSlug}/services`),
+    enabled: open,
+  })
+
+  const { data: staff } = useQuery({
+    queryKey: ['staff', tenantSlug],
+    queryFn: () => apiFetch<{ data: Staff[] }>(`/api/v1/tenants/${tenantSlug}/staff`),
+    enabled: open,
+  })
+
+  const defaultStartStr = defaultStart
+    ? new Date(defaultStart.getTime() - defaultStart.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16)
+    : ''
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { startAt: defaultStartStr },
+  })
+
+  const mutation = useMutation({
+    mutationFn: (data: FormValues) =>
+      apiFetch(`/api/v1/tenants/${tenantSlug}/appointments`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments-calendar', tenantSlug] })
+      qc.invalidateQueries({ queryKey: ['appointments-today', tenantSlug] })
+      qc.invalidateQueries({ queryKey: ['dashboard', tenantSlug] })
+      toast('Randevu oluşturuldu')
+      reset()
+      onOpenChange(false)
+    },
+    onError: (err: Error) => {
+      toast(err.message, 'error')
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Yeni Randevu</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="customerId">Müşteri</Label>
+            <Select id="customerId" error={errors.customerId?.message} {...register('customerId')}>
+              <option value="">Müşteri seçin...</option>
+              {customers?.data.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.fullName} — {c.phone}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="serviceId">Hizmet</Label>
+            <Select id="serviceId" error={errors.serviceId?.message} {...register('serviceId')}>
+              <option value="">Hizmet seçin...</option>
+              {services?.data.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.durationMinutes} dk)
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="staffId">Personel</Label>
+            <Select id="staffId" error={errors.staffId?.message} {...register('staffId')}>
+              <option value="">Personel seçin...</option>
+              {staff?.data.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.user.fullName} — {s.title}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="startAt">Tarih & Saat</Label>
+            <Input
+              id="startAt"
+              type="datetime-local"
+              error={errors.startAt?.message}
+              {...register('startAt')}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Not (isteğe bağlı)</Label>
+            <Textarea id="notes" placeholder="Özel istek veya not..." {...register('notes')} />
+          </div>
+
+          {mutation.isError && (
+            <p className="text-sm text-red-500">{(mutation.error as Error).message}</p>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => onOpenChange(false)}
+            >
+              İptal
+            </Button>
+            <Button type="submit" disabled={mutation.isPending} className="flex-1">
+              {mutation.isPending ? 'Oluşturuluyor...' : 'Randevu Oluştur'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

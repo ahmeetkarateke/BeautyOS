@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
+import { NewCustomerModal } from '@/components/customers/new-customer-modal'
 
 interface Customer {
   id: string
@@ -37,6 +38,7 @@ interface PageProps {
 export default function CustomersPage({ params }: PageProps) {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
+  const [modalOpen, setModalOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', params.slug],
@@ -105,7 +107,7 @@ export default function CustomersPage({ params }: PageProps) {
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Müşteriler</h1>
-        <Button size="sm" className="gap-2">
+        <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
           <Plus className="w-4 h-4" />
           Yeni Müşteri
         </Button>
@@ -186,6 +188,12 @@ export default function CustomersPage({ params }: PageProps) {
           </p>
         </div>
       </div>
+
+      <NewCustomerModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        tenantSlug={params.slug}
+      />
     </div>
   )
 }
