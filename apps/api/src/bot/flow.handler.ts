@@ -188,7 +188,7 @@ export class FlowHandler {
     }
 
     session.step = 'awaiting_service'
-    const list = salon.services.map((s, i) => `${i + 1}. ${s.name} — ${s.durationMinutes ?? s.duration} dk / ₺${s.price}'dan`).join('\n')
+    const list = salon.services.map((s, i) => `${i + 1}. ${s.name} — ${s.duration} dk / ₺${s.price}'dan`).join('\n')
     await channel.sendText(msg.from, `Hangi hizmetimizden randevu almak istersiniz?\n\n${list}\n\nHizmet adını veya numarasını yazabilirsiniz.`)
   }
 
