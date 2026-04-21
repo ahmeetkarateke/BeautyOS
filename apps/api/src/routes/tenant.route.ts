@@ -974,11 +974,25 @@ export function createTenantRouter(): Router {
       const [transactions, expenses] = await Promise.all([
         db.transaction.findMany({
           where: { tenantId, status: 'completed', completedAt: { gte: dayStart, lte: dayEnd } },
-          select: { grossAmount: true, paymentMethod: true, cashAmount: true, cardAmount: true },
+          select: {
+            id: true,
+            grossAmount: true,
+            paymentMethod: true,
+            cashAmount: true,
+            cardAmount: true,
+            completedAt: true,
+            appointment: {
+              select: {
+                startAt: true,
+                customer: { select: { fullName: true } },
+                service: { select: { name: true, category: true } },
+              },
+            },
+          },
         }),
         db.expense.findMany({
           where: { tenantId, expenseDate: { gte: dayStart, lte: dayEnd } },
-          select: { title: true, category: true, amount: true },
+          select: { id: true, title: true, category: true, amount: true },
         }),
       ])
 
@@ -994,7 +1008,21 @@ export function createTenantRouter(): Router {
         cardRevenue,
         completedCount: transactions.length,
         netRevenue: totalRevenue - totalExpenses,
-        expenses: expenses.map((e) => ({ title: e.title, category: e.category, amount: Number(e.amount) })),
+        transactions: transactions.map((t) => ({
+          id: t.id,
+          time: t.appointment.startAt.toISOString(),
+          customerName: t.appointment.customer.fullName,
+          serviceName: t.appointment.service.name,
+          serviceCategory: t.appointment.service.category ?? 'Diğer',
+          amount: Number(t.grossAmount),
+          paymentMethod: t.paymentMethod,
+        })),
+        expenses: expenses.map((e) => ({
+          id: e.id,
+          title: e.title,
+          category: e.category,
+          amount: Number(e.amount),
+        })),
       })
     } catch (err) {
       next(err)
@@ -1047,6 +1075,72 @@ export function createTenantRouter(): Router {
       return res.json({
         data: [...grouped.entries()].map(([staffId, v]) => ({ staffId, ...v })),
       })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Expenses CRUD ────────────────────────────────────────────────────────────
+
+  const createExpenseSchema = z.object({
+    title: z.string().min(1),
+    category: z.string().min(1),
+    amount: z.coerce.number().positive(),
+    expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+
+  router.post('/expenses', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = createExpenseSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz gider verisi.' } })
+      }
+
+      const { title, category, amount, expenseDate } = parsed.data
+      const expense = await db.expense.create({
+        data: {
+          tenantId: req.user!.tenantId,
+          title,
+          category,
+          amount,
+          expenseDate: new Date(`${expenseDate}T00:00:00.000Z`),
+        },
+        select: { id: true, title: true, category: true, amount: true, expenseDate: true },
+      })
+
+      return res.status(201).json({
+        id: expense.id,
+        title: expense.title,
+        category: expense.category,
+        amount: Number(expense.amount),
+        expenseDate: expense.expenseDate.toISOString().split('T')[0],
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.delete('/expenses/:expenseId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const { expenseId } = req.params
+      const tenantId = req.user!.tenantId
+
+      const existing = await db.expense.findFirst({ where: { id: expenseId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Gider bulunamadı.' } })
+      }
+
+      await db.expense.delete({ where: { id: expenseId } })
+
+      return res.status(204).send()
     } catch (err) {
       next(err)
     }

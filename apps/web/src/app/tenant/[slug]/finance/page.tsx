@@ -1,15 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Banknote, CreditCard, Wallet, TrendingUp } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Banknote, CreditCard, Wallet, TrendingUp, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { toast } from '@/components/ui/toaster'
+import { cn } from '@/lib/utils'
 
 interface PageProps {
   params: { slug: string }
+}
+
+interface Transaction {
+  id: string
+  time: string
+  customerName: string
+  serviceName: string
+  serviceCategory: string
+  amount: number
+  paymentMethod: 'cash' | 'card'
+}
+
+interface Expense {
+  id: string
+  title: string
+  category: string
+  amount: number
 }
 
 interface DailyReport {
@@ -17,7 +36,9 @@ interface DailyReport {
   cashRevenue: number
   cardRevenue: number
   netRevenue: number
-  expenses: { title: string; category: string; amount: number }[]
+  completedCount: number
+  transactions: Transaction[]
+  expenses: Expense[]
 }
 
 interface StaffCommission {
@@ -28,11 +49,20 @@ interface StaffCommission {
   commission: number
 }
 
+const EXPENSE_CATEGORIES = ['Yemek', 'Malzeme', 'Fatura', 'Personel', 'Kira', 'Temizlik', 'Ekipman', 'Diğer']
+const REVENUE_CATEGORIES = ['Tümü', 'Saç', 'Tırnak', 'Cilt', 'Masaj', 'Diğer']
+
 export default function FinancePage({ params }: PageProps) {
   const slug = params.slug
   const user = useAuthStore((s) => s.user)
+  const queryClient = useQueryClient()
   const today = new Date().toISOString().split('T')[0]
   const [date, setDate] = useState(today)
+
+  const [revenueFilter, setRevenueFilter] = useState<string>('Tümü')
+  const [expenseFilter, setExpenseFilter] = useState<string>('Tümü')
+  const [showExpenseForm, setShowExpenseForm] = useState(false)
+  const [expenseForm, setExpenseForm] = useState({ title: '', category: 'Yemek', customCategory: '', amount: '' })
 
   const { data: daily, isLoading: dailyLoading } = useQuery({
     queryKey: ['finance-daily', slug, date],
@@ -40,11 +70,13 @@ export default function FinancePage({ params }: PageProps) {
     enabled: !!slug,
   })
 
-  const { data: commissions, isLoading: commissionsLoading } = useQuery({
+  const { data: commissionsData, isLoading: commissionsLoading } = useQuery({
     queryKey: ['finance-commissions', slug, date],
-    queryFn: () => apiFetch<StaffCommission[]>(`/api/v1/tenants/${slug}/reports/staff-commissions?date=${date}`),
+    queryFn: () => apiFetch<{ data: StaffCommission[] }>(`/api/v1/tenants/${slug}/reports/staff-commissions?date=${date}`),
     enabled: !!slug,
   })
+
+  const commissions = commissionsData?.data
 
   const summaryCards = [
     {
@@ -72,6 +104,39 @@ export default function FinancePage({ params }: PageProps) {
       color: 'bg-orange-100 text-orange-600',
     },
   ]
+
+  const filteredTransactions = revenueFilter === 'Tümü'
+    ? (daily?.transactions ?? [])
+    : (daily?.transactions ?? []).filter((t) => t.serviceCategory === revenueFilter)
+
+  const filteredExpenses = expenseFilter === 'Tümü'
+    ? (daily?.expenses ?? [])
+    : (daily?.expenses ?? []).filter((e) => e.category === expenseFilter)
+
+  async function handleAddExpense() {
+    const category = expenseForm.category === 'Diğer' && expenseForm.customCategory
+      ? expenseForm.customCategory
+      : expenseForm.category
+    await apiFetch(`/api/v1/tenants/${slug}/expenses`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: expenseForm.title,
+        category,
+        amount: Number(expenseForm.amount),
+        expenseDate: date,
+      }),
+    })
+    queryClient.invalidateQueries({ queryKey: ['finance-daily', slug, date] })
+    setShowExpenseForm(false)
+    setExpenseForm({ title: '', category: 'Yemek', customCategory: '', amount: '' })
+    toast('Gider eklendi')
+  }
+
+  async function handleDeleteExpense(expenseId: string) {
+    await apiFetch(`/api/v1/tenants/${slug}/expenses/${expenseId}`, { method: 'DELETE' })
+    queryClient.invalidateQueries({ queryKey: ['finance-daily', slug, date] })
+    toast('Gider silindi')
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -105,7 +170,68 @@ export default function FinancePage({ params }: PageProps) {
         })}
       </div>
 
-      {/* Staff commissions */}
+      {/* Gelirler */}
+      <div className="bg-white rounded-xl border border-salon-border">
+        <div className="px-4 py-3 border-b border-salon-border flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+          <h2 className="text-sm font-semibold text-gray-900">Gelirler</h2>
+          <div className="flex gap-1 flex-wrap">
+            {REVENUE_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setRevenueFilter(cat)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                  revenueFilter === cat
+                    ? 'bg-primary text-white border-primary'
+                    : 'border-salon-border text-salon-muted hover:border-primary',
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-salon-border bg-salon-bg">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">Saat</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">Müşteri</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">Hizmet</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-salon-muted">Tutar</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-salon-muted">Ödeme</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-salon-muted">Yükleniyor…</td>
+                </tr>
+              ) : !filteredTransactions.length ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-salon-muted">Bu tarihte gelir kaydı yok.</td>
+                </tr>
+              ) : (
+                filteredTransactions.map((t) => (
+                  <tr key={t.id} className="border-b border-salon-border last:border-0 hover:bg-salon-bg transition-colors">
+                    <td className="px-4 py-3 text-salon-muted whitespace-nowrap">
+                      {new Date(t.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="px-4 py-3 text-gray-900">{t.customerName}</td>
+                    <td className="px-4 py-3 text-salon-muted">{t.serviceName}</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900">{formatCurrency(t.amount)}</td>
+                    <td className="px-4 py-3 text-right text-salon-muted whitespace-nowrap">
+                      {t.paymentMethod === 'cash' ? '💵 Nakit' : '💳 Kart'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Personel Komisyonları */}
       <div className="bg-white rounded-xl border border-salon-border">
         <div className="px-4 py-3 border-b border-salon-border">
           <h2 className="text-sm font-semibold text-gray-900">Personel Komisyonları</h2>
@@ -144,28 +270,119 @@ export default function FinancePage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Expenses */}
+      {/* Giderler */}
       <div className="bg-white rounded-xl border border-salon-border">
-        <div className="px-4 py-3 border-b border-salon-border">
+        <div className="px-4 py-3 border-b border-salon-border flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Giderler</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex gap-1 flex-wrap">
+              {(['Tümü', ...EXPENSE_CATEGORIES]).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setExpenseFilter(cat)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                    expenseFilter === cat
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-salon-border text-salon-muted hover:border-primary',
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            {user?.role === 'owner' && (
+              <button
+                onClick={() => setShowExpenseForm(true)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-xs font-medium whitespace-nowrap"
+              >
+                + Gider Ekle
+              </button>
+            )}
+          </div>
         </div>
+
+        {showExpenseForm && user?.role === 'owner' && (
+          <div className="px-4 py-4 border-b border-salon-border bg-salon-bg space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-salon-muted">Başlık</label>
+                <input
+                  value={expenseForm.title}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, title: e.target.value }))}
+                  className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-salon-muted">Tutar (₺)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={expenseForm.amount}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, amount: e.target.value }))}
+                  className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-salon-muted">Kategori</label>
+              <select
+                value={expenseForm.category}
+                onChange={(e) => setExpenseForm((f) => ({ ...f, category: e.target.value }))}
+                className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {EXPENSE_CATEGORIES.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            {expenseForm.category === 'Diğer' && (
+              <input
+                placeholder="Kategori adı girin"
+                value={expenseForm.customCategory}
+                onChange={(e) => setExpenseForm((f) => ({ ...f, customCategory: e.target.value }))}
+                className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            )}
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowExpenseForm(false)}>İptal</Button>
+              <Button size="sm" onClick={handleAddExpense}>Kaydet</Button>
+            </div>
+          </div>
+        )}
+
         {dailyLoading ? (
           <p className="px-4 py-6 text-center text-sm text-salon-muted">Yükleniyor…</p>
-        ) : !daily?.expenses?.length ? (
+        ) : !filteredExpenses.length ? (
           <p className="px-4 py-6 text-center text-sm text-salon-muted">Bu tarihte gider kaydı yok.</p>
         ) : (
           <ul className="divide-y divide-salon-border">
-            {daily.expenses.map((exp, i) => (
-              <li key={i} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-gray-900">{exp.title}</span>
-                <span className="text-sm font-medium text-red-600">-{formatCurrency(exp.amount)}</span>
+            {filteredExpenses.map((exp) => (
+              <li key={exp.id} className="flex items-center justify-between px-4 py-3 gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="px-2 py-0.5 rounded-full bg-salon-bg border border-salon-border text-xs text-salon-muted whitespace-nowrap">
+                    {exp.category}
+                  </span>
+                  <span className="text-sm text-gray-900 truncate">{exp.title}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-sm font-medium text-red-600">-{formatCurrency(exp.amount)}</span>
+                  {user?.role === 'owner' && (
+                    <button
+                      onClick={() => handleDeleteExpense(exp.id)}
+                      className="p-1 text-salon-muted hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      {/* Close day — owner only */}
+      {/* Kasa Kapatma — owner only */}
       {user?.role === 'owner' && (
         <div className="flex justify-end">
           <button
