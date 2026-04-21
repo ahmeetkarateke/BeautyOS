@@ -45,6 +45,24 @@ export function resolveDate(datePreference: string | undefined): Date {
     const d = new Date(today); d.setDate(d.getDate() + 1); return d
   }
 
+  // "22 Nisan", "3 Mayıs" gibi gün+ay formatları
+  const monthNames: Record<string, number> = {
+    ocak: 0, şubat: 1, subat: 1, mart: 2, nisan: 3, mayıs: 4, mayis: 4,
+    haziran: 5, temmuz: 6, ağustos: 7, agustos: 7, eylül: 8, eylul: 8,
+    ekim: 9, kasım: 10, kasim: 10, aralık: 11, aralik: 11,
+  }
+  const dateMatch = pref.match(/(\d{1,2})\s+([a-zışğüöç]+)/)
+  if (dateMatch) {
+    const day = parseInt(dateMatch[1])
+    const monthNum = monthNames[dateMatch[2]]
+    if (monthNum !== undefined) {
+      const d = new Date(today)
+      d.setMonth(monthNum, day)
+      if (d < today) d.setFullYear(d.getFullYear() + 1)
+      return d
+    }
+  }
+
   return today
 }
 

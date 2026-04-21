@@ -56,6 +56,21 @@ function slotListText(slots: AvailableSlot[]): string {
   return slots.map((s, i) => `${i + 1}. ${s.label} — ${s.staffName}`).join('\n')
 }
 
+// "Hayır cumartesi istiyorum" gibi mesajlardan yeni tarih çıkar
+function extractNewDate(text: string): string | null {
+  const t = text.toLowerCase()
+  const dateKeywords = [
+    'yarın', 'yarin', 'bugün', 'bugun',
+    'pazartesi', 'salı', 'sali', 'çarşamba', 'carsamba',
+    'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar',
+    'ocak', 'şubat', 'mart', 'nisan', 'mayıs', 'haziran',
+    'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık',
+  ]
+  if (dateKeywords.some((k) => t.includes(k))) return text
+  if (/\d{1,2}\s+[a-zışğüöç]{3,}/.test(t)) return text
+  return null
+}
+
 // ─── Ana Flow Handler ─────────────────────────────────────────────────────────
 
 export class FlowHandler {
@@ -255,9 +270,12 @@ export class FlowHandler {
 
         ;(session.entities as Record<string, unknown>)['_slots'] = slots
         session.step = 'awaiting_slot_confirm'
+
+        // Hangi tarih için olduğunu göster
+        const dateLabel = slots[0].id.split('__')[0].split('T')[0]
         await channel.sendText(
           msg.from,
-          `Uygun saatler:\n\n${slotListText(slots)}\n\nHangisini tercih edersiniz? (numara veya saati yazabilirsiniz)`,
+          `*${dateLabel}* için uygun saatler:\n\n${slotListText(slots)}\n\nHangisini tercih edersiniz? (numara veya saati yazabilirsiniz)`,
         )
         break
       }
@@ -270,11 +288,21 @@ export class FlowHandler {
           return
         }
 
+        // Kullanıcı yeni tarih söylüyorsa saat listesine geri dön
+        const newDate = extractNewDate(msg.text)
+        if (newDate) {
+          session.entities.datePreference = newDate
+          session.step = 'awaiting_date'
+          await this.handleBookingStep(channel, msg, session, salon)
+          return
+        }
+
         const slot = matchSlot(msg.text, storedSlots)
         if (!slot) {
+          const dateLabel = storedSlots[0].id.split('__')[0].split('T')[0]
           await channel.sendText(
             msg.from,
-            `Anlayamadım. Numara veya saat yazın:\n\n${slotListText(storedSlots)}`,
+            `Anlayamadım. *${dateLabel}* için uygun saatler:\n\n${slotListText(storedSlots)}\n\nNumara veya saat yazın, ya da farklı bir tarih belirtin.`,
           )
           return
         }
@@ -299,6 +327,15 @@ export class FlowHandler {
       }
 
       case 'awaiting_confirm': {
+        // Kullanıcı yeni tarih söylüyorsa (örn: "Hayır ben 22 nisanda gelecem")
+        const newDateAtConfirm = extractNewDate(msg.text)
+        if (newDateAtConfirm && !isAffirmative(msg.text)) {
+          session.entities.datePreference = newDateAtConfirm
+          session.step = 'awaiting_date'
+          await this.handleBookingStep(channel, msg, session, salon)
+          return
+        }
+
         if (isAffirmative(msg.text)) {
           await this.confirmBooking(channel, msg, session)
         } else if (isNegative(msg.text)) {
