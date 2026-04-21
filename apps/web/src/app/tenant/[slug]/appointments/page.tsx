@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NewAppointmentModal } from '@/components/appointments/new-appointment-modal'
+import { AppointmentStatusModal } from '@/components/appointments/appointment-status-modal'
 
 const AppointmentCalendar = dynamic(
   () => import('@/components/appointments/appointment-calendar').then((m) => m.AppointmentCalendar),
@@ -19,10 +20,19 @@ interface PageProps {
 export default function AppointmentsPage({ params }: PageProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | undefined>()
+  const [statusModal, setStatusModal] = useState<{
+    appointmentId: string
+    title: string
+    status: string
+  } | null>(null)
 
   const handleSelectSlot = (start: Date, end: Date) => {
     setSelectedSlot({ start, end })
     setModalOpen(true)
+  }
+
+  const handleSelectAppointment = (appointmentId: string, title: string, status: string) => {
+    setStatusModal({ appointmentId, title, status })
   }
 
   return (
@@ -39,6 +49,7 @@ export default function AppointmentsPage({ params }: PageProps) {
         <AppointmentCalendar
           tenantId={params.slug}
           onSelectSlot={handleSelectSlot}
+          onSelectAppointment={handleSelectAppointment}
         />
       </div>
 
@@ -52,6 +63,17 @@ export default function AppointmentsPage({ params }: PageProps) {
         defaultStart={selectedSlot?.start}
         defaultEnd={selectedSlot?.end}
       />
+
+      {statusModal && (
+        <AppointmentStatusModal
+          open={!!statusModal}
+          onOpenChange={(open) => { if (!open) setStatusModal(null) }}
+          tenantSlug={params.slug}
+          appointmentId={statusModal.appointmentId}
+          currentStatus={statusModal.status}
+          appointmentTitle={statusModal.title}
+        />
+      )}
     </div>
   )
 }

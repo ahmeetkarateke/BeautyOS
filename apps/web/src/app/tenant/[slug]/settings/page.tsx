@@ -1,18 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Building2, Lock, Check } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
+import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
   params: { slug: string }
@@ -22,7 +24,7 @@ interface PageProps {
 
 const salonSchema = z.object({
   name: z.string().min(2, 'En az 2 karakter giriniz'),
-  phone: z.string().min(10, 'Geçerli bir telefon numarası giriniz'),
+  phone: z.string().min(7, 'Geçerli bir telefon numarası giriniz'),
   address: z.string().min(5, 'Adres en az 5 karakter olmalıdır'),
   workingHours: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, 'Format: HH:MM-HH:MM (örn: 09:00-19:00)'),
 })
@@ -41,6 +43,17 @@ const passwordSchema = z
 type SalonFormValues = z.infer<typeof salonSchema>
 type PasswordFormValues = z.infer<typeof passwordSchema>
 
+interface TenantSettings {
+  id: string
+  name: string
+  slug: string
+  settings: {
+    phone?: string
+    address?: string
+    workingHours?: string
+  }
+}
+
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
 const tabs = [
@@ -51,33 +64,50 @@ const tabs = [
 // ─── Salon settings form ──────────────────────────────────────────────────────
 
 function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
-  const [saved, setSaved] = useState(false)
+  const { data, isLoading } = useQuery({
+    queryKey: ['tenant-settings', tenantSlug],
+    queryFn: () => apiFetch<TenantSettings>(`/api/v1/tenants/${tenantSlug}/settings`),
+    retry: false,
+  })
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<SalonFormValues>({
     resolver: zodResolver(salonSchema),
-    defaultValues: {
-      name: '',
-      phone: '',
-      address: '',
-      workingHours: '09:00-19:00',
-    },
+    defaultValues: { name: '', phone: '', address: '', workingHours: '09:00-19:00' },
   })
 
+  useEffect(() => {
+    if (data) {
+      reset({
+        name: data.name,
+        phone: data.settings?.phone ?? '',
+        address: data.settings?.address ?? '',
+        workingHours: data.settings?.workingHours ?? '09:00-19:00',
+      })
+    }
+  }, [data, reset])
+
   const mutation = useMutation({
-    mutationFn: (data: SalonFormValues) =>
+    mutationFn: (values: SalonFormValues) =>
       apiFetch(`/api/v1/tenants/${tenantSlug}/settings`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify(values),
       }),
-    onSuccess: () => {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    },
+    onSuccess: () => toast('Salon bilgileri kaydedildi'),
+    onError: (err: Error) => toast(err.message, 'error'),
   })
+
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-11 w-full" />)}
+      </div>
+    )
+  }
 
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
@@ -98,29 +128,16 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 
       <div className="space-y-2">
         <Label htmlFor="workingHours">Çalışma Saatleri</Label>
-        <Input
-          id="workingHours"
-          placeholder="09:00-19:00"
-          error={errors.workingHours?.message}
-          {...register('workingHours')}
-        />
+        <Input id="workingHours" placeholder="09:00-19:00" error={errors.workingHours?.message} {...register('workingHours')} />
         <p className="text-xs text-salon-muted">Format: HH:MM-HH:MM (örnek: 09:00-19:00)</p>
       </div>
 
-      {mutation.isError && (
-        <p className="text-sm text-red-500">{(mutation.error as Error).message}</p>
-      )}
-
       <Button type="submit" disabled={mutation.isPending} className="gap-2">
-        {saved ? (
+        {mutation.isPending ? 'Kaydediliyor...' : (
           <>
-            <Check className="w-4 h-4" />
-            Kaydedildi
+            {mutation.isSuccess && <Check className="w-4 h-4" />}
+            Değişiklikleri Kaydet
           </>
-        ) : mutation.isPending ? (
-          'Kaydediliyor...'
-        ) : (
-          'Değişiklikleri Kaydet'
         )}
       </Button>
     </form>
@@ -130,7 +147,6 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 // ─── Password change form ─────────────────────────────────────────────────────
 
 function PasswordForm({ tenantSlug }: { tenantSlug: string }) {
-  const [saved, setSaved] = useState(false)
   const user = useAuthStore((s) => s.user)
 
   const {
@@ -152,62 +168,31 @@ function PasswordForm({ tenantSlug }: { tenantSlug: string }) {
         }),
       }),
     onSuccess: () => {
-      setSaved(true)
+      toast('Şifre güncellendi')
       reset()
-      setTimeout(() => setSaved(false), 3000)
     },
+    onError: (err: Error) => toast(err.message, 'error'),
   })
 
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
       <div className="space-y-2">
         <Label htmlFor="currentPassword">Mevcut Şifre</Label>
-        <Input
-          id="currentPassword"
-          type="password"
-          placeholder="••••••••"
-          error={errors.currentPassword?.message}
-          {...register('currentPassword')}
-        />
+        <Input id="currentPassword" type="password" placeholder="••••••••" error={errors.currentPassword?.message} {...register('currentPassword')} />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="newPassword">Yeni Şifre</Label>
-        <Input
-          id="newPassword"
-          type="password"
-          placeholder="••••••••"
-          error={errors.newPassword?.message}
-          {...register('newPassword')}
-        />
+        <Input id="newPassword" type="password" placeholder="••••••••" error={errors.newPassword?.message} {...register('newPassword')} />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">Yeni Şifre (Tekrar)</Label>
-        <Input
-          id="confirmPassword"
-          type="password"
-          placeholder="••••••••"
-          error={errors.confirmPassword?.message}
-          {...register('confirmPassword')}
-        />
+        <Input id="confirmPassword" type="password" placeholder="••••••••" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
       </div>
 
-      {mutation.isError && (
-        <p className="text-sm text-red-500">{(mutation.error as Error).message}</p>
-      )}
-
-      <Button type="submit" disabled={mutation.isPending} className="gap-2">
-        {saved ? (
-          <>
-            <Check className="w-4 h-4" />
-            Şifre Güncellendi
-          </>
-        ) : mutation.isPending ? (
-          'Güncelleniyor...'
-        ) : (
-          'Şifreyi Güncelle'
-        )}
+      <Button type="submit" disabled={mutation.isPending}>
+        {mutation.isPending ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}
       </Button>
     </form>
   )
@@ -247,7 +232,6 @@ export default function SettingsPage({ params }: PageProps) {
         })}
       </div>
 
-      {/* Tab content */}
       <Card>
         <CardHeader>
           <CardTitle>

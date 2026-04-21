@@ -11,6 +11,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { Search, Plus, Phone, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +37,7 @@ interface PageProps {
 }
 
 export default function CustomersPage({ params }: PageProps) {
+  const router = useRouter()
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [modalOpen, setModalOpen] = useState(false)
@@ -163,6 +165,7 @@ export default function CustomersPage({ params }: PageProps) {
                     <tr
                       key={row.id}
                       className="border-b border-salon-border last:border-0 hover:bg-salon-bg transition-colors cursor-pointer"
+                      onClick={() => router.push(`/tenant/${params.slug}/customers/${row.original.id}`)}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="px-4 py-3">

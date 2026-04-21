@@ -23,7 +23,7 @@ interface Appointment {
 interface AppointmentCalendarProps {
   tenantId: string
   onSelectSlot?: (start: Date, end: Date) => void
-  onSelectAppointment?: (appointmentId: string) => void
+  onSelectAppointment?: (appointmentId: string, title: string, status: string) => void
 }
 
 export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointment }: AppointmentCalendarProps) {
@@ -66,7 +66,13 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
         selectMirror={true}
         events={events}
         select={(info) => onSelectSlot?.(info.start, info.end)}
-        eventClick={(info) => onSelectAppointment?.(info.event.id)}
+        eventClick={(info) =>
+          onSelectAppointment?.(
+            info.event.id,
+            info.event.title,
+            info.event.extendedProps.status as string,
+          )
+        }
         eventContent={(arg) => (
           <div className="p-1 overflow-hidden">
             <p className="text-xs font-semibold truncate text-white">{arg.event.title}</p>
