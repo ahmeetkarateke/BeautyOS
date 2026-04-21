@@ -33,9 +33,8 @@ export interface SalonContext {
 // ─── Intent Servisi ───────────────────────────────────────────────────────────
 
 export class IntentService {
-  // GA modeli — JSON mode tam destekli
-  private readonly flashModel = 'gemini-2.0-flash'
-  private readonly proModel = 'gemini-2.0-flash'
+  private readonly flashModel = 'gemini-2.5-flash'
+  private readonly proModel = 'gemini-2.5-flash'
   // Güven eşiği — bu değerin altında netleştirme sorusu sorulur
   private readonly CONFIDENCE_THRESHOLD = 0.75
 
@@ -95,7 +94,9 @@ export class IntentService {
         model: modelName,
         generationConfig: {
           temperature: 0,
-          maxOutputTokens: 400,
+          maxOutputTokens: 800,
+          // @ts-ignore — thinkingBudget is valid for gemini-2.5 but not in SDK types yet
+          thinkingConfig: { thinkingBudget: 0 },
         },
       })
 
@@ -144,7 +145,9 @@ export class IntentService {
         model: modelName,
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 200,
+          maxOutputTokens: 400,
+          // @ts-ignore
+          thinkingConfig: { thinkingBudget: 0 },
         },
       })
 
