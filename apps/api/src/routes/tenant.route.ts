@@ -113,8 +113,8 @@ export function createTenantRouter(): Router {
         take: limit,
         orderBy: { startAt: 'asc' },
         include: {
-          customer: { select: { fullName: true } },
-          service: { select: { name: true } },
+          customer: { select: { fullName: true, phone: true } },
+          service: { select: { name: true, category: true } },
           staff: {
             select: {
               colorCode: true,
@@ -127,12 +127,17 @@ export function createTenantRouter(): Router {
       return res.json({
         data: appointments.map((a) => ({
           id: a.id,
+          referenceCode: a.referenceCode,
           customerName: a.customer.fullName,
+          customerPhone: a.customer.phone,
           serviceName: a.service.name,
+          serviceCategory: a.service.category ?? '',
           staffName: a.staff.user.fullName,
           startTime: a.startAt.toISOString(),
           endTime: a.endAt.toISOString(),
           status: a.status,
+          priceCharged: Number(a.priceCharged ?? 0),
+          notes: a.notes ?? '',
           staffColorCode: a.staff.colorCode,
         })),
       })

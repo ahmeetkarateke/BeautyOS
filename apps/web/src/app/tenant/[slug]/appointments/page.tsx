@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NewAppointmentModal } from '@/components/appointments/new-appointment-modal'
 import { AppointmentStatusModal } from '@/components/appointments/appointment-status-modal'
+import { AppointmentDetailSheet } from '@/components/appointments/appointment-detail-sheet'
+import type { AppointmentEventProps } from '@/components/appointments/appointment-calendar'
 
 const AppointmentCalendar = dynamic(
   () => import('@/components/appointments/appointment-calendar').then((m) => m.AppointmentCalendar),
@@ -20,6 +22,7 @@ interface PageProps {
 export default function AppointmentsPage({ params }: PageProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | undefined>()
+  const [detailModal, setDetailModal] = useState<AppointmentEventProps | null>(null)
   const [statusModal, setStatusModal] = useState<{
     appointmentId: string
     title: string
@@ -32,8 +35,19 @@ export default function AppointmentsPage({ params }: PageProps) {
     setModalOpen(true)
   }
 
-  const handleSelectAppointment = (appointmentId: string, title: string, status: string, priceCharged: number) => {
-    setStatusModal({ appointmentId, title, status, priceCharged })
+  const handleSelectAppointment = (props: AppointmentEventProps) => {
+    setDetailModal(props)
+  }
+
+  const handleOpenStatusModal = () => {
+    if (!detailModal) return
+    setDetailModal(null)
+    setStatusModal({
+      appointmentId: detailModal.appointmentId,
+      title: detailModal.title,
+      status: detailModal.status,
+      priceCharged: detailModal.priceCharged,
+    })
   }
 
   return (
@@ -63,6 +77,13 @@ export default function AppointmentsPage({ params }: PageProps) {
         tenantSlug={params.slug}
         defaultStart={selectedSlot?.start}
         defaultEnd={selectedSlot?.end}
+      />
+
+      <AppointmentDetailSheet
+        open={!!detailModal}
+        onOpenChange={(open) => { if (!open) setDetailModal(null) }}
+        detail={detailModal}
+        onChangeStatus={handleOpenStatusModal}
       />
 
       {statusModal && (

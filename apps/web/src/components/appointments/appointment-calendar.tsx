@@ -11,20 +11,40 @@ import { apiFetch } from '@/lib/api'
 
 interface Appointment {
   id: string
+  referenceCode: string
   customerName: string
+  customerPhone: string
   serviceName: string
+  serviceCategory: string
   staffName: string
   startTime: string
   endTime: string
   status: string
-  priceCharged?: number
+  priceCharged: number
+  notes: string
   staffColorCode?: string
+}
+
+export interface AppointmentEventProps {
+  appointmentId: string
+  title: string
+  status: string
+  priceCharged: number
+  customerName: string
+  customerPhone: string
+  serviceName: string
+  serviceCategory: string
+  staffName: string
+  startTime: string
+  endTime: string
+  notes: string
+  referenceCode: string
 }
 
 interface AppointmentCalendarProps {
   tenantId: string
   onSelectSlot?: (start: Date, end: Date) => void
-  onSelectAppointment?: (appointmentId: string, title: string, status: string, priceCharged: number) => void
+  onSelectAppointment?: (props: AppointmentEventProps) => void
 }
 
 const STATUS_STYLES: Record<string, { bg: string; border: string; opacity: number; strikethrough: boolean }> = {
@@ -66,9 +86,17 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
         staffName: apt.staffName,
         staffColor: apt.staffColorCode ?? '#6B48FF',
         status: apt.status,
-        priceCharged: apt.priceCharged ?? 0,
+        priceCharged: apt.priceCharged,
         opacity: style.opacity,
         strikethrough: style.strikethrough,
+        customerName: apt.customerName,
+        customerPhone: apt.customerPhone,
+        serviceName: apt.serviceName,
+        serviceCategory: apt.serviceCategory,
+        startTime: apt.startTime,
+        endTime: apt.endTime,
+        notes: apt.notes,
+        referenceCode: apt.referenceCode,
       },
     }
   })
@@ -103,14 +131,24 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
         selectMirror={true}
         events={events}
         select={(info) => onSelectSlot?.(info.start, info.end)}
-        eventClick={(info) =>
-          onSelectAppointment?.(
-            info.event.id,
-            info.event.title,
-            info.event.extendedProps.status as string,
-            info.event.extendedProps.priceCharged as number,
-          )
-        }
+        eventClick={(info) => {
+          const ep = info.event.extendedProps
+          onSelectAppointment?.({
+            appointmentId: info.event.id,
+            title: info.event.title,
+            status: ep.status as string,
+            priceCharged: ep.priceCharged as number,
+            customerName: ep.customerName as string,
+            customerPhone: ep.customerPhone as string,
+            serviceName: ep.serviceName as string,
+            serviceCategory: ep.serviceCategory as string,
+            staffName: ep.staffName as string,
+            startTime: ep.startTime as string,
+            endTime: ep.endTime as string,
+            notes: ep.notes as string,
+            referenceCode: ep.referenceCode as string,
+          })
+        }}
         eventContent={(arg) => {
           const { staffColor, staffName, opacity, strikethrough } = arg.event.extendedProps
           return (
