@@ -85,7 +85,10 @@ export function createTenantRouter(): Router {
 
       const querySchema = z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+        limit: z.preprocess(
+          (v) => (v === undefined || v === '' ? 10 : Number(v)),
+          z.number().int().min(1).max(100),
+        ),
       })
 
       const parsed = querySchema.safeParse(req.query)
