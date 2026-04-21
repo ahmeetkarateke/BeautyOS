@@ -17,7 +17,7 @@ interface AppointmentRow {
   id: string
   serviceName: string
   staffName: string
-  startAt: string
+  startTime: string
   status: string
   priceCharged: number
 }
@@ -211,7 +211,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{apt.serviceName}</p>
                       <p className="text-xs text-salon-muted mt-0.5">
-                        {apt.staffName} · {formatDate(apt.startAt)}
+                        {apt.staffName} · {formatDate(apt.startTime)}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0 ml-3">

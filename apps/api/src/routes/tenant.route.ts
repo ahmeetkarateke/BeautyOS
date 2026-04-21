@@ -351,6 +351,133 @@ export function createTenantRouter(): Router {
     }
   })
 
+  // GET /api/v1/tenants/:slug/settings
+  router.get('/settings', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+
+      const tenant = await db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, name: true, slug: true, settings: true },
+      })
+
+      if (!tenant) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tenant bulunamadı.' } })
+      }
+
+      return res.json(tenant)
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/customers/:customerId
+  router.get('/customers/:customerId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const { customerId } = req.params
+
+      const customer = await db.customer.findFirst({
+        where: { id: customerId, tenantId },
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          birthDate: true,
+          allergyNotes: true,
+          preferenceNotes: true,
+          totalVisits: true,
+          lifetimeValue: true,
+          segment: true,
+          lastVisitAt: true,
+          createdAt: true,
+          appointments: {
+            orderBy: { startAt: 'desc' },
+            take: 20,
+            select: {
+              id: true,
+              startAt: true,
+              endAt: true,
+              status: true,
+              priceCharged: true,
+              service: { select: { name: true } },
+              staff: { select: { user: { select: { fullName: true } } } },
+            },
+          },
+        },
+      })
+
+      if (!customer) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
+      }
+
+      return res.json({
+        id: customer.id,
+        fullName: customer.fullName,
+        phone: customer.phone,
+        email: customer.email,
+        birthDate: customer.birthDate?.toISOString() ?? null,
+        allergyNotes: customer.allergyNotes,
+        preferenceNotes: customer.preferenceNotes,
+        totalVisits: customer.totalVisits,
+        lifetimeValue: Number(customer.lifetimeValue),
+        segment: customer.segment,
+        lastVisitAt: customer.lastVisitAt?.toISOString() ?? null,
+        createdAt: customer.createdAt.toISOString(),
+        appointments: customer.appointments.map((a) => ({
+          id: a.id,
+          startTime: a.startAt.toISOString(),
+          endTime: a.endAt.toISOString(),
+          status: a.status,
+          priceCharged: Number(a.priceCharged),
+          serviceName: a.service.name,
+          staffName: a.staff.user.fullName,
+        })),
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // PATCH /api/v1/tenants/:slug/appointments/:appointmentId/status
+  const appointmentStatusSchema = z.object({
+    status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']),
+    cancellationReason: z.string().max(255).optional(),
+  })
+
+  router.patch('/appointments/:appointmentId/status', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const { appointmentId } = req.params
+
+      const parsed = appointmentStatusSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz durum değeri.' } })
+      }
+
+      const { status, cancellationReason } = parsed.data
+
+      const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
+      }
+
+      const updated = await db.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status,
+          ...(cancellationReason ? { cancellationReason } : {}),
+        },
+        select: { id: true, status: true, cancellationReason: true },
+      })
+
+      return res.json(updated)
+    } catch (err) {
+      next(err)
+    }
+  })
+
   // PATCH /api/v1/tenants/:slug/settings
   const settingsSchema = z.object({
     name: z.string().min(2).max(100).optional(),

@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Building2, Lock, Check } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -51,15 +52,39 @@ const tabs = [
 
 // ─── Salon settings form ──────────────────────────────────────────────────────
 
+interface TenantSettings {
+  id: string
+  name: string
+  slug: string
+  settings: { phone?: string; address?: string; workingHours?: string }
+}
+
 function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['tenant-settings', tenantSlug],
+    queryFn: () => apiFetch<TenantSettings>(`/api/v1/tenants/${tenantSlug}/settings`),
+  })
+
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<SalonFormValues>({
     resolver: zodResolver(salonSchema),
     defaultValues: { name: '', phone: '', address: '', workingHours: '09:00-19:00' },
   })
+
+  useEffect(() => {
+    if (data) {
+      reset({
+        name: data.name,
+        phone: data.settings?.phone ?? '',
+        address: data.settings?.address ?? '',
+        workingHours: data.settings?.workingHours ?? '09:00-19:00',
+      })
+    }
+  }, [data, reset])
 
   const mutation = useMutation({
     mutationFn: (values: SalonFormValues) =>
@@ -70,6 +95,14 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
     onSuccess: () => toast('Salon bilgileri kaydedildi'),
     onError: (err: Error) => toast(err.message, 'error'),
   })
+
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-11 w-full" />)}
+      </div>
+    )
+  }
 
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5">
