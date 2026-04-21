@@ -1,10 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Phone, Mail, Calendar, Star, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, Calendar, Star, TrendingUp, Pencil } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { EditCustomerModal } from '@/components/customers/edit-customer-modal'
 import { apiFetch } from '@/lib/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -54,6 +57,7 @@ const segmentLabel: Record<string, { label: string; className: string }> = {
 
 export default function CustomerDetailPage({ params }: PageProps) {
   const router = useRouter()
+  const [editOpen, setEditOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['customer', params.slug, params.customerId],
@@ -74,7 +78,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         {isLoading ? (
           <Skeleton className="h-7 w-40" />
         ) : (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-1">
             <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-semibold text-primary">
                 {data?.fullName.charAt(0)}
@@ -89,6 +93,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
               )}
             </div>
           </div>
+        )}
+        {!isLoading && data && (
+          <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => setEditOpen(true)}>
+            <Pencil className="w-3.5 h-3.5" /> Düzenle
+          </Button>
         )}
       </div>
 
@@ -229,6 +238,15 @@ export default function CustomerDetailPage({ params }: PageProps) {
           )}
         </CardContent>
       </Card>
+
+      {data && (
+        <EditCustomerModal
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          tenantSlug={params.slug}
+          customer={data}
+        />
+      )}
     </div>
   )
 }

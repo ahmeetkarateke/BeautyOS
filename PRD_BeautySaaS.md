@@ -86,7 +86,7 @@
 
 ## Frontend İlerlemesi
 
-**Son güncelleme:** 21.04.2026
+**Son güncelleme:** 21.04.2026 — Brief 2B tamamlandı
 
 ### Deployment
 
@@ -120,6 +120,8 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 | Müşteriler | `/tenant/:slug/customers` | ✅ Tamamlandı |
 | Müşteri Detay | `/tenant/:slug/customers/:id` | ✅ Tamamlandı |
 | Ayarlar | `/tenant/:slug/settings` | ✅ Tamamlandı |
+| Hizmetler | `/tenant/:slug/services` | ✅ Tamamlandı |
+| Personel | `/tenant/:slug/staff` | ✅ Tamamlandı |
 
 ### Bileşenler
 
@@ -142,6 +144,19 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 
 **Müşteriler**
 - `NewCustomerModal` — ad-soyad, telefon, e-posta, doğum tarihi
+- `EditCustomerModal` — fullName, phone, email, birthDate, allergyNotes, preferenceNotes
+
+**Hizmetler**
+- `ServiceModal` — ekle/düzenle (isim, kategori, süre, fiyat, isActive)
+- Kategori bazlı gruplandırılmış liste, soft delete
+
+**Personel**
+- `StaffModal` — ekle (fullName, email, şifre, title, renk) / düzenle (title, bio, renk)
+- `ColorPicker` — 8 renk swatchi, integer index olarak saklanır
+- Kart grid görünümü
+
+**UI Primitives (yeni)**
+- `ConfirmDialog` — yeniden kullanılabilir onay dialogu
 
 ### Düzeltilen Bug'lar
 
@@ -158,10 +173,7 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 
 | Görev | Öncelik |
 |---|---|
-| Hizmetler yönetim sayfası (`/tenant/:slug/services`) | Orta |
-| Personel yönetim sayfası (`/tenant/:slug/staff`) | Orta |
-| Müşteri düzenleme modalı | Orta |
-| Dashboard tarih filtresi (bugün / bu hafta / bu ay) | Orta |
+| Dashboard tarih filtresi backend desteği (`?period=week\|month`) | Orta |
 | Randevu detay sayfası | Düşük |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
