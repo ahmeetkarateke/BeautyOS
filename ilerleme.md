@@ -108,11 +108,41 @@
 
 **`npm run test` → 42 passed, ~25s**
 
+### 22.04.2026 Güncellemeleri
+
+**Finance Modülü ✅**
+- `PATCH /appointments/:id/status` → `completed` geçişinde otomatik Transaction oluşturma (gross, commission, cash/card split)
+- `GET /reports/daily` → transaction detayı (müşteri, hizmet, kategori, saat, tutar, ödeme), gider listesi (id dahil), netRevenue
+- `GET /reports/staff-commissions` → staff bazlı tamamlanan işlem, ciro, komisyon
+- `POST /expenses` + `DELETE /expenses/:id` → owner only
+- `POST /revenues` → walk-in manuel gelir (appointmentId nullable Transaction)
+- Transaction tablosuna `notes String?` eklendi, `appointmentId` + `staffId` nullable yapıldı (migration)
+
+**Personel Skill & İzin Sistemi ✅**
+- `StaffServiceAssignment` modeli eklendi: staff-service many-to-many, commissionType (percentage/fixed), commissionValue, priceOverride
+- `StaffLeave` modeli eklendi: tarih bazlı izin takibi (day_off/sick_leave/vacation/other)
+- Migration: `20260421203219_staff_skills_and_leaves`
+- `GET /staff/:staffId/services` + `POST` + `DELETE` — skill CRUD (owner only)
+- `GET /staff/:staffId/leaves` + `POST` + `DELETE` — izin CRUD (owner only)
+- `GET /staff` → `skills[]` array eklendi (email, workingHours da dahil)
+- `POST /appointments` → skill kontrolü eklendi (STAFF_NOT_SKILLED 422), priceOverride desteği
+
+**Randevu Status Koruması ✅**
+- `PATCH /appointments/:id/status` → terminal status (completed/cancelled/no_show) geçişi engellendi (STATUS_LOCKED 409)
+
+**Nightly No-Show Job ✅**
+- BullMQ repeatable job: her gece UTC 20:30 (TR 23:30) çalışır
+- Bugünün `pending/confirmed/in_progress` + `endAt < now` randevuları → `no_show`
+- Müşteriye Telegram mesajı: "Randevunuza gelemediniz, yeniden randevu almak ister misiniz?"
+- tenant.telegramBotToken öncelikli, yoksa global env fallback
+- Hata toleransı: her randevu isolated try/catch
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
 |---|---|
-| ✅ BullMQ hatırlatma görevleri (T-24h, T-2h) | ~~Yüksek — Görev 2~~ |
+| Randevu formunda hizmet → personel filtreleme (Agent 01) | Yüksek |
+| Bot: skill + mesai + izin farkındalığı (Agent 03) | Yüksek |
 | `DELETE /appointments/:id` | Düşük |
 | Pagination (cursor-based) customers/appointments için | Düşük |
 
@@ -214,12 +244,50 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 | `apt.startAt` → `apt.startTime` | Customer detail sayfasında field adı düzeltildi |
 | `['appointments-today']` query key uyumsuzluğu | `['appointments']` olarak düzeltildi — randevu sonrası dashboard güncellenmiyordu |
 
+### 22.04.2026 Güncellemeleri
+
+**Finance / Kasa Sayfası ✅**
+- `/tenant/:slug/finance` — yeni sayfa
+- Tarih seçici (default bugün, max bugün)
+- 4 özet kart: Toplam Ciro, Nakit, Kart, Net Kâr
+- Gelirler tablosu: saat, müşteri, hizmet, tutar, ödeme + kategori filtre butonları
+- Giderler bölümü: kategori filtresi, "Gider Ekle" inline form (özel kategori desteği), satır sil
+- Manuel Gelir formu: walk-in müşteri için açıklama + tutar + ödeme yöntemi
+- Personel Komisyonları tablosu
+- Kasa Kapatma butonu (owner only)
+
+**Randevu Kapatma Modalı ✅**
+- "Tamamlandı" seçilince fiyat + nakit/kart seçim ekranı açılıyor
+- Aynı Dialog içinde koşullu render (z-index sorunu çözüldü)
+- Backend: priceCharged ve paymentMethod PATCH body'sine eklendi
+
+**Takvim Görsel İyileştirme ✅**
+- Status bazlı renk (pending=sarı, confirmed=mavi, in_progress=mor, completed=yeşil, cancelled/no_show=gri/kırmızı)
+- Sol renkli şerit (personel rengi), koyu metin okunabilirliği
+- Takvim üstü legend çubuğu
+- CSS override: border-radius, padding, box-shadow
+
+**Randevu UX İyileştirmeleri ✅**
+- Takvimden slot seçince saat otomatik forma yansıyor (useEffect + reset)
+- Geçmiş günlere randevu engeli (min attribute + validate)
+- Bugünün geçmiş saatine ekleme için amber uyarı
+- Randevu detay paneli: müşteri telefonu, hizmet, personel, saat, fiyat, not, ref kodu
+- Tıklama akışı: detay → "Durum Değiştir" → status modal
+- Terminal status (completed/cancelled/no_show): "Durum Değiştir" butonu gizlenir
+
+**Personel Yönetim Sayfası ✅**
+- `/tenant/:slug/staff/:staffId` — yeni detay sayfası
+- Profil tab: ad, unvan, email, renk, çalışma saatleri, yetenek badge'leri
+- Yetenekler tab (owner): skill atama/kaldırma, komisyon tipi/değeri, fiyat override
+- İzinler tab (owner): izin ekleme/silme (tarih, tip, not)
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
 |---|---|
-| Dashboard tarih filtresi backend desteği (`?period=week\|month`) | Orta |
-| Randevu detay sayfası | Düşük |
+| Randevu formunda hizmet → personel filtreleme (Agent 01) | Yüksek |
+| Bot: skill + mesai + izin farkındalığı (Agent 03) | Yüksek |
+| Dashboard tarih filtresi (`?period=week\|month`) | Orta |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
 
