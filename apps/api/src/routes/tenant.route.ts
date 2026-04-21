@@ -232,7 +232,7 @@ export function createTenantRouter(): Router {
     customerId: z.string().uuid(),
     serviceId: z.string().uuid(),
     staffId: z.string().uuid(),
-    startAt: z.string().datetime(),
+    startAt: z.string().min(1),
     notes: z.string().max(500).optional(),
   })
 
