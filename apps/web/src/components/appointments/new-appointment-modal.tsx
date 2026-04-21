@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -56,21 +57,31 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
     enabled: open,
   })
 
-  const defaultStartStr = defaultStart
-    ? new Date(defaultStart.getTime() - defaultStart.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16)
-    : ''
-
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { startAt: defaultStartStr },
   })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        startAt: defaultStart
+          ? new Date(defaultStart.getTime() - defaultStart.getTimezoneOffset() * 60000)
+              .toISOString()
+              .slice(0, 16)
+          : '',
+        customerId: '',
+        serviceId: '',
+        staffId: '',
+        notes: '',
+      })
+    }
+  }, [open, defaultStart])
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) =>
@@ -140,9 +151,33 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
             <Input
               id="startAt"
               type="datetime-local"
+              min={new Date(new Date().setHours(0, 0, 0, 0)).toISOString().slice(0, 16)}
               error={errors.startAt?.message}
-              {...register('startAt')}
+              {...register('startAt', {
+                validate: (v) => {
+                  const selected = new Date(v)
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  return selected >= today || 'Geçmiş bir güne randevu ekleyemezsiniz'
+                },
+              })}
             />
+            {(() => {
+              const val = watch('startAt')
+              if (!val) return null
+              const selected = new Date(val)
+              const now = new Date()
+              const todayStart = new Date()
+              todayStart.setHours(0, 0, 0, 0)
+              if (selected >= todayStart && selected < now) {
+                return (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Geçmiş saate randevu ekliyorsunuz — gelen müşteri kaydı olarak işlenecek.
+                  </p>
+                )
+              }
+              return null
+            })()}
           </div>
 
           <div className="space-y-2">
