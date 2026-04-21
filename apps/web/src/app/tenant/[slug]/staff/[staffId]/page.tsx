@@ -20,6 +20,7 @@ interface StaffMember {
   email?: string | null
   colorCode?: number | null
   workingHours?: Record<string, unknown> | null
+  skills?: { serviceId: string; serviceName: string; category: string | null }[]
 }
 
 interface SkillAssignment {
@@ -278,22 +279,23 @@ export default function StaffDetailPage({ params }: PageProps) {
 
                 <div>
                   <p className="text-xs text-salon-muted mb-2">Yetenekler</p>
-                  {skillsLoading ? (
-                    <Skeleton className="h-6 w-40" />
-                  ) : skills.length === 0 ? (
-                    <p className="text-xs text-salon-muted">Henüz yetenek atanmamış.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {skills.map((s) => (
-                        <span
-                          key={s.serviceId}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary border border-primary/20"
-                        >
-                          {s.serviceName}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    const profileSkills = staff?.skills ?? []
+                    return profileSkills.length === 0 ? (
+                      <p className="text-xs text-salon-muted">Henüz yetenek atanmamış.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {profileSkills.map((s) => (
+                          <span
+                            key={s.serviceId}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary border border-primary/20"
+                          >
+                            {s.serviceName}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             ) : (
