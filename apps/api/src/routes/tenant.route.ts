@@ -170,6 +170,187 @@ export function createTenantRouter(): Router {
     }
   })
 
+  // GET /api/v1/tenants/:slug/services
+  router.get('/services', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+
+      const services = await db.service.findMany({
+        where: { tenantId, isActive: true },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true },
+      })
+
+      return res.json({
+        data: services.map((s) => ({
+          id: s.id,
+          name: s.name,
+          durationMinutes: s.durationMinutes,
+          price: Number(s.price),
+          category: s.category,
+        })),
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/staff
+  router.get('/staff', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+
+      const staff = await db.staffProfile.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          colorCode: true,
+          user: { select: { fullName: true } },
+        },
+      })
+
+      return res.json({
+        data: staff.map((s) => ({
+          id: s.id,
+          title: s.title,
+          fullName: s.user.fullName,
+          colorCode: s.colorCode,
+        })),
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // POST /api/v1/tenants/:slug/appointments
+  const createAppointmentSchema = z.object({
+    customerId: z.string().uuid(),
+    serviceId: z.string().uuid(),
+    staffId: z.string().uuid(),
+    startAt: z.string().datetime(),
+    notes: z.string().max(500).optional(),
+  })
+
+  router.post('/appointments', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+
+      const parsed = createAppointmentSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz randevu verisi.' } })
+      }
+
+      const { customerId, serviceId, staffId, startAt, notes } = parsed.data
+
+      const service = await db.service.findFirst({
+        where: { id: serviceId, tenantId, isActive: true },
+        select: { durationMinutes: true, price: true },
+      })
+      if (!service) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
+      }
+
+      const startDate = new Date(startAt)
+      const endDate = new Date(startDate.getTime() + service.durationMinutes * 60 * 1000)
+
+      const referenceCode = `APT-${Date.now().toString(36).toUpperCase()}`
+
+      const appointment = await db.appointment.create({
+        data: {
+          tenantId,
+          customerId,
+          serviceId,
+          staffId,
+          startAt: startDate,
+          endAt: endDate,
+          priceCharged: service.price,
+          referenceCode,
+          notes,
+          bookingChannel: 'manual',
+          status: 'pending',
+        },
+        include: {
+          customer: { select: { fullName: true } },
+          service: { select: { name: true } },
+          staff: { select: { colorCode: true, user: { select: { fullName: true } } } },
+        },
+      })
+
+      return res.status(201).json({
+        id: appointment.id,
+        referenceCode: appointment.referenceCode,
+        customerName: appointment.customer.fullName,
+        serviceName: appointment.service.name,
+        staffName: appointment.staff.user.fullName,
+        startTime: appointment.startAt.toISOString(),
+        endTime: appointment.endAt.toISOString(),
+        status: appointment.status,
+        staffColorCode: appointment.staff.colorCode,
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // POST /api/v1/tenants/:slug/customers
+  const createCustomerSchema = z.object({
+    fullName: z.string().min(2).max(100),
+    phone: z.string().min(7).max(20),
+    email: z.string().email().optional(),
+    birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  })
+
+  router.post('/customers', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+
+      const parsed = createCustomerSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz müşteri verisi.' } })
+      }
+
+      const { fullName, phone, email, birthDate } = parsed.data
+
+      try {
+        const customer = await db.customer.create({
+          data: {
+            tenantId,
+            fullName,
+            phone,
+            email,
+            birthDate: birthDate ? new Date(birthDate) : undefined,
+          },
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            totalVisits: true,
+            createdAt: true,
+          },
+        })
+
+        return res.status(201).json({
+          id: customer.id,
+          fullName: customer.fullName,
+          phone: customer.phone,
+          email: customer.email,
+          totalVisits: customer.totalVisits,
+          createdAt: customer.createdAt.toISOString(),
+        })
+      } catch (dbErr: unknown) {
+        if ((dbErr as { code?: string }).code === 'P2002') {
+          return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
+        }
+        throw dbErr
+      }
+    } catch (err) {
+      next(err)
+    }
+  })
+
   // PATCH /api/v1/tenants/:slug/settings
   const settingsSchema = z.object({
     name: z.string().min(2).max(100).optional(),
