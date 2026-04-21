@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import { db } from '../lib/db'
