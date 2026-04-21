@@ -536,7 +536,7 @@ export function createTenantRouter(): Router {
     name: z.string().min(2).max(100).optional(),
     phone: z.string().min(7).max(20).optional(),
     address: z.string().min(5).max(255).optional(),
-    workingHours: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/).optional(),
+    workingHours: z.string().min(1).max(200).optional(),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {
