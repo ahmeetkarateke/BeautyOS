@@ -16,8 +16,8 @@ interface DailyReport {
   totalRevenue: number
   cashRevenue: number
   cardRevenue: number
-  netProfit: number
-  expenses: { id: string; description: string; amount: number; date: string }[]
+  netRevenue: number
+  expenses: { title: string; category: string; amount: number }[]
 }
 
 interface StaffCommission {
@@ -67,7 +67,7 @@ export default function FinancePage({ params }: PageProps) {
     },
     {
       label: 'Net Kâr',
-      value: dailyLoading ? '—' : formatCurrency(daily?.netProfit ?? 0),
+      value: dailyLoading ? '—' : formatCurrency(daily?.netRevenue ?? 0),
       icon: Banknote,
       color: 'bg-orange-100 text-orange-600',
     },
@@ -155,9 +155,9 @@ export default function FinancePage({ params }: PageProps) {
           <p className="px-4 py-6 text-center text-sm text-salon-muted">Bu tarihte gider kaydı yok.</p>
         ) : (
           <ul className="divide-y divide-salon-border">
-            {daily.expenses.map((exp) => (
-              <li key={exp.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-gray-900">{exp.description}</span>
+            {daily.expenses.map((exp, i) => (
+              <li key={i} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-900">{exp.title}</span>
                 <span className="text-sm font-medium text-red-600">-{formatCurrency(exp.amount)}</span>
               </li>
             ))}
