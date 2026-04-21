@@ -6,7 +6,7 @@ import { Banknote, CreditCard, Wallet, TrendingUp } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
-import { toast } from 'sonner'
+import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
   params: { slug: string }
@@ -169,7 +169,7 @@ export default function FinancePage({ params }: PageProps) {
       {user?.role === 'owner' && (
         <div className="flex justify-end">
           <button
-            onClick={() => toast.success('Gün kapatıldı, özet kayıt alındı')}
+            onClick={() => toast('Gün kapatıldı, özet kayıt alındı')}
             className="px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
           >
             Kasa Kapatma
