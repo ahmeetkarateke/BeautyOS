@@ -17,13 +17,14 @@ interface Appointment {
   startTime: string
   endTime: string
   status: string
+  priceCharged?: number
   staffColorCode?: string
 }
 
 interface AppointmentCalendarProps {
   tenantId: string
   onSelectSlot?: (start: Date, end: Date) => void
-  onSelectAppointment?: (appointmentId: string, title: string, status: string) => void
+  onSelectAppointment?: (appointmentId: string, title: string, status: string, priceCharged: number) => void
 }
 
 export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointment }: AppointmentCalendarProps) {
@@ -42,7 +43,7 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
     end: apt.endTime,
     backgroundColor: apt.staffColorCode ?? '#6B48FF',
     borderColor: apt.staffColorCode ?? '#6B48FF',
-    extendedProps: { staffName: apt.staffName, status: apt.status },
+    extendedProps: { staffName: apt.staffName, status: apt.status, priceCharged: apt.priceCharged ?? 0 },
   }))
 
   return (
@@ -71,6 +72,7 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
             info.event.id,
             info.event.title,
             info.event.extendedProps.status as string,
+            info.event.extendedProps.priceCharged as number,
           )
         }
         eventContent={(arg) => (

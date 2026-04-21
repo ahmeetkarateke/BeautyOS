@@ -496,7 +496,9 @@ export function createTenantRouter(): Router {
   // PATCH /api/v1/tenants/:slug/appointments/:appointmentId/status
   const appointmentStatusSchema = z.object({
     status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']),
-    cancellationReason: z.string().max(255).optional(),
+    cancellationReason: z.string().optional(),
+    priceCharged: z.number().positive().optional(),
+    paymentMethod: z.enum(['cash', 'card']).optional(),
   })
 
   router.patch('/appointments/:appointmentId/status', async (req: Request, res: Response, next: NextFunction) => {
@@ -532,7 +534,8 @@ export function createTenantRouter(): Router {
         })
         if (appt) {
           const rate = Number(appt.service.commissionRate)
-          const gross = Number(appt.priceCharged)
+          const gross = parsed.data.priceCharged ?? Number(appt.priceCharged)
+          const method = parsed.data.paymentMethod ?? 'cash'
           await db.transaction.create({
             data: {
               tenantId,
@@ -541,12 +544,19 @@ export function createTenantRouter(): Router {
               grossAmount: gross,
               commissionRate: rate,
               commissionAmount: gross * rate,
-              paymentMethod: 'cash',
-              cashAmount: gross,
+              paymentMethod: method,
+              cashAmount: method === 'cash' ? gross : 0,
+              cardAmount: method === 'card' ? gross : 0,
               status: 'completed',
               completedAt: new Date(),
             },
           })
+          if (parsed.data.priceCharged) {
+            await db.appointment.update({
+              where: { id: appointmentId },
+              data: { priceCharged: gross },
+            })
+          }
         }
       }
 

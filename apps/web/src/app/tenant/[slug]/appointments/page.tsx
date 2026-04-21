@@ -24,6 +24,7 @@ export default function AppointmentsPage({ params }: PageProps) {
     appointmentId: string
     title: string
     status: string
+    priceCharged: number
   } | null>(null)
 
   const handleSelectSlot = (start: Date, end: Date) => {
@@ -31,8 +32,8 @@ export default function AppointmentsPage({ params }: PageProps) {
     setModalOpen(true)
   }
 
-  const handleSelectAppointment = (appointmentId: string, title: string, status: string) => {
-    setStatusModal({ appointmentId, title, status })
+  const handleSelectAppointment = (appointmentId: string, title: string, status: string, priceCharged: number) => {
+    setStatusModal({ appointmentId, title, status, priceCharged })
   }
 
   return (
@@ -72,6 +73,7 @@ export default function AppointmentsPage({ params }: PageProps) {
           appointmentId={statusModal.appointmentId}
           currentStatus={statusModal.status}
           appointmentTitle={statusModal.title}
+          defaultPrice={statusModal.priceCharged}
         />
       )}
     </div>
