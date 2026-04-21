@@ -199,6 +199,19 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - `staffProfile.findMany` sorgusuna `include: { user: { select: { fullName: true } } }` eklendi.
 - `staffName: sp.title` → `staffName: sp.user.fullName` ile gerçek isim gösteriliyor.
 
+**Bug 4 — Sonsuz Döngü (unknown intent) ✅**
+- `flow.handler.ts`: `unknown` intent gelince artık `clarifyCount` artırılıyor ve "Tam anlayamadım" mesajı dönülüyor. Katman 2/3 eşiklerine göre yönlendirme yapılıyor; döngü kırıldı.
+
+**Bug 5 — Keyword Fallback Eksikti ✅**
+- `intent.service.ts`: `detectByKeyword()` private metodu eklendi. "randevu", "manikür", "iptal", "fiyat" gibi anahtar kelimeler Gemini'ye gitmeden doğrudan `book/cancel/query_price` olarak algılanıyor. Salon hizmet adları da eşleştiriliyor.
+
+**Bug 6 — Sistem Promptu Doğal Konuşmayı Desteklemiyor ✅**
+- `buildSystemPrompt()`: Niyet tespit örnekleri eklendi ("Tırnak" → book, "Merhaba" → general).
+- `buildDetectionPrompt()`: `unknown` vs `general` kuralı eklendi — selamlama/belirsiz mesajlar artık `general` sayılıyor.
+
+**İyileştirme — /start sonrası yönlendirme ✅**
+- `REPLIES.welcome` ilk 3 hizmet adını mesajda gösteriyor. `buildWelcome` salon context alacak şekilde güncellendi.
+
 **Bug 3 — Online Rezervasyona Kapalı Hizmetler ✅**
 - `prisma/schema.prisma` — `Service` modeline `isOnlineBookable Boolean @default(true)` eklendi.
 - Migration çalıştırıldı: `20260421040337_add_service_online_bookable` (mevcut hizmetler `true` değeriyle güncellendi).

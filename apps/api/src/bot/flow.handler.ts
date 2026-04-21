@@ -15,8 +15,10 @@ const HANDOFF_LIMIT = 4    // Bu kadar başarısız turdan sonra → insana yön
 
 // ─── Yanıt metinleri (ileride i18n dosyasına taşınabilir) ────────────────────
 const REPLIES = {
-  welcome: (name: string) =>
-    `Merhaba! 👋 Ben *${name}* salonunun asistanıyım. Size nasıl yardımcı olabilirim?`,
+  welcome: (name: string, services: SalonContext['services']) => {
+    const top3 = services.slice(0, 3).map((s) => s.name).join(', ')
+    return `Merhaba! 👋 Ben *${name}* salonunun asistanıyım. Size nasıl yardımcı olabilirim?\n\nRandevu almak için hizmet adı yazabilirsiniz.\nHizmetlerimiz: ${top3}`
+  },
 
   askService: '📋 Hangi hizmet için randevu almak istersiniz?',
 
@@ -103,7 +105,7 @@ export class FlowHandler {
     // /start komutu veya ilk mesaj → karşılama + session sıfırla
     if (msg.text === '/start' || (session.turnCount === 1 && session.step === 'idle')) {
       await this.sessionService.reset(session)
-      await channel.sendText(msg.from, REPLIES.welcome(salon.name))
+      await channel.sendText(msg.from, REPLIES.welcome(salon.name, salon.services))
       return
     }
 
@@ -150,6 +152,26 @@ export class FlowHandler {
       const question =
         result.clarificationQuestion ?? 'Ne yapmak istediğinizi biraz daha açar mısınız?'
       await channel.sendText(msg.from, REPLIES.clarify(question))
+      return
+    }
+
+    // unknown intent → clarifyCount artır, döngüye girme
+    if (result.intent === 'unknown') {
+      session.clarifyCount++
+      if (session.clarifyCount >= HANDOFF_LIMIT) {
+        session.step = 'handed_off'
+        const reply = REPLIES.handoff.replace('{PHONE}', salon.address)
+        await channel.sendText(msg.from, reply)
+        return
+      }
+      if (session.clarifyCount >= CLARIFY_LIMIT) {
+        await channel.sendText(msg.from, REPLIES.simplify)
+      } else {
+        await channel.sendText(
+          msg.from,
+          '🤔 Tam anlayamadım — randevu almak, fiyat öğrenmek veya iptal için yazabilirsiniz.',
+        )
+      }
       return
     }
 
