@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Building2, Lock, Check } from 'lucide-react'
+import { Building2, Lock, Check, Plug } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,7 +26,7 @@ const salonSchema = z.object({
   name: z.string().min(2, 'En az 2 karakter giriniz'),
   phone: z.string().min(7, 'Geçerli bir telefon numarası giriniz'),
   address: z.string().min(5, 'Adres en az 5 karakter olmalıdır'),
-  workingHours: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, 'Format: HH:MM-HH:MM (örn: 09:00-19:00)'),
+  workingHours: z.string().min(1, 'Çalışma saatlerini giriniz').max(200),
 })
 
 const passwordSchema = z
@@ -48,6 +48,7 @@ type PasswordFormValues = z.infer<typeof passwordSchema>
 const tabs = [
   { id: 'salon', label: 'Salon Profili', icon: Building2 },
   { id: 'account', label: 'Hesabım', icon: Lock },
+  { id: 'integrations', label: 'Entegrasyonlar', icon: Plug },
 ]
 
 // ─── Salon settings form ──────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
       <div className="space-y-2">
         <Label htmlFor="workingHours">Çalışma Saatleri</Label>
         <Input id="workingHours" placeholder="09:00-19:00" error={errors.workingHours?.message} {...register('workingHours')} />
-        <p className="text-xs text-salon-muted">Format: HH:MM-HH:MM (örnek: 09:00-19:00)</p>
+        <p className="text-xs text-salon-muted">Örnek: Pzt-Cum 09:00-18:00</p>
       </div>
 
       <Button type="submit" disabled={mutation.isPending} className="gap-2">
@@ -193,10 +194,79 @@ function PasswordForm({ tenantSlug }: { tenantSlug: string }) {
   )
 }
 
+// ─── Integrations ─────────────────────────────────────────────────────────────
+
+function IntegrationsPanel() {
+  return (
+    <div className="space-y-6">
+      {/* WhatsApp */}
+      <div className="rounded-lg border border-salon-border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#25D366' }}>
+              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.849L.057 23.704a.75.75 0 0 0 .92.92l5.855-1.475A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.733 9.733 0 0 1-4.95-1.35l-.355-.21-3.676.926.99-3.593-.23-.37A9.751 9.751 0 0 1 2.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">WhatsApp Business</p>
+              <p className="text-xs text-salon-muted">AI destekli randevu botu</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            Onay Bekleniyor
+          </span>
+        </div>
+        <p className="text-xs text-salon-muted leading-relaxed">
+          Meta WhatsApp Business API başvurusu devam ediyor. Onay geldiğinde bu sayfadan numaranızı bağlayabileceksiniz.
+          Ortalama onay süresi 3–5 iş günüdür.
+        </p>
+        <div className="rounded-md bg-salon-bg p-3 text-xs text-salon-muted space-y-1">
+          <p className="font-medium text-gray-700">Beklenen özellikler:</p>
+          <ul className="space-y-0.5 list-disc list-inside">
+            <li>7/24 otomatik randevu alma</li>
+            <li>T-24h ve T-2h hatırlatma mesajları</li>
+            <li>Müşteri profili tanıma</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Telegram (test kanalı) */}
+      <div className="rounded-lg border border-salon-border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#229ED9]">
+              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Telegram Bot</p>
+              <p className="text-xs text-salon-muted">Test & geliştirme kanalı</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            Aktif
+          </span>
+        </div>
+        <p className="text-xs text-salon-muted leading-relaxed">
+          WhatsApp onayı beklenirken AI bot Telegram üzerinden test edilebilir.
+          Bot aynı randevu akışını, slot sorgulama ve onay sistemini kullanır.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type TabId = 'salon' | 'account' | 'integrations'
+
 export default function SettingsPage({ params }: PageProps) {
-  const [activeTab, setActiveTab] = useState<'salon' | 'account'>('salon')
+  const [activeTab, setActiveTab] = useState<TabId>('salon')
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
@@ -212,7 +282,7 @@ export default function SettingsPage({ params }: PageProps) {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'salon' | 'account')}
+              onClick={() => setActiveTab(tab.id as TabId)}
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
                 activeTab === tab.id
@@ -230,15 +300,15 @@ export default function SettingsPage({ params }: PageProps) {
       <Card>
         <CardHeader>
           <CardTitle>
-            {activeTab === 'salon' ? 'Salon Bilgileri' : 'Şifre Değiştir'}
+            {activeTab === 'salon' && 'Salon Bilgileri'}
+            {activeTab === 'account' && 'Şifre Değiştir'}
+            {activeTab === 'integrations' && 'Entegrasyonlar'}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {activeTab === 'salon' ? (
-            <SalonSettingsForm tenantSlug={params.slug} />
-          ) : (
-            <PasswordForm tenantSlug={params.slug} />
-          )}
+          {activeTab === 'salon' && <SalonSettingsForm tenantSlug={params.slug} />}
+          {activeTab === 'account' && <PasswordForm tenantSlug={params.slug} />}
+          {activeTab === 'integrations' && <IntegrationsPanel />}
         </CardContent>
       </Card>
     </div>
