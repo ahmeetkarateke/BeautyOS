@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { db } from '../lib/db'
 import { authenticateJWT, requireTenantAccess } from '../middleware/auth.middleware'
 
@@ -164,6 +165,100 @@ export function createTenantRouter(): Router {
           createdAt: c.createdAt.toISOString(),
         })),
       })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // PATCH /api/v1/tenants/:slug/settings
+  const settingsSchema = z.object({
+    name: z.string().min(2).max(100).optional(),
+    phone: z.string().min(7).max(20).optional(),
+    address: z.string().min(5).max(255).optional(),
+    workingHours: z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/).optional(),
+  })
+
+  router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = settingsSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz alan değeri.' } })
+      }
+
+      const { name, ...settingsPatch } = parsed.data
+      const tenantId = req.user!.tenantId
+
+      const existing = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tenant bulunamadı.' } })
+      }
+
+      const mergedSettings = {
+        ...(existing.settings as object),
+        ...settingsPatch,
+      }
+
+      const updated = await db.tenant.update({
+        where: { id: tenantId },
+        data: {
+          ...(name ? { name } : {}),
+          settings: mergedSettings,
+        },
+        select: { id: true, name: true, slug: true, settings: true },
+      })
+
+      return res.json(updated)
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // PATCH /api/v1/tenants/:slug/users/:userId/password
+  const passwordSchema = z.object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8),
+  })
+
+  router.patch('/users/:userId/password', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params
+      const requestingUser = req.user!
+
+      const canChange = requestingUser.userId === userId || requestingUser.role === 'owner'
+      if (!canChange) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+
+      const parsed = passwordSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz şifre formatı.' } })
+      }
+
+      const { currentPassword, newPassword } = parsed.data
+
+      const user = await db.user.findFirst({
+        where: { id: userId, tenantId: requestingUser.tenantId, isActive: true },
+        select: { id: true, passwordHash: true },
+      })
+
+      if (!user) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Kullanıcı bulunamadı.' } })
+      }
+
+      const match = await bcrypt.compare(currentPassword, user.passwordHash)
+      if (!match) {
+        return res.status(401).json({ error: { code: 'INVALID_PASSWORD', message: 'Mevcut şifre hatalı.' } })
+      }
+
+      const newHash = await bcrypt.hash(newPassword, 10)
+      await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } })
+
+      return res.json({ ok: true })
     } catch (err) {
       next(err)
     }
