@@ -14,7 +14,7 @@ import { STAFF_COLORS } from '@/lib/staff-colors'
 const staffItem = z.object({
   name: z.string().min(2, 'Ad soyad giriniz'),
   email: z.string().email('Geçerli e-posta girin'),
-  password: z.string().min(6, 'Şifre en az 6 karakter'),
+  password: z.string().min(8, 'Şifre en az 8 karakter'),
   title: z.string().min(2, 'Unvan giriniz'),
   color: z.string(),
 })
@@ -52,10 +52,14 @@ export function Step3Staff({ slug, onNext, onBack }: Step3StaffProps) {
   async function onSubmit(data: FormData) {
     try {
       await Promise.all(
-        data.staff.map((member) =>
+        data.staff.map(({ name, color, ...rest }) =>
           apiFetch(`/api/v1/tenants/${slug}/staff`, {
             method: 'POST',
-            body: JSON.stringify(member),
+            body: JSON.stringify({
+              ...rest,
+              fullName: name,
+              colorCode: STAFF_COLORS.indexOf(color),
+            }),
           }),
         ),
       )

@@ -50,10 +50,10 @@ export function Step2Services({ slug, onNext, onBack }: Step2ServicesProps) {
   async function onSubmit(data: FormData) {
     try {
       await Promise.all(
-        data.services.map((svc) =>
+        data.services.map(({ duration, ...rest }) =>
           apiFetch(`/api/v1/tenants/${slug}/services`, {
             method: 'POST',
-            body: JSON.stringify(svc),
+            body: JSON.stringify({ ...rest, durationMinutes: duration }),
           }),
         ),
       )
