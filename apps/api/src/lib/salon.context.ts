@@ -11,7 +11,7 @@ export async function getSalon(tenantId: string): Promise<SalonContext> {
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     include: {
-      services: { where: { isActive: true } },
+      services: { where: { isActive: true, isOnlineBookable: true } },
       staffProfiles: { where: { acceptsOnlineBooking: true } },
     },
   })

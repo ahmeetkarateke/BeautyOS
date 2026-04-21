@@ -188,4 +188,20 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 
 ## WhatsApp AI İlerlemesi
 
-<!-- WhatsApp AI agent bu bölümü dolduracak -->
+### Tamamlanan Bugfix'ler (2026-04-21)
+
+**Bug 1 — Saat Kayması (KRİTİK) ✅**
+- `getAvailableSlots` içinde `setHours()` yerine UTC ofset tabanlı hesaplama kullanıldı.
+- `dayStart/dayEnd` artık `date.getTime() + (hour - 3) * 3600 * 1000` formülüyle doğru UTC timestamp üretiyor.
+- Slot `label` TR saatini gösteriyor (`trCursor.getUTCHours()`); `id` ise UTC ISO string saklıyor (createAppointment parse'da doğru çalışıyor).
+
+**Bug 2 — Personel Adı Unvan Çıkıyor ✅**
+- `staffProfile.findMany` sorgusuna `include: { user: { select: { fullName: true } } }` eklendi.
+- `staffName: sp.title` → `staffName: sp.user.fullName` ile gerçek isim gösteriliyor.
+
+**Bug 3 — Online Rezervasyona Kapalı Hizmetler ✅**
+- `prisma/schema.prisma` — `Service` modeline `isOnlineBookable Boolean @default(true)` eklendi.
+- Migration çalıştırıldı: `20260421040337_add_service_online_bookable` (mevcut hizmetler `true` değeriyle güncellendi).
+- `salon.context.ts` — `services` sorgusu `isOnlineBookable: true` filtresiyle güncellendi.
+- `GET /services?onlineOnly=true` query param desteği eklendi.
+- `PATCH /services/:id` — `updateServiceSchema`'ya `isOnlineBookable` alanı eklendi; response'a da dahil edildi.

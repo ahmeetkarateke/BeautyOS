@@ -5,9 +5,10 @@ import type { BookingChannel } from '@prisma/client'
 // ─── Saat dilimleri (Türkiye: UTC+3) ─────────────────────────────────────────
 
 const TZ_OFFSET_HOURS = 3
+const TR_OFFSET_MS = TZ_OFFSET_HOURS * 60 * 60 * 1000
 
 function nowTR(): Date {
-  return new Date(Date.now() + TZ_OFFSET_HOURS * 60 * 60 * 1000)
+  return new Date(Date.now() + TR_OFFSET_MS)
 }
 
 // ─── Tercih → Tarih çözücü ────────────────────────────────────────────────────
@@ -79,16 +80,16 @@ export async function getAvailableSlots(
   const staffList = await db.staffProfile.findMany({
     where: { tenantId, acceptsOnlineBooking: true },
     take: 3,
+    include: { user: { select: { fullName: true } } },
   })
 
   if (staffList.length === 0) {
     return mockSlots(date, start, end)
   }
 
-  const dayStart = new Date(date)
-  dayStart.setHours(start, 0, 0, 0)
-  const dayEnd = new Date(date)
-  dayEnd.setHours(end, 0, 0, 0)
+  // date = midnight UTC of TR calendar date; convert TR hour to UTC by subtracting 3h offset
+  const dayStart = new Date(date.getTime() + (start - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
+  const dayEnd   = new Date(date.getTime() + (end   - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
 
   // Gün içindeki mevcut randevuları çek
   const existingAppointments = await db.appointment.findMany({
@@ -118,15 +119,18 @@ export async function getAvailableSlots(
       )
 
       if (!hasConflict) {
-        const hh = cursor.getHours().toString().padStart(2, '0')
-        const mm = cursor.getMinutes().toString().padStart(2, '0')
-        const isoSlot = `${cursor.toISOString().slice(0, 10)}T${hh}:${mm}:00`
+        // cursor is UTC; add offset to get TR display time
+        const trCursor = new Date(cursor.getTime() + TR_OFFSET_MS)
+        const hh = trCursor.getUTCHours().toString().padStart(2, '0')
+        const mm = trCursor.getUTCMinutes().toString().padStart(2, '0')
+        // id stores UTC ISO so createAppointment parses it correctly
+        const isoSlot = cursor.toISOString().slice(0, 19)
 
         slots.push({
           id: `${isoSlot}__${sp.id}`,
           label: `${hh}:${mm}`,
           staffId: sp.id,
-          staffName: sp.title,
+          staffName: sp.user.fullName,
         })
       }
 

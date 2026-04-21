@@ -179,10 +179,11 @@ export function createTenantRouter(): Router {
     try {
       const tenantId = req.user!.tenantId
 
+      const onlineOnly = req.query.onlineOnly === 'true'
       const services = await db.service.findMany({
-        where: { tenantId, isActive: true },
+        where: { tenantId, isActive: true, ...(onlineOnly ? { isOnlineBookable: true } : {}) },
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, isOnlineBookable: true },
       })
 
       return res.json({
@@ -192,6 +193,7 @@ export function createTenantRouter(): Router {
           durationMinutes: s.durationMinutes,
           price: Number(s.price),
           category: s.category,
+          isOnlineBookable: s.isOnlineBookable,
         })),
       })
     } catch (err) {
@@ -606,6 +608,7 @@ export function createTenantRouter(): Router {
     price: z.number().min(0).optional(),
     bufferMinutes: z.number().int().min(0).optional(),
     isActive: z.boolean().optional(),
+    isOnlineBookable: z.boolean().optional(),
   })
 
   router.post('/services', async (req: Request, res: Response, next: NextFunction) => {
@@ -654,7 +657,7 @@ export function createTenantRouter(): Router {
       const updated = await db.service.update({
         where: { id: serviceId },
         data: parsed.data,
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, isOnlineBookable: true },
       })
 
       return res.json({ ...updated, price: Number(updated.price) })

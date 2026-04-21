@@ -15,7 +15,7 @@ interface Appointment {
   staffName: string
   startTime: string
   endTime: string
-  status: 'confirmed' | 'pending' | 'completed' | 'cancelled'
+  status: 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'in_progress' | 'no_show'
   staffColorCode?: string
 }
 
@@ -24,6 +24,8 @@ const statusLabel: Record<Appointment['status'], string> = {
   pending: 'Bekliyor',
   completed: 'Tamamlandı',
   cancelled: 'İptal',
+  in_progress: 'Devam Ediyor',
+  no_show: 'Gelmedi',
 }
 
 const statusStyle: Record<Appointment['status'], string> = {
@@ -31,6 +33,8 @@ const statusStyle: Record<Appointment['status'], string> = {
   pending: 'bg-yellow-50 text-yellow-700',
   completed: 'bg-green-50 text-green-700',
   cancelled: 'bg-red-50 text-red-600',
+  in_progress: 'bg-purple-50 text-purple-700',
+  no_show: 'bg-gray-100 text-gray-600',
 }
 
 interface TodaysAppointmentsProps {
