@@ -33,7 +33,7 @@ type FormValues = z.infer<typeof schema>
 
 interface Customer { id: string; fullName: string; phone: string }
 interface Service { id: string; name: string; durationMinutes: number }
-interface Staff { id: string; title: string; user: { fullName: string } }
+interface Staff { id: string; title: string; fullName: string }
 
 export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultStart, defaultEnd }: Props) {
   const qc = useQueryClient()
@@ -129,7 +129,7 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
               <option value="">Personel seçin...</option>
               {staff?.data.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.user.fullName} — {s.title}
+                  {s.fullName} — {s.title}
                 </option>
               ))}
             </Select>
