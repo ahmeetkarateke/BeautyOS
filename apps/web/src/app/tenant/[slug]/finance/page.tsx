@@ -20,6 +20,7 @@ interface Transaction {
   customerName: string
   serviceName: string
   serviceCategory: string
+  description?: string
   amount: number
   paymentMethod: 'cash' | 'card'
 }
@@ -63,6 +64,8 @@ export default function FinancePage({ params }: PageProps) {
   const [expenseFilter, setExpenseFilter] = useState<string>('Tümü')
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ title: '', category: 'Yemek', customCategory: '', amount: '' })
+  const [showRevenueForm, setShowRevenueForm] = useState(false)
+  const [revenueForm, setRevenueForm] = useState({ description: '', amount: '', paymentMethod: 'cash' as 'cash' | 'card' })
 
   const { data: daily, isLoading: dailyLoading } = useQuery({
     queryKey: ['finance-daily', slug, date],
@@ -132,6 +135,23 @@ export default function FinancePage({ params }: PageProps) {
     toast('Gider eklendi')
   }
 
+  async function handleAddRevenue() {
+    if (!revenueForm.description || !revenueForm.amount) return
+    await apiFetch(`/api/v1/tenants/${slug}/revenues`, {
+      method: 'POST',
+      body: JSON.stringify({
+        description: revenueForm.description,
+        amount: Number(revenueForm.amount),
+        paymentMethod: revenueForm.paymentMethod,
+        revenueDate: date,
+      }),
+    })
+    queryClient.invalidateQueries({ queryKey: ['finance-daily', slug, date] })
+    setShowRevenueForm(false)
+    setRevenueForm({ description: '', amount: '', paymentMethod: 'cash' })
+    toast('Gelir eklendi')
+  }
+
   async function handleDeleteExpense(expenseId: string) {
     await apiFetch(`/api/v1/tenants/${slug}/expenses/${expenseId}`, { method: 'DELETE' })
     queryClient.invalidateQueries({ queryKey: ['finance-daily', slug, date] })
@@ -174,23 +194,81 @@ export default function FinancePage({ params }: PageProps) {
       <div className="bg-white rounded-xl border border-salon-border">
         <div className="px-4 py-3 border-b border-salon-border flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Gelirler</h2>
-          <div className="flex gap-1 flex-wrap">
-            {REVENUE_CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setRevenueFilter(cat)}
-                className={cn(
-                  'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                  revenueFilter === cat
-                    ? 'bg-primary text-white border-primary'
-                    : 'border-salon-border text-salon-muted hover:border-primary',
-                )}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex gap-1 flex-wrap">
+              {REVENUE_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setRevenueFilter(cat)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                    revenueFilter === cat
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-salon-border text-salon-muted hover:border-primary',
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowRevenueForm(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-xs font-medium whitespace-nowrap"
+            >
+              + Manuel Gelir
+            </button>
           </div>
         </div>
+
+        {showRevenueForm && (
+          <div className="px-4 py-4 border-b border-salon-border bg-salon-bg space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-salon-muted">Açıklama</label>
+                <input
+                  value={revenueForm.description}
+                  onChange={(e) => setRevenueForm((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Walk-in müşteri, saç kesimi..."
+                  className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-salon-muted">Tutar (₺)</label>
+                <input
+                  type="number"
+                  value={revenueForm.amount}
+                  onChange={(e) => setRevenueForm((p) => ({ ...p, amount: e.target.value }))}
+                  className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-salon-muted">Ödeme Yöntemi</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['cash', 'card'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setRevenueForm((p) => ({ ...p, paymentMethod: m }))}
+                    className={cn(
+                      'py-2 rounded-lg text-sm font-medium border transition-colors',
+                      revenueForm.paymentMethod === m
+                        ? 'bg-primary text-white border-primary'
+                        : 'border-salon-border text-salon-muted hover:border-primary',
+                    )}
+                  >
+                    {m === 'cash' ? '💵 Nakit' : '💳 Kart'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowRevenueForm(false)}>İptal</Button>
+              <Button size="sm" onClick={handleAddRevenue}>Kaydet</Button>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -217,8 +295,8 @@ export default function FinancePage({ params }: PageProps) {
                     <td className="px-4 py-3 text-salon-muted whitespace-nowrap">
                       {new Date(t.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td className="px-4 py-3 text-gray-900">{t.customerName}</td>
-                    <td className="px-4 py-3 text-salon-muted">{t.serviceName}</td>
+                    <td className="px-4 py-3 text-gray-900">{t.customerName || t.description || '—'}</td>
+                    <td className="px-4 py-3 text-salon-muted">{t.serviceName || 'Manuel Gelir'}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">{formatCurrency(t.amount)}</td>
                     <td className="px-4 py-3 text-right text-salon-muted whitespace-nowrap">
                       {t.paymentMethod === 'cash' ? '💵 Nakit' : '💳 Kart'}

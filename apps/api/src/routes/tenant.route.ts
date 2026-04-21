@@ -981,6 +981,7 @@ export function createTenantRouter(): Router {
             cashAmount: true,
             cardAmount: true,
             completedAt: true,
+            notes: true,
             appointment: {
               select: {
                 startAt: true,
@@ -1010,12 +1011,13 @@ export function createTenantRouter(): Router {
         netRevenue: totalRevenue - totalExpenses,
         transactions: transactions.map((t) => ({
           id: t.id,
-          time: t.appointment.startAt.toISOString(),
-          customerName: t.appointment.customer.fullName,
-          serviceName: t.appointment.service.name,
-          serviceCategory: t.appointment.service.category ?? 'Diğer',
+          time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
+          customerName: t.appointment?.customer.fullName ?? null,
+          serviceName: t.appointment?.service.name ?? null,
+          serviceCategory: t.appointment?.service.category ?? 'Diğer',
           amount: Number(t.grossAmount),
           paymentMethod: t.paymentMethod,
+          notes: t.notes ?? null,
         })),
         expenses: expenses.map((e) => ({
           id: e.id,
@@ -1051,15 +1053,22 @@ export function createTenantRouter(): Router {
         },
       })
 
-      const staffIds = [...new Set(transactions.map((t) => t.staffId))]
+      const staffIds = [...new Set(transactions.map((t) => t.staffId).filter((id): id is string => id !== null))]
       const staffProfiles = await db.staffProfile.findMany({
         where: { id: { in: staffIds } },
-        select: { id: true, user: { select: { fullName: true } } },
+        select: { id: true, userId: true },
       })
-      const staffMap = new Map(staffProfiles.map((s) => [s.id, s.user.fullName]))
+      const userIds = staffProfiles.map((s) => s.userId)
+      const users = await db.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, fullName: true },
+      })
+      const userMap = new Map(users.map((u) => [u.id, u.fullName]))
+      const staffMap = new Map(staffProfiles.map((s) => [s.id, userMap.get(s.userId) ?? 'Bilinmiyor']))
 
       const grouped = new Map<string, { staffName: string; completedCount: number; grossAmount: number; commissionAmount: number }>()
       for (const t of transactions) {
+        if (!t.staffId) continue
         const entry = grouped.get(t.staffId) ?? {
           staffName: staffMap.get(t.staffId) ?? 'Bilinmiyor',
           completedCount: 0,
@@ -1075,6 +1084,51 @@ export function createTenantRouter(): Router {
       return res.json({
         data: [...grouped.entries()].map(([staffId, v]) => ({ staffId, ...v })),
       })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // ─── Manual Revenues ─────────────────────────────────────────────────────────
+
+  const createRevenueSchema = z.object({
+    description: z.string().min(1),
+    amount: z.coerce.number().positive(),
+    paymentMethod: z.enum(['cash', 'card']),
+    revenueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+
+  router.post('/revenues', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+
+      const parsed = createRevenueSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz veri.' } })
+      }
+
+      const { description, amount, paymentMethod, revenueDate } = parsed.data
+      const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
+
+      const revenue = await db.transaction.create({
+        data: {
+          tenantId,
+          appointmentId: null,
+          staffId: null,
+          grossAmount: amount,
+          commissionRate: 0,
+          commissionAmount: 0,
+          paymentMethod,
+          cashAmount: paymentMethod === 'cash' ? amount : 0,
+          cardAmount: paymentMethod === 'card' ? amount : 0,
+          status: 'completed',
+          notes: description,
+          completedAt,
+        },
+        select: { id: true, grossAmount: true, paymentMethod: true },
+      })
+
+      return res.status(201).json({ id: revenue.id, amount: Number(revenue.grossAmount), paymentMethod: revenue.paymentMethod })
     } catch (err) {
       next(err)
     }
