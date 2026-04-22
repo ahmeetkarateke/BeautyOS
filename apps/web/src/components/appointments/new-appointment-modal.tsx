@@ -34,7 +34,12 @@ type FormValues = z.infer<typeof schema>
 
 interface Customer { id: string; fullName: string; phone: string }
 interface Service { id: string; name: string; durationMinutes: number }
-interface Staff { id: string; title: string; fullName: string }
+interface Staff {
+  id: string
+  title: string
+  fullName: string
+  skills: { serviceId: string; serviceName: string }[]
+}
 
 export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultStart, defaultEnd }: Props) {
   const qc = useQueryClient()
@@ -62,6 +67,7 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -82,6 +88,12 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
       })
     }
   }, [open, defaultStart])
+
+  const selectedServiceId = watch('serviceId')
+  const allStaff = staff?.data ?? []
+  const filteredStaff = selectedServiceId
+    ? allStaff.filter((s) => s.skills.some((sk) => sk.serviceId === selectedServiceId))
+    : allStaff
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) =>
@@ -124,7 +136,15 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
 
           <div className="space-y-2">
             <Label htmlFor="serviceId">Hizmet</Label>
-            <Select id="serviceId" error={errors.serviceId?.message} {...register('serviceId')}>
+            <Select
+              id="serviceId"
+              error={errors.serviceId?.message}
+              {...register('serviceId')}
+              onChange={(e) => {
+                register('serviceId').onChange(e)
+                setValue('staffId', '')
+              }}
+            >
               <option value="">Hizmet seçin...</option>
               {services?.data.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -137,12 +157,18 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
           <div className="space-y-2">
             <Label htmlFor="staffId">Personel</Label>
             <Select id="staffId" error={errors.staffId?.message} {...register('staffId')}>
-              <option value="">Personel seçin...</option>
-              {staff?.data.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} — {s.title}
-                </option>
-              ))}
+              {filteredStaff.length === 0 && selectedServiceId ? (
+                <option value="" disabled>Bu hizmet için uygun personel yok</option>
+              ) : (
+                <>
+                  <option value="">Personel seçin...</option>
+                  {filteredStaff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.fullName} — {s.title}
+                    </option>
+                  ))}
+                </>
+              )}
             </Select>
           </div>
 

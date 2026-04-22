@@ -319,11 +319,18 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - Yetenekler tab (owner): skill atama/kaldırma, komisyon tipi/değeri, fiyat override
 - İzinler tab (owner): izin ekleme/silme (tarih, tip, not)
 
+**Randevu Formu — Hizmet → Personel Filtreleme ✅**
+- `Staff` interface'ine `skills: { serviceId, serviceName }[]` eklendi
+- `selectedServiceId = watch('serviceId')` ile hizmet seçimi reaktif izleniyor
+- `filteredStaff`: hizmet seçilmişse `skills` array'inde o `serviceId`'yi barındıran personel, seçilmemişse tüm personel
+- Hizmet değiştirilince `setValue('staffId', '')` ile seçili personel sıfırlanıyor
+- Uygun personel yoksa dropdown'da "Bu hizmet için uygun personel yok" placeholder gösteriliyor
+- Filtreleme tamamen client-side — ek API çağrısı yok
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
 |---|---|
-| Randevu formunda hizmet → personel filtreleme (Agent 01) | Yüksek |
 | Bot: skill + mesai + izin farkındalığı (Agent 03) | Yüksek |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
