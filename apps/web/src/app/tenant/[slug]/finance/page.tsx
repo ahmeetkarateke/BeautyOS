@@ -261,7 +261,7 @@ export default function FinancePage({ params }: PageProps) {
     ).join('')
 
     const commRows = (closeDayData.staffCommissions ?? []).map((s) =>
-      `<tr><td>${esc(s.staffName)}</td><td class="r">${s.completedCount ?? 0}</td><td class="r">${fmt(s.grossAmount ?? 0)}</td><td class="r">${fmt(s.commissionAmount ?? 0)}</td></tr>`
+      `<tr><td>${esc(s.staffName)}</td><td class="r">${s.completedAppointments ?? 0}</td><td class="r">${fmt(s.revenue ?? 0)}</td><td class="r">${fmt(s.commission ?? 0)}</td></tr>`
     ).join('')
 
     const win = window.open('', '_blank')
