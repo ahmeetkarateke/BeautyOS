@@ -292,7 +292,9 @@ export function createTenantRouter(): Router {
           id: s.id,
           title: s.title,
           fullName: s.user.fullName,
+          email: s.user.email,
           colorCode: s.colorCode,
+          workingHours: s.workingHours,
           skills: s.serviceAssignments.map((a) => ({
             serviceId: a.serviceId,
             serviceName: a.service.name,
