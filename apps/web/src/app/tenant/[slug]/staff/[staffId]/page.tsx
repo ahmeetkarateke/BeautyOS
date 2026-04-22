@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, User, Briefcase, Calendar } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -88,6 +89,7 @@ export default function StaffDetailPage({ params }: PageProps) {
   const { slug, staffId } = params
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const user = useAuthStore((s) => s.user)
+  const router = useRouter()
   const isOwner = user?.role === 'owner'
   const isOwnerOrManager = user?.role === 'owner' || user?.role === 'manager'
   const qc = useQueryClient()
@@ -186,6 +188,12 @@ export default function StaffDetailPage({ params }: PageProps) {
     },
     onError: (err: Error) => toast(err.message, 'error'),
   })
+
+  useEffect(() => {
+    if (user?.role !== 'staff' || !staffList) return
+    const mine = staffList.data.find((s) => s.email === user.email)
+    if (!mine || mine.id !== staffId) router.replace(`/tenant/${slug}/dashboard`)
+  }, [user, staffList, staffId, slug, router])
 
   useEffect(() => {
     if (staff) {

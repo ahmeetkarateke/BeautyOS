@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { Banknote, CreditCard, Wallet, TrendingUp, Trash2, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
@@ -120,7 +121,12 @@ function getDateRange(preset: DatePreset, customFrom: string, customTo: string):
 export default function FinancePage({ params }: PageProps) {
   const slug = params.slug
   const user = useAuthStore((s) => s.user)
+  const router = useRouter()
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (user?.role === 'staff') router.replace(`/tenant/${slug}/dashboard`)
+  }, [user, slug, router])
   const today = new Date().toISOString().split('T')[0]
 
   const [preset, setPreset] = useState<DatePreset>('today')

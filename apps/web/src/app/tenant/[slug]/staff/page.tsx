@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { Plus, Pencil, UserX } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { getStaffColor } from '@/lib/staff-colors'
+import { useAuthStore } from '@/store/auth'
 
 interface StaffMember {
   id: string
@@ -25,7 +27,13 @@ interface PageProps {
 
 export default function StaffPage({ params }: PageProps) {
   const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (user?.role === 'staff') router.replace(`/tenant/${params.slug}/dashboard`)
+  }, [user, params.slug, router])
   const [editTarget, setEditTarget] = useState<StaffMember | undefined>()
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | undefined>()
 

@@ -44,7 +44,12 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems(tenantSlug).map((item) => {
+        {navItems(tenantSlug)
+          .filter((item) =>
+            user?.role !== 'staff' ||
+            !['/staff', '/finance', '/settings'].some((p) => item.href.endsWith(p)),
+          )
+          .map((item) => {
           const Icon = item.icon
           const active = pathname === item.href || pathname.startsWith(item.href + '/')
           return (

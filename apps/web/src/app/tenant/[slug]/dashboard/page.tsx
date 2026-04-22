@@ -46,6 +46,8 @@ function DashboardContent({ params }: PageProps) {
     router.replace(`${pathname}?${next.toString()}`)
   }
 
+  const isStaff = user?.role === 'staff'
+
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', tenantId, period],
     queryFn: () => apiFetch<DashboardData>(`/api/v1/tenants/${tenantId}/dashboard?period=${period}`),
@@ -84,14 +86,16 @@ function DashboardContent({ params }: PageProps) {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <KpiCard
-          title={period === 'today' ? 'Bugünün Geliri' : period === 'week' ? 'Haftalık Gelir' : 'Aylık Gelir'}
-          value={isLoading ? '—' : formatCurrency(data?.todayRevenue ?? 0)}
-          icon={TrendingUp}
-          iconColor="bg-primary-100 text-primary"
-          trend={data && data.revenueChange !== null ? { value: data.revenueChange, label: period === 'today' ? 'dün' : period === 'week' ? 'geçen hafta' : 'geçen ay' } : undefined}
-          loading={isLoading}
-        />
+        {!isStaff && (
+          <KpiCard
+            title={period === 'today' ? 'Bugünün Geliri' : period === 'week' ? 'Haftalık Gelir' : 'Aylık Gelir'}
+            value={isLoading ? '—' : formatCurrency(data?.todayRevenue ?? 0)}
+            icon={TrendingUp}
+            iconColor="bg-primary-100 text-primary"
+            trend={data && data.revenueChange !== null ? { value: data.revenueChange, label: period === 'today' ? 'dün' : period === 'week' ? 'geçen hafta' : 'geçen ay' } : undefined}
+            loading={isLoading}
+          />
+        )}
         <KpiCard
           title="Randevular"
           value={isLoading ? '—' : data?.todayAppointmentCount ?? 0}
@@ -109,14 +113,16 @@ function DashboardContent({ params }: PageProps) {
           iconColor="bg-green-100 text-success"
           loading={isLoading}
         />
-        <KpiCard
-          title="Doluluk"
-          value={isLoading ? '—' : `${data?.occupancyRate ?? 0}%`}
-          subtitle={period === 'today' ? 'bugün' : period === 'week' ? 'bu hafta' : 'bu ay'}
-          icon={Percent}
-          iconColor="bg-orange-100 text-orange-600"
-          loading={isLoading}
-        />
+        {!isStaff && (
+          <KpiCard
+            title="Doluluk"
+            value={isLoading ? '—' : `${data?.occupancyRate ?? 0}%`}
+            subtitle={period === 'today' ? 'bugün' : period === 'week' ? 'bu hafta' : 'bu ay'}
+            icon={Percent}
+            iconColor="bg-orange-100 text-orange-600"
+            loading={isLoading}
+          />
+        )}
       </div>
 
       {/* Today's appointments — always shows today regardless of period filter */}

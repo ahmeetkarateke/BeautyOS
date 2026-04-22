@@ -11,6 +11,7 @@ import { apiFetch } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth'
 
 interface Service {
   id: string
@@ -27,6 +28,8 @@ interface PageProps {
 
 export default function ServicesPage({ params }: PageProps) {
   const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const isStaff = user?.role === 'staff'
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Service | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<Service | undefined>()
@@ -62,10 +65,12 @@ export default function ServicesPage({ params }: PageProps) {
           <h1 className="text-xl font-semibold text-gray-900">Hizmetler</h1>
           <p className="text-sm text-salon-muted mt-0.5">{services.length} hizmet</p>
         </div>
-        <Button size="sm" className="gap-2" onClick={() => { setEditTarget(undefined); setModalOpen(true) }}>
-          <Plus className="w-4 h-4" />
-          Yeni Hizmet
-        </Button>
+        {!isStaff && (
+          <Button size="sm" className="gap-2" onClick={() => { setEditTarget(undefined); setModalOpen(true) }}>
+            <Plus className="w-4 h-4" />
+            Yeni Hizmet
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -75,9 +80,11 @@ export default function ServicesPage({ params }: PageProps) {
       ) : services.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-lg border border-salon-border">
           <p className="text-salon-muted text-sm">Henüz hizmet eklenmemiş</p>
-          <Button size="sm" className="mt-3 gap-2" onClick={() => { setEditTarget(undefined); setModalOpen(true) }}>
-            <Plus className="w-4 h-4" /> İlk hizmetini ekle
-          </Button>
+          {!isStaff && (
+            <Button size="sm" className="mt-3 gap-2" onClick={() => { setEditTarget(undefined); setModalOpen(true) }}>
+              <Plus className="w-4 h-4" /> İlk hizmetini ekle
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -101,24 +108,26 @@ export default function ServicesPage({ params }: PageProps) {
                     <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
                       {formatCurrency(svc.price)}
                     </p>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => { setEditTarget(svc); setModalOpen(true) }}
-                        className="p-2 text-salon-muted hover:text-primary hover:bg-primary-50 rounded-md transition-colors"
-                        title="Düzenle"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      {svc.isActive && (
+                    {!isStaff && (
+                      <div className="flex gap-1 flex-shrink-0">
                         <button
-                          onClick={() => setDeleteTarget(svc)}
-                          className="p-2 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          title="Pasif yap"
+                          onClick={() => { setEditTarget(svc); setModalOpen(true) }}
+                          className="p-2 text-salon-muted hover:text-primary hover:bg-primary-50 rounded-md transition-colors"
+                          title="Düzenle"
                         >
-                          <PowerOff className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
-                      )}
-                    </div>
+                        {svc.isActive && (
+                          <button
+                            onClick={() => setDeleteTarget(svc)}
+                            className="p-2 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Pasif yap"
+                          >
+                            <PowerOff className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

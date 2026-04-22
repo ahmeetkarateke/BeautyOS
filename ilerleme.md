@@ -336,6 +336,15 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - `useEffect` ile `staff` yüklenince local state senkronize ediliyor; `null` gelirse tüm günler kapalı başlar
 - Kaydet sonrası `['staff', slug]` invalidate, toast gösteriliyor
 
+**Rol Bazlı Erişim Kontrolü (RBAC) ✅**
+- Sidebar + MobileNav: staff rolünde Personel, Kasa, Ayarlar linkleri gizleniyor
+- Yönlendirme koruması: `/finance`, `/settings`, `/staff` sayfalarına staff girerse dashboard'a yönleniyor (`useEffect + router.replace`)
+- Staff detay sayfası: staff rolü sadece kendi profiline erişebilir (email eşleştirme); başkasına gitmeye çalışırsa dashboard'a yönleniyor
+- Hizmetler sayfası: staff rolünde "Yeni Hizmet", "Düzenle", "Pasif Yap" butonları gizleniyor
+- NewAppointmentModal: staff rolünde personel dropdown'ı sadece kendisini gösteriyor (email eşleştirme + mevcut skill filtresiyle uyumlu)
+- Dashboard: staff rolünde Bugünün Geliri ve Doluluk KPI kartları gizleniyor; Randevular + Müşteriler görünür kalıyor
+- Yeni store alanı yok — tüm kontroller `useAuthStore((s) => s.user?.role)` ile yapılıyor
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |

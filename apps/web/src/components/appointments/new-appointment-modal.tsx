@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
+import { useAuthStore } from '@/store/auth'
 
 interface Props {
   open: boolean
@@ -38,6 +39,7 @@ interface Staff {
   id: string
   title: string
   fullName: string
+  email?: string | null
   skills: { serviceId: string; serviceName: string }[]
 }
 
@@ -89,11 +91,17 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
     }
   }, [open, defaultStart])
 
+  const currentUser = useAuthStore((s) => s.user)
+  const isStaff = currentUser?.role === 'staff'
+
   const selectedServiceId = watch('serviceId')
   const allStaff = staff?.data ?? []
-  const filteredStaff = selectedServiceId
-    ? allStaff.filter((s) => s.skills.some((sk) => sk.serviceId === selectedServiceId))
+  const selfStaff = isStaff
+    ? allStaff.filter((s) => s.email === currentUser?.email)
     : allStaff
+  const filteredStaff = selectedServiceId
+    ? selfStaff.filter((s) => s.skills.some((sk) => sk.serviceId === selectedServiceId))
+    : selfStaff
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) =>

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Calendar, Users, Settings, Sparkles, UserCog, Banknote } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth'
 
 interface MobileNavProps {
   tenantSlug: string
@@ -21,11 +22,17 @@ const navItems = (slug: string) => [
 
 export function MobileNav({ tenantSlug }: MobileNavProps) {
   const pathname = usePathname()
+  const user = useAuthStore((s) => s.user)
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-salon-border z-50 sm:hidden">
       <div className="flex overflow-x-auto scrollbar-none">
-        {navItems(tenantSlug).map((item) => {
+        {navItems(tenantSlug)
+          .filter((item) =>
+            user?.role !== 'staff' ||
+            !['/staff', '/finance', '/settings'].some((p) => item.href.endsWith(p)),
+          )
+          .map((item) => {
           const Icon = item.icon
           const active = pathname === item.href
           return (

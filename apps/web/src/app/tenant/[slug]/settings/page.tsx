@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { Building2, Lock, Check, Plug } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -267,6 +268,12 @@ type TabId = 'salon' | 'account' | 'integrations'
 
 export default function SettingsPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<TabId>('salon')
+  const user = useAuthStore((s) => s.user)
+  const router = useRouter()
+
+  useEffect(() => {
+    if (user?.role === 'staff') router.replace(`/tenant/${params.slug}/dashboard`)
+  }, [user, params.slug, router])
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
