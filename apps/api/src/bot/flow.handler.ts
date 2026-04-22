@@ -261,9 +261,10 @@ export class FlowHandler {
         )
 
         if (slots.length === 0) {
+          const svc = session.entities.service ?? 'Bu hizmet'
           await channel.sendText(
             msg.from,
-            'Bu tarih için uygun saat bulunamadı. Başka bir gün dener misiniz?',
+            `${svc} için bu tarihte müsait personelimiz bulunmuyor, başka bir gün tercih eder misiniz?`,
           )
           return
         }

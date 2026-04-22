@@ -7,6 +7,27 @@ import type { BookingChannel } from '@prisma/client'
 const TZ_OFFSET_HOURS = 3
 const TR_OFFSET_MS = TZ_OFFSET_HOURS * 60 * 60 * 1000
 
+// ─── Türkçe karakter normalizasyonu (hizmet adı eşleştirme) ──────────────────
+
+function normalizeTR(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+}
+
+// ─── workingHours JSON tipleri ────────────────────────────────────────────────
+
+interface DaySchedule { start: string; end: string }
+type WorkingHours = Record<string, DaySchedule | null | undefined>
+
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+function parseHours(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h + (m ?? 0) / 60
+}
+
 function nowTR(): Date {
   return new Date(Date.now() + TR_OFFSET_MS)
 }
@@ -103,38 +124,69 @@ export async function getAvailableSlots(
   timePreference: string | undefined,
 ): Promise<AvailableSlot[]> {
   const date = resolveDate(datePreference)
-  const { start, end } = resolveTimeRange(timePreference)
+  const { start: prefStart, end: prefEnd } = resolveTimeRange(timePreference)
 
-  // Hizmet bul
-  const service = await db.service.findFirst({
+  // ─ Hizmet bul: önce DB case-insensitive, yoksa TR normalize ile JS tarafında eşleştir ─
+  let service = await db.service.findFirst({
     where: { tenantId, name: { contains: serviceName, mode: 'insensitive' }, isActive: true },
   })
 
   if (!service) {
-    logger.warn({ tenantId, serviceName }, 'Hizmet bulunamadı, mock slot dönüyor')
-    return mockSlots(date, start, end)
+    const normalizedInput = normalizeTR(serviceName)
+    const allServices = await db.service.findMany({ where: { tenantId, isActive: true } })
+    service = allServices.find(
+      (s) => normalizeTR(s.name).includes(normalizedInput) || normalizedInput.includes(normalizeTR(s.name)),
+    ) ?? null
   }
 
-  // Online randevu kabul eden personeli bul
+  if (!service) {
+    logger.warn({ tenantId, serviceName }, 'Hizmet bulunamadı, mock slot dönüyor')
+    return mockSlots(date, prefStart, prefEnd)
+  }
+
+  // ─ Skill filtresi: yalnızca bu hizmeti yapabilen personeli al ─────────────
   const staffList = await db.staffProfile.findMany({
-    where: { tenantId, acceptsOnlineBooking: true },
-    take: 3,
+    where: {
+      tenantId,
+      acceptsOnlineBooking: true,
+      serviceAssignments: { some: { serviceId: service.id, isActive: true } },
+    },
     include: { user: { select: { fullName: true } } },
   })
 
   if (staffList.length === 0) {
-    return mockSlots(date, start, end)
+    logger.warn({ tenantId, serviceId: service.id }, 'Bu hizmeti yapabilen personel bulunamadı')
+    return []
   }
 
-  // date = midnight UTC of TR calendar date; convert TR hour to UTC by subtracting 3h offset
-  const dayStart = new Date(date.getTime() + (start - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
-  const dayEnd   = new Date(date.getTime() + (end   - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
+  // ─ İzin filtresi: o gün izinli personeli çıkar ───────────────────────────
+  const leaveEnd = new Date(date.getTime() + 24 * 60 * 60 * 1000)
+  const leavesOnDay = await db.staffLeave.findMany({
+    where: {
+      tenantId,
+      staffId: { in: staffList.map((s) => s.id) },
+      leaveDate: { gte: date, lt: leaveEnd },
+    },
+    select: { staffId: true },
+  })
+  const onLeaveIds = new Set(leavesOnDay.map((l) => l.staffId))
+  const workingStaff = staffList.filter((s) => !onLeaveIds.has(s.id))
 
-  // Gün içindeki mevcut randevuları çek
+  if (workingStaff.length === 0) {
+    logger.info({ tenantId, date }, 'Tüm uygun personel bu gün izinli')
+    return []
+  }
+
+  // ─ Çakışma kontrolü için tam TR gününü kapsayan UTC aralığı ──────────────
+  // date = "midnight UTC" of TR calendar date (see resolveDate); TR 00:00 = UTC date-3h
+  const fullDayStart = new Date(date.getTime() + (0  - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
+  const fullDayEnd   = new Date(date.getTime() + (24 - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
+
   const existingAppointments = await db.appointment.findMany({
     where: {
       tenantId,
-      startAt: { gte: dayStart, lt: dayEnd },
+      staffId: { in: workingStaff.map((s) => s.id) },
+      startAt: { gte: fullDayStart, lt: fullDayEnd },
       status: { in: ['pending', 'confirmed', 'in_progress'] },
     },
     select: { staffId: true, startAt: true, endAt: true },
@@ -142,13 +194,32 @@ export async function getAvailableSlots(
 
   const slots: AvailableSlot[] = []
   const slotDuration = service.durationMinutes + service.bufferMinutes
+  const dayKey = DAY_KEYS[date.getUTCDay()]
 
-  for (const sp of staffList) {
-    let cursor = new Date(dayStart)
+  for (const sp of workingStaff) {
+    // ─ Mesai filtresi: workingHours JSON'undan o günkü saatleri al ──────────
+    const wh = sp.workingHours as WorkingHours
+    const daySchedule = wh[dayKey]
 
-    while (cursor < dayEnd) {
+    if (!daySchedule?.start || !daySchedule?.end) continue // o gün çalışmıyor
+
+    const workStart = parseHours(daySchedule.start) // örn: 9.0
+    const workEnd   = parseHours(daySchedule.end)   // örn: 18.0
+
+    // Kullanıcı tercihi ile mesai saatlerinin kesişimi
+    const effectiveStart = Math.max(prefStart, workStart)
+    const effectiveEnd   = Math.min(prefEnd,   workEnd)
+
+    if (effectiveStart >= effectiveEnd) continue // tercihin tamamı mesai dışında
+
+    const cursorStart = new Date(date.getTime() + (effectiveStart - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
+    const cursorEnd   = new Date(date.getTime() + (effectiveEnd   - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
+
+    let cursor = new Date(cursorStart)
+
+    while (cursor < cursorEnd) {
       const slotEnd = new Date(cursor.getTime() + slotDuration * 60 * 1000)
-      if (slotEnd > dayEnd) break
+      if (slotEnd > cursorEnd) break
 
       const hasConflict = existingAppointments.some(
         (a: { staffId: string; startAt: Date; endAt: Date }) =>
@@ -177,7 +248,6 @@ export async function getAvailableSlots(
     }
   }
 
-  // Her 30 dk'da bir max 6 slot göster (UI'da yönetilebilir)
   return slots.slice(0, 6)
 }
 

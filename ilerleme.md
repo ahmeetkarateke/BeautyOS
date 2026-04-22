@@ -149,7 +149,7 @@
 | Görev | Öncelik |
 |---|---|
 | Randevu formunda hizmet → personel filtreleme (Agent 01) | Yüksek |
-| Bot: skill + mesai + izin farkındalığı (Agent 03) | Yüksek |
+| ✅ Bot: skill + mesai + izin farkındalığı (Agent 03) | Tamamlandı |
 | `DELETE /appointments/:id` | Düşük |
 | Pagination (cursor-based) customers/appointments için | Düşük |
 
@@ -331,7 +331,7 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 
 | Görev | Öncelik |
 |---|---|
-| Bot: skill + mesai + izin farkındalığı (Agent 03) | Yüksek |
+| ✅ Bot: skill + mesai + izin farkındalığı (Agent 03) | Tamamlandı |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
 
