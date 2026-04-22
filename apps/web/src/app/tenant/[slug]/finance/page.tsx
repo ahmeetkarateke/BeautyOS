@@ -250,6 +250,59 @@ export default function FinancePage({ params }: PageProps) {
     }
   }
 
+  function handlePrint() {
+    if (!closeDayData) return
+    const esc = (s: string | null | undefined) => String(s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const fmt = (n: number) => `₺${n.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`
+    const time = (iso: string) => new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+
+    const txRows = closeDayData.transactions.map((t) =>
+      `<tr><td>${time(t.time)}</td><td>${esc(t.customerName)}</td><td>${esc(t.serviceName) || 'Manuel Gelir'}</td><td class="r">${fmt(t.amount)}</td><td class="r">${t.paymentMethod === 'cash' ? 'Nakit' : 'Kart'}</td></tr>`
+    ).join('')
+
+    const commRows = (closeDayData.staffCommissions ?? []).map((s) =>
+      `<tr><td>${esc(s.staffName)}</td><td class="r">${s.completedCount ?? 0}</td><td class="r">${fmt(s.grossAmount ?? 0)}</td><td class="r">${fmt(s.commissionAmount ?? 0)}</td></tr>`
+    ).join('')
+
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+<title>Kasa Raporu — ${closeDayData.date}</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;color:#111827;margin:0}
+  h1{font-size:20px;font-weight:700;margin:0 0 4px}
+  .sub{color:#6b7280;font-size:13px;margin-bottom:24px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}
+  .card{border:1px solid #e5e7eb;border-radius:8px;padding:16px}
+  .label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .val{font-size:20px;font-weight:700;color:#111827}
+  .val.hl{color:#6B48FF}.val.neg{color:#dc2626}
+  h2{font-size:14px;font-weight:600;margin:0 0 10px}
+  table{width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px}
+  thead tr{background:#f9fafb}
+  th{text-align:left;padding:8px 10px;font-size:11px;color:#6b7280;font-weight:500;border-bottom:1px solid #e5e7eb}
+  td{padding:8px 10px;border-bottom:1px solid #f3f4f6}
+  .r{text-align:right}
+</style></head><body>
+<h1>Kasa Kapatma Raporu</h1>
+<p class="sub">${esc(closeDayData.date)}</p>
+<div class="grid">
+  <div class="card"><div class="label">Toplam Ciro</div><div class="val">${fmt(closeDayData.totalRevenue)}</div></div>
+  <div class="card"><div class="label">Nakit</div><div class="val">${fmt(closeDayData.cashRevenue)}</div></div>
+  <div class="card"><div class="label">Kart</div><div class="val">${fmt(closeDayData.cardRevenue)}</div></div>
+  <div class="card"><div class="label">Giderler</div><div class="val neg">-${fmt(closeDayData.totalExpenses)}</div></div>
+  <div class="card"><div class="label">Net Kâr</div><div class="val hl">${fmt(closeDayData.netProfit)}</div></div>
+</div>
+${txRows ? `<h2>İşlemler (${closeDayData.transactionCount})</h2>
+<table><thead><tr><th>Saat</th><th>Müşteri</th><th>Hizmet</th><th class="r">Tutar</th><th class="r">Ödeme</th></tr></thead><tbody>${txRows}</tbody></table>` : ''}
+${commRows ? `<h2>Personel Komisyonları</h2>
+<table><thead><tr><th>Personel</th><th class="r">Tamamlanan</th><th class="r">Ciro</th><th class="r">Komisyon</th></tr></thead><tbody>${commRows}</tbody></table>` : ''}
+</body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 400)
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
@@ -658,17 +711,7 @@ export default function FinancePage({ params }: PageProps) {
       {/* Kasa Kapatma Dialog */}
       <Dialog open={closeDayOpen} onOpenChange={setCloseDayOpen}>
         <DialogContent className="max-w-2xl">
-          {/* Print styles: hide everything except the report area */}
-          <style dangerouslySetInnerHTML={{ __html: `
-            @media print {
-              body * { visibility: hidden; }
-              #close-day-print-area { visibility: visible; position: fixed; top: 0; left: 0; width: 100%; padding: 24px; background: white; }
-              #close-day-print-area * { visibility: visible; }
-              [data-radix-dialog-overlay] { display: none !important; }
-            }
-          ` }} />
-
-          <div id="close-day-print-area">
+          <div>
             <DialogHeader>
               <DialogTitle>Kasa Kapatma Raporu</DialogTitle>
               {closeDayData?.date && (
@@ -776,13 +819,12 @@ export default function FinancePage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Action buttons — hidden on print */}
-          <div className="flex gap-2 justify-end mt-5 print:hidden">
+          <div className="flex gap-2 justify-end mt-5">
             <Button
               variant="outline"
               size="sm"
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrint}
             >
               <Printer className="w-4 h-4 mr-1.5" />
               Yazdır

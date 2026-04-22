@@ -1059,6 +1059,8 @@ export function createTenantRouter(): Router {
       }
 
       const { start: dayStart, end: dayEnd } = toTRBounds(dateStr)
+      const expenseDayStart = new Date(`${dateStr}T00:00:00.000Z`)
+      const expenseDayEnd = new Date(`${dateStr}T23:59:59.999Z`)
 
       const [transactions, expenses, staffProfiles] = await Promise.all([
         db.transaction.findMany({
@@ -1084,7 +1086,7 @@ export function createTenantRouter(): Router {
           orderBy: { completedAt: 'asc' },
         }),
         db.expense.findMany({
-          where: { tenantId, expenseDate: { gte: dayStart, lte: dayEnd } },
+          where: { tenantId, expenseDate: { gte: expenseDayStart, lte: expenseDayEnd } },
           select: { id: true, title: true, category: true, amount: true },
         }),
         db.staffProfile.findMany({
@@ -1179,6 +1181,8 @@ export function createTenantRouter(): Router {
 
       const rangeStart = toTRBounds(fromParam).start
       const rangeEnd = toTRBounds(toParam).end
+      const expenseRangeStart = new Date(`${fromParam}T00:00:00.000Z`)
+      const expenseRangeEnd = new Date(`${toParam}T23:59:59.999Z`)
 
       const [transactions, expenses] = await Promise.all([
         db.transaction.findMany({
@@ -1202,7 +1206,7 @@ export function createTenantRouter(): Router {
           orderBy: { completedAt: 'asc' },
         }),
         db.expense.findMany({
-          where: { tenantId, expenseDate: { gte: rangeStart, lte: rangeEnd } },
+          where: { tenantId, expenseDate: { gte: expenseRangeStart, lte: expenseRangeEnd } },
           select: { id: true, title: true, category: true, amount: true, expenseDate: true },
         }),
       ])
@@ -1412,7 +1416,7 @@ export function createTenantRouter(): Router {
           title,
           category,
           amount,
-          expenseDate: new Date(`${expenseDate}T00:00:00+03:00`),
+          expenseDate: new Date(`${expenseDate}T00:00:00.000Z`),
         },
         select: { id: true, title: true, category: true, amount: true, expenseDate: true },
       })
