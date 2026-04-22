@@ -345,6 +345,16 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - Dashboard: staff rolünde Bugünün Geliri ve Doluluk KPI kartları gizleniyor; Randevular + Müşteriler görünür kalıyor
 - Yeni store alanı yok — tüm kontroller `useAuthStore((s) => s.user?.role)` ile yapılıyor
 
+**Hızlı İşlem Modalı ✅**
+- `QuickTransactionModal` — yeni bileşen (`src/components/appointments/quick-transaction-modal.tsx`)
+- Sıralı API akışı: `POST /appointments {startAt: now}` → `PATCH /appointments/:id/status {completed, priceCharged, paymentMethod}`
+- Staff rolü: hizmetler yalnızca kendi skill'leriyle filtreleniyor; personel dropdown'ı gizleniyor, staffId otomatik atanıyor
+- Owner/manager: tüm hizmetler + tam personel dropdown görünür
+- Hizmet seçilince fiyat otomatik dolduruluyor (`useEffect` + `setValue('priceCharged')`)
+- Ödeme yöntemi: Nakit / Kart toggle butonları
+- Randevular sayfasına "Hızlı İşlem" butonu eklendi (Zap ikonu, `variant="outline"`, "Yeni Randevu" yanına)
+- Başarı sonrası `['appointments']`, `['appointments-calendar', slug]`, `['finance', slug]` invalidate ediliyor
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
