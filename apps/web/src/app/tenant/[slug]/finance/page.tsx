@@ -240,7 +240,7 @@ export default function FinancePage({ params }: PageProps) {
   async function handleCloseDay() {
     setCloseDayLoading(true)
     try {
-      const data = await apiFetch<CloseDayReport>(`/api/v1/tenants/${slug}/finance/close-day?date=${today}`)
+      const data = await apiFetch<CloseDayReport>(`/api/v1/tenants/${slug}/finance/close-day?date=${today}`, { method: 'POST' })
       setCloseDayData(data)
       setCloseDayOpen(true)
     } catch {

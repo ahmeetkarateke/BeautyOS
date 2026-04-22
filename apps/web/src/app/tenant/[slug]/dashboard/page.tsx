@@ -24,8 +24,8 @@ interface DashboardData {
   todayAppointmentCount: number
   totalCustomers: number
   occupancyRate: number
-  revenueChange: number
-  appointmentChange: number
+  revenueChange: number | null
+  appointmentChange: number | null
 }
 
 interface PageProps {
@@ -89,7 +89,7 @@ function DashboardContent({ params }: PageProps) {
           value={isLoading ? '—' : formatCurrency(data?.todayRevenue ?? 0)}
           icon={TrendingUp}
           iconColor="bg-primary-100 text-primary"
-          trend={data ? { value: data.revenueChange, label: period === 'today' ? 'dün' : period === 'week' ? 'geçen hafta' : 'geçen ay' } : undefined}
+          trend={data && data.revenueChange !== null ? { value: data.revenueChange, label: period === 'today' ? 'dün' : period === 'week' ? 'geçen hafta' : 'geçen ay' } : undefined}
           loading={isLoading}
         />
         <KpiCard
@@ -98,7 +98,7 @@ function DashboardContent({ params }: PageProps) {
           subtitle={period === 'today' ? 'bugün' : period === 'week' ? 'bu hafta' : 'bu ay'}
           icon={Calendar}
           iconColor="bg-blue-100 text-blue-600"
-          trend={data ? { value: data.appointmentChange, label: period === 'today' ? 'dün' : 'önceki dönem' } : undefined}
+          trend={data && data.appointmentChange !== null ? { value: data.appointmentChange, label: period === 'today' ? 'dün' : 'önceki dönem' } : undefined}
           loading={isLoading}
         />
         <KpiCard

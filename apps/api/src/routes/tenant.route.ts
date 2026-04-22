@@ -118,14 +118,15 @@ export function createTenantRouter(): Router {
       const previousRevenue = Number(previousTransactions._sum.grossAmount ?? 0)
 
       const revenueChange = previousRevenue === 0
-        ? 0
+        ? (currentRevenue > 0 ? null : 0)
         : Math.round(((currentRevenue - previousRevenue) / previousRevenue) * 100)
 
       const appointmentChange = previousAppointments === 0
-        ? 0
+        ? (currentAppointments > 0 ? null : 0)
         : Math.round(((currentAppointments - previousAppointments) / previousAppointments) * 100)
 
-      const maxSlots = totalStaff * 8
+      const periodDays = Math.max(1, Math.round((current.end.getTime() - current.start.getTime()) / (1000 * 60 * 60 * 24)))
+      const maxSlots = totalStaff * 8 * periodDays
       const occupancyRate = maxSlots === 0 ? 0 : Math.min(100, Math.round((currentAppointments / maxSlots) * 100))
 
       return res.json({
@@ -1411,7 +1412,7 @@ export function createTenantRouter(): Router {
           title,
           category,
           amount,
-          expenseDate: new Date(`${expenseDate}T00:00:00.000Z`),
+          expenseDate: new Date(`${expenseDate}T00:00:00+03:00`),
         },
         select: { id: true, title: true, category: true, amount: true, expenseDate: true },
       })
