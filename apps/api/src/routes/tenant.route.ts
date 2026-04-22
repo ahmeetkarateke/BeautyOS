@@ -7,70 +7,131 @@ import { logger } from '../lib/logger'
 import { remindersQueue } from '../lib/queue'
 import { authenticateJWT, requireTenantAccess } from '../middleware/auth.middleware'
 
+// ─── Timezone Helpers (Europe/Istanbul = UTC+3 permanent since 2016) ──────────
+
+function getIstanbulDateStr(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().split('T')[0]
+}
+
+function toTRBounds(dateStr: string): { start: Date; end: Date } {
+  return {
+    start: new Date(`${dateStr}T00:00:00+03:00`),
+    end: new Date(`${dateStr}T23:59:59.999+03:00`),
+  }
+}
+
+type PeriodBounds = { start: Date; end: Date }
+
+function getDashboardPeriodBounds(period: 'today' | 'week' | 'month'): {
+  current: PeriodBounds
+  previous: PeriodBounds
+} {
+  const todayStr = getIstanbulDateStr()
+
+  if (period === 'week') {
+    const noon = new Date(`${todayStr}T12:00:00+03:00`)
+    const dow = noon.getUTCDay() // 0=Sun, 1=Mon, ..., 6=Sat
+    const mondayOffset = dow === 0 ? -6 : 1 - dow
+    const mondayStr = addDays(todayStr, mondayOffset)
+    const sundayStr = addDays(mondayStr, 6)
+    return {
+      current: { start: toTRBounds(mondayStr).start, end: toTRBounds(sundayStr).end },
+      previous: { start: toTRBounds(addDays(mondayStr, -7)).start, end: toTRBounds(addDays(mondayStr, -1)).end },
+    }
+  }
+
+  if (period === 'month') {
+    const [y, m] = todayStr.split('-').map(Number)
+    const firstDayStr = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-01`
+    const lastDayDate = new Date(Date.UTC(y, m, 0))
+    const lastDayStr = lastDayDate.toISOString().split('T')[0]
+    const prevLastDay = new Date(Date.UTC(y, m - 1, 0))
+    const prevYear = prevLastDay.getUTCFullYear()
+    const prevMonth = prevLastDay.getUTCMonth() + 1
+    const prevFirstDayStr = `${String(prevYear).padStart(4, '0')}-${String(prevMonth).padStart(2, '0')}-01`
+    const prevLastDayStr = prevLastDay.toISOString().split('T')[0]
+    return {
+      current: { start: toTRBounds(firstDayStr).start, end: toTRBounds(lastDayStr).end },
+      previous: { start: toTRBounds(prevFirstDayStr).start, end: toTRBounds(prevLastDayStr).end },
+    }
+  }
+
+  // today (default)
+  return {
+    current: toTRBounds(todayStr),
+    previous: toTRBounds(addDays(todayStr, -1)),
+  }
+}
+
 export function createTenantRouter(): Router {
   const router = Router({ mergeParams: true })
 
   router.use(authenticateJWT)
   router.use(requireTenantAccess)
 
-  // GET /api/v1/tenants/:slug/dashboard
+  // GET /api/v1/tenants/:slug/dashboard?period=today|week|month
   router.get('/dashboard', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.user!.tenantId
+      const periodParam = req.query.period as string | undefined
+      const period = (periodParam === 'week' || periodParam === 'month') ? periodParam : 'today'
 
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      const todayEnd = new Date()
-      todayEnd.setHours(23, 59, 59, 999)
-
-      const yesterdayStart = new Date(todayStart)
-      yesterdayStart.setDate(yesterdayStart.getDate() - 1)
-      const yesterdayEnd = new Date(todayEnd)
-      yesterdayEnd.setDate(yesterdayEnd.getDate() - 1)
+      const { current, previous } = getDashboardPeriodBounds(period)
 
       const [
-        todayAppointments,
-        yesterdayAppointments,
+        currentAppointments,
+        previousAppointments,
         totalCustomers,
-        todayTransactions,
-        yesterdayTransactions,
+        currentTransactions,
+        previousTransactions,
         totalStaff,
       ] = await Promise.all([
         db.appointment.count({
-          where: { tenantId, startAt: { gte: todayStart, lte: todayEnd } },
+          where: { tenantId, startAt: { gte: current.start, lte: current.end } },
         }),
         db.appointment.count({
-          where: { tenantId, startAt: { gte: yesterdayStart, lte: yesterdayEnd } },
+          where: { tenantId, startAt: { gte: previous.start, lte: previous.end } },
         }),
         db.customer.count({ where: { tenantId } }),
         db.transaction.aggregate({
-          where: { tenantId, createdAt: { gte: todayStart, lte: todayEnd }, status: 'completed' },
+          where: { tenantId, completedAt: { gte: current.start, lte: current.end }, status: 'completed' },
           _sum: { grossAmount: true },
         }),
         db.transaction.aggregate({
-          where: { tenantId, createdAt: { gte: yesterdayStart, lte: yesterdayEnd }, status: 'completed' },
+          where: { tenantId, completedAt: { gte: previous.start, lte: previous.end }, status: 'completed' },
           _sum: { grossAmount: true },
         }),
         db.staffProfile.count({ where: { tenantId } }),
       ])
 
-      const todayRevenue = Number(todayTransactions._sum.grossAmount ?? 0)
-      const yesterdayRevenue = Number(yesterdayTransactions._sum.grossAmount ?? 0)
+      const currentRevenue = Number(currentTransactions._sum.grossAmount ?? 0)
+      const previousRevenue = Number(previousTransactions._sum.grossAmount ?? 0)
 
-      const revenueChange = yesterdayRevenue === 0
+      const revenueChange = previousRevenue === 0
         ? 0
-        : Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
+        : Math.round(((currentRevenue - previousRevenue) / previousRevenue) * 100)
 
-      const appointmentChange = yesterdayAppointments === 0
+      const appointmentChange = previousAppointments === 0
         ? 0
-        : Math.round(((todayAppointments - yesterdayAppointments) / yesterdayAppointments) * 100)
+        : Math.round(((currentAppointments - previousAppointments) / previousAppointments) * 100)
 
       const maxSlots = totalStaff * 8
-      const occupancyRate = maxSlots === 0 ? 0 : Math.min(100, Math.round((todayAppointments / maxSlots) * 100))
+      const occupancyRate = maxSlots === 0 ? 0 : Math.min(100, Math.round((currentAppointments / maxSlots) * 100))
 
       return res.json({
-        todayRevenue,
-        todayAppointmentCount: todayAppointments,
+        period,
+        todayRevenue: currentRevenue,
+        todayAppointmentCount: currentAppointments,
         totalCustomers,
         occupancyRate,
         revenueChange,
@@ -986,22 +1047,141 @@ export function createTenantRouter(): Router {
     }
   })
 
-  // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD
-  router.get('/reports/daily', async (req: Request, res: Response, next: NextFunction) => {
+  // POST /api/v1/tenants/:slug/finance/close-day?date=YYYY-MM-DD
+  router.post('/finance/close-day', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.user!.tenantId
-      const dateStr = (req.query.date as string | undefined) ?? new Date().toISOString().split('T')[0]
+      const dateStr = (req.query.date as string | undefined) ?? getIstanbulDateStr()
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
       }
 
-      const dayStart = new Date(`${dateStr}T00:00:00.000Z`)
-      const dayEnd = new Date(`${dateStr}T23:59:59.999Z`)
+      const { start: dayStart, end: dayEnd } = toTRBounds(dateStr)
+
+      const [transactions, expenses, staffProfiles] = await Promise.all([
+        db.transaction.findMany({
+          where: { tenantId, status: 'completed', completedAt: { gte: dayStart, lte: dayEnd } },
+          select: {
+            id: true,
+            grossAmount: true,
+            cashAmount: true,
+            cardAmount: true,
+            paymentMethod: true,
+            commissionAmount: true,
+            staffId: true,
+            completedAt: true,
+            notes: true,
+            appointment: {
+              select: {
+                startAt: true,
+                customer: { select: { fullName: true } },
+                service: { select: { name: true } },
+              },
+            },
+          },
+          orderBy: { completedAt: 'asc' },
+        }),
+        db.expense.findMany({
+          where: { tenantId, expenseDate: { gte: dayStart, lte: dayEnd } },
+          select: { id: true, title: true, category: true, amount: true },
+        }),
+        db.staffProfile.findMany({
+          where: { tenantId },
+          select: { id: true, userId: true },
+        }),
+      ])
+
+      const userIds = staffProfiles.map((s) => s.userId)
+      const users = await db.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, fullName: true },
+      })
+      const userMap = new Map(users.map((u) => [u.id, u.fullName]))
+      const staffMap = new Map(staffProfiles.map((s) => [s.id, userMap.get(s.userId) ?? 'Bilinmiyor']))
+
+      const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.grossAmount), 0)
+      const cashRevenue = transactions.reduce((sum, t) => sum + Number(t.cashAmount), 0)
+      const cardRevenue = transactions.reduce((sum, t) => sum + Number(t.cardAmount), 0)
+      const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+
+      const commissionMap = new Map<string, {
+        staffId: string
+        staffName: string
+        completedCount: number
+        grossAmount: number
+        commissionAmount: number
+      }>()
+      for (const t of transactions) {
+        if (!t.staffId) continue
+        const entry = commissionMap.get(t.staffId) ?? {
+          staffId: t.staffId,
+          staffName: staffMap.get(t.staffId) ?? 'Bilinmiyor',
+          completedCount: 0,
+          grossAmount: 0,
+          commissionAmount: 0,
+        }
+        entry.completedCount += 1
+        entry.grossAmount += Number(t.grossAmount)
+        entry.commissionAmount += Number(t.commissionAmount)
+        commissionMap.set(t.staffId, entry)
+      }
+
+      return res.json({
+        date: dateStr,
+        totalRevenue,
+        cashRevenue,
+        cardRevenue,
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
+        transactionCount: transactions.length,
+        transactions: transactions.map((t) => ({
+          id: t.id,
+          time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
+          customerName: t.appointment?.customer.fullName ?? null,
+          serviceName: t.appointment?.service.name ?? null,
+          amount: Number(t.grossAmount),
+          paymentMethod: t.paymentMethod,
+          notes: t.notes ?? null,
+        })),
+        expenses: expenses.map((e) => ({
+          id: e.id,
+          title: e.title,
+          category: e.category,
+          amount: Number(e.amount),
+        })),
+        staffCommissions: [...commissionMap.values()],
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD (single day)
+  //   or ?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day] (date range)
+  router.get('/reports/daily', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const today = getIstanbulDateStr()
+      const dateParam = req.query.date as string | undefined
+      const fromParam = (req.query.from as string | undefined) ?? dateParam ?? today
+      const toParam = (req.query.to as string | undefined) ?? dateParam ?? today
+      const groupBy = req.query.groupBy as string | undefined
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fromParam) || !/^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+
+      if (fromParam > toParam) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
+      }
+
+      const rangeStart = toTRBounds(fromParam).start
+      const rangeEnd = toTRBounds(toParam).end
 
       const [transactions, expenses] = await Promise.all([
         db.transaction.findMany({
-          where: { tenantId, status: 'completed', completedAt: { gte: dayStart, lte: dayEnd } },
+          where: { tenantId, status: 'completed', completedAt: { gte: rangeStart, lte: rangeEnd } },
           select: {
             id: true,
             grossAmount: true,
@@ -1018,10 +1198,11 @@ export function createTenantRouter(): Router {
               },
             },
           },
+          orderBy: { completedAt: 'asc' },
         }),
         db.expense.findMany({
-          where: { tenantId, expenseDate: { gte: dayStart, lte: dayEnd } },
-          select: { id: true, title: true, category: true, amount: true },
+          where: { tenantId, expenseDate: { gte: rangeStart, lte: rangeEnd } },
+          select: { id: true, title: true, category: true, amount: true, expenseDate: true },
         }),
       ])
 
@@ -1030,30 +1211,71 @@ export function createTenantRouter(): Router {
       const cardRevenue = transactions.reduce((sum, t) => sum + Number(t.cardAmount), 0)
       const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
-      return res.json({
-        date: dateStr,
+      const txMapped = transactions.map((t) => ({
+        id: t.id,
+        time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
+        customerName: t.appointment?.customer.fullName ?? null,
+        serviceName: t.appointment?.service.name ?? null,
+        serviceCategory: t.appointment?.service.category ?? 'Diğer',
+        amount: Number(t.grossAmount),
+        paymentMethod: t.paymentMethod,
+        notes: t.notes ?? null,
+      }))
+
+      const expensesMapped = expenses.map((e) => ({
+        id: e.id,
+        title: e.title,
+        category: e.category,
+        amount: Number(e.amount),
+      }))
+
+      const base = {
+        from: fromParam,
+        to: toParam,
         totalRevenue,
         cashRevenue,
         cardRevenue,
         completedCount: transactions.length,
         netRevenue: totalRevenue - totalExpenses,
-        transactions: transactions.map((t) => ({
-          id: t.id,
-          time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
-          customerName: t.appointment?.customer.fullName ?? null,
-          serviceName: t.appointment?.service.name ?? null,
-          serviceCategory: t.appointment?.service.category ?? 'Diğer',
-          amount: Number(t.grossAmount),
-          paymentMethod: t.paymentMethod,
-          notes: t.notes ?? null,
-        })),
-        expenses: expenses.map((e) => ({
-          id: e.id,
-          title: e.title,
-          category: e.category,
-          amount: Number(e.amount),
-        })),
-      })
+        transactions: txMapped,
+        expenses: expensesMapped,
+      }
+
+      if (groupBy === 'day') {
+        const dayMap = new Map<string, {
+          date: string
+          revenue: number
+          cashRevenue: number
+          cardRevenue: number
+          completedCount: number
+          expenses: number
+        }>()
+
+        for (const t of transactions) {
+          const key = getIstanbulDateStr(t.completedAt ?? new Date())
+          const entry = dayMap.get(key) ?? { date: key, revenue: 0, cashRevenue: 0, cardRevenue: 0, completedCount: 0, expenses: 0 }
+          entry.revenue += Number(t.grossAmount)
+          entry.cashRevenue += Number(t.cashAmount)
+          entry.cardRevenue += Number(t.cardAmount)
+          entry.completedCount += 1
+          dayMap.set(key, entry)
+        }
+
+        for (const e of expenses) {
+          const key = getIstanbulDateStr(e.expenseDate)
+          const entry = dayMap.get(key) ?? { date: key, revenue: 0, cashRevenue: 0, cardRevenue: 0, completedCount: 0, expenses: 0 }
+          entry.expenses += Number(e.amount)
+          dayMap.set(key, entry)
+        }
+
+        const daily = [...dayMap.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([, v]) => ({ ...v, netRevenue: v.revenue - v.expenses }))
+
+        return res.json({ ...base, daily })
+      }
+
+      return res.json(base)
     } catch (err) {
       next(err)
     }

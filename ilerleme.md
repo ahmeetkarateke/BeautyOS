@@ -7,7 +7,7 @@
 
 ## Backend İlerlemesi
 
-**Son güncelleme:** 21.04.2026
+**Son güncelleme:** 22.04.2026
 
 ### Altyapı
 
@@ -34,7 +34,7 @@
 #### Tenant — Dashboard & Genel
 | Endpoint | Durum | Notlar |
 |---|---|---|
-| `GET /api/v1/tenants/:slug/dashboard` | ✅ Tamamlandı | KPI: gelir, randevu, müşteri, doluluk, değişim % |
+| `GET /api/v1/tenants/:slug/dashboard` | ✅ Tamamlandı | `?period=today\|week\|month` — TR timezone aware; changePercent önceki aynı dönemle |
 | `GET /api/v1/tenants/:slug/settings` | ✅ Tamamlandı | Salon adı + settings JSON |
 | `PATCH /api/v1/tenants/:slug/settings` | ✅ Tamamlandı | owner/manager yetkisi, settings JSON merge |
 
@@ -118,6 +118,13 @@
 - `POST /revenues` → walk-in manuel gelir (appointmentId nullable Transaction)
 - Transaction tablosuna `notes String?` eklendi, `appointmentId` + `staffId` nullable yapıldı (migration)
 
+**Finance Modülü Genişletmeleri ✅ (22.04.2026)**
+- `GET /tenants/:slug/dashboard?period=today|week|month` → period parametresi eklendi; week=Pazartesi–Pazar, month=1–son gün; changePercent önceki eşdeğer dönemle; tüm hesaplar Europe/Istanbul (UTC+3) timezone'da
+- `POST /tenants/:slug/finance/close-day?date=YYYY-MM-DD` → kasa kapatma endpoint'i: date opsiyonel (default bugün TR tz); totalRevenue, cashRevenue, cardRevenue, totalExpenses, netProfit, transactionCount + transactions[], expenses[], staffCommissions[] döner
+- `GET /tenants/:slug/reports/daily?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day]` → tarih aralığı desteği; legacy ?date hâlâ çalışır; groupBy=day eklenince günlük breakdown array'i döner (grafik için); from > to → 400
+- Tüm tarih sınırları `T00:00:00+03:00` / `T23:59:59.999+03:00` formatıyla Istanbul timezone'a göre hesaplanıyor
+- 16 yeni vitest case eklendi → `src/__tests__/finance.test.ts`
+
 **Personel Skill & İzin Sistemi ✅**
 - `StaffServiceAssignment` modeli eklendi: staff-service many-to-many, commissionType (percentage/fixed), commissionValue, priceOverride
 - `StaffLeave` modeli eklendi: tarih bazlı izin takibi (day_off/sick_leave/vacation/other)
@@ -150,7 +157,7 @@
 
 ## Frontend İlerlemesi
 
-**Son güncelleme:** 21.04.2026 — Onboarding sihirbazı tamamlandı (Görev 3)
+**Son güncelleme:** 22.04.2026 — Dashboard period filtresi, Kasa Kapatma modalı, tarih aralığı filtresi (Görev 1-3)
 
 ### Deployment
 
@@ -186,6 +193,7 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 | Ayarlar | `/tenant/:slug/settings` | ✅ Tamamlandı |
 | Hizmetler | `/tenant/:slug/services` | ✅ Tamamlandı |
 | Personel | `/tenant/:slug/staff` | ✅ Tamamlandı |
+| Kasa | `/tenant/:slug/finance` | ✅ Tamamlandı |
 | Onboarding Sihirbazı | `/onboarding` | ✅ Tamamlandı |
 
 ### Bileşenler
@@ -223,6 +231,11 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 **UI Primitives (yeni)**
 - `ConfirmDialog` — yeniden kullanılabilir onay dialogu
 
+**Finance (yeni/güncellendi)**
+- `FinancePage` — tarih aralığı preset toggle (5 seçenek), Özel Aralık date picker çifti, Günlük Dağılım tablosu
+- Kasa Kapatma Dialog — özet kartlar (büyük font), işlem tablosu, personel komisyonları, Yazdır butonu
+- `@media print` CSS — visibility trick ile sadece rapor alanı yazdırılıyor
+
 **Onboarding**
 - `OnboardingProgress` — animasyonlu progress bar (%20→%100)
 - `Step1Salon` — salon bilgileri formu, PATCH /settings
@@ -245,6 +258,31 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 | `['appointments-today']` query key uyumsuzluğu | `['appointments']` olarak düzeltildi — randevu sonrası dashboard güncellenmiyordu |
 
 ### 22.04.2026 Güncellemeleri
+
+**Dashboard Period Filtresi ✅**
+- `useSearchParams` ile period URL'de tutuluyor (`?period=today|week|month`)
+- `DashboardContent` bileşeni `<Suspense>` ile sarıldı (Next.js 14 App Router uyumluluğu)
+- TanStack Query key: `['dashboard', slug, period]` — period değişiminde cache'siz dönemler skeleton gösteriyor
+- `router.replace` ile URL güncelleniyor, sayfa yenilenmeden persist ediliyor
+
+**Kasa Kapatma Modalı ✅**
+- "Kasa Kapatma" butonuna tıklanınca `POST /finance/close-day?date=<bugün>` çağrılıyor
+- Loading state: buton "Hesaplanıyor…" olarak değişiyor, disabled
+- Response `Dialog` içinde gösteriliyor: 5 özet kart (büyük font), işlem tablosu, personel komisyonları
+- "Yazdır" butonu: `window.print()` + `@media print` CSS (visibility trick ile sidebar/header gizleniyor)
+- `#close-day-print-area` id'si ile sadece rapor içeriği yazdırılıyor
+- "Kapat" butonu: `DialogClose` ile dialog kapanıyor
+
+**Kasa Tarih Aralığı Filtresi ✅**
+- Tek gün picker kaldırıldı → 5 hızlı seçim butonu: Bugün / Bu Hafta / Bu Ay / Bu Yıl / Özel Aralık
+- "Özel Aralık" seçilince from + to date picker ikilisi gösteriliyor
+- `getDateRange()` helper: ISO haftası Pazartesi–Pazar hesabı (TR standardı)
+- Tek gün: `from=to=<tarih>`, çok gün: `groupBy=day` parametresi ekleniyor
+- `from > to` durumunda: query devre dışı + toast "Başlangıç tarihi bitiş tarihinden büyük olamaz"
+- Çok günlük görünümde "Günlük Dağılım" tablosu: tarih, randevu, ciro, nakit, kart, net kolonları
+- 4 özet kart seçilen aralığın toplamını gösteriyor
+- TanStack Query key: `['finance', slug, from, to]`
+- Gider/gelir ekleme formları `from` tarihini kullanıyor
 
 **Finance / Kasa Sayfası ✅**
 - `/tenant/:slug/finance` — yeni sayfa
@@ -287,7 +325,6 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 |---|---|
 | Randevu formunda hizmet → personel filtreleme (Agent 01) | Yüksek |
 | Bot: skill + mesai + izin farkındalığı (Agent 03) | Yüksek |
-| Dashboard tarih filtresi (`?period=week\|month`) | Orta |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
 

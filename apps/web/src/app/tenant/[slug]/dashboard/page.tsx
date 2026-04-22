@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { TrendingUp, Calendar, Users, Percent } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -31,10 +32,19 @@ interface PageProps {
   params: { slug: string }
 }
 
-export default function DashboardPage({ params }: PageProps) {
+function DashboardContent({ params }: PageProps) {
   const user = useAuthStore((s) => s.user)
   const tenantId = params.slug
-  const [period, setPeriod] = useState<Period>('today')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const period = (searchParams.get('period') as Period) ?? 'today'
+
+  function setPeriod(p: Period) {
+    const next = new URLSearchParams(searchParams.toString())
+    next.set('period', p)
+    router.replace(`${pathname}?${next.toString()}`)
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', tenantId, period],
@@ -112,5 +122,13 @@ export default function DashboardPage({ params }: PageProps) {
       {/* Today's appointments — always shows today regardless of period filter */}
       <TodaysAppointments tenantId={tenantId} />
     </div>
+  )
+}
+
+export default function DashboardPage({ params }: PageProps) {
+  return (
+    <Suspense>
+      <DashboardContent params={params} />
+    </Suspense>
   )
 }
