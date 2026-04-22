@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ArrowLeft, User, Briefcase, Calendar } from 'lucide-react'
@@ -53,6 +53,25 @@ const LEAVE_LABELS: Record<StaffLeave['leaveType'], string> = {
   other: 'Diğer',
 }
 
+type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+interface DaySchedule { start: string; end: string }
+type WorkingHoursMap = Record<DayKey, DaySchedule | null>
+
+const DAYS: { key: DayKey; label: string }[] = [
+  { key: 'monday', label: 'Pazartesi' },
+  { key: 'tuesday', label: 'Salı' },
+  { key: 'wednesday', label: 'Çarşamba' },
+  { key: 'thursday', label: 'Perşembe' },
+  { key: 'friday', label: 'Cuma' },
+  { key: 'saturday', label: 'Cumartesi' },
+  { key: 'sunday', label: 'Pazar' },
+]
+
+const DEFAULT_WORKING_HOURS: WorkingHoursMap = {
+  monday: null, tuesday: null, wednesday: null, thursday: null,
+  friday: null, saturday: null, sunday: null,
+}
+
 const tabs = [
   { id: 'profile', label: 'Profil', icon: User },
   { id: 'skills', label: 'Yetenekler', icon: Briefcase },
@@ -70,7 +89,10 @@ export default function StaffDetailPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const user = useAuthStore((s) => s.user)
   const isOwner = user?.role === 'owner'
+  const isOwnerOrManager = user?.role === 'owner' || user?.role === 'manager'
   const qc = useQueryClient()
+
+  const [wh, setWh] = useState<WorkingHoursMap>(DEFAULT_WORKING_HOURS)
 
   const { data: staffList, isLoading: staffLoading } = useQuery({
     queryKey: ['staff', slug],
@@ -164,6 +186,40 @@ export default function StaffDetailPage({ params }: PageProps) {
     },
     onError: (err: Error) => toast(err.message, 'error'),
   })
+
+  useEffect(() => {
+    if (staff) {
+      const raw = (staff.workingHours ?? {}) as Partial<WorkingHoursMap>
+      setWh({ ...DEFAULT_WORKING_HOURS, ...raw })
+    }
+  }, [staff])
+
+  const saveWorkingHoursMutation = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/v1/tenants/${slug}/staff/${staffId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ workingHours: wh }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['staff', slug] })
+      toast('Çalışma saatleri kaydedildi')
+    },
+    onError: (err: Error) => toast(err.message, 'error'),
+  })
+
+  function toggleDay(key: DayKey) {
+    setWh((prev) => ({
+      ...prev,
+      [key]: prev[key] === null ? { start: '09:00', end: '18:00' } : null,
+    }))
+  }
+
+  function updateDay(key: DayKey, field: 'start' | 'end', value: string) {
+    setWh((prev) => ({
+      ...prev,
+      [key]: prev[key] ? { ...(prev[key] as DaySchedule), [field]: value } : null,
+    }))
+  }
 
   const color = staff ? getStaffColor(staff.colorCode) : '#6B48FF'
   const skills = skillsData?.data ?? []
@@ -268,14 +324,64 @@ export default function StaffDetailPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {staff.workingHours && (
-                  <div>
-                    <p className="text-xs text-salon-muted mb-1">Çalışma Saatleri</p>
-                    <pre className="text-xs bg-salon-bg rounded p-3 overflow-auto">
-                      {JSON.stringify(staff.workingHours, null, 2)}
-                    </pre>
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-salon-muted">Çalışma Saatleri</p>
+                    {isOwnerOrManager && (
+                      <Button
+                        size="sm"
+                        onClick={() => saveWorkingHoursMutation.mutate()}
+                        disabled={saveWorkingHoursMutation.isPending}
+                      >
+                        {saveWorkingHoursMutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+                      </Button>
+                    )}
                   </div>
-                )}
+                  <div className="space-y-1">
+                    {DAYS.map(({ key, label }) => {
+                      const dayData = wh[key]
+                      const isOpen = dayData !== null
+                      return (
+                        <div key={key} className="flex items-center gap-3 py-1.5">
+                          <span className="text-sm text-gray-700 w-24 shrink-0">{label}</span>
+                          <button
+                            type="button"
+                            disabled={!isOwnerOrManager}
+                            onClick={() => toggleDay(key)}
+                            className={cn(
+                              'px-3 py-1 rounded-full text-xs font-medium border transition-colors shrink-0',
+                              isOpen
+                                ? 'bg-primary text-white border-primary'
+                                : 'border-salon-border text-salon-muted',
+                              !isOwnerOrManager && 'cursor-default opacity-75',
+                            )}
+                          >
+                            {isOpen ? 'Açık' : 'Kapalı'}
+                          </button>
+                          {isOpen && (
+                            <>
+                              <input
+                                type="time"
+                                value={dayData.start}
+                                disabled={!isOwnerOrManager}
+                                onChange={(e) => updateDay(key, 'start', e.target.value)}
+                                className="border border-salon-border rounded-md px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-default w-28"
+                              />
+                              <span className="text-salon-muted text-sm">—</span>
+                              <input
+                                type="time"
+                                value={dayData.end}
+                                disabled={!isOwnerOrManager}
+                                onChange={(e) => updateDay(key, 'end', e.target.value)}
+                                className="border border-salon-border rounded-md px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-default w-28"
+                              />
+                            </>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
 
                 <div>
                   <p className="text-xs text-salon-muted mb-2">Yetenekler</p>

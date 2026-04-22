@@ -327,6 +327,15 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - Uygun personel yoksa dropdown'da "Bu hizmet için uygun personel yok" placeholder gösteriliyor
 - Filtreleme tamamen client-side — ek API çağrısı yok
 
+**Personel Detay — Haftalık Çalışma Saati Editörü ✅**
+- Profil tab'ındaki ham JSON `<pre>` gösterimi kaldırıldı
+- 7 satırlık editör eklendi: Pazartesi–Pazar, her satırda toggle (Açık/Kapalı) + `type="time"` input çifti
+- Kapalı gün → JSON'da `null`; açık iken default `09:00–18:00` atanır
+- owner/manager: toggle ve saat inputları aktif; diğer roller: disabled (salt okunur)
+- "Kaydet" butonu → `PATCH /staff/:staffId { workingHours }` — diğer alanları etkilemez
+- `useEffect` ile `staff` yüklenince local state senkronize ediliyor; `null` gelirse tüm günler kapalı başlar
+- Kaydet sonrası `['staff', slug]` invalidate, toast gösteriliyor
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
