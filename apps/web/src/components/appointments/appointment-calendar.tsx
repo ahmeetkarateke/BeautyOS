@@ -78,8 +78,11 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
       apiFetch<{ data: Appointment[] }>(`/api/v1/tenants/${tenantId}/appointments`),
   })
 
+  const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show'])
+
   const events = (data?.data ?? []).map((apt) => {
     const style = STATUS_STYLES[apt.status] ?? STATUS_STYLES.pending
+    const isPast = new Date(apt.endTime) < new Date()
     return {
       id: apt.id,
       title: `${apt.customerName} – ${apt.serviceName}`,
@@ -87,6 +90,7 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
       end: apt.endTime,
       backgroundColor: style.bg,
       borderColor: style.border,
+      editable: isEditable && !TERMINAL_STATUSES.has(apt.status) && !isPast,
       extendedProps: {
         staffName: apt.staffName,
         staffColor: apt.staffColorCode ?? '#6B48FF',
