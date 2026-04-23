@@ -6,8 +6,10 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import trLocale from '@fullcalendar/core/locales/tr'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { toast } from '@/components/ui/toaster'
+import { useAuthStore } from '@/store/auth'
 
 interface Appointment {
   id: string
@@ -66,6 +68,9 @@ const LEGEND = [
 
 export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointment }: AppointmentCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
+  const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const isEditable = user?.role === 'owner' || user?.role === 'manager'
 
   const { data } = useQuery({
     queryKey: ['appointments-calendar', tenantId],
@@ -126,10 +131,25 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
         slotMaxTime="22:00:00"
         slotDuration="00:30:00"
         height="auto"
-        editable={true}
+        editable={isEditable}
         selectable={true}
         selectMirror={true}
         events={events}
+        eventDrop={async ({ event, revert }) => {
+          if (!event.start) return
+          try {
+            await apiFetch(`/api/v1/tenants/${tenantId}/appointments/${event.id}/reschedule`, {
+              method: 'PATCH',
+              body: JSON.stringify({ startAt: event.start.toISOString() }),
+            })
+            qc.invalidateQueries({ queryKey: ['appointments-calendar', tenantId] })
+            qc.invalidateQueries({ queryKey: ['appointments', tenantId] })
+            toast('Randevu yeniden zamanlandı')
+          } catch (err) {
+            revert()
+            toast(err instanceof Error ? err.message : 'Randevu taşınamadı', 'error')
+          }
+        }}
         select={(info) => onSelectSlot?.(info.start, info.end)}
         eventClick={(info) => {
           const ep = info.event.extendedProps

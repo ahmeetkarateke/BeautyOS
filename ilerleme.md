@@ -44,6 +44,7 @@
 | `GET /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | ?date + ?limit filtresi |
 | `POST /api/v1/tenants/:slug/appointments` | ✅ Tamamlandı | endAt otomatik, referenceCode, slot çakışma kontrolü (409) |
 | `PATCH /api/v1/tenants/:slug/appointments/:id/status` | ✅ Tamamlandı | 6 durum enum, iptal nedeni opsiyonel |
+| `PATCH /api/v1/tenants/:slug/appointments/:id/reschedule` | ✅ Tamamlandı | owner/manager only; endAt yeniden hesaplanır; slot çakışma (409); BullMQ reminder yeniden planlanır |
 
 #### Müşteriler
 | Endpoint | Durum | Notlar |
@@ -359,6 +360,12 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - Ödeme yöntemi: Nakit / Kart toggle butonları
 - Randevular sayfasına "Hızlı İşlem" butonu eklendi (Zap ikonu, `variant="outline"`, "Yeni Randevu" yanına)
 - Başarı sonrası `['appointments']`, `['appointments-calendar', slug]`, `['finance', slug]` invalidate ediliyor
+
+**Drag & Drop Randevu Taşıma ✅**
+- `AppointmentCalendar`: `useQueryClient`, `useAuthStore`, `toast` import edildi
+- `isEditable = role === 'owner' || role === 'manager'` — `editable={isEditable}` ile staff için D&D devre dışı
+- `eventDrop` handler: `PATCH /appointments/:id/reschedule { startAt }` çağrısı; başarıda `['appointments-calendar']` + `['appointments']` invalidate + toast; hata durumunda `revert()` + hata toast'u
+- Backend: `PATCH /appointments/:appointmentId/reschedule` endpoint'i eklendi — terminal status koruması, çakışma kontrolü, `endAt` servis süresinden hesaplanıyor, eski reminder job'ları silinip yeni zamana göre yeniden planlanıyor
 
 **Login → Onboarding Yönlendirmesi DB Bazlı ✅**
 - Login `onSuccess`: `setAuth` sonrası `GET /settings` çağrılıyor (token localStorage'a yazıldıktan hemen sonra, `apiFetch` onu otomatik okur)

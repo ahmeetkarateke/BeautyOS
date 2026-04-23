@@ -658,6 +658,114 @@ export function createTenantRouter(): Router {
     }
   })
 
+  // PATCH /api/v1/tenants/:slug/appointments/:appointmentId/reschedule
+  const rescheduleSchema = z.object({
+    startAt: z.string().datetime(),
+  })
+
+  router.patch('/appointments/:appointmentId/reschedule', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu saati yalnızca owner veya manager tarafından değiştirilebilir.' } })
+      }
+
+      const tenantId = req.user!.tenantId
+      const { appointmentId } = req.params
+
+      const parsed = rescheduleSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. ISO 8601 bekleniyor.' } })
+      }
+
+      const existing = await db.appointment.findFirst({
+        where: { id: appointmentId, tenantId },
+        include: { service: { select: { durationMinutes: true } } },
+      })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
+      }
+
+      const TERMINAL_STATUSES = ['completed', 'cancelled', 'no_show']
+      if (TERMINAL_STATUSES.includes(existing.status)) {
+        return res.status(409).json({
+          error: { code: 'STATUS_LOCKED', message: 'Tamamlanan veya iptal edilen randevunun saati değiştirilemez.' },
+        })
+      }
+
+      const newStart = new Date(parsed.data.startAt)
+      const newEnd = new Date(newStart.getTime() + existing.service.durationMinutes * 60 * 1000)
+
+      const conflict = await db.appointment.findFirst({
+        where: {
+          id: { not: appointmentId },
+          staffId: existing.staffId,
+          tenantId,
+          status: { notIn: ['cancelled', 'no_show'] },
+          startAt: { lt: newEnd },
+          endAt: { gt: newStart },
+        },
+      })
+      if (conflict) {
+        return res.status(409).json({ error: { code: 'SLOT_CONFLICT', message: 'Seçilen personelin bu saatte başka bir randevusu var.' } })
+      }
+
+      const updated = await db.appointment.update({
+        where: { id: appointmentId },
+        data: { startAt: newStart, endAt: newEnd },
+        include: {
+          customer: { select: { fullName: true } },
+          service: { select: { name: true } },
+          staff: { select: { colorCode: true, user: { select: { fullName: true } } } },
+        },
+      })
+
+      // Eski reminder job'larını sil, yeni zamana göre yeniden planla
+      void (async () => {
+        try {
+          await remindersQueue.remove(`reminder-24h-${appointmentId}`)
+          await remindersQueue.remove(`reminder-2h-${appointmentId}`)
+
+          const now = Date.now()
+          const startMs = newStart.getTime()
+          const delay24h = startMs - 24 * 60 * 60 * 1000 - now
+          const delay2h = startMs - 2 * 60 * 60 * 1000 - now
+
+          if (delay24h > 0) {
+            await remindersQueue.add(
+              'reminder',
+              { type: 'reminder_24h', appointmentId },
+              { delay: delay24h, jobId: `reminder-24h-${appointmentId}` },
+            )
+          }
+          if (delay2h > 0) {
+            await remindersQueue.add(
+              'reminder',
+              { type: 'reminder_2h', appointmentId },
+              { delay: delay2h, jobId: `reminder-2h-${appointmentId}` },
+            )
+          }
+        } catch (err) {
+          logger.warn({ err, appointmentId }, 'Reschedule sonrası hatırlatma job güncellenemedi')
+        }
+      })()
+
+      return res.json({
+        id: updated.id,
+        referenceCode: updated.referenceCode,
+        customerName: updated.customer.fullName,
+        serviceName: updated.service.name,
+        staffName: updated.staff.user.fullName,
+        startTime: updated.startAt.toISOString(),
+        endTime: updated.endAt.toISOString(),
+        status: updated.status,
+        staffColorCode: updated.staff.colorCode,
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
   // PATCH /api/v1/tenants/:slug/settings
   const settingsSchema = z.object({
     name: z.string().min(2).max(100).optional(),
