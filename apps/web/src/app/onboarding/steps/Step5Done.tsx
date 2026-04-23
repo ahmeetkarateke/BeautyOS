@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth'
+import { apiFetch } from '@/lib/api'
 
 interface Step5DoneProps {
   slug: string
@@ -13,13 +14,22 @@ export function Step5Done({ slug }: Step5DoneProps) {
   const router = useRouter()
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding)
   const [visible, setVisible] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    // Trigger animation on mount
     requestAnimationFrame(() => setVisible(true))
   }, [])
 
-  function handleDashboard() {
+  async function handleDashboard() {
+    setSaving(true)
+    try {
+      await apiFetch(`/api/v1/tenants/${slug}/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify({ onboardingCompleted: true }),
+      })
+    } catch {
+      // non-critical — proceed anyway
+    }
     completeOnboarding()
     router.push(`/tenant/${slug}/dashboard`)
   }
@@ -75,7 +85,7 @@ export function Step5Done({ slug }: Step5DoneProps) {
           transitionDelay: '0.6s',
         }}
       >
-        <Button size="lg" onClick={handleDashboard}>
+        <Button size="lg" onClick={handleDashboard} disabled={saving}>
           Dashboard&apos;a Git
         </Button>
       </div>

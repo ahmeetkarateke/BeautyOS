@@ -118,6 +118,11 @@
 - `POST /revenues` → walk-in manuel gelir (appointmentId nullable Transaction)
 - Transaction tablosuna `notes String?` eklendi, `appointmentId` + `staffId` nullable yapıldı (migration)
 
+**Onboarding Flag ✅ (23.04.2026)**
+- Prisma migration: `20260423030854_add_onboarding_completed` — `Tenant` tablosuna `onboardingCompleted Boolean @default(false)` eklendi
+- `GET /settings` → response'a `onboardingCompleted` dahil edildi
+- `PATCH /settings` → `{ onboardingCompleted: true }` kabul ediyor; doğrudan Tenant kolonuna yazıyor (JSON settings blob'una değil)
+
 **Finance Modülü Genişletmeleri ✅ (22.04.2026)**
 - `GET /tenants/:slug/dashboard?period=today|week|month` → period parametresi eklendi; week=Pazartesi–Pazar, month=1–son gün; changePercent önceki eşdeğer dönemle; tüm hesaplar Europe/Istanbul (UTC+3) timezone'da
 - `POST /tenants/:slug/finance/close-day?date=YYYY-MM-DD` → kasa kapatma endpoint'i: date opsiyonel (default bugün TR tz); totalRevenue, cashRevenue, cardRevenue, totalExpenses, netProfit, transactionCount + transactions[], expenses[], staffCommissions[] döner
@@ -354,6 +359,15 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - Ödeme yöntemi: Nakit / Kart toggle butonları
 - Randevular sayfasına "Hızlı İşlem" butonu eklendi (Zap ikonu, `variant="outline"`, "Yeni Randevu" yanına)
 - Başarı sonrası `['appointments']`, `['appointments-calendar', slug]`, `['finance', slug]` invalidate ediliyor
+
+**Login → Onboarding Yönlendirmesi DB Bazlı ✅**
+- Login `onSuccess`: `setAuth` sonrası `GET /settings` çağrılıyor (token localStorage'a yazıldıktan hemen sonra, `apiFetch` onu otomatik okur)
+- `settings.onboardingCompleted === true` ise `completeOnboarding()` + dashboard yönlendirmesi; değilse `/onboarding`
+- Settings fetch hata verirse güvenli fallback: `/onboarding`'e yönlendir
+- `onboardingCompleted` artık localStorage'dan okunmuyor — her login'de DB'den taze değer alınıyor
+- Step5Done: "Dashboard'a Git" tıklanınca önce `PATCH /settings { onboardingCompleted: true }` çağrılıyor, ardından `completeOnboarding()` + yönlendirme
+- PATCH hata verirse sessizce geçiliyor (non-critical) — kullanıcı deneyimi kesilmiyor
+- Button `saving` state ile disabled yapıldı (çift tıklama koruması)
 
 ### Bekleyen / Sonraki Adımlar
 

@@ -105,8 +105,9 @@ model Tenant {
   whatsappNumber     String?
   whatsappApiToken   String?
   telegramBotToken   String?
-  settings           Json      @default("{}")
-  isActive           Boolean   @default(true)
+  settings              Json      @default("{}")
+  isActive              Boolean   @default(true)
+  onboardingCompleted   Boolean   @default(false)
   trialEndsAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

@@ -496,7 +496,7 @@ export function createTenantRouter(): Router {
 
       const tenant = await db.tenant.findUnique({
         where: { id: tenantId },
-        select: { id: true, name: true, slug: true, settings: true },
+        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true },
       })
 
       if (!tenant) {
@@ -664,6 +664,7 @@ export function createTenantRouter(): Router {
     phone: z.string().min(7).max(20).optional(),
     address: z.string().min(5).max(255).optional(),
     workingHours: z.string().min(1).max(200).optional(),
+    onboardingCompleted: z.boolean().optional(),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {
@@ -678,7 +679,7 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz alan değeri.' } })
       }
 
-      const { name, ...settingsPatch } = parsed.data
+      const { name, onboardingCompleted, ...settingsPatch } = parsed.data
       const tenantId = req.user!.tenantId
 
       const existing = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
@@ -695,9 +696,10 @@ export function createTenantRouter(): Router {
         where: { id: tenantId },
         data: {
           ...(name ? { name } : {}),
+          ...(onboardingCompleted !== undefined ? { onboardingCompleted } : {}),
           settings: mergedSettings,
         },
-        select: { id: true, name: true, slug: true, settings: true },
+        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true },
       })
 
       return res.json(updated)

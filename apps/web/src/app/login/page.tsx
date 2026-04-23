@@ -34,7 +34,7 @@ interface LoginResponse {
 export default function LoginPage() {
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const onboardingCompleted = useAuthStore((s) => s.onboardingCompleted)
+  const completeOnboarding = useAuthStore((s) => s.completeOnboarding)
 
   const {
     register,
@@ -50,13 +50,20 @@ export default function LoginPage() {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setAuth(data.user, data.token)
-      const completed = useAuthStore.getState().onboardingCompleted
-      if (!completed) {
+      try {
+        const settings = await apiFetch<{ onboardingCompleted: boolean }>(
+          `/api/v1/tenants/${data.user.tenantSlug}/settings`,
+        )
+        if (settings.onboardingCompleted) {
+          completeOnboarding()
+          router.push(`/tenant/${data.user.tenantSlug}/dashboard`)
+        } else {
+          router.push('/onboarding')
+        }
+      } catch {
         router.push('/onboarding')
-      } else {
-        router.push(`/tenant/${data.user.tenantSlug}/dashboard`)
       }
     },
   })
