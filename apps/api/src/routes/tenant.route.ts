@@ -276,7 +276,7 @@ export function createTenantRouter(): Router {
       const tenantId = req.user!.tenantId
 
       const staff = await db.staffProfile.findMany({
-        where: { tenantId },
+        where: { tenantId, user: { isActive: true } },
         orderBy: { createdAt: 'asc' },
         include: {
           user: { select: { fullName: true, email: true } },
