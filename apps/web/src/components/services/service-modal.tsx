@@ -55,6 +55,7 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
     enabled: open,
   })
 
+  const followUpEnabled = settingsData?.settings?.followUpEnabled === true
   const businessType = settingsData?.settings?.businessType ?? ''
   const sector = SECTOR_DATA[businessType] ?? DEFAULT_SECTOR
 
@@ -122,7 +123,8 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
             <input type="checkbox" className="w-4 h-4 accent-primary" {...register('isActive')} />
             <span className="text-sm text-gray-700">Aktif (online rezervasyona açık)</span>
           </label>
-          <div className="space-y-2 pt-1">
+          {followUpEnabled && (
+            <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <Label>Takip Günleri</Label>
                 <button
@@ -171,6 +173,7 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
                 </div>
               )}
             </div>
+          )}
 
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>İptal</Button>
