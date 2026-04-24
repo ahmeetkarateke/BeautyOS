@@ -105,14 +105,16 @@ function DashboardContent({ params }: PageProps) {
           trend={data && data.appointmentChange !== null ? { value: data.appointmentChange, label: period === 'today' ? 'dün' : 'önceki dönem' } : undefined}
           loading={isLoading}
         />
-        <KpiCard
-          title="Müşteriler"
-          value={isLoading ? '—' : data?.totalCustomers ?? 0}
-          subtitle="toplam"
-          icon={Users}
-          iconColor="bg-green-100 text-success"
-          loading={isLoading}
-        />
+        {!isStaff && (
+          <KpiCard
+            title="Müşteriler"
+            value={isLoading ? '—' : data?.totalCustomers ?? 0}
+            subtitle="toplam"
+            icon={Users}
+            iconColor="bg-green-100 text-success"
+            loading={isLoading}
+          />
+        )}
         {!isStaff && (
           <KpiCard
             title="Doluluk"

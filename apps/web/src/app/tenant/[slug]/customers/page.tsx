@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { NewCustomerModal } from '@/components/customers/new-customer-modal'
+import { useAuthStore } from '@/store/auth'
 
 interface Customer {
   id: string
@@ -38,6 +39,8 @@ interface PageProps {
 
 export default function CustomersPage({ params }: PageProps) {
   const router = useRouter()
+  const user = useAuthStore((s) => s.user)
+  const isStaff = user?.role === 'staff'
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [modalOpen, setModalOpen] = useState(false)
@@ -104,6 +107,28 @@ export default function CustomersPage({ params }: PageProps) {
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
+
+  if (isStaff) {
+    return (
+      <div className="p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Müşteriler</h1>
+          <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Yeni Müşteri
+          </Button>
+        </div>
+        <div className="bg-white rounded-lg border border-salon-border p-8 text-center">
+          <p className="text-sm text-salon-muted">Müşteri listesini görüntüleme yetkiniz yok.</p>
+          <Button size="sm" className="mt-4 gap-2" onClick={() => setModalOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Yeni Müşteri Oluştur
+          </Button>
+        </div>
+        <NewCustomerModal open={modalOpen} onOpenChange={setModalOpen} tenantSlug={params.slug} />
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-4">

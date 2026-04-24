@@ -270,6 +270,10 @@ export default function FinancePage({ params }: PageProps) {
       `<tr><td>${esc(s.staffName)}</td><td class="r">${s.completedAppointments ?? 0}</td><td class="r">${fmt(s.revenue ?? 0)}</td><td class="r">${fmt(s.commission ?? 0)}</td></tr>`
     ).join('')
 
+    const expRows = (closeDayData.expenses ?? []).map((e) =>
+      `<tr><td>${esc(e.category)}</td><td>${esc(e.title)}</td><td class="r neg">-${fmt(e.amount)}</td></tr>`
+    ).join('')
+
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
@@ -282,7 +286,7 @@ export default function FinancePage({ params }: PageProps) {
   .card{border:1px solid #e5e7eb;border-radius:8px;padding:16px}
   .label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
   .val{font-size:20px;font-weight:700;color:#111827}
-  .val.hl{color:#6B48FF}.val.neg{color:#dc2626}
+  .val.hl{color:#6B48FF}.val.neg{color:#dc2626}.neg{color:#dc2626}
   h2{font-size:14px;font-weight:600;margin:0 0 10px}
   table{width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px}
   thead tr{background:#f9fafb}
@@ -301,6 +305,8 @@ export default function FinancePage({ params }: PageProps) {
 </div>
 ${txRows ? `<h2>İşlemler (${closeDayData.transactionCount})</h2>
 <table><thead><tr><th>Saat</th><th>Müşteri</th><th>Hizmet</th><th class="r">Tutar</th><th class="r">Ödeme</th></tr></thead><tbody>${txRows}</tbody></table>` : ''}
+${expRows ? `<h2>Giderler</h2>
+<table><thead><tr><th>Kategori</th><th>Başlık</th><th class="r">Tutar</th></tr></thead><tbody>${expRows}</tbody></table>` : ''}
 ${commRows ? `<h2>Personel Komisyonları</h2>
 <table><thead><tr><th>Personel</th><th class="r">Tamamlanan</th><th class="r">Ciro</th><th class="r">Komisyon</th></tr></thead><tbody>${commRows}</tbody></table>` : ''}
 </body></html>`)
@@ -514,7 +520,7 @@ ${commRows ? `<h2>Personel Komisyonları</h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-salon-border bg-salon-bg">
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">Saat</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">{isMultiDay ? 'Tarih / Saat' : 'Saat'}</th>
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">Müşteri</th>
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-salon-muted">Hizmet</th>
                 <th className="text-right px-4 py-2.5 text-xs font-medium text-salon-muted">Tutar</th>
@@ -534,7 +540,9 @@ ${commRows ? `<h2>Personel Komisyonları</h2>
                 filteredTransactions.map((t) => (
                   <tr key={t.id} className="border-b border-salon-border last:border-0 hover:bg-salon-bg transition-colors">
                     <td className="px-4 py-3 text-salon-muted whitespace-nowrap">
-                      {new Date(t.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      {isMultiDay
+                        ? new Date(t.time).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                        : new Date(t.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="px-4 py-3 text-gray-900">{t.customerName || t.description || '—'}</td>
                     <td className="px-4 py-3 text-salon-muted">{t.serviceName || 'Manuel Gelir'}</td>
