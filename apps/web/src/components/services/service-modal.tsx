@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
+import { SECTOR_DATA, DEFAULT_SECTOR } from '@/lib/sector-data'
+import { Select } from '@/components/ui/select'
 
 interface Service {
   id: string
@@ -48,11 +50,13 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
 
   const { data: settingsData } = useQuery({
     queryKey: ['tenant-settings', tenantSlug],
-    queryFn: () => apiFetch<{ settings?: { followUpEnabled?: boolean } }>(`/api/v1/tenants/${tenantSlug}/settings`),
+    queryFn: () => apiFetch<{ settings?: { followUpEnabled?: boolean; businessType?: string } }>(`/api/v1/tenants/${tenantSlug}/settings`),
     enabled: open,
   })
 
   const followUpEnabled = settingsData?.settings?.followUpEnabled === true
+  const businessType = settingsData?.settings?.businessType ?? ''
+  const sector = SECTOR_DATA[businessType] ?? DEFAULT_SECTOR
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -95,7 +99,12 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
           </div>
           <div className="space-y-2">
             <Label htmlFor="svc-category">Kategori</Label>
-            <Input id="svc-category" placeholder="Tırnak, Saç, Güzellik..." {...register('category')} />
+            <Select id="svc-category" {...register('category')}>
+              <option value="">Seçiniz</option>
+              {sector.categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">

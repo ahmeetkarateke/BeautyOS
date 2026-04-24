@@ -398,11 +398,22 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - PATCH hata verirse sessizce geçiliyor (non-critical) — kullanıcı deneyimi kesilmiyor
 - Button `saving` state ile disabled yapıldı (çift tıklama koruması)
 
+**AuthGuard Onboarding Kontrolü ✅**
+- `AuthGuard`: `onboardingCompleted` false ve yol `/onboarding`'te değilse `/onboarding`'e yönlendirme eklendi
+- Redirect loop koruması: `usePathname()` ile `/onboarding` rotası kontrol edilip guard devre dışı bırakılıyor
+- Hem `useEffect` hem render dönüşüne `null` kontrolü eklendi
+
+**Sektörel Kategori & Öneri Sistemi ✅**
+- `src/lib/sector-data.ts` oluşturuldu: `SECTOR_DATA` (barbershop/beauty_center/nail_studio/aesthetic/other) + `DEFAULT_SECTOR` — `categories` ve `suggestions` alanları
+- `Step2Services` yeniden yazıldı: `GET /settings`'ten `businessType` okunuyor, sektöre göre kategori dropdown + öneri chip'leri gösteriliyor; chip tıklanınca ilgili satırın hizmet adı dolduruluyor; kategori `z.string().min(1)` olarak gevşetildi
+- `ServiceModal`: Kategori alanı serbest `Input`'tan `Select`'e dönüştürüldü; `GET /settings`'ten `businessType` okunuyor, sektöre göre `SECTOR_DATA[businessType].categories` listeleniyor; ayarlar değişince query invalidate ile otomatik güncelleniyor
+
 ### Bekleyen / Sonraki Adımlar
 
 | Görev | Öncelik |
 |---|---|
 | ✅ Bot: skill + mesai + izin farkındalığı (Agent 03) | Tamamlandı |
+| ServiceModal follow-up days: backend `followUpSchedule` alanı eklenince frontend mutation body'ye dahil edilecek | Orta |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
 
