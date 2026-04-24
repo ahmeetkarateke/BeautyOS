@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,9 +39,20 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+interface FollowUpDay { day: number; label: string }
+
 export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props) {
   const qc = useQueryClient()
   const isEdit = !!service
+  const [followUpDays, setFollowUpDays] = useState<FollowUpDay[]>([])
+
+  const { data: settingsData } = useQuery({
+    queryKey: ['tenant-settings', tenantSlug],
+    queryFn: () => apiFetch<{ settings?: { followUpEnabled?: boolean } }>(`/api/v1/tenants/${tenantSlug}/settings`),
+    enabled: open,
+  })
+
+  const followUpEnabled = settingsData?.settings?.followUpEnabled === true
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -53,6 +65,7 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
         ? { name: service.name, category: service.category ?? '', durationMinutes: service.durationMinutes, price: service.price, isActive: service.isActive }
         : { name: '', category: '', durationMinutes: 60, price: 0, isActive: true }
       )
+      setFollowUpDays([])
     }
   }, [open, service, reset])
 
@@ -98,6 +111,58 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
             <input type="checkbox" className="w-4 h-4 accent-primary" {...register('isActive')} />
             <span className="text-sm text-gray-700">Aktif (online rezervasyona açık)</span>
           </label>
+          {followUpEnabled && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <Label>Takip Günleri</Label>
+                <button
+                  type="button"
+                  onClick={() => setFollowUpDays((prev) => [...prev, { day: 0, label: '' }])}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <Plus className="w-3 h-3" />
+                  Ekle
+                </button>
+              </div>
+              {followUpDays.length === 0 ? (
+                <p className="text-xs text-salon-muted">Henüz takip günü eklenmedi.</p>
+              ) : (
+                <div className="space-y-2">
+                  {followUpDays.map((fd, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="Gün"
+                        value={fd.day || ''}
+                        onChange={(e) => setFollowUpDays((prev) =>
+                          prev.map((item, idx) => idx === i ? { ...item, day: Number(e.target.value) } : item)
+                        )}
+                        className="w-20 border border-salon-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Açıklama"
+                        value={fd.label}
+                        onChange={(e) => setFollowUpDays((prev) =>
+                          prev.map((item, idx) => idx === i ? { ...item, label: e.target.value } : item)
+                        )}
+                        className="flex-1 border border-salon-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFollowUpDays((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="p-1.5 text-salon-muted hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>İptal</Button>
             <Button type="submit" disabled={mutation.isPending} className="flex-1">

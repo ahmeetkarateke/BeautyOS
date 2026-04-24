@@ -119,6 +119,13 @@
 - `POST /revenues` → walk-in manuel gelir (appointmentId nullable Transaction)
 - Transaction tablosuna `notes String?` eklendi, `appointmentId` + `staffId` nullable yapıldı (migration)
 
+**Sektör & Follow-up Ayarları ✅ (24.04.2026)**
+- `PATCH /settings` Zod schema'ya iki yeni opsiyonel alan eklendi:
+  - `businessType`: `'barbershop' | 'beauty_center' | 'nail_studio' | 'aesthetic' | 'other'`
+  - `followUpEnabled`: `boolean`
+- Migration gerekmedi — her ikisi de `Tenant.settings` JSON blob'una yazılıyor
+- `GET /settings` response'unda `settings` nesnesi içinden otomatik dönüyor
+
 **Onboarding Flag ✅ (23.04.2026)**
 - Prisma migration: `20260423030854_add_onboarding_completed` — `Tenant` tablosuna `onboardingCompleted Boolean @default(false)` eklendi
 - `GET /settings` → response'a `onboardingCompleted` dahil edildi
@@ -366,6 +373,12 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 - `isEditable = role === 'owner' || role === 'manager'` — `editable={isEditable}` ile staff için D&D devre dışı
 - `eventDrop` handler: `PATCH /appointments/:id/reschedule { startAt }` çağrısı; başarıda `['appointments-calendar']` + `['appointments']` invalidate + toast; hata durumunda `revert()` + hata toast'u
 - Backend: `PATCH /appointments/:appointmentId/reschedule` endpoint'i eklendi — terminal status koruması, çakışma kontrolü, `endAt` servis süresinden hesaplanıyor, eski reminder job'ları silinip yeni zamana göre yeniden planlanıyor
+
+**Sektör Seçimi + Follow-up Toggle + Hizmet Formu ✅**
+- Onboarding Step1Salon: `businessType` optional radio butonu eklendi — 5 seçenek, görsel kart stili (`border-primary` + `bg-primary-50`), PATCH body'sine dahil
+- Ayarlar Sayfası: `TenantSettings` interface'e `businessType?` + `followUpEnabled?` eklendi; yeni `AdvancedSettingsPanel` bileşeni — işletme türü dropdown + follow-up toggle; `onChange`'de anlık `PATCH /settings` kaydı (ayrı buton yok); `['tenant-settings', slug]` query invalidate
+- Ayarlar sayfası layout güncellendi: salon tab artık iki Card — "Salon Bilgileri" + "Gelişmiş Özellikler"
+- `ServiceModal`: `['tenant-settings', slug]` query ile `followUpEnabled` okunuyor; `true` ise form altında "Takip Günleri" editörü gösteriliyor (dinamik satır ekle/sil, gün + açıklama); veri henüz API'ye gönderilmiyor (backend agent ayrı brief alacak)
 
 **Login → Onboarding Yönlendirmesi DB Bazlı ✅**
 - Login `onSuccess`: `setAuth` sonrası `GET /settings` çağrılıyor (token localStorage'a yazıldıktan hemen sonra, `apiFetch` onu otomatik okur)

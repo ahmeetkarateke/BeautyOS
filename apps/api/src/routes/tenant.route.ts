@@ -773,6 +773,8 @@ export function createTenantRouter(): Router {
     address: z.string().min(5).max(255).optional(),
     workingHours: z.string().min(1).max(200).optional(),
     onboardingCompleted: z.boolean().optional(),
+    businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
+    followUpEnabled: z.boolean().optional(),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {

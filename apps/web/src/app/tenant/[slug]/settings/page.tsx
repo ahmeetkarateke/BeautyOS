@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Building2, Lock, Check, Plug } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -54,11 +54,25 @@ const tabs = [
 
 // ─── Salon settings form ──────────────────────────────────────────────────────
 
+const BUSINESS_TYPES = [
+  { value: 'barbershop',    label: 'Berber / Kuaför' },
+  { value: 'beauty_center', label: 'Güzellik Merkezi / Spa' },
+  { value: 'nail_studio',   label: 'Nail Art Stüdyosu' },
+  { value: 'aesthetic',     label: 'Estetik & Medikal Estetik' },
+  { value: 'other',         label: 'Diğer' },
+] as const
+
 interface TenantSettings {
   id: string
   name: string
   slug: string
-  settings: { phone?: string; address?: string; workingHours?: string }
+  settings: {
+    phone?: string
+    address?: string
+    workingHours?: string
+    businessType?: string
+    followUpEnabled?: boolean
+  }
 }
 
 function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
@@ -138,6 +152,88 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
         )}
       </Button>
     </form>
+  )
+}
+
+// ─── Advanced settings ────────────────────────────────────────────────────────
+
+function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
+  const qc = useQueryClient()
+  const [businessType, setBusinessType] = useState('')
+  const [followUpEnabled, setFollowUpEnabled] = useState(false)
+
+  const { data } = useQuery({
+    queryKey: ['tenant-settings', tenantSlug],
+    queryFn: () => apiFetch<TenantSettings>(`/api/v1/tenants/${tenantSlug}/settings`),
+  })
+
+  useEffect(() => {
+    if (data) {
+      setBusinessType(data.settings?.businessType ?? 'other')
+      setFollowUpEnabled(data.settings?.followUpEnabled ?? false)
+    }
+  }, [data])
+
+  const mutation = useMutation({
+    mutationFn: (patch: Record<string, unknown>) =>
+      apiFetch(`/api/v1/tenants/${tenantSlug}/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant-settings', tenantSlug] }),
+    onError: (err: Error) => toast(err.message, 'error'),
+  })
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <Label htmlFor="adv-business-type">İşletme Türü</Label>
+        <select
+          id="adv-business-type"
+          value={businessType}
+          onChange={(e) => {
+            setBusinessType(e.target.value)
+            mutation.mutate({ businessType: e.target.value })
+          }}
+          className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+        >
+          {BUSINESS_TYPES.map((bt) => (
+            <option key={bt.value} value={bt.value}>{bt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-start justify-between gap-4 pt-4 border-t border-salon-border">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-gray-900">Takip Randevuları</p>
+          <p className="text-xs text-salon-muted mt-1 leading-relaxed">
+            İşlem sonrası otomatik kontrol günleri oluşturma. Botoks, lazer, kalıcı makyaj gibi
+            takip gerektiren hizmetler için uygundur.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={followUpEnabled}
+          onClick={() => {
+            const next = !followUpEnabled
+            setFollowUpEnabled(next)
+            mutation.mutate({ followUpEnabled: next })
+          }}
+          className={cn(
+            'relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200',
+            followUpEnabled ? 'bg-primary' : 'bg-gray-200',
+          )}
+        >
+          <span
+            className={cn(
+              'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200',
+              followUpEnabled ? 'translate-x-4' : 'translate-x-0',
+            )}
+          />
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -304,20 +400,30 @@ export default function SettingsPage({ params }: PageProps) {
         })}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {activeTab === 'salon' && 'Salon Bilgileri'}
-            {activeTab === 'account' && 'Şifre Değiştir'}
-            {activeTab === 'integrations' && 'Entegrasyonlar'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeTab === 'salon' && <SalonSettingsForm tenantSlug={params.slug} />}
-          {activeTab === 'account' && <PasswordForm tenantSlug={params.slug} />}
-          {activeTab === 'integrations' && <IntegrationsPanel />}
-        </CardContent>
-      </Card>
+      {activeTab === 'salon' && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Salon Bilgileri</CardTitle></CardHeader>
+            <CardContent><SalonSettingsForm tenantSlug={params.slug} /></CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Gelişmiş Özellikler</CardTitle></CardHeader>
+            <CardContent><AdvancedSettingsPanel tenantSlug={params.slug} /></CardContent>
+          </Card>
+        </div>
+      )}
+      {activeTab === 'account' && (
+        <Card>
+          <CardHeader><CardTitle>Şifre Değiştir</CardTitle></CardHeader>
+          <CardContent><PasswordForm tenantSlug={params.slug} /></CardContent>
+        </Card>
+      )}
+      {activeTab === 'integrations' && (
+        <Card>
+          <CardHeader><CardTitle>Entegrasyonlar</CardTitle></CardHeader>
+          <CardContent><IntegrationsPanel /></CardContent>
+        </Card>
+      )}
     </div>
   )
 }
