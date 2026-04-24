@@ -119,6 +119,15 @@
 - `POST /revenues` → walk-in manuel gelir (appointmentId nullable Transaction)
 - Transaction tablosuna `notes String?` eklendi, `appointmentId` + `staffId` nullable yapıldı (migration)
 
+**Follow-up Schedule & Otomatik Kontrol Randevuları ✅ (24.04.2026)**
+- Prisma migration: `20260424180753_add_service_follow_up_schedule` — `Service` modeline `followUpSchedule Json?` eklendi
+- Format: `[{ day: 15, label: "15. gün kontrol" }, ...]` — max 10 giriş, 1–365 gün
+- `POST /services` + `PATCH /services/:id` → Zod schema'ya `followUpSchedule` eklendi; `null` ile temizleme (`Prisma.DbNull`) destekleniyor
+- `GET /services` → her hizmette `followUpSchedule` alanı dönüyor
+- `PATCH /appointments/:id/status` → `completed` geçişinde `tenant.settings.followUpEnabled === true` ise her `followUpSchedule` entry'si için otomatik `pending` randevu oluşturuluyor (`bookingChannel: manual`, çakışma kontrolü yapılmıyor)
+- Her takip randevusu için Telegram bildirimi fire-and-forget gönderiliyor: "{serviceName} işleminiz tamamlandı! {label} kontrolünüz ({tarih}) takvime eklendi."
+- Response'a `followUpAppointments: [{id, startAt, label}]` eklendi (yalnızca oluşturulduğunda)
+
 **Sektör & Follow-up Ayarları ✅ (24.04.2026)**
 - `PATCH /settings` Zod schema'ya iki yeni opsiyonel alan eklendi:
   - `businessType`: `'barbershop' | 'beauty_center' | 'nail_studio' | 'aesthetic' | 'other'`

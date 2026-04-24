@@ -6,6 +6,7 @@ import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { remindersQueue } from '../lib/queue'
 import { authenticateJWT, requireTenantAccess } from '../middleware/auth.middleware'
+import { TelegramChannel } from '../channels/telegram.channel'
 
 // ─── Timezone Helpers (Europe/Istanbul = UTC+3 permanent since 2016) ──────────
 
@@ -252,7 +253,7 @@ export function createTenantRouter(): Router {
       const services = await db.service.findMany({
         where: { tenantId, isActive: true, ...(onlineOnly ? { isOnlineBookable: true } : {}) },
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true, isOnlineBookable: true },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, isOnlineBookable: true, followUpSchedule: true },
       })
 
       return res.json({
@@ -263,6 +264,7 @@ export function createTenantRouter(): Router {
           price: Number(s.price),
           category: s.category,
           isOnlineBookable: s.isOnlineBookable,
+          followUpSchedule: s.followUpSchedule ?? null,
         })),
       })
     } catch (err) {
@@ -619,15 +621,22 @@ export function createTenantRouter(): Router {
         select: { id: true, status: true, cancellationReason: true },
       })
 
+      let followUpAppointments: Array<{ id: string; startAt: string; label: string }> = []
+
       if (status === 'completed' && existing.status !== 'completed') {
         const appt = await db.appointment.findFirst({
           where: { id: appointmentId },
-          include: { service: true },
+          include: {
+            service: true,
+            customer: { select: { fullName: true, phone: true } },
+            tenant: { select: { telegramBotToken: true, settings: true } },
+          },
         })
         if (appt) {
           const rate = Number(appt.service.commissionRate)
           const gross = parsed.data.priceCharged ?? Number(appt.priceCharged)
           const method = parsed.data.paymentMethod ?? 'cash'
+          const completedAt = new Date()
           await db.transaction.create({
             data: {
               tenantId,
@@ -640,7 +649,7 @@ export function createTenantRouter(): Router {
               cashAmount: method === 'cash' ? gross : 0,
               cardAmount: method === 'card' ? gross : 0,
               status: 'completed',
-              completedAt: new Date(),
+              completedAt,
             },
           })
           if (parsed.data.priceCharged) {
@@ -649,10 +658,64 @@ export function createTenantRouter(): Router {
               data: { priceCharged: gross },
             })
           }
+
+          // Takip randevuları oluştur
+          const tenantSettings = appt.tenant?.settings as { followUpEnabled?: boolean } | null
+          const schedule = appt.service.followUpSchedule
+          if (
+            tenantSettings?.followUpEnabled === true &&
+            Array.isArray(schedule) &&
+            schedule.length > 0
+          ) {
+            for (const entry of schedule as Array<{ day: number; label: string }>) {
+              const fuStart = new Date(completedAt.getTime() + entry.day * 24 * 60 * 60 * 1000)
+              const fuEnd = new Date(fuStart.getTime() + appt.service.durationMinutes * 60 * 1000)
+              const fuAppt = await db.appointment.create({
+                data: {
+                  tenantId,
+                  customerId: appt.customerId,
+                  staffId: appt.staffId,
+                  serviceId: appt.serviceId,
+                  startAt: fuStart,
+                  endAt: fuEnd,
+                  status: 'pending',
+                  notes: entry.label,
+                  bookingChannel: 'manual',
+                  referenceCode: `APT-${Date.now().toString(36).toUpperCase()}-F${entry.day}`,
+                  priceCharged: appt.priceCharged,
+                },
+              })
+              followUpAppointments.push({ id: fuAppt.id, startAt: fuStart.toISOString(), label: entry.label })
+            }
+
+            // Bildirimleri fire-and-forget gönder
+            void (async () => {
+              try {
+                const botToken = appt.tenant?.telegramBotToken ?? process.env.TELEGRAM_BOT_TOKEN
+                if (!botToken) return
+                const channel = new TelegramChannel(botToken)
+                for (const fu of followUpAppointments) {
+                  const tarih = new Date(fu.startAt).toLocaleDateString('tr-TR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    timeZone: 'Europe/Istanbul',
+                  })
+                  const text = `${appt.service.name} işleminiz tamamlandı! ${fu.label} kontrolünüz (${tarih}) takvime eklendi. Saat değişikliği için bize yazabilirsiniz.`
+                  await channel.sendText(appt.customer.phone, text)
+                }
+              } catch (err) {
+                logger.warn({ err, appointmentId }, 'Follow-up bildirimleri gönderilemedi')
+              }
+            })()
+          }
         }
       }
 
-      return res.json(updated)
+      return res.json({
+        ...updated,
+        ...(followUpAppointments.length > 0 ? { followUpAppointments } : {}),
+      })
     } catch (err) {
       next(err)
     }
@@ -866,12 +929,18 @@ export function createTenantRouter(): Router {
 
   // ─── Services CRUD ────────────────────────────────────────────────────────────
 
+  const followUpEntrySchema = z.object({
+    day: z.number().int().min(1).max(365),
+    label: z.string().max(100),
+  })
+
   const createServiceSchema = z.object({
     name: z.string().min(1).max(100),
     category: z.string().max(50).optional(),
     durationMinutes: z.number().int().min(5),
     price: z.number().min(0),
     bufferMinutes: z.number().int().min(0).optional().default(0),
+    followUpSchedule: z.array(followUpEntrySchema).max(10).optional().nullable(),
   })
 
   const updateServiceSchema = z.object({
@@ -882,6 +951,7 @@ export function createTenantRouter(): Router {
     bufferMinutes: z.number().int().min(0).optional(),
     isActive: z.boolean().optional(),
     isOnlineBookable: z.boolean().optional(),
+    followUpSchedule: z.array(followUpEntrySchema).max(10).optional().nullable(),
   })
 
   router.post('/services', async (req: Request, res: Response, next: NextFunction) => {
@@ -896,12 +966,17 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz hizmet verisi.' } })
       }
 
+      const { followUpSchedule: fuSchedule, ...serviceData } = parsed.data
       const service = await db.service.create({
-        data: { ...parsed.data, tenantId: req.user!.tenantId },
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true },
+        data: {
+          ...serviceData,
+          tenantId: req.user!.tenantId,
+          ...(fuSchedule !== undefined ? { followUpSchedule: fuSchedule ?? Prisma.DbNull } : {}),
+        },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, followUpSchedule: true },
       })
 
-      return res.status(201).json({ ...service, price: Number(service.price) })
+      return res.status(201).json({ ...service, price: Number(service.price), followUpSchedule: service.followUpSchedule ?? null })
     } catch (err) {
       next(err)
     }
@@ -927,13 +1002,17 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
       }
 
+      const { followUpSchedule: fuSchedule, ...updateData } = parsed.data
       const updated = await db.service.update({
         where: { id: serviceId },
-        data: parsed.data,
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, isOnlineBookable: true },
+        data: {
+          ...updateData,
+          ...(fuSchedule !== undefined ? { followUpSchedule: fuSchedule ?? Prisma.DbNull } : {}),
+        },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, isOnlineBookable: true, followUpSchedule: true },
       })
 
-      return res.json({ ...updated, price: Number(updated.price) })
+      return res.json({ ...updated, price: Number(updated.price), followUpSchedule: updated.followUpSchedule ?? null })
     } catch (err) {
       next(err)
     }
