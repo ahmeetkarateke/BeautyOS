@@ -22,6 +22,7 @@ interface Service {
   durationMinutes: number
   price: number
   isActive: boolean
+  followUpSchedule?: Array<{ day: number; label: string }> | null
 }
 
 interface Props {
@@ -69,15 +70,17 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
         ? { name: service.name, category: service.category ?? '', durationMinutes: service.durationMinutes, price: service.price, isActive: service.isActive }
         : { name: '', category: '', durationMinutes: 60, price: 0, isActive: true }
       )
-      setFollowUpDays([])
+      setFollowUpDays(service?.followUpSchedule ?? [])
     }
   }, [open, service, reset])
 
   const mutation = useMutation({
-    mutationFn: (data: FormValues) =>
-      isEdit
-        ? apiFetch(`/api/v1/tenants/${tenantSlug}/services/${service!.id}`, { method: 'PATCH', body: JSON.stringify(data) })
-        : apiFetch(`/api/v1/tenants/${tenantSlug}/services`, { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: (data: FormValues) => {
+      const payload = { ...data, followUpSchedule: followUpDays.length > 0 ? followUpDays : null }
+      return isEdit
+        ? apiFetch(`/api/v1/tenants/${tenantSlug}/services/${service!.id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+        : apiFetch(`/api/v1/tenants/${tenantSlug}/services`, { method: 'POST', body: JSON.stringify(payload) })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['services', tenantSlug] })
       toast(isEdit ? 'Hizmet güncellendi' : 'Hizmet oluşturuldu')

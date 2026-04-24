@@ -20,6 +20,7 @@ interface Service {
   durationMinutes: number
   price: number
   isActive: boolean
+  followUpSchedule?: Array<{ day: number; label: string }> | null
 }
 
 interface PageProps {
