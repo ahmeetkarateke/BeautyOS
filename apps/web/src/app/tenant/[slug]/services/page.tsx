@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, PowerOff } from 'lucide-react'
+import { Plus, Pencil, PowerOff, Power } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ServiceModal } from '@/components/services/service-modal'
@@ -36,7 +36,7 @@ export default function ServicesPage({ params }: PageProps) {
 
   const { data, isLoading } = useQuery({
     queryKey: ['services', params.slug],
-    queryFn: () => apiFetch<{ data: Service[] }>(`/api/v1/tenants/${params.slug}/services`),
+    queryFn: () => apiFetch<{ data: Service[] }>(`/api/v1/tenants/${params.slug}/services?includeInactive=true`),
   })
 
   const deleteMutation = useMutation({
@@ -46,6 +46,19 @@ export default function ServicesPage({ params }: PageProps) {
       qc.invalidateQueries({ queryKey: ['services', params.slug] })
       toast('Hizmet pasif yapıldı')
       setDeleteTarget(undefined)
+    },
+    onError: (err: Error) => toast(err.message, 'error'),
+  })
+
+  const activateMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/v1/tenants/${params.slug}/services/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: true }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['services', params.slug] })
+      toast('Hizmet aktif edildi')
     },
     onError: (err: Error) => toast(err.message, 'error'),
   })
@@ -117,13 +130,22 @@ export default function ServicesPage({ params }: PageProps) {
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
-                        {svc.isActive && (
+                        {svc.isActive ? (
                           <button
                             onClick={() => setDeleteTarget(svc)}
                             className="p-2 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                             title="Pasif yap"
                           >
                             <PowerOff className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => activateMutation.mutate(svc.id)}
+                            disabled={activateMutation.isPending}
+                            className="p-2 text-salon-muted hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                            title="Aktif et"
+                          >
+                            <Power className="w-4 h-4" />
                           </button>
                         )}
                       </div>

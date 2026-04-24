@@ -13,9 +13,11 @@ interface AuthState {
   user: User | null
   token: string | null
   onboardingCompleted: boolean
+  _hasHydrated: boolean
   setAuth: (user: User, token: string) => void
   logout: () => void
   completeOnboarding: () => void
+  setHasHydrated: (v: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -24,6 +26,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       onboardingCompleted: false,
+      _hasHydrated: false,
       setAuth: (user, token) => {
         localStorage.setItem('beautyos_token', token)
         set({ user, token })
@@ -33,6 +36,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, token: null, onboardingCompleted: false })
       },
       completeOnboarding: () => set({ onboardingCompleted: true }),
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
     {
       name: 'beautyos-auth',
@@ -41,6 +45,9 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         onboardingCompleted: state.onboardingCompleted,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
+      },
     },
   ),
 )

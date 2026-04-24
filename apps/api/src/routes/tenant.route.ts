@@ -250,10 +250,15 @@ export function createTenantRouter(): Router {
       const tenantId = req.user!.tenantId
 
       const onlineOnly = req.query.onlineOnly === 'true'
+      const includeInactive = req.query.includeInactive === 'true'
       const services = await db.service.findMany({
-        where: { tenantId, isActive: true, ...(onlineOnly ? { isOnlineBookable: true } : {}) },
+        where: {
+          tenantId,
+          ...(includeInactive ? {} : { isActive: true }),
+          ...(onlineOnly ? { isOnlineBookable: true } : {}),
+        },
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true, isOnlineBookable: true, followUpSchedule: true },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, isActive: true, isOnlineBookable: true, followUpSchedule: true },
       })
 
       return res.json({
@@ -263,6 +268,7 @@ export function createTenantRouter(): Router {
           durationMinutes: s.durationMinutes,
           price: Number(s.price),
           category: s.category,
+          isActive: s.isActive,
           isOnlineBookable: s.isOnlineBookable,
           followUpSchedule: s.followUpSchedule ?? null,
         })),
