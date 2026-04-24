@@ -1,15 +1,20 @@
 'use client'
 
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
-import { Phone, Clock, User, Scissors, CreditCard } from 'lucide-react'
+import { apiFetch } from '@/lib/api'
+import { toast } from '@/components/ui/toaster'
+import { Phone, Clock, User, Scissors, CreditCard, Pencil } from 'lucide-react'
 import type { AppointmentEventProps } from './appointment-calendar'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   detail: AppointmentEventProps | null
+  tenantSlug: string
   onChangeStatus: () => void
 }
 
@@ -31,7 +36,40 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export function AppointmentDetailSheet({ open, onOpenChange, detail, onChangeStatus }: Props) {
+function toDatetimeLocal(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+export function AppointmentDetailSheet({ open, onOpenChange, detail, tenantSlug, onChangeStatus }: Props) {
+  const qc = useQueryClient()
+  const [editingTime, setEditingTime] = useState(false)
+  const [newStart, setNewStart] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const TERMINAL = ['completed', 'cancelled', 'no_show']
+
+  async function handleReschedule() {
+    if (!detail || !newStart) return
+    setSaving(true)
+    try {
+      await apiFetch(`/api/v1/tenants/${tenantSlug}/appointments/${detail.appointmentId}/reschedule`, {
+        method: 'PATCH',
+        body: JSON.stringify({ startAt: new Date(newStart).toISOString() }),
+      })
+      qc.invalidateQueries({ queryKey: ['appointments-calendar', tenantSlug] })
+      qc.invalidateQueries({ queryKey: ['appointments', tenantSlug] })
+      toast('Randevu saati güncellendi')
+      setEditingTime(false)
+      onOpenChange(false)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Bir sorun oluştu', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (!detail) return null
 
   return (
@@ -72,13 +110,54 @@ export function AppointmentDetailSheet({ open, onOpenChange, detail, onChangeSta
           </div>
 
           {/* Saat */}
-          <div className="flex items-center gap-3">
-            <Clock className="w-4 h-4 text-salon-muted flex-shrink-0" />
-            <p className="text-sm text-gray-700">
-              {new Date(detail.startTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-              {' – '}
-              {new Date(detail.endTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-            </p>
+          <div className="flex items-start gap-3">
+            <Clock className="w-4 h-4 text-salon-muted flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              {editingTime ? (
+                <div className="space-y-2">
+                  <input
+                    type="datetime-local"
+                    value={newStart}
+                    onChange={(e) => setNewStart(e.target.value)}
+                    className="w-full border border-salon-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingTime(false)}
+                      className="text-xs text-salon-muted hover:text-gray-700"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      onClick={handleReschedule}
+                      disabled={saving}
+                      className="text-xs font-medium text-primary hover:text-primary/80 disabled:opacity-50"
+                    >
+                      {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-700">
+                    {new Date(detail.startTime).toLocaleString('tr-TR', {
+                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                    })}
+                    {' – '}
+                    {new Date(detail.endTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {!TERMINAL.includes(detail.status) && (
+                    <button
+                      onClick={() => { setNewStart(toDatetimeLocal(detail.startTime)); setEditingTime(true) }}
+                      className="text-salon-muted hover:text-primary transition-colors"
+                      title="Saati değiştir"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Ücret */}

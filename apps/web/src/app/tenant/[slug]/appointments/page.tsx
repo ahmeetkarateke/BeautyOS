@@ -97,6 +97,7 @@ export default function AppointmentsPage({ params }: PageProps) {
         open={!!detailModal}
         onOpenChange={(open) => { if (!open) setDetailModal(null) }}
         detail={detailModal}
+        tenantSlug={params.slug}
         onChangeStatus={handleOpenStatusModal}
       />
 
