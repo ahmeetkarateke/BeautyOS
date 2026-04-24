@@ -138,6 +138,9 @@ export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointmen
         editable={isEditable}
         selectable={true}
         selectMirror={true}
+        longPressDelay={150}
+        eventLongPressDelay={150}
+        selectLongPressDelay={150}
         events={events}
         eventDrop={async ({ event, revert }) => {
           if (!event.start) return

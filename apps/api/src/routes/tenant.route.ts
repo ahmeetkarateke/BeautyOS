@@ -673,9 +673,32 @@ export function createTenantRouter(): Router {
             Array.isArray(schedule) &&
             schedule.length > 0
           ) {
+            const durationMs = appt.service.durationMinutes * 60 * 1000
+            const originalStart = new Date(appt.startAt)
+
             for (const entry of schedule as Array<{ day: number; label: string }>) {
-              const fuStart = new Date(completedAt.getTime() + entry.day * 24 * 60 * 60 * 1000)
-              const fuEnd = new Date(fuStart.getTime() + appt.service.durationMinutes * 60 * 1000)
+              // Same time-of-day as original appointment, N days later
+              let fuStart = new Date(originalStart.getTime() + entry.day * 24 * 60 * 60 * 1000)
+
+              // Resolve slot conflicts: find next free slot for this staff
+              let attempts = 0
+              while (attempts < 24) {
+                const fuEnd = new Date(fuStart.getTime() + durationMs)
+                const conflict = await db.appointment.findFirst({
+                  where: {
+                    staffId: appt.staffId,
+                    status: { notIn: ['cancelled', 'no_show'] },
+                    startAt: { lt: fuEnd },
+                    endAt: { gt: fuStart },
+                  },
+                  orderBy: { endAt: 'asc' },
+                })
+                if (!conflict) break
+                fuStart = new Date(conflict.endAt)
+                attempts++
+              }
+
+              const fuEnd = new Date(fuStart.getTime() + durationMs)
               const fuAppt = await db.appointment.create({
                 data: {
                   tenantId,
