@@ -6,10 +6,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Building2, Lock, Check, Plug } from 'lucide-react'
+import { Building2, Lock, Check, Plug, Plus, X, RotateCcw } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { SECTOR_DATA, DEFAULT_SECTOR } from '@/lib/sector-data'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
@@ -72,6 +73,7 @@ interface TenantSettings {
     workingHours?: string
     businessType?: string
     followUpEnabled?: boolean
+    serviceCategories?: string[]
   }
 }
 
@@ -161,6 +163,8 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
   const qc = useQueryClient()
   const [businessType, setBusinessType] = useState('')
   const [followUpEnabled, setFollowUpEnabled] = useState(false)
+  const [categories, setCategories] = useState<string[]>([])
+  const [newCat, setNewCat] = useState('')
 
   const { data } = useQuery({
     queryKey: ['tenant-settings', tenantSlug],
@@ -169,8 +173,11 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
 
   useEffect(() => {
     if (data) {
-      setBusinessType(data.settings?.businessType ?? 'other')
+      const bt = data.settings?.businessType ?? 'other'
+      setBusinessType(bt)
       setFollowUpEnabled(data.settings?.followUpEnabled ?? false)
+      const saved = data.settings?.serviceCategories
+      setCategories(saved && saved.length > 0 ? saved : (SECTOR_DATA[bt] ?? DEFAULT_SECTOR).categories)
     }
   }, [data])
 
@@ -183,6 +190,27 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant-settings', tenantSlug] }),
     onError: (err: Error) => toast(err.message, 'error'),
   })
+
+  function saveCategories(cats: string[]) {
+    setCategories(cats)
+    mutation.mutate({ serviceCategories: cats })
+  }
+
+  function addCategory() {
+    const trimmed = newCat.trim()
+    if (!trimmed || categories.includes(trimmed)) return
+    saveCategories([...categories, trimmed])
+    setNewCat('')
+  }
+
+  function removeCategory(cat: string) {
+    saveCategories(categories.filter((c) => c !== cat))
+  }
+
+  function resetToDefaults() {
+    const defaults = (SECTOR_DATA[businessType] ?? DEFAULT_SECTOR).categories
+    saveCategories(defaults)
+  }
 
   return (
     <div className="space-y-5">
@@ -201,6 +229,59 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
             <option key={bt.value} value={bt.value}>{bt.label}</option>
           ))}
         </select>
+      </div>
+
+      {/* Hizmet Kategorileri */}
+      <div className="space-y-3 pt-4 border-t border-salon-border">
+        <div className="flex items-center justify-between">
+          <Label>Hizmet Kategorileri</Label>
+          <button
+            type="button"
+            onClick={resetToDefaults}
+            className="flex items-center gap-1 text-xs text-salon-muted hover:text-gray-700 transition-colors"
+            title="Sektör varsayılanlarına sıfırla"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Varsayılana sıfırla
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {categories.map((cat) => (
+            <span
+              key={cat}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-salon-bg border border-salon-border text-sm text-gray-700"
+            >
+              {cat}
+              <button
+                type="button"
+                onClick={() => removeCategory(cat)}
+                className="text-salon-muted hover:text-red-500 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
+            placeholder="Yeni kategori adı"
+            className="flex-1 border border-salon-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <button
+            type="button"
+            onClick={addCategory}
+            disabled={!newCat.trim()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Ekle
+          </button>
+        </div>
+        <p className="text-xs text-salon-muted">Değişiklikler otomatik kaydedilir.</p>
       </div>
 
       <div className="flex items-start justify-between gap-4 pt-4 border-t border-salon-border">

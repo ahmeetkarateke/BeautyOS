@@ -51,13 +51,16 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
 
   const { data: settingsData } = useQuery({
     queryKey: ['tenant-settings', tenantSlug],
-    queryFn: () => apiFetch<{ settings?: { followUpEnabled?: boolean; businessType?: string } }>(`/api/v1/tenants/${tenantSlug}/settings`),
+    queryFn: () => apiFetch<{ settings?: { followUpEnabled?: boolean; businessType?: string; serviceCategories?: string[] } }>(`/api/v1/tenants/${tenantSlug}/settings`),
     enabled: open,
   })
 
   const followUpEnabled = settingsData?.settings?.followUpEnabled === true
   const businessType = settingsData?.settings?.businessType ?? ''
   const sector = SECTOR_DATA[businessType] ?? DEFAULT_SECTOR
+  const categories = settingsData?.settings?.serviceCategories?.length
+    ? settingsData.settings.serviceCategories
+    : sector.categories
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -104,7 +107,7 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
             <Label htmlFor="svc-category">Kategori</Label>
             <Select id="svc-category" {...register('category')}>
               <option value="">Seçiniz</option>
-              {sector.categories.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </Select>
