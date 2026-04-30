@@ -25,6 +25,8 @@ if (process.env.SENTRY_DSN) {
   })
 }
 
+const startedAt = Date.now()
+
 async function bootstrap(): Promise<void> {
   // ─── Bağımlılıkları başlat ─────────────────────────────────────────────────
 
@@ -94,6 +96,36 @@ async function bootstrap(): Promise<void> {
 
   app.get('/', (_req, res) => {
     res.json({ service: 'BeautyOS API', version: '1.0.0', status: 'ok' })
+  })
+
+  // ─── Deep health check (UptimeRobot / BetterUptime için) ─────────────────
+
+  app.get('/health', async (_req, res) => {
+    let dbOk = false
+    let redisOk = false
+
+    try {
+      await db.$queryRaw`SELECT 1`
+      dbOk = true
+    } catch {
+      logger.error('Health check: DB ping failed')
+    }
+
+    try {
+      redisOk = await sessionService.ping()
+    } catch {
+      logger.error('Health check: Redis ping failed')
+    }
+
+    const uptimeSeconds = Math.floor((Date.now() - startedAt) / 1000)
+    const status = dbOk && redisOk ? 'ok' : 'degraded'
+
+    res.status(dbOk && redisOk ? 200 : 503).json({
+      status,
+      db: dbOk ? 'ok' : 'error',
+      redis: redisOk ? 'ok' : 'error',
+      uptime: `${uptimeSeconds}s`,
+    })
   })
 
   // ─── Geçici debug endpoint (AI + Redis bağlantı testi) ───────────────────
