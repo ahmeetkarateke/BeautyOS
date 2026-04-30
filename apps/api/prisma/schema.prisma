@@ -264,6 +264,7 @@ model Appointment {
   notes              String?
   cancellationReason String?
   cancelledById      String?           @db.Uuid
+  isDeleted          Boolean           @default(false)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 

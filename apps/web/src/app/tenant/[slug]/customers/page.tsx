@@ -4,22 +4,21 @@ import { useState, useMemo } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   flexRender,
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, Phone, ChevronUp, ChevronDown } from 'lucide-react'
+import { Search, Plus, Phone, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { NewCustomerModal } from '@/components/customers/new-customer-modal'
 import { useAuthStore } from '@/store/auth'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface Customer {
   id: string
@@ -29,6 +28,11 @@ interface Customer {
   totalVisits: number
   lastVisitDate?: string
   createdAt: string
+}
+
+interface CustomersResponse {
+  data: Customer[]
+  nextCursor?: string
 }
 
 const columnHelper = createColumnHelper<Customer>()
@@ -41,15 +45,35 @@ export default function CustomersPage({ params }: PageProps) {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const isStaff = user?.role === 'staff'
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [search, setSearch] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [modalOpen, setModalOpen] = useState(false)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['customers', params.slug],
-    queryFn: () =>
-      apiFetch<{ data: Customer[] }>(`/api/v1/tenants/${params.slug}/customers`),
+  const debouncedSearch = useDebounce(search, 400)
+
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['customers', params.slug, debouncedSearch],
+    queryFn: ({ pageParam }) => {
+      const qs = new URLSearchParams()
+      if (debouncedSearch) qs.set('search', debouncedSearch)
+      if (pageParam) qs.set('cursor', pageParam as string)
+      const query = qs.toString() ? `?${qs.toString()}` : ''
+      return apiFetch<CustomersResponse>(`/api/v1/tenants/${params.slug}/customers${query}`)
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled: debouncedSearch.length === 0 || debouncedSearch.length >= 2,
   })
+
+  // Show empty list while user is typing but hasn't reached 2 chars yet
+  const showEmpty = search.length > 0 && search.length < 2
+  const allCustomers = showEmpty ? [] : (data?.pages.flatMap((p) => p.data) ?? [])
 
   const columns = useMemo(
     () => [
@@ -98,13 +122,11 @@ export default function CustomersPage({ params }: PageProps) {
   )
 
   const table = useReactTable({
-    data: data?.data ?? [],
+    data: allCustomers,
     columns,
-    state: { globalFilter, sorting },
-    onGlobalFilterChange: setGlobalFilter,
+    state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
 
@@ -140,19 +162,19 @@ export default function CustomersPage({ params }: PageProps) {
         </Button>
       </div>
 
-      {/* Search */}
+      {/* Arama */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-salon-muted" />
         <input
           type="text"
           placeholder="İsim veya telefon ile ara..."
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           className="w-full h-11 pl-9 pr-4 rounded-md border border-salon-border bg-white text-sm placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
         />
       </div>
 
-      {/* Table */}
+      {/* Tablo */}
       <div className="bg-white rounded-lg border border-salon-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -205,15 +227,29 @@ export default function CustomersPage({ params }: PageProps) {
 
         {!isLoading && table.getRowModel().rows.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-sm text-salon-muted">Müşteri bulunamadı</p>
+            <p className="text-sm text-salon-muted">
+              {showEmpty ? 'Aramak için en az 2 karakter girin' : 'Müşteri bulunamadı'}
+            </p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-salon-border bg-salon-bg">
+        <div className="px-4 py-3 border-t border-salon-border bg-salon-bg flex items-center justify-between gap-3">
           <p className="text-xs text-salon-muted">
-            {table.getFilteredRowModel().rows.length} müşteri gösteriliyor
+            {table.getRowModel().rows.length} müşteri gösteriliyor
           </p>
+          {hasNextPage && !showEmpty && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className="gap-2"
+            >
+              {isFetchingNextPage && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Daha Fazla Yükle
+            </Button>
+          )}
         </div>
       </div>
 

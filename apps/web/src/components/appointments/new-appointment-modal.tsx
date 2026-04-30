@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { SlotSelect } from '@/components/appointments/slot-select'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
@@ -27,7 +28,7 @@ const schema = z.object({
   customerId: z.string().min(1, 'Müşteri seçiniz'),
   serviceId: z.string().min(1, 'Hizmet seçiniz'),
   staffId: z.string().min(1, 'Personel seçiniz'),
-  startAt: z.string().min(1, 'Başlangıç tarihi giriniz'),
+  startAt: z.string().min(1, 'Saat seçiniz'),
   notes: z.string().optional(),
 })
 
@@ -43,8 +44,21 @@ interface Staff {
   skills: { serviceId: string; serviceName: string }[]
 }
 
-export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultStart, defaultEnd }: Props) {
+const pad = (n: number) => String(n).padStart(2, '0')
+
+function toDateInput(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function toTimeLabel(d: Date) {
+  // slot labels are in TR time (UTC+3)
+  const trDate = new Date(d.getTime() + 3 * 60 * 60 * 1000)
+  return `${pad(trDate.getUTCHours())}:${pad(trDate.getUTCMinutes())}`
+}
+
+export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultStart, defaultEnd: _defaultEnd }: Props) {
   const qc = useQueryClient()
+  const [date, setDate] = useState('')
 
   const { data: customers } = useQuery({
     queryKey: ['customers', tenantSlug],
@@ -77,17 +91,8 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
 
   useEffect(() => {
     if (open) {
-      reset({
-        startAt: defaultStart
-          ? new Date(defaultStart.getTime() - defaultStart.getTimezoneOffset() * 60000)
-              .toISOString()
-              .slice(0, 16)
-          : '',
-        customerId: '',
-        serviceId: '',
-        staffId: '',
-        notes: '',
-      })
+      setDate(defaultStart ? toDateInput(defaultStart) : '')
+      reset({ customerId: '', serviceId: '', staffId: '', startAt: '', notes: '' })
     }
   }, [open, defaultStart])
 
@@ -95,6 +100,14 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
   const isStaff = currentUser?.role === 'staff'
 
   const selectedServiceId = watch('serviceId')
+  const selectedStaffId = watch('staffId')
+  const startAt = watch('startAt')
+
+  // Clear slot when service, staff, or date changes
+  useEffect(() => {
+    setValue('startAt', '')
+  }, [selectedServiceId, selectedStaffId, date])
+
   const allStaff = staff?.data ?? []
   const selfStaff = isStaff
     ? allStaff.filter((s) => s.email === currentUser?.email)
@@ -102,6 +115,12 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
   const filteredStaff = selectedServiceId
     ? selfStaff.filter((s) => s.skills.some((sk) => sk.serviceId === selectedServiceId))
     : selfStaff
+
+  // Auto-snap time for calendar clicks (TR timezone label)
+  const defaultTime = useMemo(
+    () => (defaultStart ? toTimeLabel(defaultStart) : undefined),
+    [defaultStart],
+  )
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) =>
@@ -121,6 +140,18 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
       toast(err.message, 'error')
     },
   })
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Warn if selected slot is in the past
+  const isPastSlot = (() => {
+    if (!startAt) return false
+    const selected = new Date(startAt)
+    const now = new Date()
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    return selected >= todayStart && selected < now
+  })()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -181,37 +212,36 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="startAt">Tarih & Saat</Label>
+            <Label htmlFor="appt-date">Tarih</Label>
             <Input
-              id="startAt"
-              type="datetime-local"
-              min={new Date(new Date().setHours(0, 0, 0, 0)).toISOString().slice(0, 16)}
-              error={errors.startAt?.message}
-              {...register('startAt', {
-                validate: (v) => {
-                  const selected = new Date(v)
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  return selected >= today || 'Geçmiş bir güne randevu ekleyemezsiniz'
-                },
-              })}
+              id="appt-date"
+              type="date"
+              min={today}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
             />
-            {(() => {
-              const val = watch('startAt')
-              if (!val) return null
-              const selected = new Date(val)
-              const now = new Date()
-              const todayStart = new Date()
-              todayStart.setHours(0, 0, 0, 0)
-              if (selected >= todayStart && selected < now) {
-                return (
-                  <p className="text-xs text-amber-600 mt-1">
-                    Geçmiş saate randevu ekliyorsunuz — gelen müşteri kaydı olarak işlenecek.
-                  </p>
-                )
-              }
-              return null
-            })()}
+          </div>
+
+          {/* Hidden field for RHF registration + validation */}
+          <input type="hidden" {...register('startAt')} />
+
+          <div className="space-y-2">
+            <Label>Saat</Label>
+            <SlotSelect
+              tenantSlug={tenantSlug}
+              serviceId={selectedServiceId}
+              staffId={selectedStaffId}
+              date={date}
+              value={startAt}
+              onChange={(iso) => setValue('startAt', iso, { shouldValidate: true })}
+              error={errors.startAt?.message}
+              defaultTime={defaultTime}
+            />
+            {isPastSlot && (
+              <p className="text-xs text-amber-600">
+                Geçmiş saate randevu ekliyorsunuz — gelen müşteri kaydı olarak işlenecek.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

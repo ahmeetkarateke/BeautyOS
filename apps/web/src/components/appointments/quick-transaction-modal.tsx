@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { SlotSelect } from '@/components/appointments/slot-select'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
@@ -44,6 +46,9 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const isStaff = user?.role === 'staff'
+
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [slotId, setSlotId] = useState('')
 
   const { data: customersData } = useQuery({
     queryKey: ['customers', tenantSlug],
@@ -84,20 +89,14 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
   const allStaff = staffData?.data ?? []
   const myProfile = isStaff ? allStaff.find((s) => s.email === user?.email) : undefined
 
-  // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      reset({
-        customerId: '',
-        serviceId: '',
-        staffId: '',
-        priceCharged: 0,
-        paymentMethod: 'cash',
-      })
+      reset({ customerId: '', serviceId: '', staffId: '', priceCharged: 0, paymentMethod: 'cash' })
+      setDate(new Date().toISOString().slice(0, 10))
+      setSlotId('')
     }
   }, [open, reset])
 
-  // Auto-set staffId for staff role once profile is available
   useEffect(() => {
     if (open && isStaff && myProfile) {
       setValue('staffId', myProfile.id)
@@ -105,16 +104,20 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
   }, [open, isStaff, myProfile, setValue])
 
   const selectedServiceId = watch('serviceId')
+  const selectedStaffId = watch('staffId')
   const paymentMethod = watch('paymentMethod')
 
-  // Auto-fill price from selected service
   useEffect(() => {
     if (!selectedServiceId || !servicesData?.data) return
     const svc = servicesData.data.find((s) => s.id === selectedServiceId)
     if (svc) setValue('priceCharged', svc.price)
   }, [selectedServiceId, servicesData, setValue])
 
-  // Filter services: staff sees only their assigned skills
+  // Clear slot when service, staff, or date changes
+  useEffect(() => {
+    setSlotId('')
+  }, [selectedServiceId, selectedStaffId, date])
+
   const allServices = servicesData?.data ?? []
   const visibleServices = isStaff && myProfile
     ? allServices.filter((s) => myProfile.skills.some((sk) => sk.serviceId === s.id))
@@ -122,18 +125,16 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      // Step 1: create appointment with startAt = now
       const apt = await apiFetch<{ id: string }>(`/api/v1/tenants/${tenantSlug}/appointments`, {
         method: 'POST',
         body: JSON.stringify({
           customerId: values.customerId,
           serviceId: values.serviceId,
           staffId: values.staffId,
-          startAt: new Date().toISOString(),
+          startAt: slotId || new Date().toISOString(),
         }),
       })
 
-      // Step 2: immediately mark as completed with payment info
       try {
         await apiFetch(`/api/v1/tenants/${tenantSlug}/appointments/${apt.id}/status`, {
           method: 'PATCH',
@@ -191,7 +192,7 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
             </Select>
           </div>
 
-          {/* Staff — dropdown for owner/manager, hidden for staff role */}
+          {/* Staff */}
           {!isStaff && (
             <div className="space-y-2">
               <Label htmlFor="qt-staffId">Personel</Label>
@@ -205,6 +206,31 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
               </Select>
             </div>
           )}
+
+          {/* Date */}
+          <div className="space-y-2">
+            <Label htmlFor="qt-date">Tarih</Label>
+            <Input
+              id="qt-date"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+
+          {/* Slot */}
+          <div className="space-y-2">
+            <Label>Saat (isteğe bağlı)</Label>
+            <SlotSelect
+              tenantSlug={tenantSlug}
+              serviceId={selectedServiceId}
+              staffId={selectedStaffId}
+              date={date}
+              value={slotId}
+              onChange={setSlotId}
+            />
+          </div>
 
           {/* Price */}
           <div className="space-y-2">
@@ -222,7 +248,7 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
             )}
           </div>
 
-          {/* Payment method toggle */}
+          {/* Payment method */}
           <div className="space-y-2">
             <Label>Ödeme Yöntemi</Label>
             <div className="grid grid-cols-2 gap-2">

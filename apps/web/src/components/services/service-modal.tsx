@@ -44,10 +44,18 @@ type FormValues = z.infer<typeof schema>
 
 interface FollowUpDay { day: number; label: string }
 
+const followUpEntrySchema = z.object({
+  day: z.number().int().min(1, 'En az 1').max(365, 'En fazla 365'),
+  label: z.string().min(1, 'Açıklama gerekli').max(50, 'En fazla 50 karakter'),
+})
+
+const MAX_FOLLOW_UP = 10
+
 export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props) {
   const qc = useQueryClient()
   const isEdit = !!service
   const [followUpDays, setFollowUpDays] = useState<FollowUpDay[]>([])
+  const [followUpErrors, setFollowUpErrors] = useState<string[]>([])
 
   const { data: settingsData } = useQuery({
     queryKey: ['tenant-settings', tenantSlug],
@@ -77,16 +85,23 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
     }
   }, [open, service, reset])
 
+  const activeFollowUp = followUpEnabled ? followUpDays : []
+
   const mutation = useMutation({
     mutationFn: (data: FormValues) => {
-      const payload = { ...data, followUpSchedule: followUpDays.length > 0 ? followUpDays : null }
+      const payload = {
+        ...data,
+        followUpSchedule: activeFollowUp.length > 0 ? activeFollowUp : null,
+      }
       return isEdit
         ? apiFetch(`/api/v1/tenants/${tenantSlug}/services/${service!.id}`, { method: 'PATCH', body: JSON.stringify(payload) })
         : apiFetch(`/api/v1/tenants/${tenantSlug}/services`, { method: 'POST', body: JSON.stringify(payload) })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['services', tenantSlug] })
-      toast(isEdit ? 'Hizmet güncellendi' : 'Hizmet oluşturuldu')
+      const count = activeFollowUp.length
+      const label = isEdit ? 'Hizmet güncellendi' : 'Hizmet oluşturuldu'
+      toast(count > 0 ? `${label} (${count} takip günü)` : label)
       onOpenChange(false)
     },
     onError: (err: Error) => toast(err.message, 'error'),
@@ -98,7 +113,21 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Hizmet Düzenle' : 'Yeni Hizmet'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+        <form
+          onSubmit={handleSubmit((d) => {
+            if (followUpEnabled && followUpDays.length > 0) {
+              const errs = followUpDays.map((fd) => {
+                const result = followUpEntrySchema.safeParse(fd)
+                return result.success ? '' : result.error.issues[0].message
+              })
+              setFollowUpErrors(errs)
+              if (errs.some(Boolean)) return
+            }
+            setFollowUpErrors([])
+            mutation.mutate(d)
+          })}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="svc-name">Hizmet Adı</Label>
             <Input id="svc-name" placeholder="Protez Tırnak" error={errors.name?.message} {...register('name')} />
@@ -132,8 +161,9 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
                 <Label>Takip Günleri</Label>
                 <button
                   type="button"
-                  onClick={() => setFollowUpDays((prev) => [...prev, { day: 0, label: '' }])}
-                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  disabled={followUpDays.length >= MAX_FOLLOW_UP}
+                  onClick={() => setFollowUpDays((prev) => [...prev, { day: 1, label: '' }])}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3 h-3" />
                   Ekle
@@ -144,33 +174,49 @@ export function ServiceModal({ open, onOpenChange, tenantSlug, service }: Props)
               ) : (
                 <div className="space-y-2">
                   {followUpDays.map((fd, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="Gün"
-                        value={fd.day || ''}
-                        onChange={(e) => setFollowUpDays((prev) =>
-                          prev.map((item, idx) => idx === i ? { ...item, day: Number(e.target.value) } : item)
-                        )}
-                        className="w-20 border border-salon-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Açıklama"
-                        value={fd.label}
-                        onChange={(e) => setFollowUpDays((prev) =>
-                          prev.map((item, idx) => idx === i ? { ...item, label: e.target.value } : item)
-                        )}
-                        className="flex-1 border border-salon-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFollowUpDays((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="p-1.5 text-salon-muted hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                    <div key={i} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          placeholder="Gün"
+                          value={fd.day || ''}
+                          onChange={(e) => {
+                            setFollowUpDays((prev) =>
+                              prev.map((item, idx) => idx === i ? { ...item, day: Number(e.target.value) } : item)
+                            )
+                            setFollowUpErrors((prev) => prev.map((err, idx) => idx === i ? '' : err))
+                          }}
+                          className="w-20 border border-salon-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Açıklama (max 50 karakter)"
+                          value={fd.label}
+                          maxLength={50}
+                          onChange={(e) => {
+                            setFollowUpDays((prev) =>
+                              prev.map((item, idx) => idx === i ? { ...item, label: e.target.value } : item)
+                            )
+                            setFollowUpErrors((prev) => prev.map((err, idx) => idx === i ? '' : err))
+                          }}
+                          className="flex-1 border border-salon-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFollowUpDays((prev) => prev.filter((_, idx) => idx !== i))
+                            setFollowUpErrors((prev) => prev.filter((_, idx) => idx !== i))
+                          }}
+                          className="p-1.5 text-salon-muted hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {followUpErrors[i] && (
+                        <p className="text-xs text-red-500 pl-1">{followUpErrors[i]}</p>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -172,8 +172,9 @@
 |---|---|
 | Randevu formunda hizmet → personel filtreleme (Agent 01) | Yüksek |
 | ✅ Bot: skill + mesai + izin farkındalığı (Agent 03) | Tamamlandı |
-| `DELETE /appointments/:id` | Düşük |
-| Pagination (cursor-based) customers/appointments için | Düşük |
+| ✅ `DELETE /appointments/:id` + `PATCH notes` (01.05.2026) | Tamamlandı |
+| ✅ Müşteri + randevu arama/filtreleme + cursor pagination (01.05.2026) | Tamamlandı |
+| ✅ Public Slots API — `/public/slots` + `/public/services` (01.05.2026) | Tamamlandı |
 
 ---
 
@@ -413,7 +414,11 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 | Görev | Öncelik |
 |---|---|
 | ✅ Bot: skill + mesai + izin farkındalığı (Agent 03) | Tamamlandı |
-| ServiceModal follow-up days: backend `followUpSchedule` alanı eklenince frontend mutation body'ye dahil edilecek | Orta |
+| ✅ Randevu detay — not ekleme/düzenleme + silme (01.05.2026) | Tamamlandı |
+| ✅ Müşteri arama + randevu filtre paneli + cursor pagination (01.05.2026) | Tamamlandı |
+| ✅ Randevu formu — public/slots slot dropdown + SlotSelect bileşeni (01.05.2026) | Tamamlandı |
+| ServiceModal follow-up days: `followUpSchedule` mutation body'ye dahil edilecek | Orta |
+| WhatsApp bot — salon.context.ts → public/slots endpoint'ine geçiş | Orta |
 | PWA manifest + service worker | Düşük |
 | Dark mode | Düşük |
 

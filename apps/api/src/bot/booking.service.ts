@@ -16,18 +16,6 @@ function normalizeTR(str: string): string {
     .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
 }
 
-// ─── workingHours JSON tipleri ────────────────────────────────────────────────
-
-interface DaySchedule { start: string; end: string }
-type WorkingHours = Record<string, DaySchedule | null | undefined>
-
-const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-
-function parseHours(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h + (m ?? 0) / 60
-}
-
 function nowTR(): Date {
   return new Date(Date.now() + TR_OFFSET_MS)
 }
@@ -87,64 +75,70 @@ export function resolveDate(datePreference: string | undefined): Date {
   return today
 }
 
-function resolveTimeRange(timePreference: string | undefined): { start: number; end: number } {
-  if (!timePreference) return { start: 9, end: 19 }
-
-  const pref = timePreference.replace('time:', '').toLowerCase()
-
-  if (pref.includes('sabah')) return { start: 9, end: 12 }
-  if (pref.includes('öğleden sonra') || pref.includes('ogleden sonra')) return { start: 12, end: 17 }
-  if (pref.includes('öğlen') || pref.includes('oglen')) return { start: 11, end: 14 }
-  if (pref.includes('akşam') || pref.includes('aksam') || pref.includes('aksam')) return { start: 15, end: 19 }
-
-  // "saat 14", "14:00", "3 civarı", "15'te"
-  const hourMatch = pref.match(/(?:saat\s*)?(\d{1,2})(?::(\d{2}))?/)
-  if (hourMatch) {
-    let hour = parseInt(hourMatch[1])
-    if (hour < 9) hour += 12
-    return { start: Math.max(9, hour - 1), end: Math.min(19, hour + 2) }
-  }
-
-  return { start: 9, end: 19 }
-}
-
-// ─── Mevcut randevulardan boş slotları hesapla ────────────────────────────────
+// ─── Public Slots API'sinden müsait slotları getir ───────────────────────────
 
 export interface AvailableSlot {
-  id: string        // "YYYY-MM-DDTHH:MM:SS" — slot seçim ID'si olarak kullanılır
+  id: string        // "YYYY-MM-DDTHH:MM:SS__staffId" — slot seçim ID'si olarak kullanılır
   label: string     // "10:00"
   staffId: string
   staffName: string
+}
+
+const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001'
+
+export async function fetchPublicSlots(
+  tenantSlug: string,
+  serviceId: string,
+  staffId: string,
+  date: string, // YYYY-MM-DD
+): Promise<Array<{ id: string; label: string; available: boolean }>> {
+  const url = `${API_BASE_URL}/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${serviceId}&staffId=${staffId}&date=${date}`
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      logger.warn({ status: res.status, url }, 'fetchPublicSlots: API başarısız yanıt')
+      return []
+    }
+    const body = (await res.json()) as { slots?: Array<{ id: string; label: string; available: boolean }> }
+    return body.slots ?? []
+  } catch (err) {
+    logger.warn({ err, tenantSlug, serviceId, staffId, date }, 'fetchPublicSlots: istek hatası')
+    return []
+  }
 }
 
 export async function getAvailableSlots(
   tenantId: string,
   serviceName: string,
   datePreference: string | undefined,
-  timePreference: string | undefined,
+  _timePreference: string | undefined,
 ): Promise<AvailableSlot[]> {
   const date = resolveDate(datePreference)
-  const { start: prefStart, end: prefEnd } = resolveTimeRange(timePreference)
+  const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 
-  // ─ Hizmet bul: önce DB case-insensitive, yoksa TR normalize ile JS tarafında eşleştir ─
+  // Tenant slug
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } })
+  if (!tenant) return []
+
+  // Hizmet bul
   let service = await db.service.findFirst({
     where: { tenantId, name: { contains: serviceName, mode: 'insensitive' }, isActive: true },
+    select: { id: true },
   })
-
   if (!service) {
     const normalizedInput = normalizeTR(serviceName)
-    const allServices = await db.service.findMany({ where: { tenantId, isActive: true } })
-    service = allServices.find(
+    const allServices = await db.service.findMany({ where: { tenantId, isActive: true }, select: { id: true, name: true } })
+    const found = allServices.find(
       (s) => normalizeTR(s.name).includes(normalizedInput) || normalizedInput.includes(normalizeTR(s.name)),
-    ) ?? null
+    )
+    service = found ? { id: found.id } : null
   }
-
   if (!service) {
     logger.warn({ tenantId, serviceName }, 'Hizmet bulunamadı, mock slot dönüyor')
-    return mockSlots(date, prefStart, prefEnd)
+    return mockSlots(date, 9, 19)
   }
 
-  // ─ Skill filtresi: yalnızca bu hizmeti yapabilen personeli al ─────────────
+  // Bu hizmeti yapabilen personel listesi
   const staffList = await db.staffProfile.findMany({
     where: {
       tenantId,
@@ -153,101 +147,27 @@ export async function getAvailableSlots(
     },
     include: { user: { select: { fullName: true } } },
   })
-
   if (staffList.length === 0) {
     logger.warn({ tenantId, serviceId: service.id }, 'Bu hizmeti yapabilen personel bulunamadı')
     return []
   }
 
-  // ─ İzin filtresi: o gün izinli personeli çıkar ───────────────────────────
-  const leaveEnd = new Date(date.getTime() + 24 * 60 * 60 * 1000)
-  const leavesOnDay = await db.staffLeave.findMany({
-    where: {
-      tenantId,
-      staffId: { in: staffList.map((s) => s.id) },
-      leaveDate: { gte: date, lt: leaveEnd },
-    },
-    select: { staffId: true },
-  })
-  const onLeaveIds = new Set(leavesOnDay.map((l) => l.staffId))
-  const workingStaff = staffList.filter((s) => !onLeaveIds.has(s.id))
-
-  if (workingStaff.length === 0) {
-    logger.info({ tenantId, date }, 'Tüm uygun personel bu gün izinli')
-    return []
-  }
-
-  // ─ Çakışma kontrolü için tam TR gününü kapsayan UTC aralığı ──────────────
-  // date = "midnight UTC" of TR calendar date (see resolveDate); TR 00:00 = UTC date-3h
-  const fullDayStart = new Date(date.getTime() + (0  - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
-  const fullDayEnd   = new Date(date.getTime() + (24 - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
-
-  const existingAppointments = await db.appointment.findMany({
-    where: {
-      tenantId,
-      staffId: { in: workingStaff.map((s) => s.id) },
-      startAt: { gte: fullDayStart, lt: fullDayEnd },
-      status: { in: ['pending', 'confirmed', 'in_progress'] },
-    },
-    select: { staffId: true, startAt: true, endAt: true },
-  })
-
-  const slots: AvailableSlot[] = []
-  const slotDuration = service.durationMinutes + service.bufferMinutes
-  const dayKey = DAY_KEYS[date.getUTCDay()]
-
-  for (const sp of workingStaff) {
-    // ─ Mesai filtresi: workingHours JSON'undan o günkü saatleri al ──────────
-    const wh = sp.workingHours as WorkingHours
-    const daySchedule = wh[dayKey]
-
-    if (!daySchedule?.start || !daySchedule?.end) continue // o gün çalışmıyor
-
-    const workStart = parseHours(daySchedule.start) // örn: 9.0
-    const workEnd   = parseHours(daySchedule.end)   // örn: 18.0
-
-    // Kullanıcı tercihi ile mesai saatlerinin kesişimi
-    const effectiveStart = Math.max(prefStart, workStart)
-    const effectiveEnd   = Math.min(prefEnd,   workEnd)
-
-    if (effectiveStart >= effectiveEnd) continue // tercihin tamamı mesai dışında
-
-    const cursorStart = new Date(date.getTime() + (effectiveStart - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
-    const cursorEnd   = new Date(date.getTime() + (effectiveEnd   - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
-
-    let cursor = new Date(cursorStart)
-
-    while (cursor < cursorEnd) {
-      const slotEnd = new Date(cursor.getTime() + slotDuration * 60 * 1000)
-      if (slotEnd > cursorEnd) break
-
-      const hasConflict = existingAppointments.some(
-        (a: { staffId: string; startAt: Date; endAt: Date }) =>
-          a.staffId === sp.id &&
-          a.startAt < slotEnd &&
-          a.endAt > cursor,
-      )
-
-      if (!hasConflict) {
-        // cursor is UTC; add offset to get TR display time
-        const trCursor = new Date(cursor.getTime() + TR_OFFSET_MS)
-        const hh = trCursor.getUTCHours().toString().padStart(2, '0')
-        const mm = trCursor.getUTCMinutes().toString().padStart(2, '0')
-        // id stores UTC ISO so createAppointment parses it correctly
-        const isoSlot = cursor.toISOString().slice(0, 19)
-
-        slots.push({
-          id: `${isoSlot}__${sp.id}`,
-          label: `${hh}:${mm}`,
+  // Her personel için public API'den slot çek
+  const results = await Promise.all(
+    staffList.map(async (sp) => {
+      const raw = await fetchPublicSlots(tenant.slug, service!.id, sp.id, dateStr)
+      return raw
+        .filter((s) => s.available)
+        .map((s): AvailableSlot => ({
+          id: `${s.id}__${sp.id}`,
+          label: s.label,
           staffId: sp.id,
           staffName: sp.user.fullName,
-        })
-      }
+        }))
+    }),
+  )
 
-      cursor = new Date(cursor.getTime() + 30 * 60 * 1000) // 30 dk adım
-    }
-  }
-
+  const slots = results.flat().sort((a, b) => a.id.localeCompare(b.id))
   return slots.slice(0, 6)
 }
 

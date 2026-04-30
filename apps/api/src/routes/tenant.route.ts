@@ -144,7 +144,7 @@ export function createTenantRouter(): Router {
     }
   })
 
-  // GET /api/v1/tenants/:slug/appointments?date=YYYY-MM-DD&limit=10
+  // GET /api/v1/tenants/:slug/appointments?date=YYYY-MM-DD&limit=10&staffId=UUID&serviceId=UUID&status=...&search=TEXT
   router.get('/appointments', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.user!.tenantId
@@ -155,6 +155,10 @@ export function createTenantRouter(): Router {
           (v) => (v === undefined || v === '' ? 10 : Number(v)),
           z.number().int().min(1).max(100),
         ),
+        staffId: z.string().uuid().optional(),
+        serviceId: z.string().uuid().optional(),
+        status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
+        search: z.string().min(2).optional(),
       })
 
       const parsed = querySchema.safeParse(req.query)
@@ -162,7 +166,7 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz sorgu parametresi.' } })
       }
 
-      const { date, limit } = parsed.data
+      const { date, limit, staffId, serviceId, status, search } = parsed.data
 
       let dateFilter = {}
       if (date) {
@@ -172,7 +176,15 @@ export function createTenantRouter(): Router {
       }
 
       const appointments = await db.appointment.findMany({
-        where: { tenantId, ...dateFilter },
+        where: {
+          tenantId,
+          isDeleted: false,
+          ...dateFilter,
+          ...(staffId ? { staffId } : {}),
+          ...(serviceId ? { serviceId } : {}),
+          ...(status ? { status } : {}),
+          ...(search ? { customer: { fullName: { contains: search, mode: 'insensitive' as const } } } : {}),
+        },
         take: limit,
         orderBy: { startAt: 'asc' },
         include: {
@@ -209,14 +221,41 @@ export function createTenantRouter(): Router {
     }
   })
 
-  // GET /api/v1/tenants/:slug/customers
+  // GET /api/v1/tenants/:slug/customers?search=TEXT&cursor=ID&limit=20
   router.get('/customers', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.user!.tenantId
 
+      const querySchema = z.object({
+        search: z.string().min(2).optional(),
+        cursor: z.string().uuid().optional(),
+        limit: z.preprocess(
+          (v) => (v === undefined || v === '' ? 50 : Number(v)),
+          z.number().int().min(1).max(200),
+        ),
+      })
+
+      const parsed = querySchema.safeParse(req.query)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz sorgu parametresi.' } })
+      }
+
+      const { search, cursor, limit } = parsed.data
+
+      const searchFilter = search
+        ? {
+            OR: [
+              { fullName: { contains: search, mode: 'insensitive' as const } },
+              { phone: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}
+
       const customers = await db.customer.findMany({
-        where: { tenantId },
+        where: { tenantId, ...searchFilter },
         orderBy: { createdAt: 'desc' },
+        take: limit + 1,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
         select: {
           id: true,
           fullName: true,
@@ -228,8 +267,12 @@ export function createTenantRouter(): Router {
         },
       })
 
+      const hasMore = customers.length > limit
+      const page = hasMore ? customers.slice(0, limit) : customers
+      const nextCursor = hasMore ? page[page.length - 1].id : null
+
       return res.json({
-        data: customers.map((c) => ({
+        data: page.map((c) => ({
           id: c.id,
           fullName: c.fullName,
           phone: c.phone,
@@ -238,6 +281,7 @@ export function createTenantRouter(): Router {
           lastVisitDate: c.lastVisitAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
         })),
+        nextCursor,
       })
     } catch (err) {
       next(err)
@@ -853,6 +897,76 @@ export function createTenantRouter(): Router {
         status: updated.status,
         staffColorCode: updated.staff.colorCode,
       })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // DELETE /api/v1/tenants/:slug/appointments/:appointmentId
+  router.delete('/appointments/:appointmentId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = req.user!.role
+      if (role !== 'owner' && role !== 'manager') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu silme yetkisi yok.' } })
+      }
+
+      const tenantId = req.user!.tenantId
+      const { appointmentId } = req.params
+
+      const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId, isDeleted: false } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
+      }
+
+      const TERMINAL_STATUSES = ['completed', 'no_show']
+      if (TERMINAL_STATUSES.includes(existing.status)) {
+        return res.status(409).json({ error: { code: 'APPOINTMENT_LOCKED', message: 'Tamamlanan veya gelmedi işaretli randevu silinemez.' } })
+      }
+
+      await db.appointment.update({ where: { id: appointmentId }, data: { isDeleted: true } })
+
+      return res.status(204).send()
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // PATCH /api/v1/tenants/:slug/appointments/:appointmentId
+  const updateAppointmentSchema = z.object({
+    notes: z.string().max(500).nullable().optional(),
+  })
+
+  router.patch('/appointments/:appointmentId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.user!.tenantId
+      const { appointmentId } = req.params
+      const role = req.user!.role
+
+      const parsed = updateAppointmentSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz randevu verisi.' } })
+      }
+
+      const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId, isDeleted: false } })
+      if (!existing) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
+      }
+
+      if (role === 'staff') {
+        const staffProfile = await db.staffProfile.findFirst({ where: { userId: req.user!.userId, tenantId } })
+        if (!staffProfile || staffProfile.id !== existing.staffId) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Sadece kendi randevunuzu güncelleyebilirsiniz.' } })
+        }
+      }
+
+      const { notes } = parsed.data
+      const updated = await db.appointment.update({
+        where: { id: appointmentId },
+        data: { ...(notes !== undefined ? { notes } : {}) },
+        select: { id: true, notes: true },
+      })
+
+      return res.json(updated)
     } catch (err) {
       next(err)
     }

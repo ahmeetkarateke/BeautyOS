@@ -4,6 +4,7 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { createAuthRouter } from './routes/auth.route'
 import { createTenantRouter } from './routes/tenant.route'
+import { createPublicRouter } from './routes/public.route'
 
 export function createApp(options?: { rateLimitMax?: number }) {
   const app = express()
@@ -26,6 +27,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
   })
 
   app.use('/api/v1/auth', authLimiter, createAuthRouter())
+  app.use('/api/v1/tenants/:slug/public', createPublicRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

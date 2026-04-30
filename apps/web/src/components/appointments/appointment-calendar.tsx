@@ -47,6 +47,9 @@ interface AppointmentCalendarProps {
   tenantId: string
   onSelectSlot?: (start: Date, end: Date) => void
   onSelectAppointment?: (props: AppointmentEventProps) => void
+  filterStaffId?: string
+  filterStatus?: string
+  filterSearch?: string
 }
 
 const STATUS_STYLES: Record<string, { bg: string; border: string; opacity: number; strikethrough: boolean }> = {
@@ -66,16 +69,29 @@ const LEGEND = [
   { label: 'İptal / Gelmedi', color: '#9CA3AF' },
 ]
 
-export function AppointmentCalendar({ tenantId, onSelectSlot, onSelectAppointment }: AppointmentCalendarProps) {
+export function AppointmentCalendar({
+  tenantId,
+  onSelectSlot,
+  onSelectAppointment,
+  filterStaffId,
+  filterStatus,
+  filterSearch,
+}: AppointmentCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const isEditable = user?.role === 'owner' || user?.role === 'manager'
 
   const { data } = useQuery({
-    queryKey: ['appointments-calendar', tenantId],
-    queryFn: () =>
-      apiFetch<{ data: Appointment[] }>(`/api/v1/tenants/${tenantId}/appointments`),
+    queryKey: ['appointments-calendar', tenantId, filterStaffId, filterStatus, filterSearch],
+    queryFn: () => {
+      const qs = new URLSearchParams()
+      if (filterStaffId) qs.set('staffId', filterStaffId)
+      if (filterStatus) qs.set('status', filterStatus)
+      if (filterSearch) qs.set('search', filterSearch)
+      const query = qs.toString() ? `?${qs.toString()}` : ''
+      return apiFetch<{ data: Appointment[] }>(`/api/v1/tenants/${tenantId}/appointments${query}`)
+    },
   })
 
   const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show'])
