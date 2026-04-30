@@ -52,7 +52,8 @@ export interface ConversationSession {
 
 const SESSION_TTL_SECONDS = 23 * 60 * 60 // 23 saat (WhatsApp penceresiyle uyumlu)
 const MAX_HISTORY = 20                     // AI'ya gönderilecek max mesaj
-const KEY_PREFIX = 'beautyos:session'
+const ENV_PREFIX = process.env.REDIS_KEY_PREFIX ?? ''
+const KEY_PREFIX = `${ENV_PREFIX}beautyos:session`
 
 // ─── Session Servisi ──────────────────────────────────────────────────────────
 
