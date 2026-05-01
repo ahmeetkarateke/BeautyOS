@@ -176,6 +176,7 @@
 | ✅ Müşteri + randevu arama/filtreleme + cursor pagination (01.05.2026) | Tamamlandı |
 | ✅ Public Slots API — `/public/slots` + `/public/services` (01.05.2026) | Tamamlandı |
 | ✅ Tenant self-serve kayıt + trial sistemi — `POST /auth/register`, `checkTenantActive` middleware, Resend e-posta, 9/9 test (01.05.2026) | Tamamlandı |
+| ✅ Signup sayfası + trial banner + 402 erişim engeli — 7 dosya (01.05.2026) | Tamamlandı |
 
 ---
 
