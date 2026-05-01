@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Building2, Lock, Check, Plug, Plus, X, RotateCcw } from 'lucide-react'
+import { Building2, Lock, Check, Plug, Plus, X, RotateCcw, Bot } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -51,6 +51,7 @@ const tabs = [
   { id: 'salon', label: 'Salon Profili', icon: Building2 },
   { id: 'account', label: 'Hesabım', icon: Lock },
   { id: 'integrations', label: 'Entegrasyonlar', icon: Plug },
+  { id: 'bot', label: 'Bot Ayarları', icon: Bot },
 ]
 
 // ─── Salon settings form ──────────────────────────────────────────────────────
@@ -63,6 +64,11 @@ const BUSINESS_TYPES = [
   { value: 'other',         label: 'Diğer' },
 ] as const
 
+interface BotFaq {
+  question: string
+  answer: string
+}
+
 interface TenantSettings {
   id: string
   name: string
@@ -74,6 +80,11 @@ interface TenantSettings {
     businessType?: string
     followUpEnabled?: boolean
     serviceCategories?: string[]
+    botIntro?: string
+    botTone?: string
+    botRules?: string
+    botFaqs?: BotFaq[]
+    botHidePrices?: boolean
   }
 }
 
@@ -474,9 +485,215 @@ function IntegrationsPanel() {
   )
 }
 
+// ─── Bot settings ─────────────────────────────────────────────────────────────
+
+const BOT_TONES = [
+  { value: 'resmi', label: 'Resmi' },
+  { value: 'samimi', label: 'Samimi' },
+  { value: 'enerjik', label: 'Enerjik' },
+]
+
+function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
+  const [botIntro, setBotIntro] = useState('')
+  const [botTone, setBotTone] = useState('samimi')
+  const [botRules, setBotRules] = useState('')
+  const [botFaqs, setBotFaqs] = useState<BotFaq[]>([])
+  const [botHidePrices, setBotHidePrices] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['tenant-settings', tenantSlug],
+    queryFn: () => apiFetch<TenantSettings>(`/api/v1/tenants/${tenantSlug}/settings`),
+  })
+
+  useEffect(() => {
+    if (data && !initialized) {
+      setBotIntro(data.settings?.botIntro ?? '')
+      setBotTone(data.settings?.botTone ?? 'samimi')
+      setBotRules(data.settings?.botRules ?? '')
+      setBotFaqs(data.settings?.botFaqs ?? [])
+      setBotHidePrices(data.settings?.botHidePrices ?? false)
+      setInitialized(true)
+    }
+  }, [data, initialized])
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/v1/tenants/${tenantSlug}/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify({ botIntro, botTone, botRules, botFaqs, botHidePrices }),
+      }),
+    onSuccess: () => toast('Bot ayarları kaydedildi'),
+    onError: (err: Error) => toast(err.message, 'error'),
+  })
+
+  function addFaq() {
+    setBotFaqs((prev) => [...prev, { question: '', answer: '' }])
+  }
+
+  function removeFaq(index: number) {
+    setBotFaqs((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function updateFaq(index: number, field: 'question' | 'answer', value: string) {
+    setBotFaqs((prev) => prev.map((faq, i) => (i === index ? { ...faq, [field]: value } : faq)))
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-11 w-full" />)}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* İşletme Tanıtımı */}
+      <div className="space-y-2">
+        <Label htmlFor="botIntro">İşletme Tanıtımı</Label>
+        <textarea
+          id="botIntro"
+          value={botIntro}
+          onChange={(e) => setBotIntro(e.target.value)}
+          rows={4}
+          placeholder="Müşterilerinize kendinizi nasıl tanıtmak istersiniz? (ör: 10 yıllık deneyimli ekibimizle...)"
+          className="w-full rounded-md border border-salon-border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+        />
+      </div>
+
+      {/* Bot Tonu */}
+      <div className="space-y-2">
+        <Label>Bot Tonu</Label>
+        <div className="flex gap-2">
+          {BOT_TONES.map((tone) => (
+            <button
+              key={tone.value}
+              type="button"
+              onClick={() => setBotTone(tone.value)}
+              className={cn(
+                'flex-1 h-10 rounded-lg border text-sm font-medium transition-colors',
+                botTone === tone.value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-salon-border bg-white text-gray-700 hover:border-primary/50',
+              )}
+            >
+              {tone.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Özel Kurallar */}
+      <div className="space-y-2">
+        <Label htmlFor="botRules">Özel Kurallar</Label>
+        <textarea
+          id="botRules"
+          value={botRules}
+          onChange={(e) => setBotRules(e.target.value)}
+          rows={4}
+          placeholder="Bot'un bilmesi gereken kurallar (ör: Sadece bayan müşteri alıyoruz, randevu iptali 2 saat önceden yapılmalı)"
+          className="w-full rounded-md border border-salon-border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+        />
+      </div>
+
+      {/* Sık Sorulan Sorular */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Sık Sorulan Sorular</Label>
+          <button
+            type="button"
+            onClick={addFaq}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-salon-border bg-white text-xs font-medium text-gray-700 hover:border-primary/50 hover:text-primary transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Soru Ekle
+          </button>
+        </div>
+
+        {botFaqs.length === 0 && (
+          <p className="text-xs text-salon-muted py-2">
+            Henüz soru eklenmedi. "Soru Ekle" butonuyla soru-cevap çifti ekleyin.
+          </p>
+        )}
+
+        <div className="space-y-3">
+          {botFaqs.map((faq, index) => (
+            <div key={index} className="rounded-lg border border-salon-border bg-salon-bg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-salon-muted">Soru {index + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFaq(index)}
+                  className="text-salon-muted hover:text-red-500 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={faq.question}
+                onChange={(e) => updateFaq(index, 'question', e.target.value)}
+                placeholder="Soru"
+                className="w-full h-9 rounded-md border border-salon-border bg-white px-3 text-sm text-gray-900 placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+              <textarea
+                value={faq.answer}
+                onChange={(e) => updateFaq(index, 'answer', e.target.value)}
+                rows={2}
+                placeholder="Cevap"
+                className="w-full rounded-md border border-salon-border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fiyat Bilgisi Verme */}
+      <div className="flex items-start justify-between gap-4 pt-4 border-t border-salon-border">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-gray-900">Fiyat Bilgisi Verme</p>
+          <p className="text-xs text-salon-muted mt-1 leading-relaxed">
+            Açıksa bot hiçbir koşulda fiyat paylaşmaz, müşteriyi salonu aramaya yönlendirir.
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={botHidePrices}
+            onClick={() => setBotHidePrices((v) => !v)}
+            className={cn(
+              'relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200',
+              botHidePrices ? 'bg-primary' : 'bg-gray-200',
+            )}
+          >
+            <span
+              className={cn(
+                'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200',
+                botHidePrices ? 'translate-x-4' : 'translate-x-0',
+              )}
+            />
+          </button>
+          <span className="text-xs text-salon-muted">{botHidePrices ? 'Açık' : 'Kapalı'}</span>
+        </div>
+      </div>
+
+      <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="gap-2">
+        {mutation.isPending ? 'Kaydediliyor...' : (
+          <>
+            {mutation.isSuccess && <Check className="w-4 h-4" />}
+            Değişiklikleri Kaydet
+          </>
+        )}
+      </Button>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type TabId = 'salon' | 'account' | 'integrations'
+type TabId = 'salon' | 'account' | 'integrations' | 'bot'
 
 export default function SettingsPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<TabId>('salon')
@@ -538,6 +755,12 @@ export default function SettingsPage({ params }: PageProps) {
         <Card>
           <CardHeader><CardTitle>Entegrasyonlar</CardTitle></CardHeader>
           <CardContent><IntegrationsPanel /></CardContent>
+        </Card>
+      )}
+      {activeTab === 'bot' && (
+        <Card>
+          <CardHeader><CardTitle>Bot Ayarları</CardTitle></CardHeader>
+          <CardContent><BotSettingsForm tenantSlug={params.slug} /></CardContent>
         </Card>
       )}
     </div>

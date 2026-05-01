@@ -1012,6 +1012,11 @@ export function createTenantRouter(): Router {
     onboardingCompleted: z.boolean().optional(),
     businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
     followUpEnabled: z.boolean().optional(),
+    botIntro: z.string().trim().max(500).optional(),
+    botTone: z.enum(['formal', 'friendly', 'energetic']).optional(),
+    botRules: z.string().trim().max(1000).optional(),
+    botFaqs: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })).max(20).optional(),
+    botHidePrices: z.boolean().optional(),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {

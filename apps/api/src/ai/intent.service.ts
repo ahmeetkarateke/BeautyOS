@@ -29,6 +29,11 @@ export interface SalonContext {
   workingHours: string
   address: string
   phone?: string
+  botIntro?: string
+  botTone?: 'formal' | 'friendly' | 'energetic'
+  botRules?: string
+  botFaqs?: Array<{ question: string; answer: string }>
+  botHidePrices?: boolean
 }
 
 // ─── Intent Servisi ───────────────────────────────────────────────────────────
@@ -115,7 +120,7 @@ export class IntentService {
         },
       })
 
-      const prompt = `${buildReplySystemPrompt(salon)}\n\nGörev: ${instruction}. Türkçe, kısa (max 3 cümle), samimi yaz.\n\nKullanıcı: ${userMessage}`
+      const prompt = `${buildSystemPrompt(salon)}\n\nGörev: ${instruction}. Türkçe, kısa (max 3 cümle), samimi yaz.\n\nKullanıcı: ${userMessage}`
       const result = await model.generateContent(prompt)
       return result.response.text().trim() || FALLBACK_MESSAGE
     } catch (error) {
@@ -131,17 +136,40 @@ export class IntentService {
 
 // ─── Prompt inşacıları ────────────────────────────────────────────────────────
 
-function buildReplySystemPrompt(salon: SalonContext): string {
-  const menu = salon.services.map((s) => `${s.name}|${s.duration}dk|₺${s.price}`).join(', ')
+function buildSystemPrompt(salon: SalonContext): string {
+  const menu = salon.botHidePrices
+    ? salon.services.map((s) => `${s.name}|${s.duration}dk`).join(', ')
+    : salon.services.map((s) => `${s.name}|${s.duration}dk|₺${s.price}`).join(', ')
   const staff = salon.staff.map((s) => s.name).join(', ')
 
-  const prompt = `${salon.name} AI asistanısın. Türkçe, kısa (max 3 cümle), samimi yanıt ver.
-SALON: ${salon.address} | ${salon.workingHours}
-MENÜ: ${menu}
-PERSONEL: ${staff}
-KURALLAR: Randevu kesinleşmeden "oluşturuldu" yazma. Bilmediğin soruları salona yönlendir. Ne istediği belirsizse sor.`
+  const toneMap = { formal: 'Resmi ve profesyonel', friendly: 'Samimi ve sıcak', energetic: 'Enerjik ve canlı' }
+  const tone = salon.botTone ? toneMap[salon.botTone] : 'Samimi'
 
-  logger.info({ tokens: prompt.split(' ').length }, 'buildReplySystemPrompt token tahmini')
+  const lines: string[] = [
+    `Sen ${salon.name} adlı işletmenin randevu asistanısın. Türkçe, kısa (max 3 cümle) yanıt ver.`,
+  ]
+
+  if (salon.botIntro) lines.push(salon.botIntro)
+
+  lines.push(`SALON: ${salon.address} | ${salon.workingHours}`)
+  lines.push(`MENÜ: ${menu}`)
+  lines.push(`PERSONEL: ${staff}`)
+  lines.push(salon.botRules
+    ? `KURALLAR: ${salon.botRules}`
+    : `KURALLAR: Randevu kesinleşmeden "oluşturuldu" yazma. Bilmediğin soruları salona yönlendir. Ne istediği belirsizse sor.`)
+  lines.push(`TON: ${tone}`)
+
+  if (salon.botFaqs?.length) {
+    const faqText = salon.botFaqs.map((f) => `S: ${f.question}\nC: ${f.answer}`).join('\n')
+    lines.push(`SSS:\n${faqText}`)
+  }
+
+  if (salon.botHidePrices) {
+    lines.push(`KESİNLİKLE fiyat bilgisi verme. Fiyat sorulursa "Fiyatlarımız için lütfen salonumuzu arayın" de.`)
+  }
+
+  const prompt = lines.join('\n')
+  logger.info({ tokens: prompt.split(' ').length }, 'buildSystemPrompt token tahmini')
   return prompt
 }
 
