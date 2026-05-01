@@ -6,3 +6,19 @@ dist/
 .DS_Store
 .next/
 *.tsbuildinfo
+
+# Proje dışı dosyalar
+ilerleme.md
+Proje_Tamamı.md
+PRD_BeautySaaS.md
+agents/
+docs/
+todo/
+generate_pdfs.py
+generate_pptx.py
+skills-lock.json
+.agents/
+.claude/
+apps/api/SETUP.md
+apps/api/prisma/seed-*.ts
+apps/api/test-*.ts
