@@ -29,7 +29,7 @@ export const useAuthStore = create<AuthState>()(
       _hasHydrated: false,
       setAuth: (user, token) => {
         localStorage.setItem('beautyos_token', token)
-        set({ user, token })
+        set({ user, token, onboardingCompleted: false })
       },
       logout: () => {
         localStorage.removeItem('beautyos_token')
