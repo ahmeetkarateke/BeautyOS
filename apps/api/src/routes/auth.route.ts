@@ -15,6 +15,7 @@ const registerSchema = z.object({
   salonName: z.string().trim().min(2).max(100),
   slug: z.string().trim().regex(/^[a-z0-9-]{3,30}$/, 'Slug sadece küçük harf, rakam ve tire içerebilir (3-30 karakter).'),
   ownerFullName: z.string().trim().min(2).max(100),
+  phone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin.').optional(),
   email: z.string().email(),
   password: z.string().min(8),
   businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
@@ -63,7 +64,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz kayıt verisi.' } })
       }
 
-      const { salonName, slug, ownerFullName, email, password, businessType } = parsed.data
+      const { salonName, slug, ownerFullName, phone, email, password, businessType } = parsed.data
 
       const slugExists = await db.tenant.findUnique({ where: { slug }, select: { id: true } })
       if (slugExists) {
@@ -95,6 +96,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
             email,
             passwordHash,
             fullName: ownerFullName,
+            phone: phone ?? null,
             role: 'owner',
             isActive: true,
           },

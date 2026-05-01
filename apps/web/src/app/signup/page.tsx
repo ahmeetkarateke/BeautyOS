@@ -37,6 +37,7 @@ const signupSchema = z
       .max(50, 'En fazla 50 karakter')
       .regex(/^[a-z0-9-]+$/, 'Sadece küçük harf, rakam ve tire kullanın'),
     fullName: z.string().min(2, 'En az 2 karakter'),
+    phone: z.string().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin').optional().or(z.literal('')),
     email: z.string().email('Geçerli bir e-posta adresi girin'),
     password: z.string().min(8, 'En az 8 karakter'),
     confirmPassword: z.string().min(1, 'Şifre tekrarını girin'),
@@ -77,6 +78,7 @@ export default function SignupPage() {
       salonName: '',
       slug: '',
       fullName: '',
+      phone: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -100,6 +102,7 @@ export default function SignupPage() {
           salonName: data.salonName,
           slug: data.slug,
           ownerFullName: data.fullName,
+          ...(data.phone ? { phone: data.phone } : {}),
           email: data.email,
           password: data.password,
         }),
@@ -179,6 +182,18 @@ export default function SignupPage() {
                   placeholder="Ayşe Yılmaz"
                   error={errors.fullName?.message}
                   {...register('fullName')}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="phone">Telefon Numarası</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="0532 000 00 00"
+                  autoComplete="tel"
+                  error={errors.phone?.message}
+                  {...register('phone')}
                 />
               </div>
 
