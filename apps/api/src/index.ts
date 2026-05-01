@@ -12,6 +12,8 @@ import { FlowHandler } from './bot/flow.handler'
 import { createWebhookRouter } from './routes/webhook.route'
 import { createAuthRouter } from './routes/auth.route'
 import { createTenantRouter } from './routes/tenant.route'
+import { createPublicRouter } from './routes/public.route'
+import { createAdminRouter } from './routes/admin.route'
 import { TenantRegistry } from './lib/tenant.registry'
 import { startReminderWorker } from './lib/queue'
 import { db } from './lib/db'
@@ -76,8 +78,12 @@ async function bootstrap(): Promise<void> {
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla istek gönderildi, lütfen 15 dakika sonra tekrar deneyin.' } },
   })
 
+  app.set('trust proxy', 1)
+
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
   app.use('/api/v1/auth', authLimiter, createAuthRouter())
+  app.use('/api/v1/admin', createAdminRouter())
+  app.use('/api/v1/tenants/:slug/public', createPublicRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   // ─── Global error handler ─────────────────────────────────────────────────
