@@ -4,8 +4,8 @@ import { db } from '../lib/db'
 
 export interface JwtPayload {
   userId: string
-  tenantId: string
-  tenantSlug: string
+  tenantId?: string
+  tenantSlug?: string
   role: string
 }
 
@@ -43,6 +43,14 @@ export function requireTenantAccess(req: Request, res: Response, next: NextFunct
   next()
 }
 
+export function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || req.user.role !== 'superadmin') {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Süper admin yetkisi gerekli.' } })
+    return
+  }
+  next()
+}
+
 export async function checkTenantActive(req: Request, res: Response, next: NextFunction): Promise<void> {
   // GET /settings is exempt so owners can still see account status
   if (req.method === 'GET' && req.path === '/settings') {
@@ -51,6 +59,10 @@ export async function checkTenantActive(req: Request, res: Response, next: NextF
   }
 
   const tenantId = req.user!.tenantId
+  if (!tenantId) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Tenant erişimi gerekli.' } })
+    return
+  }
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     select: { isActive: true, trialEndsAt: true },

@@ -228,6 +228,44 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     }
   })
 
+  router.post('/admin-login', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = loginSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz e-posta veya şifre formatı.' } })
+      }
+
+      const { email, password } = parsed.data
+
+      const user = await db.user.findFirst({
+        where: { email, role: 'superadmin', isActive: true },
+      })
+
+      if (!user) {
+        return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
+      }
+
+      const passwordMatch = await bcrypt.compare(password, user.passwordHash)
+      if (!passwordMatch) {
+        return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
+      }
+
+      const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
+      const payload = { userId: user.id, role: 'superadmin' }
+      const token = jwt.sign(payload, jwtSecret, { expiresIn: ACCESS_EXPIRY })
+      const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
+
+      setRefreshCookie(res, refreshToken)
+
+      return res.json({
+        token,
+        user: { id: user.id, email: user.email, name: user.fullName, role: user.role },
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
   router.post('/logout', (req: Request, res: Response) => {
     const isProd = process.env.NODE_ENV === 'production'
     res.clearCookie('refreshToken', {
