@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import './instrument'
 import * as Sentry from '@sentry/node'
 import express from 'express'
 import cors from 'cors'
@@ -17,13 +18,6 @@ import { db } from './lib/db'
 import { logger } from './lib/logger'
 export { createApp } from './app'
 
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV ?? 'development',
-    tracesSampleRate: 0.2,
-  })
-}
 
 const startedAt = Date.now()
 

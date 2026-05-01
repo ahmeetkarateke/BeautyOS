@@ -424,6 +424,47 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 
 ---
 
+## DevOps İlerlemesi
+
+**Son güncelleme:** 01.05.2026
+
+### Monitoring & Alert Sistemi ✅
+
+| Bileşen | Durum | Notlar |
+|---|---|---|
+| `/health` endpoint genişletmesi | ✅ Tamamlandı | DB (Prisma SELECT 1) + Redis ping; `{ status, db, redis, uptime }`; herhangi biri fail → HTTP 503 |
+| Uptime hesaplama | ✅ Tamamlandı | `startedAt` timestamp ile gerçek uptime saniye cinsinden |
+| Sentry entegrasyonu | ✅ Tamamlandı | `instrument.ts` ayrı dosyaya alındı — Express init sırası düzeltildi; `SENTRY_DSN` Railway env'de |
+| UptimeRobot | ✅ Tamamlandı | `/health` her 3 dakikada ping; servis down → Telegram + e-posta alert |
+
+> ⚠️ Bekleyen: Sentry `instrument.ts` fix'i staging branch'te bekliyor — bir sonraki deploy öncesi master'a merge edilmeli.
+
+### Staging Ortamı ✅
+
+| Bileşen | Durum | Notlar |
+|---|---|---|
+| `staging` branch | ✅ Tamamlandı | GitHub'da mevcut; feature → staging → master akışı |
+| CI pipeline | ✅ Tamamlandı | `.github/workflows/ci.yml` — staging + master push/PR'da type-check, lint, Vitest |
+| Railway staging servisi | ✅ Tamamlandı | `beautyos-api-staging` — staging branch'ten deploy, ayrı Supabase DB |
+| Redis key izolasyonu | ✅ Tamamlandı | `REDIS_KEY_PREFIX=staging:` env — production key'leriyle çakışmaz |
+| Vercel Preview | ✅ Tamamlandı | `NEXT_PUBLIC_API_URL` → staging API URL'si; her staging push'ta preview URL |
+
+### Servis URL'leri
+
+| Ortam | API | Frontend |
+|---|---|---|
+| Production | `https://beautyosapi-production.up.railway.app` | Vercel production |
+| Staging | `https://beautyos-api-staging-production.up.railway.app` | Vercel preview (staging branch) |
+
+### Bekleyen / Sonraki Adımlar
+
+| Görev | Öncelik |
+|---|---|
+| Sentry `instrument.ts` fix'ini staging → master'a merge et | Yüksek |
+| Security Agent (07) — rate limiting genişletmesi, tenant izolasyon testi, JWT refresh | Yüksek |
+
+---
+
 ## Veritabanı İlerlemesi
 
 <!-- Database agent bu bölümü dolduracak -->
