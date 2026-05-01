@@ -10,6 +10,8 @@ import { createAdminRouter } from './routes/admin.route'
 export function createApp(options?: { rateLimitMax?: number }) {
   const app = express()
 
+  app.set('trust proxy', 1)
+
   const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
     : null
@@ -35,7 +37,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((_err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Sunucu hatası.' } })
   })
 

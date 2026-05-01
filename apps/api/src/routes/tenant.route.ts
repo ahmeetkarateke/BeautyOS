@@ -95,7 +95,7 @@ export function createTenantRouter(): Router {
   const searchLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
-    keyGenerator: (req) => req.user?.tenantId ?? req.ip ?? 'unknown',
+    keyGenerator: (req) => req.tenantId ?? 'unknown',
     skip: (req) => !req.query.search,
     standardHeaders: true,
     legacyHeaders: false,
@@ -105,7 +105,7 @@ export function createTenantRouter(): Router {
   const appointmentCreateLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 20,
-    keyGenerator: (req) => req.user?.tenantId ?? req.ip ?? 'unknown',
+    keyGenerator: (req) => req.tenantId ?? 'unknown',
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMIT', message: 'Randevu oluşturma limiti aşıldı. 1 dakika sonra tekrar deneyin.' } },
