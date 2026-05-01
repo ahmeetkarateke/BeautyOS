@@ -99,7 +99,7 @@ export default function SignupPage() {
         body: JSON.stringify({
           salonName: data.salonName,
           slug: data.slug,
-          fullName: data.fullName,
+          ownerFullName: data.fullName,
           email: data.email,
           password: data.password,
         }),
