@@ -18,12 +18,11 @@ interface TenantRow {
   trialEndsAt?: string
   isActive: boolean
   createdAt: string
-  customerCount: number
-  appointmentCount: number
+  _count: { users: number; appointments: number; customers: number }
 }
 
 interface TenantsResponse {
-  data: TenantRow[]
+  tenants: TenantRow[]
 }
 
 const planLabel: Record<string, string> = {
@@ -57,7 +56,7 @@ export default function AdminTenantsPage() {
     },
   })
 
-  const tenants = data?.data ?? []
+  const tenants = data?.tenants ?? []
 
   return (
     <div className="p-6 space-y-4">
@@ -158,8 +157,8 @@ export default function AdminTenantsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-salon-muted">{formatDate(t.createdAt)}</td>
-                      <td className="px-4 py-3 text-gray-700">{t.customerCount}</td>
-                      <td className="px-4 py-3 text-gray-700">{t.appointmentCount}</td>
+                      <td className="px-4 py-3 text-gray-700">{t._count.customers}</td>
+                      <td className="px-4 py-3 text-gray-700">{t._count.appointments}</td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => router.push(`/admin/tenants/${t.id}`)}
