@@ -13,6 +13,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: JwtPayload
+      tenantId?: string
     }
   }
 }
@@ -36,10 +37,11 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
 
 export function requireTenantAccess(req: Request, res: Response, next: NextFunction): void {
   const { slug } = req.params
-  if (!req.user || req.user.tenantSlug !== slug) {
+  if (!req.user || req.user.tenantSlug !== slug || !req.user.tenantId) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu tenant\'a erişim yetkiniz yok.' } })
     return
   }
+  req.tenantId = req.user.tenantId
   next()
 }
 

@@ -114,7 +114,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/dashboard?period=today|week|month
   router.get('/dashboard', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const periodParam = req.query.period as string | undefined
       const period = (periodParam === 'week' || periodParam === 'month') ? periodParam : 'today'
 
@@ -178,7 +178,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/appointments?date=YYYY-MM-DD&limit=10&staffId=UUID&serviceId=UUID&status=...&search=TEXT
   router.get('/appointments', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const querySchema = z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -255,7 +255,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/customers?search=TEXT&cursor=ID&limit=20
   router.get('/customers', searchLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const querySchema = z.object({
         search: z.string().min(2).optional(),
@@ -322,7 +322,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/services
   router.get('/services', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const onlineOnly = req.query.onlineOnly === 'true'
       const includeInactive = req.query.includeInactive === 'true'
@@ -356,7 +356,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/staff
   router.get('/staff', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const staff = await db.staffProfile.findMany({
         where: { tenantId, user: { isActive: true } },
@@ -401,7 +401,7 @@ export function createTenantRouter(): Router {
 
   router.post('/appointments', appointmentCreateLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const parsed = createAppointmentSchema.safeParse(req.body)
       if (!parsed.success) {
@@ -525,7 +525,7 @@ export function createTenantRouter(): Router {
 
   router.post('/customers', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const parsed = createCustomerSchema.safeParse(req.body)
       if (!parsed.success) {
@@ -575,7 +575,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/settings
   router.get('/settings', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const tenant = await db.tenant.findUnique({
         where: { id: tenantId },
@@ -595,7 +595,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/customers/:customerId
   router.get('/customers/:customerId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const { customerId } = req.params
 
       const customer = await db.customer.findFirst({
@@ -671,7 +671,7 @@ export function createTenantRouter(): Router {
 
   router.patch('/appointments/:appointmentId/status', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const { appointmentId } = req.params
 
       const parsed = appointmentStatusSchema.safeParse(req.body)
@@ -837,7 +837,7 @@ export function createTenantRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu saati yalnızca owner veya manager tarafından değiştirilebilir.' } })
       }
 
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const { appointmentId } = req.params
 
       const parsed = rescheduleSchema.safeParse(req.body)
@@ -941,7 +941,7 @@ export function createTenantRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu silme yetkisi yok.' } })
       }
 
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const { appointmentId } = req.params
 
       const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId, isDeleted: false } })
@@ -969,7 +969,7 @@ export function createTenantRouter(): Router {
 
   router.patch('/appointments/:appointmentId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const { appointmentId } = req.params
       const role = req.user!.role
 
@@ -1027,7 +1027,7 @@ export function createTenantRouter(): Router {
       }
 
       const { name, onboardingCompleted, ...settingsPatch } = parsed.data
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const existing = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
       if (!existing) {
@@ -1144,7 +1144,7 @@ export function createTenantRouter(): Router {
       const service = await db.service.create({
         data: {
           ...serviceData,
-          tenantId: req.user!.tenantId,
+          tenantId: req.tenantId!,
           ...(fuSchedule !== undefined ? { followUpSchedule: fuSchedule ?? Prisma.DbNull } : {}),
         },
         select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, followUpSchedule: true },
@@ -1169,7 +1169,7 @@ export function createTenantRouter(): Router {
       }
 
       const { serviceId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const existing = await db.service.findFirst({ where: { id: serviceId, tenantId } })
       if (!existing) {
@@ -1200,7 +1200,7 @@ export function createTenantRouter(): Router {
       }
 
       const { serviceId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const existing = await db.service.findFirst({ where: { id: serviceId, tenantId } })
       if (!existing) {
@@ -1246,7 +1246,7 @@ export function createTenantRouter(): Router {
       }
 
       const { email, password, fullName, title, bio, colorCode } = parsed.data
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const existingUser = await db.user.findFirst({ where: { email, tenantId } })
       if (existingUser) {
@@ -1299,7 +1299,7 @@ export function createTenantRouter(): Router {
       }
 
       const { staffId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const existing = await db.staffProfile.findFirst({ where: { id: staffId, tenantId } })
       if (!existing) {
@@ -1338,7 +1338,7 @@ export function createTenantRouter(): Router {
       }
 
       const { staffId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const profile = await db.staffProfile.findFirst({
         where: { id: staffId, tenantId },
@@ -1370,7 +1370,7 @@ export function createTenantRouter(): Router {
   router.patch('/customers/:customerId', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { customerId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const parsed = updateCustomerSchema.safeParse(req.body)
       if (!parsed.success) {
@@ -1418,7 +1418,7 @@ export function createTenantRouter(): Router {
   // POST /api/v1/tenants/:slug/finance/close-day?date=YYYY-MM-DD
   router.post('/finance/close-day', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const dateStr = (req.query.date as string | undefined) ?? getIstanbulDateStr()
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -1531,7 +1531,7 @@ export function createTenantRouter(): Router {
   //   or ?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day] (date range)
   router.get('/reports/daily', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const today = getIstanbulDateStr()
       const dateParam = req.query.date as string | undefined
       const fromParam = (req.query.from as string | undefined) ?? dateParam ?? today
@@ -1656,7 +1656,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/reports/staff-commissions?date=YYYY-MM-DD
   router.get('/reports/staff-commissions', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const dateStr = (req.query.date as string | undefined) ?? new Date().toISOString().split('T')[0]
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -1722,7 +1722,7 @@ export function createTenantRouter(): Router {
 
   router.post('/revenues', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const parsed = createRevenueSchema.safeParse(req.body)
       if (!parsed.success) {
@@ -1779,7 +1779,7 @@ export function createTenantRouter(): Router {
       const { title, category, amount, expenseDate } = parsed.data
       const expense = await db.expense.create({
         data: {
-          tenantId: req.user!.tenantId,
+          tenantId: req.tenantId!,
           title,
           category,
           amount,
@@ -1807,7 +1807,7 @@ export function createTenantRouter(): Router {
       }
 
       const { expenseId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
 
       const existing = await db.expense.findFirst({ where: { id: expenseId, tenantId } })
       if (!existing) {
@@ -1834,7 +1834,7 @@ export function createTenantRouter(): Router {
   router.get('/staff/:staffId/services', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { staffId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const assignments = await db.staffServiceAssignment.findMany({
         where: { staffId, tenantId, isActive: true },
         include: { service: { select: { id: true, name: true, category: true, durationMinutes: true, price: true } } },
@@ -1863,7 +1863,7 @@ export function createTenantRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
       }
       const { staffId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const parsed = assignServiceSchema.safeParse(req.body)
       if (!parsed.success) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz veri.' } })
@@ -1886,7 +1886,7 @@ export function createTenantRouter(): Router {
       }
       const { staffId, serviceId } = req.params
       await db.staffServiceAssignment.updateMany({
-        where: { staffId, serviceId, tenantId: req.user!.tenantId },
+        where: { staffId, serviceId, tenantId: req.tenantId! },
         data: { isActive: false },
       })
       return res.status(204).send()
@@ -1905,7 +1905,7 @@ export function createTenantRouter(): Router {
 
   router.get('/staff/:staffId/leaves', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const leaves = await db.staffLeave.findMany({
         where: { staffId: req.params.staffId, tenantId },
         orderBy: { leaveDate: 'asc' },
@@ -1928,7 +1928,7 @@ export function createTenantRouter(): Router {
       const leave = await db.staffLeave.create({
         data: {
           staffId: req.params.staffId,
-          tenantId: req.user!.tenantId,
+          tenantId: req.tenantId!,
           leaveDate: new Date(`${parsed.data.leaveDate}T00:00:00.000Z`),
           leaveType: parsed.data.leaveType,
           note: parsed.data.note,
@@ -1946,7 +1946,7 @@ export function createTenantRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
       }
       const { leaveId } = req.params
-      const tenantId = req.user!.tenantId
+      const tenantId = req.tenantId!
       const existing = await db.staffLeave.findFirst({ where: { id: leaveId, tenantId } })
       if (!existing) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'İzin kaydı bulunamadı.' } })

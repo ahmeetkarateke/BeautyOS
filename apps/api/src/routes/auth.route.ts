@@ -152,9 +152,13 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
 
       const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
 
+      if (!user.tenant) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Tenant bulunamadı.' } })
+      }
+
       const payload = {
         userId: user.id,
-        tenantId: user.tenantId,
+        tenantId: user.tenantId ?? undefined,
         tenantSlug: user.tenant.slug,
         role: user.role,
       }
@@ -212,8 +216,8 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
 
       const payload = {
         userId: user.id,
-        tenantId: user.tenantId,
-        tenantSlug: user.tenant.slug,
+        tenantId: user.tenantId ?? undefined,
+        tenantSlug: user.tenant?.slug,
         role: user.role,
       }
 
