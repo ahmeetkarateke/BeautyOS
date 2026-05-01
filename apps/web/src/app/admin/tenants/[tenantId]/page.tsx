@@ -22,12 +22,15 @@ interface TenantDetail {
   trialEndsAt?: string
   isActive: boolean
   createdAt: string
-  customerCount: number
-  appointmentCount: number
-  settings?: {
-    phone?: string
-    address?: string
-    businessType?: string
+}
+
+interface TenantDetailResponse {
+  tenant: TenantDetail
+  activity: {
+    totalAppointments: number
+    totalCustomers: number
+    totalRevenue: number
+    lastActivityAt?: string
   }
 }
 
@@ -51,10 +54,12 @@ export default function AdminTenantDetailPage({ params }: Props) {
   const router = useRouter()
   const qc = useQueryClient()
 
-  const { data: tenant, isLoading } = useQuery({
+  const { data: raw, isLoading } = useQuery({
     queryKey: ['admin-tenant', params.tenantId],
-    queryFn: () => adminApiFetch<TenantDetail>(`/api/v1/admin/tenants/${params.tenantId}`),
+    queryFn: () => adminApiFetch<TenantDetailResponse>(`/api/v1/admin/tenants/${params.tenantId}`),
   })
+  const tenant = raw?.tenant
+  const activity = raw?.activity
 
   const [trialDate, setTrialDate] = useState('')
   const [plan, setPlan] = useState('')
@@ -155,14 +160,14 @@ export default function AdminTenantDetailPage({ params }: Props) {
             <p className="text-sm text-salon-muted">Toplam Müşteri</p>
             <Users className="w-4 h-4 text-salon-muted" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">{tenant.customerCount}</p>
+          <p className="text-3xl font-bold text-gray-900">{activity?.totalCustomers ?? 0}</p>
         </div>
         <div className="bg-white rounded-xl border border-salon-border p-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-salon-muted">Toplam Randevu</p>
             <Calendar className="w-4 h-4 text-salon-muted" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">{tenant.appointmentCount}</p>
+          <p className="text-3xl font-bold text-gray-900">{activity?.totalAppointments ?? 0}</p>
         </div>
       </div>
 

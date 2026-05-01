@@ -12,6 +12,10 @@ interface AdminStats {
   expiredTenants: number
 }
 
+interface StatsResponse {
+  stats: AdminStats
+}
+
 const kpiConfig = [
   {
     key: 'totalTenants' as const,
@@ -44,10 +48,11 @@ const kpiConfig = [
 ]
 
 export default function AdminDashboardPage() {
-  const { data, isLoading } = useQuery({
+  const { data: raw, isLoading } = useQuery({
     queryKey: ['admin-stats'],
-    queryFn: () => adminApiFetch<AdminStats>('/api/v1/admin/stats'),
+    queryFn: () => adminApiFetch<StatsResponse>('/api/v1/admin/stats'),
   })
+  const data = raw?.stats
 
   return (
     <div className="p-6 space-y-6">
