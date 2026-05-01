@@ -146,8 +146,9 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tenant       Tenant?      @relation(fields: [tenantId], references: [id])
-  staffProfile StaffProfile?
+  tenant              Tenant?               @relation(fields: [tenantId], references: [id])
+  staffProfile        StaffProfile?
+  passwordResetTokens PasswordResetToken[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -415,4 +416,20 @@ model StaffLeave {
   @@index([staffId])
   @@index([tenantId, leaveDate])
   @@map("staff_leaves")
+}
+
+// ─── Password Reset Token ─────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  token     String    @unique
+  userId    String    @db.Uuid
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }

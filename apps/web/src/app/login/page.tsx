@@ -261,6 +261,11 @@ export default function LoginPage() {
                   </button>
                 </div>
                 {errors.password && <p className="text-xs text-red-400 mt-1">{errors.password.message}</p>}
+                <div className="flex justify-end mt-1">
+                  <Link href="/forgot-password" className="text-xs text-white/35 hover:text-primary transition-colors">
+                    Şifremi unuttum
+                  </Link>
+                </div>
               </div>
 
               {error && (

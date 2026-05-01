@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import { db } from '../lib/db'
-import { sendWelcomeEmail } from '../lib/email'
+import { sendWelcomeEmail, sendPasswordResetEmail } from '../lib/email'
+import crypto from 'crypto'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -267,6 +268,71 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         token,
         user: { id: user.id, email: user.email, name: user.fullName, role: user.role },
       })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.post('/forgot-password', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = z.object({ email: z.string().email() }).safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir e-posta adresi girin.' } })
+      }
+
+      const user = await db.user.findFirst({
+        where: { email: parsed.data.email, isActive: true, role: { not: 'superadmin' } },
+        select: { id: true },
+      })
+
+      // Always return 200 to avoid email enumeration
+      if (!user) return res.json({ ok: true })
+
+      const token = crypto.randomBytes(32).toString('hex')
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+
+      await db.passwordResetToken.create({
+        data: { token, userId: user.id, expiresAt },
+      })
+
+      const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
+      void sendPasswordResetEmail(parsed.data.email, `${frontendUrl}/reset-password?token=${token}`)
+
+      return res.json({ ok: true })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  router.post('/reset-password', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = z.object({
+        token: z.string().min(1),
+        password: z.string().min(8),
+      }).safeParse(req.body)
+
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' } })
+      }
+
+      const now = new Date()
+      const resetToken = await db.passwordResetToken.findUnique({
+        where: { token: parsed.data.token },
+        select: { id: true, userId: true, expiresAt: true, usedAt: true },
+      })
+
+      if (!resetToken || resetToken.usedAt || resetToken.expiresAt < now) {
+        return res.status(400).json({ error: { code: 'INVALID_TOKEN', message: 'Geçersiz veya süresi dolmuş token.' } })
+      }
+
+      const passwordHash = await bcrypt.hash(parsed.data.password, 10)
+
+      await db.$transaction([
+        db.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+        db.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: now } }),
+      ])
+
+      return res.json({ ok: true })
     } catch (err) {
       next(err)
     }
