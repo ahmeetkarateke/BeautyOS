@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -82,6 +82,14 @@ export function AppointmentCalendar({
   const user = useAuthStore((s) => s.user)
   const isEditable = user?.role === 'owner' || user?.role === 'manager'
 
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const { data } = useQuery({
     queryKey: ['appointments-calendar', tenantId, filterStaffId, filterStatus, filterSearch],
     queryFn: () => {
@@ -138,15 +146,16 @@ export function AppointmentCalendar({
       </div>
 
       <FullCalendar
+        key={isMobile ? 'mobile' : 'desktop'}
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="timeGridWeek"
+        initialView={isMobile ? 'timeGridDay' : 'timeGridWeek'}
         locale={trLocale}
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay',
-        }}
+        headerToolbar={
+          isMobile
+            ? { left: 'prev,next', center: 'title', right: 'timeGridDay,timeGridWeek' }
+            : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }
+        }
         slotMinTime="08:00:00"
         slotMaxTime="22:00:00"
         slotDuration="00:30:00"

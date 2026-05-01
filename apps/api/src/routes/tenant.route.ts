@@ -1255,12 +1255,19 @@ export function createTenantRouter(): Router {
 
       const passwordHash = await bcrypt.hash(password, 10)
 
+      const tenantSettings = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
+      const settingsObj = tenantSettings?.settings as { workingHours?: string } | null
+      const whMatch = settingsObj?.workingHours?.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/)
+      const defaultWorkingHours = whMatch
+        ? { monday: { start: whMatch[1], end: whMatch[2] }, tuesday: { start: whMatch[1], end: whMatch[2] }, wednesday: { start: whMatch[1], end: whMatch[2] }, thursday: { start: whMatch[1], end: whMatch[2] }, friday: { start: whMatch[1], end: whMatch[2] }, saturday: { start: whMatch[1], end: whMatch[2] }, sunday: { start: whMatch[1], end: whMatch[2] } }
+        : { monday: { start: '09:00', end: '18:00' }, tuesday: { start: '09:00', end: '18:00' }, wednesday: { start: '09:00', end: '18:00' }, thursday: { start: '09:00', end: '18:00' }, friday: { start: '09:00', end: '18:00' }, saturday: null, sunday: null }
+
       const result = await db.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: { tenantId, email, passwordHash, fullName, role: 'staff' },
         })
         const staffProfile = await tx.staffProfile.create({
-          data: { userId: user.id, tenantId, title, bio, colorCode },
+          data: { userId: user.id, tenantId, title, bio, colorCode, workingHours: defaultWorkingHours as Prisma.InputJsonValue },
           select: {
             id: true,
             title: true,

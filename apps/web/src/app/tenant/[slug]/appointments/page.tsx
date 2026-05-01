@@ -118,7 +118,7 @@ export default function AppointmentsPage({ params }: PageProps) {
       </div>
 
       {/* Filtre satırı */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
         <select
           value={staffId}
           onChange={(e) => setFilter('staffId', e.target.value)}
@@ -141,21 +141,21 @@ export default function AppointmentsPage({ params }: PageProps) {
           ))}
         </select>
 
-        <div className="relative">
+        <div className="relative col-span-2 sm:col-span-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-salon-muted" />
           <input
             type="text"
             placeholder="Müşteri ara..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="h-9 pl-8 pr-3 rounded-md border border-salon-border bg-white text-sm placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent w-44"
+            className="h-9 w-full pl-8 pr-3 rounded-md border border-salon-border bg-white text-sm placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:w-44"
           />
         </div>
 
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 text-xs text-salon-muted hover:text-gray-700 transition-colors"
+            className="flex items-center gap-1 text-xs text-salon-muted hover:text-gray-700 transition-colors col-span-2 sm:col-span-1"
           >
             <X className="w-3.5 h-3.5" />
             Filtreleri Temizle
