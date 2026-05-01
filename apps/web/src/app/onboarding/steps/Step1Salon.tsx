@@ -1,6 +1,7 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { useForm, useController } from 'react-hook-form'
+import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
@@ -33,10 +34,25 @@ interface Step1SalonProps {
 }
 
 export function Step1Salon({ slug, onNext }: Step1SalonProps) {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { workingHours: 'Pzt-Cum 09:00-18:00' },
+    defaultValues: { workingHours: '09:00-18:00' },
   })
+
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('18:00')
+
+  const { field: whField } = useController({ name: 'workingHours', control })
+
+  function handleTimeChange(type: 'start' | 'end', value: string) {
+    if (type === 'start') {
+      setStartTime(value)
+      whField.onChange(`${value}-${endTime}`)
+    } else {
+      setEndTime(value)
+      whField.onChange(`${startTime}-${value}`)
+    }
+  }
 
   const selectedType = watch('businessType')
 
@@ -65,20 +81,34 @@ export function Step1Salon({ slug, onNext }: Step1SalonProps) {
           error={errors.address?.message}
           {...register('address')}
         />
-        <div className="grid grid-cols-2 gap-3">
-          <OnboardingInput
-            label="Telefon *"
-            type="tel"
-            placeholder="0555 123 4567"
-            error={errors.phone?.message}
-            {...register('phone')}
-          />
-          <OnboardingInput
-            label="Çalışma Saatleri *"
-            placeholder="Pzt-Cum 09:00-18:00"
-            error={errors.workingHours?.message}
-            {...register('workingHours')}
-          />
+        <OnboardingInput
+          label="Telefon *"
+          type="tel"
+          placeholder="0555 123 4567"
+          error={errors.phone?.message}
+          {...register('phone')}
+        />
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Çalışma Saatleri *</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => handleTimeChange('start', e.target.value)}
+              className="flex-1 h-10 px-3 rounded-xl text-sm bg-white/5 border border-white/10 text-white focus:outline-none focus:border-purple-500 focus:bg-white/8"
+            />
+            <span className="text-white/30 text-sm font-medium shrink-0">—</span>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => handleTimeChange('end', e.target.value)}
+              className="flex-1 h-10 px-3 rounded-xl text-sm bg-white/5 border border-white/10 text-white focus:outline-none focus:border-purple-500 focus:bg-white/8"
+            />
+          </div>
+          {errors.workingHours && (
+            <p className="text-xs text-red-400">{errors.workingHours.message}</p>
+          )}
         </div>
       </div>
 
