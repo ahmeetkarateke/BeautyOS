@@ -10,8 +10,31 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { adminApiFetch } from '@/lib/admin-api'
 import { useAdminStore } from '@/store/admin'
+
+interface AdminLoginResponse {
+  token: string
+  user: {
+    id: string
+    email: string
+    name: string
+  }
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://beautyosapi-production.up.railway.app'
+
+async function adminLogin(data: { email: string; password: string }): Promise<AdminLoginResponse> {
+  const res = await fetch(`${API_URL}/api/v1/auth/admin-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  const body = await res.json()
+  if (!res.ok) {
+    throw new Error(body?.error?.message ?? 'Giriş başarısız.')
+  }
+  return body
+}
 
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta adresi girin'),
@@ -19,15 +42,6 @@ const loginSchema = z.object({
 })
 
 type LoginForm = z.infer<typeof loginSchema>
-
-interface AdminLoginResponse {
-  token: string
-  admin: {
-    id: string
-    email: string
-    name: string
-  }
-}
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -42,13 +56,9 @@ export default function AdminLoginPage() {
   })
 
   const { mutate, isPending, error } = useMutation({
-    mutationFn: (data: LoginForm) =>
-      adminApiFetch<AdminLoginResponse>('/api/v1/auth/admin-login', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    mutationFn: (data: LoginForm) => adminLogin(data),
     onSuccess: (data) => {
-      setAdmin(data.admin, data.token)
+      setAdmin(data.user, data.token)
       router.push('/admin/dashboard')
     },
   })

@@ -256,7 +256,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
 
       const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
       const payload = { userId: user.id, role: 'superadmin' }
-      const token = jwt.sign(payload, jwtSecret, { expiresIn: ACCESS_EXPIRY })
+      const token = jwt.sign(payload, jwtSecret, { expiresIn: '7d' })
       const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
 
       setRefreshCookie(res, refreshToken)

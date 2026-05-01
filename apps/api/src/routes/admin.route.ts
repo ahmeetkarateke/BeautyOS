@@ -32,12 +32,17 @@ export function createAdminRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Geçersiz seed secret.' } })
       }
 
+      const passwordHash = await bcrypt.hash(parsed.data.password, 10)
       const existing = await db.user.findFirst({ where: { role: 'superadmin' } })
+
       if (existing) {
-        return res.status(409).json({ error: { code: 'ADMIN_EXISTS', message: 'Süper admin zaten mevcut.' } })
+        await db.user.update({
+          where: { id: existing.id },
+          data: { email: parsed.data.email, passwordHash },
+        })
+        return res.json({ ok: true, updated: true })
       }
 
-      const passwordHash = await bcrypt.hash(parsed.data.password, 10)
       await db.user.create({
         data: {
           email: parsed.data.email,
@@ -48,7 +53,7 @@ export function createAdminRouter(): Router {
         },
       })
 
-      return res.status(201).json({ ok: true })
+      return res.status(201).json({ ok: true, created: true })
     } catch (err) {
       next(err)
     }
