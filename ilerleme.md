@@ -460,8 +460,28 @@ Root Directory: `apps/web` | Framework: Next.js | Build: `npm run build`
 
 | Görev | Öncelik |
 |---|---|
-| Sentry `instrument.ts` fix'ini staging → master'a merge et | Yüksek |
-| Security Agent (07) — rate limiting genişletmesi, tenant izolasyon testi, JWT refresh | Yüksek |
+| ✅ Sentry `instrument.ts` fix staging → master merge (01.05.2026) | Tamamlandı |
+| ✅ Security Agent (07) tamamlandı (01.05.2026) | Tamamlandı |
+| Railway'e `CORS_ORIGIN=https://beautyos.vercel.app` env ekle (pilot öncesi) | Yüksek |
+
+---
+
+## Güvenlik İlerlemesi
+
+**Son güncelleme:** 01.05.2026
+
+### Güvenlik Denetimi ✅
+
+| Alan | Durum | Notlar |
+|---|---|---|
+| Rate limiting genişletmesi | ✅ Tamamlandı | `GET /customers?search` → 60 req/dk tenant bazlı; `POST /appointments` → 20 req/dk; `Retry-After` header |
+| JWT refresh token | ✅ Tamamlandı | Access token 15 dk; refresh token 30 gün HttpOnly cookie; `POST /auth/refresh` (rotate) + `POST /auth/logout` |
+| Tenant izolasyon testleri | ✅ Tamamlandı | 14 test — `tenant-isolation.test.ts`; cross-slug (403) + cross-resource ID (404); appointments/customers/services/staff/dashboard/reports/finance |
+| Input sanitization | ✅ Tamamlandı | Tüm `z.string()` alanlarına `.trim()`; notes/allergyNotes/preferenceNotes XSS pattern check |
+| CORS güncelleme | ✅ Tamamlandı | `origin: true` — cookie + credentials desteği; production'da `CORS_ORIGIN` env ile kısıtlanacak |
+| Frontend 401 interceptor | ✅ Tamamlandı | `apiFetch()` → 401'de `/auth/refresh`, yeni token localStorage'a; refresh başarısızsa `logout()` + `/login` |
+
+> ⚠️ Pilot öncesi yapılması gereken: Railway'e `CORS_ORIGIN=https://beautyos.vercel.app` env ekle
 
 ---
 
