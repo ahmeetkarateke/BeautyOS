@@ -9,7 +9,10 @@ import { createPublicRouter } from './routes/public.route'
 export function createApp(options?: { rateLimitMax?: number }) {
   const app = express()
 
-  app.use(cors({ origin: '*', credentials: true }))
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    : null
+  app.use(cors({ origin: corsOrigins ?? true, credentials: true }))
   app.use(
     express.json({
       verify: (req, _res, buf) => {
@@ -26,7 +29,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla istek gönderildi, lütfen 15 dakika sonra tekrar deneyin.' } },
   })
 
-  app.use('/api/v1/auth', authLimiter, createAuthRouter())
+  app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax }))
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 

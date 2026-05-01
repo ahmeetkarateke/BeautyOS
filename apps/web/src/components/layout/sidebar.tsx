@@ -6,6 +6,8 @@ import { Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut, Sparkles,
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api'
 
 interface SidebarProps {
   tenantSlug: string
@@ -21,11 +23,31 @@ const navItems = (slug: string) => [
   { href: `/tenant/${slug}/settings`, icon: Settings, label: 'Ayarlar' },
 ]
 
+interface TrialSettings {
+  plan?: string
+  trialEndsAt?: string
+}
+
+function trialDaysLeft(trialEndsAt: string): number {
+  const end = new Date(trialEndsAt)
+  const now = new Date()
+  return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+}
+
 export function Sidebar({ tenantSlug }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const logout = useAuthStore((s) => s.logout)
   const user = useAuthStore((s) => s.user)
+
+  const { data: settingsData } = useQuery({
+    queryKey: ['tenant-settings', tenantSlug],
+    queryFn: () => apiFetch<TrialSettings>(`/api/v1/tenants/${tenantSlug}/settings`),
+  })
+
+  const plan = settingsData?.plan
+  const trialEndsAt = settingsData?.trialEndsAt
+  const days = trialEndsAt ? trialDaysLeft(trialEndsAt) : null
 
   const handleLogout = () => {
     logout()
@@ -69,6 +91,26 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
           )
         })}
       </nav>
+
+      {/* Trial banner */}
+      {plan === 'trial' && days !== null && (
+        <div
+          className={cn(
+            'mx-3 mb-3 px-3 py-2 rounded-lg text-xs font-medium',
+            days > 7
+              ? 'bg-blue-50 text-blue-700'
+              : days > 0
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-red-50 text-red-600',
+          )}
+        >
+          {days <= 0
+            ? 'Deneme süresi doldu'
+            : days <= 7
+              ? `Deneme süren bitiyor! ${days} gün kaldı`
+              : `Deneme süren: ${days} gün kaldı`}
+        </div>
+      )}
 
       {/* User */}
       <div className="px-3 py-4 border-t border-salon-border">

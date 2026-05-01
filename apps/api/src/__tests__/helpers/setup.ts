@@ -118,6 +118,8 @@ export async function cleanupTenant(tenantId: string) {
     await db.notificationLog.deleteMany({ where: { tenantId } })
     await db.transaction.deleteMany({ where: { tenantId } })
     await db.appointment.deleteMany({ where: { tenantId } })
+    await db.staffLeave.deleteMany({ where: { tenantId } })
+    await db.staffServiceAssignment.deleteMany({ where: { tenantId } })
     await db.customer.deleteMany({ where: { tenantId } })
     await db.staffProfile.deleteMany({ where: { tenantId } })
     await db.user.deleteMany({ where: { tenantId } })

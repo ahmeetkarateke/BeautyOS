@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
+import Link from 'next/link'
 import { Scissors } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -121,6 +122,13 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" loading={isPending}>
                 Giriş Yap
               </Button>
+
+              <p className="text-center text-sm text-salon-muted">
+                Hesabın yok mu?{' '}
+                <Link href="/signup" className="text-primary hover:underline font-medium">
+                  Ücretsiz başla
+                </Link>
+              </p>
             </form>
           </CardContent>
         </Card>

@@ -2,11 +2,22 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import rateLimit from 'express-rate-limit'
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { remindersQueue } from '../lib/queue'
-import { authenticateJWT, requireTenantAccess } from '../middleware/auth.middleware'
+import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { TelegramChannel } from '../channels/telegram.channel'
+
+const XSS_PATTERN = /<[^>]*>|javascript:/i
+
+function noXss(max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max)
+    .refine((v) => !XSS_PATTERN.test(v), { message: 'Geçersiz karakter içeriyor.' })
+}
 
 // ─── Timezone Helpers (Europe/Istanbul = UTC+3 permanent since 2016) ──────────
 
@@ -79,6 +90,26 @@ export function createTenantRouter(): Router {
 
   router.use(authenticateJWT)
   router.use(requireTenantAccess)
+  router.use(checkTenantActive)
+
+  const searchLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    keyGenerator: (req) => req.user?.tenantId ?? req.ip ?? 'unknown',
+    skip: (req) => !req.query.search,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Arama limiti aşıldı. 1 dakika sonra tekrar deneyin.' } },
+  })
+
+  const appointmentCreateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    keyGenerator: (req) => req.user?.tenantId ?? req.ip ?? 'unknown',
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Randevu oluşturma limiti aşıldı. 1 dakika sonra tekrar deneyin.' } },
+  })
 
   // GET /api/v1/tenants/:slug/dashboard?period=today|week|month
   router.get('/dashboard', async (req: Request, res: Response, next: NextFunction) => {
@@ -222,7 +253,7 @@ export function createTenantRouter(): Router {
   })
 
   // GET /api/v1/tenants/:slug/customers?search=TEXT&cursor=ID&limit=20
-  router.get('/customers', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/customers', searchLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.user!.tenantId
 
@@ -364,11 +395,11 @@ export function createTenantRouter(): Router {
     customerId: z.string().uuid(),
     serviceId: z.string().uuid(),
     staffId: z.string().uuid(),
-    startAt: z.string().min(1),
-    notes: z.string().max(500).optional(),
+    startAt: z.string().trim().min(1),
+    notes: noXss(500).optional(),
   })
 
-  router.post('/appointments', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/appointments', appointmentCreateLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.user!.tenantId
 
@@ -486,10 +517,10 @@ export function createTenantRouter(): Router {
 
   // POST /api/v1/tenants/:slug/customers
   const createCustomerSchema = z.object({
-    fullName: z.string().min(2).max(100),
-    phone: z.string().min(7).max(20),
-    email: z.string().email().optional(),
-    birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    fullName: z.string().trim().min(2).max(100),
+    phone: z.string().trim().min(7).max(20),
+    email: z.string().trim().email().optional(),
+    birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })
 
   router.post('/customers', async (req: Request, res: Response, next: NextFunction) => {
@@ -548,7 +579,7 @@ export function createTenantRouter(): Router {
 
       const tenant = await db.tenant.findUnique({
         where: { id: tenantId },
-        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true },
+        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true, plan: true, trialEndsAt: true, isActive: true },
       })
 
       if (!tenant) {
@@ -933,7 +964,7 @@ export function createTenantRouter(): Router {
 
   // PATCH /api/v1/tenants/:slug/appointments/:appointmentId
   const updateAppointmentSchema = z.object({
-    notes: z.string().max(500).nullable().optional(),
+    notes: noXss(500).nullable().optional(),
   })
 
   router.patch('/appointments/:appointmentId', async (req: Request, res: Response, next: NextFunction) => {
@@ -974,10 +1005,10 @@ export function createTenantRouter(): Router {
 
   // PATCH /api/v1/tenants/:slug/settings
   const settingsSchema = z.object({
-    name: z.string().min(2).max(100).optional(),
-    phone: z.string().min(7).max(20).optional(),
-    address: z.string().min(5).max(255).optional(),
-    workingHours: z.string().min(1).max(200).optional(),
+    name: z.string().trim().min(2).max(100).optional(),
+    phone: z.string().trim().min(7).max(20).optional(),
+    address: z.string().trim().min(5).max(255).optional(),
+    workingHours: z.string().trim().min(1).max(200).optional(),
     onboardingCompleted: z.boolean().optional(),
     businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
     followUpEnabled: z.boolean().optional(),
@@ -1074,12 +1105,12 @@ export function createTenantRouter(): Router {
 
   const followUpEntrySchema = z.object({
     day: z.number().int().min(1).max(365),
-    label: z.string().max(100),
+    label: z.string().trim().max(100),
   })
 
   const createServiceSchema = z.object({
-    name: z.string().min(1).max(100),
-    category: z.string().max(50).optional(),
+    name: z.string().trim().min(1).max(100),
+    category: z.string().trim().max(50).optional(),
     durationMinutes: z.number().int().min(5),
     price: z.number().min(0),
     bufferMinutes: z.number().int().min(0).optional().default(0),
@@ -1087,8 +1118,8 @@ export function createTenantRouter(): Router {
   })
 
   const updateServiceSchema = z.object({
-    name: z.string().min(1).max(100).optional(),
-    category: z.string().max(50).optional(),
+    name: z.string().trim().min(1).max(100).optional(),
+    category: z.string().trim().max(50).optional(),
     durationMinutes: z.number().int().min(5).optional(),
     price: z.number().min(0).optional(),
     bufferMinutes: z.number().int().min(0).optional(),
@@ -1187,17 +1218,17 @@ export function createTenantRouter(): Router {
   // ─── Staff CRUD ────────────────────────────────────────────────────────────────
 
   const createStaffSchema = z.object({
-    email: z.string().email(),
+    email: z.string().trim().email(),
     password: z.string().min(8),
-    fullName: z.string().min(2).max(100),
-    title: z.string().min(1).max(100),
-    bio: z.string().max(500).optional(),
+    fullName: z.string().trim().min(2).max(100),
+    title: z.string().trim().min(1).max(100),
+    bio: z.string().trim().max(500).optional(),
     colorCode: z.number().int().optional(),
   })
 
   const updateStaffSchema = z.object({
-    title: z.string().min(1).max(100).optional(),
-    bio: z.string().max(500).optional(),
+    title: z.string().trim().min(1).max(100).optional(),
+    bio: z.string().trim().max(500).optional(),
     colorCode: z.number().int().optional(),
     workingHours: z.record(z.unknown()).optional(),
   })
@@ -1328,12 +1359,12 @@ export function createTenantRouter(): Router {
   // ─── Customer PATCH ────────────────────────────────────────────────────────────
 
   const updateCustomerSchema = z.object({
-    fullName: z.string().min(2).max(100).optional(),
-    phone: z.string().min(7).max(20).optional(),
-    email: z.string().email().optional().nullable(),
-    birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-    allergyNotes: z.string().max(500).optional().nullable(),
-    preferenceNotes: z.string().max(500).optional().nullable(),
+    fullName: z.string().trim().min(2).max(100).optional(),
+    phone: z.string().trim().min(7).max(20).optional(),
+    email: z.string().trim().email().optional().nullable(),
+    birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    allergyNotes: noXss(500).optional().nullable(),
+    preferenceNotes: noXss(500).optional().nullable(),
   })
 
   router.patch('/customers/:customerId', async (req: Request, res: Response, next: NextFunction) => {
@@ -1683,10 +1714,10 @@ export function createTenantRouter(): Router {
   // ─── Manual Revenues ─────────────────────────────────────────────────────────
 
   const createRevenueSchema = z.object({
-    description: z.string().min(1),
+    description: z.string().trim().min(1),
     amount: z.coerce.number().positive(),
     paymentMethod: z.enum(['cash', 'card']),
-    revenueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    revenueDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
   })
 
   router.post('/revenues', async (req: Request, res: Response, next: NextFunction) => {
@@ -1728,10 +1759,10 @@ export function createTenantRouter(): Router {
   // ─── Expenses CRUD ────────────────────────────────────────────────────────────
 
   const createExpenseSchema = z.object({
-    title: z.string().min(1),
-    category: z.string().min(1),
+    title: z.string().trim().min(1),
+    category: z.string().trim().min(1),
     amount: z.coerce.number().positive(),
-    expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    expenseDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
   })
 
   router.post('/expenses', async (req: Request, res: Response, next: NextFunction) => {
