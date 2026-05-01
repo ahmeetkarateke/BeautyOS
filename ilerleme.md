@@ -178,6 +178,7 @@
 | ✅ Tenant self-serve kayıt + trial sistemi — `POST /auth/register`, `checkTenantActive` middleware, Resend e-posta, 9/9 test (01.05.2026) | Tamamlandı |
 | ✅ Signup sayfası + trial banner + 402 erişim engeli — 7 dosya (01.05.2026) | Tamamlandı |
 | ✅ Süper Admin API — seed, admin-login, tenant CRUD, stats, 15/15 test (01.05.2026) | Tamamlandı |
+| ✅ Süper Admin UI — login, dashboard, tenant listesi + detay sayfası, 10 yeni dosya (01.05.2026) | Tamamlandı |
 
 ---
 
