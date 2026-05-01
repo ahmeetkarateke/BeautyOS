@@ -95,7 +95,7 @@ async function bootstrap(): Promise<void> {
   // ─── Root health check ────────────────────────────────────────────────────
 
   app.get('/', (_req, res) => {
-    res.json({ service: 'BeautyOS API', version: '1.0.0', status: 'ok' })
+    res.json({ service: 'BeautyOS API', version: '1.0.0', status: 'ok', env: process.env.NODE_ENV })
   })
 
   // ─── Deep health check (UptimeRobot / BetterUptime için) ─────────────────
