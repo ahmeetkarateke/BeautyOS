@@ -94,6 +94,11 @@ export function createAdminRouter(): Router {
           _count: {
             select: { users: true, appointments: true, customers: true },
           },
+          users: {
+            where: { role: 'owner' },
+            select: { email: true, phone: true, fullName: true },
+            take: 1,
+          },
         },
         orderBy: { createdAt: 'desc' },
       })

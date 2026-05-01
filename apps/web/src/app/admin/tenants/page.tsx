@@ -19,6 +19,7 @@ interface TenantRow {
   isActive: boolean
   createdAt: string
   _count: { users: number; appointments: number; customers: number }
+  users: { email: string; phone: string | null; fullName: string }[]
 }
 
 interface TenantsResponse {
@@ -101,7 +102,7 @@ export default function AdminTenantsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-salon-border bg-salon-bg">
-                {['Salon Adı', 'Slug', 'Plan', 'Trial Bitiş', 'Durum', 'Kayıt Tarihi', 'Müşteri', 'Randevu', ''].map(
+                {['Salon Adı', 'Owner', 'Telefon', 'Plan', 'Trial Bitiş', 'Durum', 'Kayıt Tarihi', 'Müşteri', 'Randevu', ''].map(
                   (h) => (
                     <th
                       key={h}
@@ -117,7 +118,7 @@ export default function AdminTenantsPage() {
               {isLoading
                 ? [...Array(6)].map((_, i) => (
                     <tr key={i} className="border-b border-salon-border last:border-0">
-                      {[...Array(9)].map((_, j) => (
+                      {[...Array(11)].map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <Skeleton className="h-4 w-full" />
                         </td>
@@ -130,7 +131,13 @@ export default function AdminTenantsPage() {
                       className="border-b border-salon-border last:border-0 hover:bg-salon-bg transition-colors"
                     >
                       <td className="px-4 py-3 font-medium text-gray-900">{t.name}</td>
-                      <td className="px-4 py-3 text-salon-muted font-mono text-xs">{t.slug}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-700">{t.users[0]?.fullName ?? '—'}</p>
+                        <p className="text-xs text-salon-muted">{t.users[0]?.email ?? '—'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {t.users[0]?.phone ?? '—'}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={cn(
