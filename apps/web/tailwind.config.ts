@@ -32,6 +32,10 @@ const config: Config = {
           border: '#E5E7EB',
           muted: '#6B7280',
         },
+        auth: {
+          bg: '#0D0D1A',
+          orb3: '#4F8EFF',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -44,6 +48,9 @@ const config: Config = {
       boxShadow: {
         card: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
         'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
+        glass: '0 8px 40px rgba(107, 72, 255, 0.18), inset 0 1px 0 rgba(255,255,255,0.08)',
+        'glow-primary': '0 0 20px rgba(107, 72, 255, 0.5)',
+        'glow-input': '0 0 0 2px rgba(107, 72, 255, 0.4)',
       },
     },
   },

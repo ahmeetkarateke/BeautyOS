@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Scissors } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
+import { MouseOrbs } from '@/components/ui/mouse-orbs'
 import { OnboardingProgress } from './OnboardingProgress'
 import { Step1Salon } from './steps/Step1Salon'
 import { Step2Services } from './steps/Step2Services'
@@ -27,6 +29,8 @@ const STEP_DESCRIPTIONS = [
   'Kurulumunuz tamamlandı',
 ]
 
+const CUBIC: [number, number, number, number] = [0.23, 1, 0.32, 1]
+
 export default function OnboardingPage() {
   const router = useRouter()
   const token = useAuthStore((s) => s.token)
@@ -34,65 +38,95 @@ export default function OnboardingPage() {
   const onboardingCompleted = useAuthStore((s) => s.onboardingCompleted)
   const [hydrated, setHydrated] = useState(false)
   const [step, setStep] = useState(1)
+  const [direction, setDirection] = useState(1)
 
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
+  useEffect(() => { setHydrated(true) }, [])
 
   useEffect(() => {
     if (!hydrated) return
-    if (!token) {
-      router.replace('/login')
-      return
-    }
-    if (onboardingCompleted && user) {
-      router.replace(`/tenant/${user.tenantSlug}/dashboard`)
-    }
+    if (!token) { router.replace('/login'); return }
+    if (onboardingCompleted && user) router.replace(`/tenant/${user.tenantSlug}/dashboard`)
   }, [hydrated, token, onboardingCompleted, user, router])
 
   if (!hydrated || !token || !user) return null
 
   const slug = user.tenantSlug
 
-  function next() {
-    setStep((s) => Math.min(s + 1, 5))
-  }
-
-  function back() {
-    setStep((s) => Math.max(s - 1, 1))
-  }
+  function next() { setDirection(1); setStep((s) => Math.min(s + 1, 5)) }
+  function back() { setDirection(-1); setStep((s) => Math.max(s - 1, 1)) }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-3 shadow-md">
-            <Scissors className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-[#0D0D1A] flex items-center justify-center p-4 relative overflow-hidden">
+      <MouseOrbs />
+
+      <div className="w-full max-w-lg relative z-10">
+        {/* Logo */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: CUBIC }}
+          className="flex items-center justify-center gap-2.5 mb-8"
+        >
+          <div
+            className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center"
+            style={{ boxShadow: '0 0 20px rgba(107,72,255,0.5)' }}
+          >
+            <Scissors className="w-4.5 h-4.5 text-white" />
           </div>
-          <h1 className="text-xl font-semibold text-gray-900">BeautyOS Kurulum</h1>
-        </div>
+          <span className="text-white font-semibold text-lg tracking-tight">BeautyOS Kurulum</span>
+        </motion.div>
 
         {/* Progress */}
-        <div className="mb-6">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.15, duration: 0.4 }}
+          className="mb-6"
+        >
           <OnboardingProgress step={step} totalSteps={5} />
-        </div>
+        </motion.div>
 
-        {/* Step card */}
-        <div className="bg-white rounded-xl border border-salon-border shadow-card p-6">
+        {/* Glass card */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5, ease: CUBIC }}
+          className="rounded-2xl p-6 overflow-hidden"
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 8px 40px rgba(107, 72, 255, 0.12), inset 0 1px 0 rgba(255,255,255,0.06)',
+          }}
+        >
+          {/* Step header */}
           {step < 5 && (
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">{STEP_TITLES[step - 1]}</h2>
-              <p className="text-sm text-salon-muted mt-0.5">{STEP_DESCRIPTIONS[step - 1]}</p>
+            <div className="mb-5">
+              <p className="text-xs font-medium text-primary uppercase tracking-widest mb-1">
+                Adım {step} — {STEP_TITLES[step - 1]}
+              </p>
+              <p className="text-white/40 text-sm">{STEP_DESCRIPTIONS[step - 1]}</p>
             </div>
           )}
 
-          {step === 1 && <Step1Salon slug={slug} onNext={next} />}
-          {step === 2 && <Step2Services slug={slug} onNext={next} onBack={back} />}
-          {step === 3 && <Step3Staff slug={slug} onNext={next} onBack={back} />}
-          {step === 4 && <Step4WhatsApp onNext={next} onBack={back} />}
-          {step === 5 && <Step5Done slug={slug} />}
-        </div>
+          {/* Step content with slide animation */}
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={step}
+              custom={direction}
+              initial={{ opacity: 0, x: direction > 0 ? 30 : -30 }}
+              animate={{ opacity: 1, x: 0, transition: { duration: 0.35, ease: CUBIC } }}
+              exit={{ opacity: 0, x: direction > 0 ? -30 : 30, transition: { duration: 0.22 } }}
+            >
+              {step === 1 && <Step1Salon slug={slug} onNext={next} />}
+              {step === 2 && <Step2Services slug={slug} onNext={next} onBack={back} />}
+              {step === 3 && <Step3Staff slug={slug} onNext={next} onBack={back} />}
+              {step === 4 && <Step4WhatsApp onNext={next} onBack={back} />}
+              {step === 5 && <Step5Done slug={slug} />}
+            </motion.div>
+          </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   )

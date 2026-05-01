@@ -4,12 +4,10 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { STAFF_COLORS } from '@/lib/staff-colors'
+import { OnboardingInput, OnboardingActions } from '../OnboardingInput'
 
 const staffItem = z.object({
   name: z.string().min(2, 'Ad soyad giriniz'),
@@ -19,10 +17,7 @@ const staffItem = z.object({
   color: z.string(),
 })
 
-const schema = z.object({
-  staff: z.array(staffItem).min(1).max(3),
-})
-
+const schema = z.object({ staff: z.array(staffItem).min(1).max(3) })
 type FormData = z.infer<typeof schema>
 
 interface Step3StaffProps {
@@ -32,18 +27,9 @@ interface Step3StaffProps {
 }
 
 export function Step3Staff({ slug, onNext, onBack }: Step3StaffProps) {
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  const { register, handleSubmit, control, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      staff: [{ name: '', email: '', password: '', title: '', color: STAFF_COLORS[0] }],
-    },
+    defaultValues: { staff: [{ name: '', email: '', password: '', title: '', color: STAFF_COLORS[0] }] },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'staff' })
@@ -55,11 +41,7 @@ export function Step3Staff({ slug, onNext, onBack }: Step3StaffProps) {
         data.staff.map(({ name, color, ...rest }) =>
           apiFetch(`/api/v1/tenants/${slug}/staff`, {
             method: 'POST',
-            body: JSON.stringify({
-              ...rest,
-              fullName: name,
-              colorCode: STAFF_COLORS.indexOf(color),
-            }),
+            body: JSON.stringify({ ...rest, fullName: name, colorCode: STAFF_COLORS.indexOf(color) }),
           }),
         ),
       )
@@ -70,74 +52,67 @@ export function Step3Staff({ slug, onNext, onBack }: Step3StaffProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {fields.map((field, index) => (
-        <div key={field.id} className="rounded-lg border border-salon-border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-salon-muted">Personel {index + 1}</span>
+        <div
+          key={field.id}
+          className="rounded-xl p-4 space-y-3"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-white/40 uppercase tracking-wider">Personel {index + 1}</span>
             {fields.length > 1 && (
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                className="text-salon-muted hover:text-red-500 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
+              <button type="button" onClick={() => remove(index)} className="text-white/20 hover:text-red-400 transition-colors">
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Ad Soyad *</Label>
-              <Input
-                placeholder="Ayşe Kaya"
-                error={errors.staff?.[index]?.name?.message}
-                {...register(`staff.${index}.name`)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Unvan *</Label>
-              <Input
-                placeholder="Kuaför"
-                error={errors.staff?.[index]?.title?.message}
-                {...register(`staff.${index}.title`)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>E-posta *</Label>
-            <Input
-              type="email"
-              placeholder="ayse@salon.com"
-              error={errors.staff?.[index]?.email?.message}
-              {...register(`staff.${index}.email`)}
+            <OnboardingInput
+              label="Ad Soyad *"
+              placeholder="Ayşe Kaya"
+              error={errors.staff?.[index]?.name?.message}
+              {...register(`staff.${index}.name`)}
+            />
+            <OnboardingInput
+              label="Unvan *"
+              placeholder="Kuaför"
+              error={errors.staff?.[index]?.title?.message}
+              {...register(`staff.${index}.title`)}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Şifre *</Label>
-            <Input
-              type="password"
-              placeholder="••••••••"
-              error={errors.staff?.[index]?.password?.message}
-              {...register(`staff.${index}.password`)}
-            />
-          </div>
+          <OnboardingInput
+            label="E-posta *"
+            type="email"
+            placeholder="ayse@salon.com"
+            error={errors.staff?.[index]?.email?.message}
+            {...register(`staff.${index}.email`)}
+          />
+
+          <OnboardingInput
+            label="Şifre *"
+            type="password"
+            placeholder="En az 8 karakter"
+            error={errors.staff?.[index]?.password?.message}
+            {...register(`staff.${index}.password`)}
+          />
 
           <div className="space-y-1.5">
-            <Label>Renk</Label>
+            <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Renk</p>
             <div className="flex gap-2 flex-wrap">
               {STAFF_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
                   onClick={() => setValue(`staff.${index}.color`, color)}
-                  className="w-8 h-8 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                  className="w-7 h-7 rounded-full transition-all duration-150 hover:scale-110 focus:outline-none"
                   style={{
                     backgroundColor: color,
-                    outline: watchedStaff[index]?.color === color ? `3px solid ${color}` : '3px solid transparent',
+                    outline: watchedStaff[index]?.color === color ? `2px solid ${color}` : '2px solid transparent',
                     outlineOffset: '2px',
+                    boxShadow: watchedStaff[index]?.color === color ? `0 0 8px ${color}60` : 'none',
                   }}
                   aria-label={`Renk: ${color}`}
                 />
@@ -150,30 +125,15 @@ export function Step3Staff({ slug, onNext, onBack }: Step3StaffProps) {
       {fields.length < 3 && (
         <button
           type="button"
-          onClick={() =>
-            append({
-              name: '',
-              email: '',
-              password: '',
-              title: '',
-              color: STAFF_COLORS[fields.length % STAFF_COLORS.length],
-            })
-          }
-          className="flex items-center gap-2 text-sm text-primary hover:text-primary-600 transition-colors"
+          onClick={() => append({ name: '', email: '', password: '', title: '', color: STAFF_COLORS[fields.length % STAFF_COLORS.length] })}
+          className="flex items-center gap-2 text-xs font-medium transition-colors"
+          style={{ color: 'rgba(107,72,255,0.8)' }}
         >
-          <Plus className="w-4 h-4" />
-          Başka ekle
+          <Plus className="w-3.5 h-3.5" /> Başka personel ekle
         </button>
       )}
 
-      <div className="flex justify-between pt-2">
-        <Button type="button" variant="ghost" onClick={onBack}>
-          Geri
-        </Button>
-        <Button type="submit" loading={isSubmitting}>
-          İleri
-        </Button>
-      </div>
+      <OnboardingActions onBack={onBack} isPending={isSubmitting} submitLabel="İleri" />
     </form>
   )
 }

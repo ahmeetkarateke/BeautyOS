@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/forms";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #6B48FF;
   --color-primary-50: #F0ECFF;
@@ -47,6 +49,35 @@
     font-weight: 600;
   }
 }
+
+/* Dark mode: tüm salon CSS değişkenlerini override et */
+.dark {
+  --color-salon-bg: #0d0d1a;
+  --color-salon-card: #111827;
+  --color-salon-border: rgba(255, 255, 255, 0.08);
+  --color-salon-muted: rgba(255, 255, 255, 0.45);
+  color-scheme: dark;
+}
+
+.dark body {
+  color: #f3f4f6;
+}
+
+/* Açık renkli text utility'lerini dark modda beyaza çevir */
+.dark .text-gray-900 { color: #f9fafb; }
+.dark .text-gray-800 { color: #f3f4f6; }
+.dark .text-gray-700 { color: #e5e7eb; }
+.dark .text-gray-600 { color: #d1d5db; }
+.dark .text-gray-500 { color: #9ca3af; }
+
+/* Açık arka planları dark modda koyu yap */
+.dark .bg-white { background-color: #111827; }
+.dark .bg-gray-50 { background-color: #1f2937; }
+.dark .bg-gray-100 { background-color: #1f2937; }
+.dark .bg-blue-50 { background-color: rgba(59,130,246,0.1); }
+.dark .bg-amber-50 { background-color: rgba(245,158,11,0.1); }
+.dark .bg-red-50 { background-color: rgba(239,68,68,0.1); }
+.dark .bg-green-50 { background-color: rgba(34,197,94,0.1); }
 
 @layer utilities {
   .touch-target {

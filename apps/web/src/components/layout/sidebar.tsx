@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut, Sparkles, UserCog, Banknote } from 'lucide-react'
+import { Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut, Sparkles, UserCog, Banknote, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
+import { useThemeStore } from '@/store/theme'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
@@ -39,6 +40,7 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
   const router = useRouter()
   const logout = useAuthStore((s) => s.logout)
   const user = useAuthStore((s) => s.user)
+  const { dark, toggle } = useThemeStore()
 
   const { data: settingsData } = useQuery({
     queryKey: ['tenant-settings', tenantSlug],
@@ -55,41 +57,41 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
   }
 
   return (
-    <aside className="flex flex-col w-64 bg-white border-r border-salon-border min-h-screen">
+    <aside className="flex flex-col w-64 min-h-screen bg-white border-r border-salon-border dark:bg-[#0f0f1a] dark:border-white/8">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-salon-border">
-        <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-salon-border dark:border-white/8">
+        <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center flex-shrink-0 dark:shadow-[0_0_16px_rgba(107,72,255,0.4)]">
           <Scissors className="w-5 h-5 text-white" />
         </div>
-        <span className="font-semibold text-gray-900">BeautyOS</span>
+        <span className="font-semibold text-gray-900 dark:text-white">BeautyOS</span>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-0.5">
         {navItems(tenantSlug)
           .filter((item) =>
             user?.role !== 'staff' ||
             !['/staff', '/finance', '/settings'].some((p) => item.href.endsWith(p)),
           )
           .map((item) => {
-          const Icon = item.icon
-          const active = pathname === item.href || pathname.startsWith(item.href + '/')
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors touch-target',
-                active
-                  ? 'bg-primary-50 text-primary'
-                  : 'text-salon-muted hover:bg-salon-bg hover:text-gray-900',
-              )}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {item.label}
-            </Link>
-          )
-        })}
+            const Icon = item.icon
+            const active = pathname === item.href || pathname.startsWith(item.href + '/')
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors touch-target',
+                  active
+                    ? 'bg-primary-50 text-primary dark:bg-primary/15 dark:text-primary'
+                    : 'text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white',
+                )}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {item.label}
+              </Link>
+            )
+          })}
       </nav>
 
       {/* Trial banner */}
@@ -98,10 +100,10 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
           className={cn(
             'mx-3 mb-3 px-3 py-2 rounded-lg text-xs font-medium',
             days > 7
-              ? 'bg-blue-50 text-blue-700'
+              ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400'
               : days > 0
-                ? 'bg-amber-50 text-amber-700'
-                : 'bg-red-50 text-red-600',
+                ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
+                : 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400',
           )}
         >
           {days <= 0
@@ -112,22 +114,44 @@ export function Sidebar({ tenantSlug }: SidebarProps) {
         </div>
       )}
 
-      {/* User */}
-      <div className="px-3 py-4 border-t border-salon-border">
-        <div className="flex items-center gap-3 px-3 py-2 mb-1">
-          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+      {/* Alt alan: tema toggle + kullanıcı + çıkış */}
+      <div className="px-3 py-4 border-t border-salon-border dark:border-white/8 space-y-1">
+        {/* Tema toggle */}
+        <button
+          onClick={toggle}
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-medium transition-all duration-200 touch-target text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white"
+        >
+          <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+            {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+          </span>
+          {dark ? 'Açık Tema' : 'Koyu Tema'}
+          <span
+            className="ml-auto w-8 h-4 rounded-full relative transition-colors duration-200 flex-shrink-0"
+            style={{ background: dark ? '#6B48FF' : '#E5E7EB' }}
+          >
+            <span
+              className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 shadow-sm"
+              style={{ left: dark ? '18px' : '2px' }}
+            />
+          </span>
+        </button>
+
+        {/* Kullanıcı */}
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary/20 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-semibold text-primary">
               {user?.name?.charAt(0).toUpperCase() ?? 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-            <p className="text-xs text-salon-muted truncate">{user?.email}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user?.name}</p>
+            <p className="text-xs text-salon-muted dark:text-white/40 truncate">{user?.email}</p>
           </div>
         </div>
+
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm text-salon-muted hover:bg-red-50 hover:text-red-600 transition-colors touch-target"
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm text-salon-muted hover:bg-red-50 hover:text-red-600 dark:text-white/40 dark:hover:bg-red-500/10 dark:hover:text-red-400 transition-colors touch-target"
         >
           <LogOut className="w-5 h-5" />
           Çıkış Yap

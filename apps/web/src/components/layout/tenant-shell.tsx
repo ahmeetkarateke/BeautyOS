@@ -20,7 +20,7 @@ export function TenantShell({ slug, children }: TenantShellProps) {
 
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-salon-bg">
+      <div className="flex min-h-screen bg-salon-bg dark:bg-[#0d0d1a]">
         <div className="hidden sm:flex">
           <Sidebar tenantSlug={slug} />
         </div>
