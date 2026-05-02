@@ -44,16 +44,24 @@ function matchSlot(input: string, slots: AvailableSlot[]): AvailableSlot | undef
     if (found) return found
   }
 
-  // Personel adı ile
-  return slots.find(
-    (s) =>
-      s.staffName.toLowerCase().includes(t) ||
-      t.includes(s.staffName.toLowerCase().split(' ')[0]),
-  )
+  // Personel adı ile — min 3 karakter kontrolü (kısa test isimlerinin yanlış eşleşmesini önler)
+  return slots.find((s) => {
+    const name = s.staffName.toLowerCase()
+    const firstName = name.split(' ')[0]
+    if (firstName.length < 3) return false
+    return name.includes(t) || t.includes(firstName)
+  })
 }
 
 function slotListText(slots: AvailableSlot[]): string {
   return slots.map((s, i) => `${i + 1}. ${s.label} — ${s.staffName}`).join('\n')
+}
+
+function formatDateTR(dateStr: string): string {
+  const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
+  const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi']
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${days[d.getUTCDay()]}`
 }
 
 // "Hayır cumartesi istiyorum" gibi mesajlardan yeni tarih çıkar
@@ -273,7 +281,7 @@ export class FlowHandler {
         session.step = 'awaiting_slot_confirm'
 
         // Hangi tarih için olduğunu göster
-        const dateLabel = slots[0].id.split('__')[0].split('T')[0]
+        const dateLabel = formatDateTR(slots[0].id.split('__')[0].split('T')[0])
         await channel.sendText(
           msg.from,
           `*${dateLabel}* için uygun saatler:\n\n${slotListText(slots)}\n\nHangisini tercih edersiniz? (numara veya saati yazabilirsiniz)`,
@@ -298,9 +306,22 @@ export class FlowHandler {
           return
         }
 
+        // "Daha geç saat var mı?" gibi sorular
+        const t = msg.text.toLowerCase()
+        const isAskingForDifferentTime = /daha (geç|erken|ileride|sonra|önce)|başka (saat|zaman|vakit)|geç.*saat|erken.*saat/.test(t)
+        if (isAskingForDifferentTime) {
+          const dateLabel = formatDateTR(storedSlots[0].id.split('__')[0].split('T')[0])
+          const lastSlot = storedSlots[storedSlots.length - 1]
+          await channel.sendText(
+            msg.from,
+            `${dateLabel} için en geç ${lastSlot.label} saatimiz müsait. Mevcut saatler:\n\n${slotListText(storedSlots)}\n\nBaşka bir gün tercih etmek ister misiniz?`,
+          )
+          return
+        }
+
         const slot = matchSlot(msg.text, storedSlots)
         if (!slot) {
-          const dateLabel = storedSlots[0].id.split('__')[0].split('T')[0]
+          const dateLabel = formatDateTR(storedSlots[0].id.split('__')[0].split('T')[0])
           await channel.sendText(
             msg.from,
             `Anlayamadım. *${dateLabel}* için uygun saatler:\n\n${slotListText(storedSlots)}\n\nNumara veya saat yazın, ya da farklı bir tarih belirtin.`,
@@ -312,8 +333,8 @@ export class FlowHandler {
         ;(session.entities as Record<string, unknown>)['_selectedStaff'] = slot.staffName
         ;(session.entities as Record<string, unknown>)['_selectedTime'] = slot.label
 
-        const [datePart, timePart] = slot.id.split('__')[0].split('T')
-        const displayDate = datePart
+        const [datePart] = slot.id.split('__')[0].split('T')
+        const displayDate = formatDateTR(datePart)
         const displayTime = slot.label
 
         session.step = 'awaiting_confirm'
