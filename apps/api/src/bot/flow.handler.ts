@@ -270,6 +270,13 @@ export class FlowHandler {
           return
         }
 
+        // Tarihle birlikte soru da geldiyse (ör: "Salı günü ama fiyat ne kadar?") önce soruyu yanıtla
+        const hasEmbeddedQuestion = /fiyat|kaç|ücret|ne kadar|ödeme|nasıl|nedir|nerede|kaç tl/.test(msg.text.toLowerCase())
+        if (hasEmbeddedQuestion) {
+          const qReply = await this.intentService.generateReply(session, msg.text, salon, 'Soruyu kısaca yanıtla')
+          await channel.sendText(msg.from, qReply)
+        }
+
         session.entities.datePreference = msg.text
         const slots = await getAvailableSlots(
           session.tenantId,
