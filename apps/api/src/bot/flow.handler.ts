@@ -307,6 +307,15 @@ export class FlowHandler {
           return
         }
 
+        // İptal / vazgeç
+        if (isNegative(msg.text) || /iptal|vazgeç|vazgec|sonra|daha sonra|şimdi değil|simdi degil/.test(msg.text.toLowerCase())) {
+          session.step = 'idle'
+          session.currentIntent = null
+          session.entities = {}
+          await channel.sendText(msg.from, 'Tamam, randevu almak istediğinizde tekrar yazabilirsiniz. 👋')
+          return
+        }
+
         // Kullanıcı yeni tarih söylüyorsa saat listesine geri dön
         const newDate = extractNewDate(msg.text)
         if (newDate) {

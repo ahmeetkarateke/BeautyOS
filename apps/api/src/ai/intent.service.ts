@@ -149,6 +149,10 @@ function buildSystemPrompt(salon: SalonContext): string {
     `Sen ${salon.name} adlı işletmenin randevu asistanısın. Türkçe, kısa (max 3 cümle) yanıt ver.`,
   ]
 
+  if (salon.botHidePrices) {
+    lines.push(`[ZORUNLU KURAL] Hiçbir koşulda fiyat, ücret veya tutar bilgisi verme. Fiyat sorulursa SADECE "Fiyatlarımız için lütfen salonumuzu arayın." de, başka bir şey söyleme.`)
+  }
+
   if (salon.botIntro) lines.push(salon.botIntro)
 
   lines.push(`SALON: ${salon.address} | ${salon.workingHours}`)
@@ -162,10 +166,6 @@ function buildSystemPrompt(salon: SalonContext): string {
   if (salon.botFaqs?.length) {
     const faqText = salon.botFaqs.map((f) => `S: ${f.question}\nC: ${f.answer}`).join('\n')
     lines.push(`SSS:\n${faqText}`)
-  }
-
-  if (salon.botHidePrices) {
-    lines.push(`KESİNLİKLE fiyat bilgisi verme. Fiyat sorulursa "Fiyatlarımız için lütfen salonumuzu arayın" de.`)
   }
 
   const prompt = lines.join('\n')
