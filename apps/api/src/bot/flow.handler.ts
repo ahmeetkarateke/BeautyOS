@@ -260,6 +260,16 @@ export class FlowHandler {
       }
 
       case 'awaiting_date': {
+        // "Hangi gün?" / "Ne zaman müsaitsiniz?" gibi soru kalıpları — gün belirtmeden geliyor
+        const isDateQuestion = /hangi (gün|günler|zaman)|ne zaman (müsait|var|uygun)|müsait (gün|günler)|randevu (var mı|varmı|müsait)/.test(msg.text.toLowerCase())
+        if (isDateQuestion) {
+          await channel.sendText(
+            msg.from,
+            `Pazartesi'den Cumartesi'ye randevu alabilirsiniz. Hangi günü tercih edersiniz?`,
+          )
+          return
+        }
+
         session.entities.datePreference = msg.text
         const slots = await getAvailableSlots(
           session.tenantId,
@@ -321,10 +331,16 @@ export class FlowHandler {
 
         const slot = matchSlot(msg.text, storedSlots)
         if (!slot) {
+          // Soru mu yoksa saat seçimi mi? Soru gibiyse Gemini ile cevapla, sonra slotları tekrar göster
+          const looksLikeQuestion = msg.text.includes('?') || /nasıl|nedir|nerede|kaç|kim|ne (kadar|zaman|oluyor)|çalışma saati/.test(t)
+          if (looksLikeQuestion) {
+            const reply = await this.intentService.generateReply(session, msg.text, salon, 'Genel soruyu yanıtla, sonra randevu saati seçimine geri dön')
+            await channel.sendText(msg.from, reply)
+          }
           const dateLabel = formatDateTR(storedSlots[0].id.split('__')[0].split('T')[0])
           await channel.sendText(
             msg.from,
-            `Anlayamadım. *${dateLabel}* için uygun saatler:\n\n${slotListText(storedSlots)}\n\nNumara veya saat yazın, ya da farklı bir tarih belirtin.`,
+            `*${dateLabel}* için uygun saatler:\n\n${slotListText(storedSlots)}\n\nNumara veya saat yazın, ya da farklı bir tarih belirtin.`,
           )
           return
         }
