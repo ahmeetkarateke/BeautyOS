@@ -97,9 +97,11 @@ export class WhatsAppChannel implements MessagingChannel {
   ): IncomingMessage | null {
     try {
       const body = payload as Record<string, unknown>
-      const messages = body.messages as unknown[] | undefined
+      const entry = (body.entry as unknown[])?.[0] as Record<string, unknown>
+      const change = (entry?.changes as unknown[])?.[0] as Record<string, unknown>
+      const value = change?.value as Record<string, unknown>
+      const messages = value?.messages as unknown[] | undefined
 
-      // 360dialog payload direkt — messages array üst seviyede
       if (!messages?.length) return null
 
       const msg = messages[0] as Record<string, unknown>
