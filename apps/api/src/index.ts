@@ -153,6 +153,11 @@ async function bootstrap(): Promise<void> {
       hasTelegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
       hasRedisUrl: !!process.env.REDIS_URL,
       publicUrl: process.env.PUBLIC_URL,
+      hasWhatsappToken: !!process.env.WHATSAPP_API_TOKEN,
+      hasWhatsappPhoneNumberId: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
+      hasWhatsappAppSecret: !!process.env.WHATSAPP_APP_SECRET,
+      hasWhatsappVerifyToken: !!process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+      hasTenantId: !!process.env.TELEGRAM_TENANT_ID,
     }
 
     res.json(results)
