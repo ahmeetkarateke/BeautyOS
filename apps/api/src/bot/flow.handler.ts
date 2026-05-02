@@ -343,8 +343,9 @@ export class FlowHandler {
           // Soru mu yoksa saat seçimi mi? Soru gibiyse Gemini ile cevapla, sonra slotları tekrar göster
           const looksLikeQuestion = msg.text.includes('?') || /nasıl|nedir|nerede|kaç|kim|ne (kadar|zaman|oluyor)|çalışma saati/.test(t)
           if (looksLikeQuestion) {
-            const reply = await this.intentService.generateReply(session, msg.text, salon, 'Genel soruyu yanıtla, sonra randevu saati seçimine geri dön')
+            const reply = await this.intentService.generateReply(session, msg.text, salon, 'Genel soruyu kısaca yanıtla')
             await channel.sendText(msg.from, reply)
+            return
           }
           const dateLabel = formatDateTR(storedSlots[0].id.split('__')[0].split('T')[0])
           await channel.sendText(
