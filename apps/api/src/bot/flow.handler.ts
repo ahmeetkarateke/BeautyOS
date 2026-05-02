@@ -75,7 +75,8 @@ function extractNewDate(text: string): string | null {
     'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık',
   ]
   if (dateKeywords.some((k) => t.includes(k))) return text
-  if (/\d{1,2}\s+[a-zışğüöç]{3,}/.test(t)) return text
+  // Sadece gerçek ay adlarıyla "15 mayıs" gibi kalıpları tarih say
+  if (/\d{1,2}\s+(ocak|şubat|subat|mart|nisan|mayıs|mayis|haziran|temmuz|ağustos|agustos|eylül|eylul|ekim|kasım|kasim|aralık|aralik)/.test(t)) return text
   return null
 }
 
