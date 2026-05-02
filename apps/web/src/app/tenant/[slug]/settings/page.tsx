@@ -488,14 +488,14 @@ function IntegrationsPanel() {
 // ─── Bot settings ─────────────────────────────────────────────────────────────
 
 const BOT_TONES = [
-  { value: 'resmi', label: 'Resmi' },
-  { value: 'samimi', label: 'Samimi' },
-  { value: 'enerjik', label: 'Enerjik' },
+  { value: 'formal', label: 'Resmi' },
+  { value: 'friendly', label: 'Samimi' },
+  { value: 'energetic', label: 'Enerjik' },
 ]
 
 function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
   const [botIntro, setBotIntro] = useState('')
-  const [botTone, setBotTone] = useState('samimi')
+  const [botTone, setBotTone] = useState('friendly')
   const [botRules, setBotRules] = useState('')
   const [botFaqs, setBotFaqs] = useState<BotFaq[]>([])
   const [botHidePrices, setBotHidePrices] = useState(false)
@@ -509,7 +509,9 @@ function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     if (data && !initialized) {
       setBotIntro(data.settings?.botIntro ?? '')
-      setBotTone(data.settings?.botTone ?? 'samimi')
+      const storedTone = data.settings?.botTone
+      const toneMap: Record<string, string> = { resmi: 'formal', samimi: 'friendly', enerjik: 'energetic' }
+      setBotTone(toneMap[storedTone ?? ''] ?? storedTone ?? 'friendly')
       setBotRules(data.settings?.botRules ?? '')
       setBotFaqs(data.settings?.botFaqs ?? [])
       setBotHidePrices(data.settings?.botHidePrices ?? false)
