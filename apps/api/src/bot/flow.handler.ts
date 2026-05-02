@@ -395,12 +395,23 @@ export class FlowHandler {
         if (isAffirmative(msg.text)) {
           await this.confirmBooking(channel, msg, session)
         } else if (isNegative(msg.text)) {
-          await channel.sendText(msg.from, 'Tamam, randevuyu iptal ettim. Başka bir konuda yardımcı olabilir miyim?')
-          await this.sessionService.reset(session)
+          session.step = 'awaiting_slot_confirm'
+          const storedSlots = (session.entities as Record<string, unknown>)['_slots'] as AvailableSlot[] | undefined
+          if (storedSlots?.length) {
+            const dateLabel = formatDateTR(storedSlots[0].id.split('__')[0].split('T')[0])
+            await channel.sendText(
+              msg.from,
+              `Tamam. *${dateLabel}* için başka bir saat seçmek ister misiniz?\n\n${slotListText(storedSlots)}\n\nNumara veya saat yazın, ya da farklı bir tarih belirtin.`,
+            )
+          } else {
+            session.step = 'awaiting_date'
+            await channel.sendText(msg.from, 'Tamam. Farklı bir gün veya saat tercih eder misiniz?')
+          }
         } else {
           const staff = (session.entities as Record<string, unknown>)['_selectedStaff'] as string ?? ''
           const time = (session.entities as Record<string, unknown>)['_selectedTime'] as string ?? ''
-          const date = session.entities.confirmedSlot?.split('__')[0].split('T')[0] ?? ''
+          const rawDate = session.entities.confirmedSlot?.split('__')[0].split('T')[0] ?? ''
+          const date = rawDate ? formatDateTR(rawDate) : ''
           await channel.sendText(
             msg.from,
             `Onaylamak için "evet", iptal etmek için "hayır" yazın.\n\n📋 *${session.entities.service}*\n📅 ${date} saat ${time}\n👤 ${staff}`,
@@ -443,7 +454,7 @@ export class FlowHandler {
       return
     }
 
-    const dateStr = slotId.split('__')[0].split('T')[0]
+    const dateStr = formatDateTR(slotId.split('__')[0].split('T')[0])
     const reply =
       `✅ Randevunuz oluşturuldu!\n\n` +
       `📋 *${service}*\n` +
@@ -523,6 +534,10 @@ export class FlowHandler {
     msg: IncomingMessage,
     salon: SalonContext,
   ): Promise<void> {
+    if (salon.botHidePrices) {
+      await channel.sendText(msg.from, 'Fiyatlarımız için lütfen salonumuzu arayın.')
+      return
+    }
     const list = salon.services.map((s) => `• ${s.name}: ₺${s.price}'dan başlayan`).join('\n')
     await channel.sendText(msg.from, `💰 *Fiyat Listemiz:*\n\n${list}`)
   }
