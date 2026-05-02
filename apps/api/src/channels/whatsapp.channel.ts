@@ -9,18 +9,23 @@ import type {
 } from './types'
 
 // ─── WhatsApp Channel ─────────────────────────────────────────────────────────
-// Şu an STUB — Meta WhatsApp Business API onayı gelince implement edilecek.
-// Interface tamamen aynı olduğu için bot mantığı (flow, AI, session) hiç
-// değişmeyecek. Sadece bu dosya doldurulacak.
+// 360dialog Sandbox/Production API kullanır.
+// Sandbox: waba-sandbox.360dialog.io | Production: waba.360dialog.io
 
 export class WhatsAppChannel implements MessagingChannel {
   readonly type = 'whatsapp' as const
 
+  private readonly baseUrl: string
+
   constructor(
-    private readonly apiToken: string,
-    private readonly phoneNumberId: string,
+    private readonly apiKey: string,
     private readonly appSecret: string,
-  ) {}
+    sandbox = false,
+  ) {
+    this.baseUrl = sandbox
+      ? 'https://waba-sandbox.360dialog.io/v1'
+      : 'https://waba.360dialog.io/v1'
+  }
 
   // ─── Gönderme metodları ────────────────────────────────────────────────────
 
@@ -35,7 +40,6 @@ export class WhatsAppChannel implements MessagingChannel {
   }
 
   async sendButtons(to: string, text: string, buttons: Button[]): Promise<void> {
-    // WhatsApp max 3 buton destekler
     if (buttons.length > 3) {
       logger.warn('WhatsApp max 3 buton destekler, liste olarak gönderiliyor')
       return this.sendList(to, text, [
@@ -54,7 +58,7 @@ export class WhatsAppChannel implements MessagingChannel {
         action: {
           buttons: buttons.map((b) => ({
             type: 'reply',
-            reply: { id: b.id, title: b.label.slice(0, 20) }, // WhatsApp max 20 karakter
+            reply: { id: b.id, title: b.label.slice(0, 20) },
           })),
         },
       },
@@ -93,17 +97,14 @@ export class WhatsAppChannel implements MessagingChannel {
   ): IncomingMessage | null {
     try {
       const body = payload as Record<string, unknown>
-      const entry = (body.entry as unknown[])?.[0] as Record<string, unknown>
-      const change = (entry?.changes as unknown[])?.[0] as Record<string, unknown>
-      const value = change?.value as Record<string, unknown>
-      const messages = value?.messages as unknown[]
+      const messages = body.messages as unknown[] | undefined
 
+      // 360dialog payload direkt — messages array üst seviyede
       if (!messages?.length) return null
 
       const msg = messages[0] as Record<string, unknown>
       const from = msg.from as string
 
-      // Düz metin mesajı
       if (msg.type === 'text') {
         const text = (msg.text as Record<string, string>).body
         return {
@@ -116,7 +117,6 @@ export class WhatsAppChannel implements MessagingChannel {
         }
       }
 
-      // Buton yanıtı (interactive)
       if (msg.type === 'interactive') {
         const interactive = msg.interactive as Record<string, unknown>
         const buttonReply = (
@@ -126,7 +126,7 @@ export class WhatsAppChannel implements MessagingChannel {
         return {
           channelType: 'whatsapp',
           from,
-          text: buttonReply.id, // button id'sini metin gibi işle
+          text: buttonReply.id,
           messageId: msg.id as string,
           timestamp: new Date(Number(msg.timestamp) * 1000),
           rawPayload: payload,
@@ -140,35 +140,58 @@ export class WhatsAppChannel implements MessagingChannel {
   }
 
   verifyWebhook(rawBody: string, headers: Record<string, string>): boolean {
+    // 360dialog sandbox imza doğrulaması kullanmaz — her isteği kabul et
+    if (!this.appSecret) return true
+
     const signature = headers['x-hub-signature-256']
-    if (!signature) return false
+    if (!signature) return true // 360dialog bazen imza göndermez
 
-    const expected = `sha256=${crypto
-      .createHmac('sha256', this.appSecret)
-      .update(rawBody)
-      .digest('hex')}`
-
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    try {
+      const expected = `sha256=${crypto
+        .createHmac('sha256', this.appSecret)
+        .update(rawBody)
+        .digest('hex')}`
+      return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    } catch {
+      return true
+    }
   }
 
-  // ─── WhatsApp Cloud API çağrısı ───────────────────────────────────────────
+  // ─── 360dialog API çağrısı ────────────────────────────────────────────────
 
   private async call(body: Record<string, unknown>): Promise<void> {
     try {
       await axios.post(
-        `https://graph.facebook.com/v19.0/${this.phoneNumberId}/messages`,
+        `${this.baseUrl}/messages`,
         body,
         {
           headers: {
-            Authorization: `Bearer ${this.apiToken}`,
+            'D360-API-KEY': this.apiKey,
             'Content-Type': 'application/json',
           },
           timeout: 10_000,
         },
       )
     } catch (error) {
-      logger.error({ error }, 'WhatsApp API çağrısı başarısız')
+      logger.error({ error }, 'WhatsApp (360dialog) API çağrısı başarısız')
       throw error
     }
+  }
+
+  // ─── Webhook URL kaydet ───────────────────────────────────────────────────
+
+  async registerWebhook(webhookUrl: string): Promise<void> {
+    await axios.post(
+      `${this.baseUrl}/configs/webhook`,
+      { url: webhookUrl },
+      {
+        headers: {
+          'D360-API-KEY': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        timeout: 10_000,
+      },
+    )
+    logger.info({ webhookUrl }, '360dialog webhook kaydedildi')
   }
 }

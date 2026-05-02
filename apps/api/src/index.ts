@@ -153,9 +153,8 @@ async function bootstrap(): Promise<void> {
       hasTelegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
       hasRedisUrl: !!process.env.REDIS_URL,
       publicUrl: process.env.PUBLIC_URL,
-      hasWhatsappToken: !!process.env.WHATSAPP_API_TOKEN,
-      hasWhatsappPhoneNumberId: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
-      hasWhatsappAppSecret: !!process.env.WHATSAPP_APP_SECRET,
+      hasWhatsapp360ApiKey: !!process.env.WHATSAPP_360DIALOG_API_KEY,
+      whatsappSandbox: process.env.WHATSAPP_SANDBOX === 'true',
       hasWhatsappVerifyToken: !!process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
       hasTenantId: !!process.env.TELEGRAM_TENANT_ID,
     }
@@ -171,6 +170,15 @@ async function bootstrap(): Promise<void> {
   const port = Number(process.env.PORT ?? 3001)
   app.listen(port, async () => {
     logger.info({ port }, 'BeautyOS API sunucusu başlatıldı')
+
+    if (process.env.WHATSAPP_360DIALOG_API_KEY && process.env.PUBLIC_URL) {
+      try {
+        const wa = getChannel('whatsapp') as import('./channels/whatsapp.channel').WhatsAppChannel
+        await wa.registerWebhook(`${process.env.PUBLIC_URL}/webhook/whatsapp`)
+      } catch (error) {
+        logger.error({ error }, '360dialog webhook kaydı başarısız')
+      }
+    }
 
     if (process.env.TELEGRAM_BOT_TOKEN && process.env.PUBLIC_URL) {
       try {

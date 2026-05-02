@@ -19,17 +19,14 @@ export function initChannels(): void {
     )
   }
 
-  if (
-    process.env.WHATSAPP_API_TOKEN &&
-    process.env.WHATSAPP_PHONE_NUMBER_ID &&
-    process.env.WHATSAPP_APP_SECRET
-  ) {
+  if (process.env.WHATSAPP_360DIALOG_API_KEY) {
+    const sandbox = process.env.WHATSAPP_SANDBOX === 'true'
     channels.set(
       'whatsapp',
       new WhatsAppChannel(
-        process.env.WHATSAPP_API_TOKEN,
-        process.env.WHATSAPP_PHONE_NUMBER_ID,
-        process.env.WHATSAPP_APP_SECRET,
+        process.env.WHATSAPP_360DIALOG_API_KEY,
+        process.env.WHATSAPP_APP_SECRET ?? '',
+        sandbox,
       ),
     )
   }
