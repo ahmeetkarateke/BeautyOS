@@ -90,10 +90,13 @@ export function createWebhookRouter(
     res.status(200).json({ ok: true })
 
     try {
+      logger.info({ body: JSON.stringify(req.body).slice(0, 200) }, 'WhatsApp POST alındı')
       const channel = getChannel('whatsapp')
       const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body)
 
-      if (!channel.verifyWebhook(rawBody, req.headers as Record<string, string>)) {
+      const sigOk = channel.verifyWebhook(rawBody, req.headers as Record<string, string>)
+      logger.info({ sigOk }, 'WhatsApp imza kontrol sonucu')
+      if (!sigOk) {
         logger.warn('WhatsApp webhook imza doğrulaması başarısız')
         return
       }
