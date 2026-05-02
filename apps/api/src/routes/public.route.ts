@@ -137,7 +137,7 @@ export function createPublicRouter(): Router {
         select: { startAt: true, endAt: true },
       })
 
-      // Slot üret: mesai başından sonuna 30 dk adımlarla
+      // Slot üret: mesai başından sonuna hizmet süresi adımlarla
       const slotDuration = service.durationMinutes + service.bufferMinutes
       const cursorStart = new Date(dateObj.getTime() + (workStart - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
       const cursorEnd = new Date(dateObj.getTime() + (workEnd - TZ_OFFSET_HOURS) * 60 * 60 * 1000)
@@ -163,7 +163,7 @@ export function createPublicRouter(): Router {
           available: !hasConflict,
         })
 
-        cursor = new Date(cursor.getTime() + 30 * 60 * 1000)
+        cursor = new Date(cursor.getTime() + slotDuration * 60 * 1000)
       }
 
       return res.json({ date, slots })

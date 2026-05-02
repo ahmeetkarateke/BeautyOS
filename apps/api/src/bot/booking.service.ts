@@ -168,7 +168,7 @@ export async function getAvailableSlots(
   )
 
   const slots = results.flat().sort((a, b) => a.id.localeCompare(b.id))
-  return slots.slice(0, 6)
+  return slots.slice(0, 9)
 }
 
 // ─── Randevu oluştur ──────────────────────────────────────────────────────────
