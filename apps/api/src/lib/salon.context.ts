@@ -12,7 +12,7 @@ export async function getSalon(tenantId: string): Promise<SalonContext> {
     where: { id: tenantId },
     include: {
       services: { where: { isActive: true } },
-      staffProfiles: { where: { isActive: true } },
+      staffProfiles: true,
     },
   })
 
