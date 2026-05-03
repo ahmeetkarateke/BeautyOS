@@ -162,6 +162,7 @@ function buildSystemPrompt(salon: SalonContext): string {
     ? `KURALLAR: ${salon.botRules}`
     : `KURALLAR: Randevu kesinleşmeden "oluşturuldu" yazma. Bilmediğin soruları salona yönlendir. Ne istediği belirsizse sor.`)
   lines.push(`TON: ${tone}`)
+  lines.push(`[ZORUNLU KURAL] Her yanıtta "Merhaba" diye başlama. Selamlama yalnızca müşteri ilk mesaj gönderdiğinde gereklidir; devam eden sohbette kullanma.`)
 
   if (salon.botFaqs?.length) {
     const faqText = salon.botFaqs.map((f) => `S: ${f.question}\nC: ${f.answer}`).join('\n')
@@ -191,8 +192,11 @@ FORMAT: {"intent":"book|cancel|query_price|query_availability|general|unknown","
 ÖRNEKLER:
 "merhaba" → {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
 "saç kestirmek istiyorum" → {"intent":"book","confidence":0.95,"entities":{"service":"Saç Kesimi"},"requiresClarification":false}
+"saç kesimi var mı" → {"intent":"query_availability","confidence":0.9,"entities":{"service":"Saç Kesimi"},"requiresClarification":false}
+"hangi hizmetleriniz var" → {"intent":"general","confidence":0.95,"entities":{},"requiresClarification":false}
 "iptal etmek istiyorum" → {"intent":"cancel","confidence":0.95,"entities":{},"requiresClarification":false}
 "ne kadar tutar" → {"intent":"query_price","confidence":0.9,"entities":{},"requiresClarification":false}
+"saat kaçta boşluk var" → {"intent":"query_availability","confidence":0.9,"entities":{},"requiresClarification":false}
 
 KURALLAR: selamlama/teşekkür → general | anlamsız/spam → unknown`
 

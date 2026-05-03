@@ -179,13 +179,29 @@ export class FlowHandler {
         await this.handlePriceQuery(channel, msg, salon)
         await this.sessionService.reset(session)
         break
-      case 'query_availability':
+      case 'query_availability': {
+        // Müşteri belirli bir hizmet soruyorsa ve o hizmet mevcut değilse açıkça belirt
+        const askedService = result.entities?.service
+        if (askedService) {
+          const exists = salon.services.some(
+            (s) => s.name.toLowerCase().includes(askedService.toLowerCase()) ||
+              askedService.toLowerCase().includes(s.name.toLowerCase().split(' ')[0]),
+          )
+          if (!exists) {
+            const menuList = salon.services.map((s) => `• ${s.name}`).join('\n')
+            await channel.sendText(msg.from, `Üzgünüm, "${askedService}" hizmetimiz bulunmuyor.\n\nMevcut hizmetlerimiz:\n${menuList}`)
+            await this.sessionService.reset(session)
+            break
+          }
+        }
+        const reply = await this.intentService.generateReply(session, msg.text, salon, 'Müsaitlik sorusunu yanıtla, randevu almak istiyorsa yönlendir')
+        this.sessionService.addMessage(session, 'assistant', reply)
+        await channel.sendText(msg.from, reply)
+        await this.sessionService.reset(session)
+        break
+      }
       case 'general': {
-        const instruction =
-          result.intent === 'query_availability'
-            ? 'Müsaitlik sorusunu yanıtla, randevu almak istiyorsa yönlendir'
-            : 'Genel soruyu yanıtla, bilmiyorsan salona yönlendir'
-        const reply = await this.intentService.generateReply(session, msg.text, salon, instruction)
+        const reply = await this.intentService.generateReply(session, msg.text, salon, 'Genel soruyu yanıtla, bilmiyorsan salona yönlendir')
         this.sessionService.addMessage(session, 'assistant', reply)
         await channel.sendText(msg.from, reply)
         await this.sessionService.reset(session)
