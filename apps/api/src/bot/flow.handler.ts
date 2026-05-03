@@ -233,6 +233,21 @@ export class FlowHandler {
       return
     }
 
+    // Tek hizmet varsa sormadan otomatik seç
+    if (salon.services.length === 1) {
+      session.entities.service = salon.services[0].name
+      session.step = 'awaiting_date'
+      if (session.entities.datePreference) {
+        await this.handleBookingStep(channel, msg, session, salon)
+      } else {
+        await channel.sendText(
+          msg.from,
+          `*${salon.services[0].name}* için ne zaman gelmek istersiniz?\n\n(Örnek: "yarın", "Cumartesi öğleden sonra", "Pazartesi saat 14")`,
+        )
+      }
+      return
+    }
+
     session.step = 'awaiting_service'
     const list = salon.services.map((s, i) =>
       salon.botHidePrices

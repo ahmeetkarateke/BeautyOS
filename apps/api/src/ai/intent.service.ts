@@ -181,11 +181,16 @@ function buildDetectionPrompt(
 ): string {
   const serviceNames = salon.services.map((s) => s.name).join(', ')
 
+  const recentMessages = session.messages.slice(-4)
+  const history = recentMessages.length > 0
+    ? recentMessages.map((m) => `${m.role === 'user' ? 'Müşteri' : 'Bot'}: ${m.content}`).join('\n')
+    : ''
+
   const prompt = `Güzellik salonu rezervasyon botu. Mesajı analiz et, SADECE JSON döndür.
 
 HİZMETLER: ${serviceNames}
 ADIM: ${session.step} | NİYET: ${session.currentIntent ?? 'yok'}
-MESAJ: "${userMessage}"
+${history ? `SON MESAJLAR:\n${history}\n` : ''}MESAJ: "${userMessage}"
 
 FORMAT: {"intent":"book|cancel|query_price|query_availability|general|unknown","confidence":0.0-1.0,"entities":{"service":null,"staffPreference":null,"datePreference":null,"timePreference":null},"requiresClarification":false}
 
