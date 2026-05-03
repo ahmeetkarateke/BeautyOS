@@ -273,6 +273,13 @@ export class FlowHandler {
 
         session.entities.service = matched.name
         session.step = 'awaiting_date'
+
+        // Müşteri daha önce tarih/saat de belirtmişse (ör: "Salı 17-18 arası") direkt slot adımına geç
+        if (session.entities.datePreference) {
+          await this.handleBookingStep(channel, msg, session, salon)
+          return
+        }
+
         await channel.sendText(
           msg.from,
           `*${matched.name}* için ne zaman gelmek istersiniz?\n\n(Örnek: "yarın", "Cumartesi öğleden sonra", "bugün saat 15")`,
@@ -298,12 +305,16 @@ export class FlowHandler {
           await channel.sendText(msg.from, qReply)
         }
 
-        session.entities.datePreference = msg.text
+        // Tarih zaten session'da varsa onu kullan (önceki mesajdan kalan), yoksa mevcut mesajı kullan
+        const dateInput = session.entities.datePreference && session.entities.datePreference !== msg.text
+          ? session.entities.datePreference
+          : msg.text
+        session.entities.datePreference = dateInput
         const slots = await getAvailableSlots(
           session.tenantId,
           session.entities.service ?? '',
-          msg.text,
-          msg.text,
+          dateInput,
+          dateInput,
         )
 
         if (slots.length === 0) {
