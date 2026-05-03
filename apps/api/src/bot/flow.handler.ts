@@ -219,6 +219,12 @@ export class FlowHandler {
     salon: SalonContext,
   ): Promise<void> {
     if (session.entities.service) {
+      // Hem hizmet hem tarih biliniyorsa direkt slot adımına geç, tekrar sorma
+      if (session.entities.datePreference) {
+        session.step = 'awaiting_date'
+        await this.handleBookingStep(channel, msg, session, salon)
+        return
+      }
       session.step = 'awaiting_date'
       await channel.sendText(
         msg.from,
