@@ -55,12 +55,14 @@ export function resolveDate(datePreference: string | undefined): Date {
   }
 
   // "22 Nisan", "3 Mayıs" gibi gün+ay formatları
+  // "X değil Y" kalıbında Y'yi kullan
   const monthNames: Record<string, number> = {
     ocak: 0, şubat: 1, subat: 1, mart: 2, nisan: 3, mayıs: 4, mayis: 4,
     haziran: 5, temmuz: 6, ağustos: 7, agustos: 7, eylül: 8, eylul: 8,
     ekim: 9, kasım: 10, kasim: 10, aralık: 11, aralik: 11,
   }
-  const dateMatch = pref.match(/(\d{1,2})\s+([a-zışğüöç]+)/)
+  const negationMatch = pref.match(/değil\s+(\d{1,2})\s+([a-zışğüöç]+)/)
+  const dateMatch = negationMatch ?? pref.match(/(\d{1,2})\s+([a-zışğüöç]+)/)
   if (dateMatch) {
     const day = parseInt(dateMatch[1])
     const monthNum = monthNames[dateMatch[2]]
