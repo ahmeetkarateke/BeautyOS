@@ -110,7 +110,6 @@ export default function StaffDetailPage({ params }: PageProps) {
   const { data: servicesData } = useQuery({
     queryKey: ['services', slug],
     queryFn: () => apiFetch<{ data: Service[] }>(`/api/v1/tenants/${slug}/services`),
-    enabled: activeTab === 'skills',
   })
 
   const { data: leavesData, isLoading: leavesLoading } = useQuery({
@@ -119,29 +118,38 @@ export default function StaffDetailPage({ params }: PageProps) {
     enabled: activeTab === 'leaves',
   })
 
-  const [skillForm, setSkillForm] = useState({
-    serviceId: '',
-    commissionType: 'percentage' as 'percentage' | 'fixed',
-    commissionValue: 0,
-    priceOverride: '',
-  })
+  interface CommissionEdit {
+    commissionType: 'percentage' | 'fixed'
+    commissionValue: string
+    priceOverride: string
+  }
+  const [commissionEdits, setCommissionEdits] = useState<Record<string, CommissionEdit>>({})
 
-  const addSkillMutation = useMutation({
-    mutationFn: () =>
+  useEffect(() => {
+    if (!skillsData) return
+    const edits: Record<string, CommissionEdit> = {}
+    for (const s of skillsData.data) {
+      edits[s.serviceId] = {
+        commissionType: s.commissionType,
+        commissionValue: String(s.commissionValue),
+        priceOverride: s.priceOverride != null ? String(s.priceOverride) : '',
+      }
+    }
+    setCommissionEdits(edits)
+  }, [skillsData])
+
+  const upsertSkillMutation = useMutation({
+    mutationFn: (payload: { serviceId: string; commissionType: 'percentage' | 'fixed'; commissionValue: number; priceOverride?: number }) =>
       apiFetch(`/api/v1/tenants/${slug}/staff/${staffId}/services`, {
         method: 'POST',
         body: JSON.stringify({
-          serviceId: skillForm.serviceId,
-          commissionType: skillForm.commissionType,
-          commissionValue: skillForm.commissionValue,
-          ...(skillForm.priceOverride ? { priceOverride: Number(skillForm.priceOverride) } : {}),
+          serviceId: payload.serviceId,
+          commissionType: payload.commissionType,
+          commissionValue: payload.commissionValue,
+          ...(payload.priceOverride != null ? { priceOverride: payload.priceOverride } : {}),
         }),
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['staff-skills', slug, staffId] })
-      toast('Yetenek eklendi')
-      setSkillForm({ serviceId: '', commissionType: 'percentage', commissionValue: 0, priceOverride: '' })
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-skills', slug, staffId] }),
     onError: (err: Error) => toast(err.message, 'error'),
   })
 
@@ -150,10 +158,31 @@ export default function StaffDetailPage({ params }: PageProps) {
       apiFetch(`/api/v1/tenants/${slug}/staff/${staffId}/services/${serviceId}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['staff-skills', slug, staffId] })
-      toast('Yetenek kaldırıldı')
     },
     onError: (err: Error) => toast(err.message, 'error'),
   })
+
+  function handleToggleService(serviceId: string, checked: boolean) {
+    if (checked) {
+      const edit: CommissionEdit = { commissionType: 'percentage', commissionValue: '0', priceOverride: '' }
+      setCommissionEdits((prev) => ({ ...prev, [serviceId]: edit }))
+      upsertSkillMutation.mutate({ serviceId, commissionType: 'percentage', commissionValue: 0 })
+    } else {
+      setCommissionEdits((prev) => { const next = { ...prev }; delete next[serviceId]; return next })
+      removeSkillMutation.mutate(serviceId)
+    }
+  }
+
+  function handleCommissionBlur(serviceId: string) {
+    const edit = commissionEdits[serviceId]
+    if (!edit) return
+    upsertSkillMutation.mutate({
+      serviceId,
+      commissionType: edit.commissionType,
+      commissionValue: Number(edit.commissionValue) || 0,
+      ...(edit.priceOverride ? { priceOverride: Number(edit.priceOverride) } : {}),
+    })
+  }
 
   const [leaveForm, setLeaveForm] = useState({
     leaveDate: '',
@@ -233,7 +262,7 @@ export default function StaffDetailPage({ params }: PageProps) {
   const skills = skillsData?.data ?? []
   const leaves = leavesData?.data ?? []
   const assignedIds = new Set(skills.map((s) => s.serviceId))
-  const availableServices = (servicesData?.data ?? []).filter((s) => !assignedIds.has(s.id))
+  const allServices = servicesData?.data ?? []
   const today = new Date().toISOString().split('T')[0]
 
   return (
@@ -428,117 +457,89 @@ export default function StaffDetailPage({ params }: PageProps) {
           <CardContent>
             {!isOwner ? (
               <p className="text-sm text-salon-muted">Bu bölümü görüntüleme yetkiniz yok.</p>
-            ) : skillsLoading ? (
+            ) : skillsLoading || !servicesData ? (
               <div className="space-y-3">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
               </div>
+            ) : allServices.length === 0 ? (
+              <p className="text-sm text-salon-muted">Henüz hizmet tanımlanmamış.</p>
             ) : (
-              <div className="space-y-6">
-                {skills.length === 0 ? (
-                  <p className="text-sm text-salon-muted">Henüz yetenek atanmamış.</p>
-                ) : (
-                  <div className="divide-y divide-salon-border">
-                    {skills.map((skill) => (
-                      <div key={skill.serviceId} className="flex items-center gap-3 py-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{skill.serviceName}</p>
-                          {skill.category && (
-                            <p className="text-xs text-salon-muted">{skill.category}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-700 shrink-0">
-                          <span>
-                            Komisyon:{' '}
-                            {skill.commissionType === 'percentage'
-                              ? `%${skill.commissionValue}`
-                              : formatCurrency(skill.commissionValue)}
-                          </span>
-                          {skill.priceOverride != null && (
-                            <span>Fiyat: {formatCurrency(skill.priceOverride)}</span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => removeSkillMutation.mutate(skill.serviceId)}
-                          disabled={removeSkillMutation.isPending}
-                          className="p-1.5 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Kaldır"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="border-t border-salon-border pt-5 space-y-4">
-                  <p className="text-sm font-medium text-gray-900">Yeni Yetenek Ekle</p>
-                  <div className="space-y-3">
-                    <select
-                      value={skillForm.serviceId}
-                      onChange={(e) => setSkillForm((f) => ({ ...f, serviceId: e.target.value }))}
-                      className="w-full border border-salon-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">Hizmet seçin...</option>
-                      {availableServices.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSkillForm((f) => ({ ...f, commissionType: 'percentage' }))}
-                        className={cn(
-                          'flex-1 py-2 text-sm rounded-md border transition-colors',
-                          skillForm.commissionType === 'percentage'
-                            ? 'bg-primary text-white border-primary'
-                            : 'border-salon-border text-salon-muted hover:border-gray-400',
+              <div className="divide-y divide-salon-border">
+                {allServices.map((svc) => {
+                  const assigned = assignedIds.has(svc.id)
+                  const edit = commissionEdits[svc.id]
+                  return (
+                    <div key={svc.id} className="py-3 space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={assigned}
+                          onChange={(e) => handleToggleService(svc.id, e.target.checked)}
+                          className="w-4 h-4 rounded border-salon-border accent-primary cursor-pointer"
+                        />
+                        <span className={cn('text-sm font-medium', assigned ? 'text-gray-900' : 'text-salon-muted')}>
+                          {svc.name}
+                        </span>
+                        {svc.category && (
+                          <span className="text-xs text-salon-muted">{svc.category}</span>
                         )}
-                      >
-                        % Yüzde
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSkillForm((f) => ({ ...f, commissionType: 'fixed' }))}
-                        className={cn(
-                          'flex-1 py-2 text-sm rounded-md border transition-colors',
-                          skillForm.commissionType === 'fixed'
-                            ? 'bg-primary text-white border-primary'
-                            : 'border-salon-border text-salon-muted hover:border-gray-400',
-                        )}
-                      >
-                        ₺ Sabit
-                      </button>
+                      </label>
+
+                      {assigned && edit && (
+                        <div className="ml-7 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCommissionEdits((prev) => ({ ...prev, [svc.id]: { ...prev[svc.id], commissionType: 'percentage' } }))
+                              setTimeout(() => handleCommissionBlur(svc.id), 0)
+                            }}
+                            className={cn(
+                              'px-2.5 py-1 rounded text-xs font-medium border transition-colors',
+                              edit.commissionType === 'percentage'
+                                ? 'bg-primary text-white border-primary'
+                                : 'border-salon-border text-salon-muted hover:border-gray-400',
+                            )}
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCommissionEdits((prev) => ({ ...prev, [svc.id]: { ...prev[svc.id], commissionType: 'fixed' } }))
+                              setTimeout(() => handleCommissionBlur(svc.id), 0)
+                            }}
+                            className={cn(
+                              'px-2.5 py-1 rounded text-xs font-medium border transition-colors',
+                              edit.commissionType === 'fixed'
+                                ? 'bg-primary text-white border-primary'
+                                : 'border-salon-border text-salon-muted hover:border-gray-400',
+                            )}
+                          >
+                            ₺
+                          </button>
+                          <input
+                            type="number"
+                            min={0}
+                            value={edit.commissionValue}
+                            onChange={(e) => setCommissionEdits((prev) => ({ ...prev, [svc.id]: { ...prev[svc.id], commissionValue: e.target.value } }))}
+                            onBlur={() => handleCommissionBlur(svc.id)}
+                            placeholder={edit.commissionType === 'percentage' ? 'Komisyon %' : 'Komisyon ₺'}
+                            className="w-28 border border-salon-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            value={edit.priceOverride}
+                            onChange={(e) => setCommissionEdits((prev) => ({ ...prev, [svc.id]: { ...prev[svc.id], priceOverride: e.target.value } }))}
+                            onBlur={() => handleCommissionBlur(svc.id)}
+                            placeholder="Fiyat override (opsiyonel)"
+                            className="w-40 border border-salon-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      )}
                     </div>
-
-                    <input
-                      type="number"
-                      min={0}
-                      value={skillForm.commissionValue}
-                      onChange={(e) => setSkillForm((f) => ({ ...f, commissionValue: Number(e.target.value) }))}
-                      placeholder={skillForm.commissionType === 'percentage' ? 'Komisyon %' : 'Komisyon ₺'}
-                      className="w-full border border-salon-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-
-                    <input
-                      type="number"
-                      min={0}
-                      value={skillForm.priceOverride}
-                      onChange={(e) => setSkillForm((f) => ({ ...f, priceOverride: e.target.value }))}
-                      placeholder="Fiyat override (Boş bırakın = hizmet fiyatı)"
-                      className="w-full border border-salon-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-
-                    <Button
-                      onClick={() => addSkillMutation.mutate()}
-                      disabled={!skillForm.serviceId || addSkillMutation.isPending}
-                      size="sm"
-                      className="w-full"
-                    >
-                      {addSkillMutation.isPending ? 'Ekleniyor...' : 'Kaydet'}
-                    </Button>
-                  </div>
-                </div>
+                  )
+                })}
               </div>
             )}
           </CardContent>
