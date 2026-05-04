@@ -1,5 +1,6 @@
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
+import { getSlots } from '../lib/slots'
 import type { BookingChannel } from '@prisma/client'
 
 // ─── Saat dilimleri (Türkiye: UTC+3) ─────────────────────────────────────────
@@ -77,36 +78,13 @@ export function resolveDate(datePreference: string | undefined): Date {
   return today
 }
 
-// ─── Public Slots API'sinden müsait slotları getir ───────────────────────────
+// ─── Müsait slotları getir ────────────────────────────────────────────────────
 
 export interface AvailableSlot {
   id: string        // "YYYY-MM-DDTHH:MM:SS__staffId" — slot seçim ID'si olarak kullanılır
   label: string     // "10:00"
   staffId: string
   staffName: string
-}
-
-const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001'
-
-export async function fetchPublicSlots(
-  tenantSlug: string,
-  serviceId: string,
-  staffId: string,
-  date: string, // YYYY-MM-DD
-): Promise<Array<{ id: string; label: string; available: boolean }>> {
-  const url = `${API_BASE_URL}/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${serviceId}&staffId=${staffId}&date=${date}`
-  try {
-    const res = await fetch(url)
-    if (!res.ok) {
-      logger.warn({ status: res.status, url }, 'fetchPublicSlots: API başarısız yanıt')
-      return []
-    }
-    const body = (await res.json()) as { slots?: Array<{ id: string; label: string; available: boolean }> }
-    return body.slots ?? []
-  } catch (err) {
-    logger.warn({ err, tenantSlug, serviceId, staffId, date }, 'fetchPublicSlots: istek hatası')
-    return []
-  }
 }
 
 export async function getAvailableSlots(
@@ -154,10 +132,9 @@ export async function getAvailableSlots(
     return []
   }
 
-  // Her personel için public API'den slot çek
   const results = await Promise.all(
     staffList.map(async (sp) => {
-      const raw = await fetchPublicSlots(tenant.slug, service!.id, sp.id, dateStr)
+      const raw = await getSlots({ tenantId, serviceId: service!.id, staffId: sp.id, date: dateStr })
       return raw
         .filter((s) => s.available)
         .map((s): AvailableSlot => ({
