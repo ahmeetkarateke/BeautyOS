@@ -319,17 +319,27 @@ export class FlowHandler {
           return
         }
 
-        // Tarihle birlikte soru da geldiyse (ör: "Salı günü ama fiyat ne kadar?") önce soruyu yanıtla
+        // Tamamen off-topic soru (tarih içermiyor): cevapla ve tekrar tarih sor
+        const looksLikeOffTopic = !extractNewDate(msg.text) && !isDateQuestion &&
+          (msg.text.includes('?') || /nasıl|nedir|nerede|kaç|kim|adres|telefon|çalışma saati|ücret|fiyat|ne kadar|kaç tl/.test(msg.text.toLowerCase()))
+        if (looksLikeOffTopic) {
+          const qReply = await this.intentService.generateReply(session, msg.text, salon, 'Soruyu kısaca yanıtla')
+          await channel.sendText(msg.from, qReply)
+          await channel.sendText(msg.from, `Ne zaman gelmek istersiniz?`)
+          return
+        }
+
+        // Tarihle birlikte gömülü soru (ör: "Salı günü ama fiyat ne kadar?") → önce soruyu yanıtla, sonra devam
         const hasEmbeddedQuestion = /fiyat|kaç|ücret|ne kadar|ödeme|nasıl|nedir|nerede|kaç tl/.test(msg.text.toLowerCase())
         if (hasEmbeddedQuestion) {
           const qReply = await this.intentService.generateReply(session, msg.text, salon, 'Soruyu kısaca yanıtla')
           await channel.sendText(msg.from, qReply)
         }
 
-        // Tarih zaten session'da varsa onu kullan (önceki mesajdan kalan), yoksa mevcut mesajı kullan
-        const dateInput = session.entities.datePreference && session.entities.datePreference !== msg.text
-          ? session.entities.datePreference
-          : msg.text
+        // msg.text tarih kelimesi içeriyorsa her zaman onu kullan (eski datePreference'ı ezmesini önle)
+        // Tarih içermiyorsa (ör: service seçim mesajıyla gelen internal çağrı) stored datePreference kullan
+        const looksLikeDate = extractNewDate(msg.text) !== null
+        const dateInput = looksLikeDate ? msg.text : (session.entities.datePreference ?? msg.text)
         session.entities.datePreference = dateInput
         const slots = await getAvailableSlots(
           session.tenantId,
@@ -444,9 +454,16 @@ export class FlowHandler {
           return
         }
 
-        if (isAffirmative(msg.text)) {
+        // "iptal"/"vazgeç" → tüm booking akışını kapat
+        if (/iptal|vazgeç|vazgec|istemiyorum/.test(msg.text.toLowerCase())) {
+          session.step = 'idle'
+          session.currentIntent = null
+          session.entities = {}
+          await channel.sendText(msg.from, 'Tamam, randevu almak istediğinizde tekrar yazabilirsiniz. 👋')
+        } else if (isAffirmative(msg.text)) {
           await this.confirmBooking(channel, msg, session)
         } else if (isNegative(msg.text)) {
+          // "hayır" → slot listesine geri dön
           session.step = 'awaiting_slot_confirm'
           const storedSlots = (session.entities as Record<string, unknown>)['_slots'] as AvailableSlot[] | undefined
           if (storedSlots?.length) {
