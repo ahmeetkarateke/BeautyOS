@@ -1,6 +1,5 @@
-import Redis from 'ioredis'
-import { logger } from '../lib/logger'
 import { db } from '../lib/db'
+import { logger } from '../lib/logger'
 import type { ChannelType } from '../channels/types'
 
 // ─── Oturum veri modeli ───────────────────────────────────────────────────────
@@ -43,7 +42,7 @@ export interface ConversationSession {
   // Son MAX_HISTORY mesaj — AI context için
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
   turnCount: number      // Toplam tur sayısı
-  clarifyCount: number   // Netleştirme sayısı (3 katman için)
+  clarifyCount: number   // Netleştirme sayısı
   step: FlowStep
   createdAt: string
   lastMessageAt: string
@@ -51,28 +50,14 @@ export interface ConversationSession {
 
 // ─── Sabitler ─────────────────────────────────────────────────────────────────
 
-const SESSION_TTL_SECONDS = 23 * 60 * 60 // 23 saat (WhatsApp penceresiyle uyumlu)
-const MAX_HISTORY = 20                     // AI'ya gönderilecek max mesaj
-const ENV_PREFIX = process.env.REDIS_KEY_PREFIX ?? ''
-const KEY_PREFIX = `${ENV_PREFIX}beautyos:session`
+const SESSION_TTL_HOURS = 23  // WhatsApp penceresiyle uyumlu
+const MAX_HISTORY = 20
 
-// ─── Session Servisi ──────────────────────────────────────────────────────────
+// ─── Session Servisi (PostgreSQL) ─────────────────────────────────────────────
 
 export class SessionService {
-  private redis: Redis
-
-  constructor(redisUrl: string) {
-    this.redis = new Redis(redisUrl, {
-      lazyConnect: true,
-      maxRetriesPerRequest: 3,
-    })
-
-    this.redis.on('error', (err) => logger.error({ err }, 'Redis bağlantı hatası'))
-  }
-
-  async connect(): Promise<void> {
-    await this.redis.connect()
-    logger.info('Redis bağlantısı kuruldu')
+  private buildKey(tenantId: string, channelType: ChannelType, from: string): string {
+    return `${tenantId}:${channelType}:${from}`
   }
 
   // ─── Oturum alma/oluşturma ─────────────────────────────────────────────────
@@ -83,12 +68,15 @@ export class SessionService {
     from: string,
   ): Promise<ConversationSession> {
     const key = this.buildKey(tenantId, channelType, from)
-    const raw = await this.redis.get(key)
+    const now = new Date()
 
-    if (raw) {
-      return JSON.parse(raw) as ConversationSession
+    const row = await db.botSession.findUnique({ where: { id: key } })
+
+    if (row && new Date(row.expiresAt) > now) {
+      return row.data as unknown as ConversationSession
     }
 
+    // Süresi dolmuş veya yok — yeni oturum oluştur
     const session: ConversationSession = {
       sessionId: key,
       tenantId,
@@ -100,26 +88,45 @@ export class SessionService {
       turnCount: 0,
       clarifyCount: 0,
       step: 'idle',
-      createdAt: new Date().toISOString(),
-      lastMessageAt: new Date().toISOString(),
+      createdAt: now.toISOString(),
+      lastMessageAt: now.toISOString(),
     }
 
-    await this.save(session)
+    await this.persist(key, tenantId, channelType, from, session)
     return session
   }
 
   // ─── Kaydetme ──────────────────────────────────────────────────────────────
 
   async save(session: ConversationSession): Promise<void> {
-    const key = this.buildKey(session.tenantId, session.channelType, session.from)
     session.lastMessageAt = new Date().toISOString()
 
-    // Mesaj geçmişini kırp (bağlam penceresini kontrol altında tut)
     if (session.messages.length > MAX_HISTORY) {
       session.messages = session.messages.slice(-MAX_HISTORY)
     }
 
-    await this.redis.setex(key, SESSION_TTL_SECONDS, JSON.stringify(session))
+    await this.persist(
+      session.sessionId,
+      session.tenantId,
+      session.channelType,
+      session.from,
+      session,
+    )
+  }
+
+  private async persist(
+    key: string,
+    tenantId: string,
+    channelType: string,
+    fromRef: string,
+    data: ConversationSession,
+  ): Promise<void> {
+    const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000)
+    await db.botSession.upsert({
+      where: { id: key },
+      create: { id: key, tenantId, channelType, fromRef, data: data as object, expiresAt },
+      update: { data: data as object, expiresAt },
+    })
   }
 
   // ─── Mesaj ekleme ──────────────────────────────────────────────────────────
@@ -133,10 +140,9 @@ export class SessionService {
     session.turnCount++
   }
 
-  // ─── Oturumu sıfırla (işlem tamamlandı veya handoff) ──────────────────────
+  // ─── Oturumu sıfırla ──────────────────────────────────────────────────────
 
   async reset(session: ConversationSession, outcome: 'booked' | 'cancelled' | 'handoff' | 'abandoned' = 'abandoned', referenceCode?: string): Promise<void> {
-    // Konuşmayı DB'ye kaydet (fire-and-forget — bot akışını yavaşlatmasın)
     this.persistConversation(session, outcome, referenceCode).catch((err) =>
       logger.warn({ err }, 'BotConversation DB kaydı başarısız'),
     )
@@ -145,7 +151,6 @@ export class SessionService {
     session.entities = {}
     session.step = 'idle'
     session.clarifyCount = 0
-    // turnCount sıfırlanmaz — toplam konuşma sayısını tutar
     await this.save(session)
   }
 
@@ -174,25 +179,6 @@ export class SessionService {
 
   async delete(tenantId: string, channelType: ChannelType, from: string): Promise<void> {
     const key = this.buildKey(tenantId, channelType, from)
-    await this.redis.del(key)
-  }
-
-  // ─── Yardımcı ─────────────────────────────────────────────────────────────
-
-  private buildKey(tenantId: string, channelType: ChannelType, from: string): string {
-    return `${KEY_PREFIX}:${tenantId}:${channelType}:${from}`
-  }
-
-  async ping(): Promise<boolean> {
-    try {
-      await this.redis.ping()
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  getRedis(): Redis {
-    return this.redis
+    await db.botSession.delete({ where: { id: key } }).catch(() => {})
   }
 }

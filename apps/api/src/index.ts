@@ -35,14 +35,8 @@ async function bootstrap(): Promise<void> {
     process.exit(1)
   }
 
-  const sessionService = new SessionService(process.env.REDIS_URL ?? 'redis://localhost:6379')
-  try {
-    await sessionService.connect()
-  } catch (error) {
-    logger.error({ error }, 'Redis bağlantısı kurulamadı — uygulama yine de başlatılıyor')
-  }
-
-  const tenantRegistry = new TenantRegistry(sessionService.getRedis())
+  const sessionService = new SessionService()
+  const tenantRegistry = new TenantRegistry()
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
   const intentService = new IntentService(genAI)
@@ -102,7 +96,6 @@ async function bootstrap(): Promise<void> {
 
   app.get('/health', async (_req, res) => {
     let dbOk = false
-    let redisOk = false
 
     try {
       await db.$queryRaw`SELECT 1`
@@ -111,24 +104,16 @@ async function bootstrap(): Promise<void> {
       logger.error('Health check: DB ping failed')
     }
 
-    try {
-      redisOk = await sessionService.ping()
-    } catch {
-      logger.error('Health check: Redis ping failed')
-    }
-
     const uptimeSeconds = Math.floor((Date.now() - startedAt) / 1000)
-    const status = dbOk && redisOk ? 'ok' : 'degraded'
 
-    res.status(dbOk && redisOk ? 200 : 503).json({
-      status,
+    res.status(dbOk ? 200 : 503).json({
+      status: dbOk ? 'ok' : 'degraded',
       db: dbOk ? 'ok' : 'error',
-      redis: redisOk ? 'ok' : 'error',
       uptime: `${uptimeSeconds}s`,
     })
   })
 
-  // ─── Geçici debug endpoint (AI + Redis bağlantı testi) ───────────────────
+  // ─── Debug endpoint ───────────────────────────────────────────────────────
 
   app.get('/debug', async (_req, res) => {
     const results: Record<string, unknown> = {}
@@ -141,17 +126,9 @@ async function bootstrap(): Promise<void> {
       results.gemini = { ok: false, error: (e as Error).message?.slice(0, 200) }
     }
 
-    try {
-      const alive = await sessionService.ping()
-      results.redis = { ok: alive }
-    } catch (e: unknown) {
-      results.redis = { ok: false, error: (e as Error).message?.slice(0, 100) }
-    }
-
     results.env = {
       hasGeminiKey: !!process.env.GEMINI_API_KEY,
       hasTelegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
-      hasRedisUrl: !!process.env.REDIS_URL,
       publicUrl: process.env.PUBLIC_URL,
       hasWhatsapp360ApiKey: !!process.env.WHATSAPP_360DIALOG_API_KEY,
       whatsappSandbox: process.env.WHATSAPP_SANDBOX === 'true',

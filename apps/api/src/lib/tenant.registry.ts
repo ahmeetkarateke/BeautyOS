@@ -1,20 +1,32 @@
-import type Redis from 'ioredis'
 import { db } from './db'
 import { logger } from './logger'
 
-const CACHE_TTL = 60 * 60 // 1 saat — tenant config nadiren değişir
-const KEY_PREFIX = 'beautyos:tenant'
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 saat
+
+interface CacheEntry {
+  value: string
+  expiresAt: number
+}
 
 export class TenantRegistry {
-  constructor(private readonly redis: Redis) {}
+  private cache = new Map<string, CacheEntry>()
 
-  // ─── Telegram bot token'ı → tenantId ─────────────────────────────────────────
-  // Her Railway deployment tek bir bot token çalıştırır.
-  // Çok-tenant deployment'ta her tenant kendi pod'unda çalışır.
+  private get(key: string): string | null {
+    const entry = this.cache.get(key)
+    if (!entry) return null
+    if (Date.now() > entry.expiresAt) { this.cache.delete(key); return null }
+    return entry.value
+  }
+
+  private set(key: string, value: string): void {
+    this.cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS })
+  }
+
+  // ─── Telegram bot token'ı → tenantId ─────────────────────────────────────
 
   async getByBotToken(botToken: string): Promise<string | null> {
-    const cacheKey = `${KEY_PREFIX}:bot:${botToken.slice(-8)}` // token'ın son 8 karakteri yeterli
-    const cached = await this.redis.get(cacheKey)
+    const cacheKey = `bot:${botToken.slice(-8)}`
+    const cached = this.get(cacheKey)
     if (cached) return cached
 
     const tenant = await db.tenant.findFirst({
@@ -27,31 +39,29 @@ export class TenantRegistry {
       return null
     }
 
-    await this.redis.setex(cacheKey, CACHE_TTL, tenant.id)
+    this.set(cacheKey, tenant.id)
     return tenant.id
   }
 
-  // ─── WhatsApp phoneNumberId → tenantId ───────────────────────────────────────
+  // ─── WhatsApp phoneNumberId → tenantId ───────────────────────────────────
 
   async getByPhoneNumberId(phoneNumberId: string): Promise<string | null> {
-    const cacheKey = `${KEY_PREFIX}:wa:${phoneNumberId}`
-    const cached = await this.redis.get(cacheKey)
+    const cacheKey = `wa:${phoneNumberId}`
+    const cached = this.get(cacheKey)
     if (cached) return cached
 
     const tenant = await db.tenant.findFirst({
       where: { isActive: true },
-      select: { id: true, settings: true },
+      select: { id: true },
     })
 
-    // MVP: tek tenant — ileride TENANT_PHONE_REGISTRY tablosu ile genişletilir
     if (!tenant) return null
 
-    await this.redis.setex(cacheKey, CACHE_TTL, tenant.id)
+    this.set(cacheKey, tenant.id)
     return tenant.id
   }
 
-  // ─── Env var fallback: TELEGRAM_TENANT_ID set edilmişse direkt döndür ─────────
-  // Tek-tenant deployment için en hızlı yol (DB + Redis'e gitmeye gerek yok)
+  // ─── Env var fallback ─────────────────────────────────────────────────────
 
   static fromEnv(): string | null {
     return process.env.TELEGRAM_TENANT_ID ?? null
