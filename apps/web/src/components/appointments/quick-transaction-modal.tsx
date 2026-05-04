@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { SlotSelect } from '@/components/appointments/slot-select'
+import { InlineCustomerCreate } from '@/components/appointments/inline-customer-create'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
@@ -177,6 +178,10 @@ export function QuickTransactionModal({ open, onOpenChange, tenantSlug }: Props)
                 </option>
               ))}
             </Select>
+            <InlineCustomerCreate
+              tenantSlug={tenantSlug}
+              onCreated={(id) => setValue('customerId', id, { shouldValidate: true })}
+            />
           </div>
 
           {/* Service */}

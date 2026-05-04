@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { SlotSelect } from '@/components/appointments/slot-select'
+import { InlineCustomerCreate } from '@/components/appointments/inline-customer-create'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
@@ -171,6 +172,10 @@ export function NewAppointmentModal({ open, onOpenChange, tenantSlug, defaultSta
                 </option>
               ))}
             </Select>
+            <InlineCustomerCreate
+              tenantSlug={tenantSlug}
+              onCreated={(id) => setValue('customerId', id, { shouldValidate: true })}
+            />
           </div>
 
           <div className="space-y-2">
