@@ -1970,5 +1970,77 @@ export function createTenantRouter(): Router {
     }
   })
 
+  // ─── Bot Konuşmaları ──────────────────────────────────────────────────────
+
+  // GET /bot-conversations?page=1&limit=20&outcome=booked&channel=telegram
+  router.get('/bot-conversations', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+      }
+      const tenantId = req.tenantId!
+      const page = Math.max(1, parseInt(req.query.page as string) || 1)
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20))
+      const outcome = req.query.outcome as string | undefined
+      const channel = req.query.channel as string | undefined
+
+      const where = {
+        tenantId,
+        ...(outcome ? { outcome } : {}),
+        ...(channel ? { channel } : {}),
+      }
+
+      const [total, conversations] = await Promise.all([
+        db.botConversation.count({ where }),
+        db.botConversation.findMany({
+          where,
+          orderBy: { endedAt: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+          select: {
+            id: true,
+            channel: true,
+            customerRef: true,
+            outcome: true,
+            referenceCode: true,
+            turnCount: true,
+            startedAt: true,
+            endedAt: true,
+          },
+        }),
+      ])
+
+      return res.json({
+        data: conversations,
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /bot-conversations/:conversationId — transkript detayı
+  router.get('/bot-conversations/:conversationId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+      }
+      const tenantId = req.tenantId!
+      const { conversationId } = req.params
+
+      const convo = await db.botConversation.findFirst({
+        where: { id: conversationId, tenantId },
+      })
+
+      if (!convo) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Konuşma bulunamadı.' } })
+      }
+
+      return res.json({ data: convo })
+    } catch (err) {
+      next(err)
+    }
+  })
+
   return router
 }

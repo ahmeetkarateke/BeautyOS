@@ -127,6 +127,7 @@ model Tenant {
   notificationLogs            NotificationLog[]
   staffServiceAssignments     StaffServiceAssignment[]
   staffLeaves                 StaffLeave[]
+  botConversations            BotConversation[]
 
   @@map("tenants")
 }
@@ -432,4 +433,22 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+model BotConversation {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  channel      String   // "telegram" | "whatsapp"
+  customerRef  String   // telefon numarası veya chat ID
+  messages     Json     // Array<{ role, content, ts }>
+  outcome      String   // "booked" | "cancelled" | "handoff" | "abandoned"
+  referenceCode String? // randevu oluşturulduysa RDV-xxx
+  turnCount    Int      @default(0)
+  startedAt    DateTime
+  endedAt      DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, endedAt(sort: Desc)])
+  @@map("bot_conversations")
 }

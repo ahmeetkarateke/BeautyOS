@@ -1,5 +1,6 @@
 import Redis from 'ioredis'
 import { logger } from '../lib/logger'
+import { db } from '../lib/db'
 import type { ChannelType } from '../channels/types'
 
 // ─── Oturum veri modeli ───────────────────────────────────────────────────────
@@ -134,13 +135,41 @@ export class SessionService {
 
   // ─── Oturumu sıfırla (işlem tamamlandı veya handoff) ──────────────────────
 
-  async reset(session: ConversationSession): Promise<void> {
+  async reset(session: ConversationSession, outcome: 'booked' | 'cancelled' | 'handoff' | 'abandoned' = 'abandoned', referenceCode?: string): Promise<void> {
+    // Konuşmayı DB'ye kaydet (fire-and-forget — bot akışını yavaşlatmasın)
+    this.persistConversation(session, outcome, referenceCode).catch((err) =>
+      logger.warn({ err }, 'BotConversation DB kaydı başarısız'),
+    )
+
     session.currentIntent = null
     session.entities = {}
     session.step = 'idle'
     session.clarifyCount = 0
     // turnCount sıfırlanmaz — toplam konuşma sayısını tutar
     await this.save(session)
+  }
+
+  private async persistConversation(
+    session: ConversationSession,
+    outcome: string,
+    referenceCode?: string,
+  ): Promise<void> {
+    if (session.messages.length === 0) return
+
+    const messagesWithTs = session.messages.map((m, i) => ({ ...m, ts: i }))
+
+    await db.botConversation.create({
+      data: {
+        tenantId: session.tenantId,
+        channel: session.channelType,
+        customerRef: session.from,
+        messages: messagesWithTs,
+        outcome,
+        referenceCode: referenceCode ?? null,
+        turnCount: session.turnCount,
+        startedAt: new Date(session.createdAt),
+      },
+    })
   }
 
   async delete(tenantId: string, channelType: ChannelType, from: string): Promise<void> {

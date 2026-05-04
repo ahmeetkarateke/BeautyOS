@@ -152,6 +152,7 @@ export class FlowHandler {
         msg.from,
         `🙏 Sizi salonumuzla bağlantı kurayım. Birkaç dakika içinde size dönecekler.\n\nAdres: ${salon.address}`,
       )
+      await this.sessionService.reset(session, 'handoff')
       return
     }
 
@@ -534,7 +535,7 @@ export class FlowHandler {
 
     this.sessionService.addMessage(session, 'assistant', reply)
     await channel.sendText(msg.from, reply)
-    await this.sessionService.reset(session)
+    await this.sessionService.reset(session, 'booked', ref)
   }
 
   // ─── İptal Akışı ──────────────────────────────────────────────────────────
@@ -565,7 +566,7 @@ export class FlowHandler {
       const reply = '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'
       this.sessionService.addMessage(session, 'assistant', reply)
       await channel.sendText(msg.from, reply)
-      await this.sessionService.reset(session)
+      await this.sessionService.reset(session, 'cancelled')
       return
     }
 
@@ -574,7 +575,7 @@ export class FlowHandler {
       const reply = `Maalesef randevunuza 2 saatten az kaldığı için iptal yapamıyoruz. Salonumuzu arayabilirsiniz: ${contact}`
       this.sessionService.addMessage(session, 'assistant', reply)
       await channel.sendText(msg.from, reply)
-      await this.sessionService.reset(session)
+      await this.sessionService.reset(session, 'abandoned')
       return
     }
 

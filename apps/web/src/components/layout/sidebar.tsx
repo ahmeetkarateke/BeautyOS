@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut,
-  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X,
+  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -25,7 +25,8 @@ const navItems = (slug: string) => [
   { href: `/tenant/${slug}/customers`,    icon: Users,            label: 'Müşteriler' },
   { href: `/tenant/${slug}/services`,     icon: Sparkles,         label: 'Hizmetler' },
   { href: `/tenant/${slug}/staff`,        icon: UserCog,          label: 'Personel' },
-  { href: `/tenant/${slug}/finance`,      icon: Banknote,         label: 'Kasa' },
+  { href: `/tenant/${slug}/finance`,        icon: Banknote,         label: 'Kasa' },
+  { href: `/tenant/${slug}/bot-conversations`, icon: MessageSquare, label: 'Bot Konuşmaları' },
   { href: `/tenant/${slug}/settings`,     icon: Settings,         label: 'Ayarlar' },
 ]
 
