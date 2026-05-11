@@ -19,6 +19,39 @@ function noXss(max: number) {
     .refine((v) => !XSS_PATTERN.test(v), { message: 'Geçersiz karakter içeriyor.' })
 }
 
+// Salon settings.workingHours hem eski string ("09:00-19:00") hem yeni JSON formatını destekler.
+// Yeni personel oluştururken bu helper personelin default workingHours'unu üretir.
+type DaySchedule = { start: string; end: string } | null
+type WorkingHoursMap = { monday: DaySchedule; tuesday: DaySchedule; wednesday: DaySchedule; thursday: DaySchedule; friday: DaySchedule; saturday: DaySchedule; sunday: DaySchedule }
+
+function resolveTenantWorkingHours(value: unknown): WorkingHoursMap {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>
+    if ('monday' in obj || 'sunday' in obj) {
+      const days: Array<keyof WorkingHoursMap> = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+      const result = {} as WorkingHoursMap
+      for (const day of days) {
+        const v = obj[day]
+        if (v && typeof v === 'object' && 'start' in v && 'end' in v) {
+          result[day] = { start: String((v as { start: string }).start), end: String((v as { end: string }).end) }
+        } else {
+          result[day] = null
+        }
+      }
+      return result
+    }
+  }
+  if (typeof value === 'string') {
+    const m = value.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/)
+    if (m) {
+      const s = { start: m[1], end: m[2] }
+      return { monday: s, tuesday: s, wednesday: s, thursday: s, friday: s, saturday: s, sunday: null }
+    }
+  }
+  const def = { start: '09:00', end: '19:00' }
+  return { monday: def, tuesday: def, wednesday: def, thursday: def, friday: def, saturday: def, sunday: null }
+}
+
 // ─── Timezone Helpers (Europe/Istanbul = UTC+3 permanent since 2016) ──────────
 
 function getIstanbulDateStr(date: Date = new Date()): string {
@@ -1008,7 +1041,10 @@ export function createTenantRouter(): Router {
     name: z.string().trim().min(2).max(100).optional(),
     phone: z.string().trim().min(7).max(20).optional(),
     address: z.string().trim().min(5).max(255).optional(),
-    workingHours: z.string().trim().min(1).max(200).optional(),
+    workingHours: z.union([
+      z.string().trim().min(1).max(200),
+      z.record(z.string(), z.object({ start: z.string(), end: z.string() }).nullable()),
+    ]).optional(),
     onboardingCompleted: z.boolean().optional(),
     businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
     followUpEnabled: z.boolean().optional(),
@@ -1268,11 +1304,8 @@ export function createTenantRouter(): Router {
       const passwordHash = await bcrypt.hash(password, 10)
 
       const tenantSettings = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
-      const settingsObj = tenantSettings?.settings as { workingHours?: string } | null
-      const whMatch = settingsObj?.workingHours?.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/)
-      const defaultWorkingHours = whMatch
-        ? { monday: { start: whMatch[1], end: whMatch[2] }, tuesday: { start: whMatch[1], end: whMatch[2] }, wednesday: { start: whMatch[1], end: whMatch[2] }, thursday: { start: whMatch[1], end: whMatch[2] }, friday: { start: whMatch[1], end: whMatch[2] }, saturday: { start: whMatch[1], end: whMatch[2] }, sunday: { start: whMatch[1], end: whMatch[2] } }
-        : { monday: { start: '09:00', end: '18:00' }, tuesday: { start: '09:00', end: '18:00' }, wednesday: { start: '09:00', end: '18:00' }, thursday: { start: '09:00', end: '18:00' }, friday: { start: '09:00', end: '18:00' }, saturday: null, sunday: null }
+      const settingsObj = tenantSettings?.settings as { workingHours?: unknown } | null
+      const defaultWorkingHours = resolveTenantWorkingHours(settingsObj?.workingHours)
 
       const result = await db.$transaction(async (tx) => {
         const user = await tx.user.create({

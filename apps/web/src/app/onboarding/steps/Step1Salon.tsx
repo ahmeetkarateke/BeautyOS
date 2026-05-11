@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, useController } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 import { cn } from '@/lib/utils'
 import { OnboardingInput, OnboardingActions } from '../OnboardingInput'
+import { WorkingHoursPicker, DEFAULT_WORKING_HOURS, type WorkingHoursMap } from '@/components/working-hours-picker'
 
 const BUSINESS_TYPES = [
   { value: 'barbershop',    label: 'Berber / Kuaför' },
@@ -22,7 +23,6 @@ const schema = z.object({
   name: z.string().min(2, 'Salon adı en az 2 karakter olmalıdır'),
   address: z.string().min(5, 'Adres giriniz'),
   phone: z.string().min(10, 'Geçerli bir telefon numarası girin'),
-  workingHours: z.string().min(1, 'Çalışma saatlerini girin'),
   businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
 })
 
@@ -34,25 +34,11 @@ interface Step1SalonProps {
 }
 
 export function Step1Salon({ slug, onNext }: Step1SalonProps) {
-  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { workingHours: '09:00-18:00' },
   })
 
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('18:00')
-
-  const { field: whField } = useController({ name: 'workingHours', control })
-
-  function handleTimeChange(type: 'start' | 'end', value: string) {
-    if (type === 'start') {
-      setStartTime(value)
-      whField.onChange(`${value}-${endTime}`)
-    } else {
-      setEndTime(value)
-      whField.onChange(`${startTime}-${value}`)
-    }
-  }
+  const [workingHours, setWorkingHours] = useState<WorkingHoursMap>(DEFAULT_WORKING_HOURS)
 
   const selectedType = watch('businessType')
 
@@ -60,7 +46,7 @@ export function Step1Salon({ slug, onNext }: Step1SalonProps) {
     mutationFn: (data: FormData) =>
       apiFetch(`/api/v1/tenants/${slug}/settings`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, workingHours }),
       }),
     onSuccess: () => onNext(),
     onError: (err) => toast(err instanceof Error ? err.message : 'Bir sorun oluştu', 'error'),
@@ -91,24 +77,7 @@ export function Step1Salon({ slug, onNext }: Step1SalonProps) {
 
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Çalışma Saatleri *</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => handleTimeChange('start', e.target.value)}
-              className="flex-1 h-10 px-3 rounded-xl text-sm bg-white/5 border border-white/10 text-white focus:outline-none focus:border-purple-500 focus:bg-white/8"
-            />
-            <span className="text-white/30 text-sm font-medium shrink-0">—</span>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => handleTimeChange('end', e.target.value)}
-              className="flex-1 h-10 px-3 rounded-xl text-sm bg-white/5 border border-white/10 text-white focus:outline-none focus:border-purple-500 focus:bg-white/8"
-            />
-          </div>
-          {errors.workingHours && (
-            <p className="text-xs text-red-400">{errors.workingHours.message}</p>
-          )}
+          <WorkingHoursPicker value={workingHours} onChange={setWorkingHours} variant="dark" />
         </div>
       </div>
 

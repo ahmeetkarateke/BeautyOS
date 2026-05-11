@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useForm, useController } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -17,6 +17,7 @@ import { apiFetch } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { toast } from '@/components/ui/toaster'
+import { WorkingHoursPicker, parseWorkingHours, DEFAULT_WORKING_HOURS, type WorkingHoursMap } from '@/components/working-hours-picker'
 
 interface PageProps {
   params: { slug: string }
@@ -28,7 +29,6 @@ const salonSchema = z.object({
   name: z.string().min(2, 'En az 2 karakter giriniz'),
   phone: z.string().min(7, 'Geçerli bir telefon numarası giriniz'),
   address: z.string().min(5, 'Adres en az 5 karakter olmalıdır'),
-  workingHours: z.string().min(1, 'Çalışma saatlerini giriniz').max(200),
 })
 
 const passwordSchema = z
@@ -82,7 +82,7 @@ interface TenantSettings {
   settings: {
     phone?: string
     address?: string
-    workingHours?: string
+    workingHours?: unknown
     businessType?: string
     followUpEnabled?: boolean
     serviceCategories?: string[]
@@ -111,40 +111,21 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
     register,
     handleSubmit,
     reset,
-    control,
     formState: { errors },
   } = useForm<SalonFormValues>({
     resolver: zodResolver(salonSchema),
-    defaultValues: { name: '', phone: '', address: '', workingHours: '09:00-19:00' },
+    defaultValues: { name: '', phone: '', address: '' },
   })
 
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('19:00')
-  const { field: whField } = useController({ name: 'workingHours', control })
-
-  function handleTimeChange(type: 'start' | 'end', value: string) {
-    if (type === 'start') {
-      setStartTime(value)
-      whField.onChange(`${value}-${endTime}`)
-    } else {
-      setEndTime(value)
-      whField.onChange(`${startTime}-${value}`)
-    }
-  }
+  const [workingHours, setWorkingHours] = useState<WorkingHoursMap>(DEFAULT_WORKING_HOURS)
 
   useEffect(() => {
     if (data) {
-      const wh = data.settings?.workingHours ?? '09:00-19:00'
-      const match = wh.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/)
-      if (match) {
-        setStartTime(match[1])
-        setEndTime(match[2])
-      }
+      setWorkingHours(parseWorkingHours(data.settings?.workingHours))
       reset({
         name: data.name,
         phone: data.settings?.phone ?? '',
         address: data.settings?.address ?? '',
-        workingHours: wh,
       })
     }
   }, [data, reset])
@@ -153,7 +134,7 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
     mutationFn: (values: SalonFormValues) =>
       apiFetch(`/api/v1/tenants/${tenantSlug}/settings`, {
         method: 'PATCH',
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, workingHours }),
       }),
     onSuccess: () => toast('Salon bilgileri kaydedildi'),
     onError: (err: Error) => toast(err.message, 'error'),
@@ -186,22 +167,7 @@ function SalonSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 
       <div className="space-y-2">
         <Label>Çalışma Saatleri</Label>
-        <div className="flex items-center gap-2">
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => handleTimeChange('start', e.target.value)}
-            className="flex-1 h-10 px-3 rounded-md border border-salon-border bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <span className="text-salon-muted text-sm shrink-0">—</span>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => handleTimeChange('end', e.target.value)}
-            className="flex-1 h-10 px-3 rounded-md border border-salon-border bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-        {errors.workingHours && <p className="text-xs text-red-500">{errors.workingHours.message}</p>}
+        <WorkingHoursPicker value={workingHours} onChange={setWorkingHours} />
       </div>
 
       <Button type="submit" disabled={mutation.isPending} className="gap-2">

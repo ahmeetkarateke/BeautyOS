@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Script from 'next/script'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Calendar, Check, Clock, User, AlertCircle, MapPin, Phone, MessageCircle } from 'lucide-react'
+import { parseWorkingHours } from '@/components/working-hours-picker'
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
@@ -23,7 +24,7 @@ interface TenantInfo {
   phone: string | null
   whatsappNumber: string | null
   mapsUrl: string | null
-  workingHours: string | null
+  workingHours: unknown
   brandColor: string | null
   logoUrl: string | null
   coverUrl: string | null
@@ -261,10 +262,12 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
           )}
 
           {/* Address + working hours */}
-          {(tenantInfo.address || tenantInfo.workingHours) && (
-            <div className="text-center text-xs text-zinc-500 mb-5 space-y-0.5">
+          {(!!tenantInfo.address || tenantInfo.workingHours != null) && (
+            <div className="text-center text-xs text-zinc-500 mb-5 space-y-1">
               {tenantInfo.address && <p>{tenantInfo.address}</p>}
-              {tenantInfo.workingHours && <p>🕐 {tenantInfo.workingHours}</p>}
+              {tenantInfo.workingHours != null && (
+                <WorkingHoursDisplay value={tenantInfo.workingHours} />
+              )}
             </div>
           )}
 
@@ -481,6 +484,34 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
       </div>
     </div>
     </>
+  )
+}
+
+const DAY_LABELS_TR: Record<string, string> = {
+  monday: 'Pzt', tuesday: 'Sal', wednesday: 'Çar', thursday: 'Per',
+  friday: 'Cum', saturday: 'Cmt', sunday: 'Paz',
+}
+const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+function WorkingHoursDisplay({ value }: { value: unknown }) {
+  const hours = parseWorkingHours(value)
+  return (
+    <div className="inline-flex flex-col items-center gap-0.5 text-[11px]">
+      <p className="font-medium text-zinc-600 flex items-center gap-1"><Clock size={11} /> Çalışma Saatleri</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+        {DAY_ORDER.map((day) => {
+          const d = hours[day as keyof typeof hours]
+          return (
+            <div key={day} className="flex gap-1.5">
+              <span className="text-zinc-500 w-7">{DAY_LABELS_TR[day]}</span>
+              <span className={d ? 'text-zinc-700' : 'text-zinc-400 italic'}>
+                {d ? `${d.start}-${d.end}` : 'kapalı'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
