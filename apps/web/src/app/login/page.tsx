@@ -27,7 +27,7 @@ interface LoginResponse {
 }
 
 const features = [
-  { icon: Zap, label: 'WhatsApp AI', desc: 'Otomatik randevu & müşteri yanıtları' },
+  { icon: Zap, label: 'Online Rezervasyon', desc: 'Müşteriler 7/24 kendi randevularını alır' },
   { icon: CalendarDays, label: 'Akıllı Takvim', desc: 'Drag & drop randevu yönetimi' },
   { icon: TrendingUp, label: 'Prim Takibi', desc: 'Personel performansı & gelir analizi' },
 ]
@@ -118,7 +118,7 @@ export default function LoginPage() {
             </span>
           </motion.h2>
           <motion.p variants={stagger.item} className="text-white/50 text-base mb-12 max-w-sm leading-relaxed">
-            WhatsApp AI, akıllı takvim ve otomatik prim takibi ile salonunuzu bir üst seviyeye çıkarın.
+            Online rezervasyon, akıllı takvim ve otomatik prim takibi ile salonunuzu bir üst seviyeye çıkarın.
           </motion.p>
 
           <div className="space-y-4">

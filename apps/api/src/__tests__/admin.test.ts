@@ -50,14 +50,14 @@ describe('Admin API', () => {
 
   // ─── Seed ─────────────────────────────────────────────────────────────────────
 
-  it('seed tekrar → 409 ADMIN_EXISTS', async () => {
+  it('seed tekrar → 200 + updated: true (idempotent)', async () => {
     const res = await request(app).post('/api/v1/admin/seed').send({
       secret: 'test-admin-seed-secret',
-      email: 'another-admin@test.local',
-      password: 'AdminPass12!',
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASS,
     })
-    expect(res.status).toBe(409)
-    expect(res.body.error.code).toBe('ADMIN_EXISTS')
+    expect(res.status).toBe(200)
+    expect(res.body.updated).toBe(true)
   })
 
   it('yanlış secret → 403', async () => {

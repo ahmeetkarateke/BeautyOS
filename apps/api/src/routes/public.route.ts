@@ -206,16 +206,20 @@ export function createPublicRouter(): Router {
   const bookSchema = z.object({
     serviceId: z.string().uuid(),
     staffId: z.string().uuid(),
-    startAt: z.string(), // ISO datetime without timezone, e.g. "2026-05-15T09:00:00"
-    customerName: z.string().trim().min(2).max(100),
-    customerPhone: z.string().trim().min(7).max(20),
-    notes: z.string().trim().max(500).optional(),
+    startAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:?\d{2})?$/, 'Geçersiz tarih formatı.'),
+    customerName: z.string().trim().min(2).max(100).refine((v) => !/<[^>]*>|javascript:/i.test(v), 'Geçersiz karakter.'),
+    customerPhone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon girin.'),
+    notes: z.string().trim().max(500).refine((v) => !/<[^>]*>|javascript:/i.test(v), 'Geçersiz karakter.').optional(),
     captchaToken: z.string().optional(),
   })
 
   async function verifyTurnstile(token: string | undefined, remoteIp: string | undefined): Promise<boolean> {
     const secret = process.env.TURNSTILE_SECRET_KEY
-    if (!secret) return true // env yoksa doğrulama atla (dev/test)
+    if (!secret) {
+      // Production'da CAPTCHA zorunlu — secret yoksa booking reddedilir
+      if (process.env.NODE_ENV === 'production') return false
+      return true // dev/test ortamında geç
+    }
     if (!token) return false
     try {
       const params = new URLSearchParams({ secret, response: token })

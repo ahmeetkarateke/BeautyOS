@@ -33,7 +33,11 @@ export async function apiFetch<T>(
     throw new Error('Çok fazla deneme, lütfen bir saat bekleyin.')
   }
 
-  if (res.status === 401 && !_retry && !isRefreshing) {
+  // Auth endpoint'leri (login/register/refresh/forgot/reset) için refresh denemesi yapma —
+  // 401 burada "yanlış şifre" anlamında, "oturum süresi doldu" değil.
+  const isAuthEndpoint = path.startsWith('/api/v1/auth/')
+
+  if (res.status === 401 && !_retry && !isRefreshing && !isAuthEndpoint) {
     isRefreshing = true
     try {
       const refreshRes = await fetch(`${API_URL}/api/v1/auth/refresh`, {
