@@ -78,6 +78,7 @@ export function AppointmentCalendar({
   filterSearch,
 }: AppointmentCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
+  const dateInputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const isEditable = user?.role === 'owner' || user?.role === 'manager'
@@ -89,6 +90,33 @@ export function AppointmentCalendar({
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  function openDatePicker() {
+    const input = dateInputRef.current
+    if (!input) return
+    // Date input'u şu anki tarihe ayarla (FullCalendar'ın aktif tarihi)
+    const current = calendarRef.current?.getApi().getDate()
+    if (current) {
+      const pad = (n: number) => String(n).padStart(2, '0')
+      input.value = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`
+    }
+    if (typeof input.showPicker === 'function') {
+      try { input.showPicker(); return } catch { /* fallback */ }
+    }
+    input.focus()
+    input.click()
+  }
+
+  function attachTitleClick() {
+    setTimeout(() => {
+      const titleEl = document.querySelector('.beautyos-calendar .fc-toolbar-title') as HTMLElement | null
+      if (!titleEl || titleEl.dataset.dpAttached === '1') return
+      titleEl.dataset.dpAttached = '1'
+      titleEl.style.cursor = 'pointer'
+      titleEl.title = 'Tarihe git'
+      titleEl.addEventListener('click', openDatePicker)
+    }, 0)
+  }
 
   const { data } = useQuery({
     queryKey: ['appointments-calendar', tenantId, filterStaffId, filterStatus, filterSearch],
@@ -136,6 +164,18 @@ export function AppointmentCalendar({
 
   return (
     <div className="beautyos-calendar">
+      <input
+        ref={dateInputRef}
+        type="date"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const v = e.target.value
+          if (v) calendarRef.current?.getApi().gotoDate(v)
+        }}
+      />
+
       <div className="flex flex-wrap gap-3 mb-3 px-1">
         {LEGEND.map((item) => (
           <div key={item.label} className="flex items-center gap-1.5">
@@ -148,6 +188,8 @@ export function AppointmentCalendar({
       <FullCalendar
         key={isMobile ? 'mobile' : 'desktop'}
         ref={calendarRef}
+        viewDidMount={attachTitleClick}
+        datesSet={attachTitleClick}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={isMobile ? 'timeGridDay' : 'timeGridWeek'}
         locale={trLocale}
