@@ -48,8 +48,13 @@ async function bootstrap(): Promise<void> {
 
   const app = express()
 
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean)
+  if (!allowedOriginsEnv && process.env.NODE_ENV === 'production') {
+    logger.error('ALLOWED_ORIGINS env var not set in production — refusing to start')
+    process.exit(1)
+  }
   app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3000', /\.vercel\.app$/],
+    origin: allowedOriginsEnv ?? ['http://localhost:3000', /^https:\/\/beauty-os.*\.vercel\.app$/],
     credentials: true,
   }))
 

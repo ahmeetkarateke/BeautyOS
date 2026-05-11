@@ -12,19 +12,34 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+const strongPassword = z
+  .string()
+  .min(8, 'Şifre en az 8 karakter olmalı.')
+  .max(128, 'Şifre çok uzun.')
+  .refine((v) => /[a-zA-Z]/.test(v), 'Şifrede en az 1 harf bulunmalı.')
+  .refine((v) => /[0-9]/.test(v), 'Şifrede en az 1 rakam bulunmalı.')
+
 const registerSchema = z.object({
   salonName: z.string().trim().min(2).max(100),
   slug: z.string().trim().regex(/^[a-z0-9-]{3,30}$/, 'Slug sadece küçük harf, rakam ve tire içerebilir (3-30 karakter).'),
   ownerFullName: z.string().trim().min(2).max(100),
   phone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin.').optional(),
   email: z.string().email(),
-  password: z.string().min(8),
+  password: strongPassword,
   businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
 })
 
 const ACCESS_EXPIRY = '15m'
 const REFRESH_EXPIRY = '30d'
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
+
+function requireJwtSecret(): string {
+  const s = process.env.JWT_SECRET
+  if (!s || s.length < 32) {
+    throw new Error('JWT_SECRET env variable is missing or too short (min 32 chars). Refusing to sign tokens.')
+  }
+  return s
+}
 
 function parseCookies(header: string | undefined): Record<string, string> {
   if (!header) return {}
@@ -58,6 +73,16 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla kayıt denemesi. 1 saat sonra tekrar deneyin.' } },
   })
 
+  // Login için daha sıkı: IP+email kombinasyonu başına 5/15dk
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `${req.ip}:${(req.body as { email?: string })?.email ?? ''}`,
+    message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.' } },
+  })
+
   router.post('/register', registerLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = registerSchema.safeParse(req.body)
@@ -77,7 +102,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresi zaten kullanılıyor.' } })
       }
 
-      const passwordHash = await bcrypt.hash(password, 10)
+      const passwordHash = await bcrypt.hash(password, 12)
       const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
       const { tenant, user } = await db.$transaction(async (tx) => {
@@ -105,7 +130,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return { tenant, user }
       })
 
-      const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
+      const jwtSecret = requireJwtSecret()
       const payload = { userId: user.id, tenantId: tenant.id, tenantSlug: tenant.slug, role: user.role }
       const token = jwt.sign(payload, jwtSecret, { expiresIn: ACCESS_EXPIRY })
       const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
@@ -130,7 +155,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     }
   })
 
-  router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/login', loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = loginSchema.safeParse(req.body)
       if (!parsed.success) {
@@ -144,16 +169,14 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         include: { tenant: { select: { slug: true } } },
       })
 
-      if (!user) {
+      // Email enumeration koruması: kullanıcı yoksa da bcrypt compare çalıştır (timing eşitleme)
+      const DUMMY_HASH = '$2b$10$0000000000000000000000.0000000000000000000000000000000000'
+      const passwordMatch = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)
+      if (!user || !passwordMatch) {
         return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
       }
 
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash)
-      if (!passwordMatch) {
-        return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
-      }
-
-      const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
+      const jwtSecret = requireJwtSecret()
 
       if (!user.tenant) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Tenant bulunamadı.' } })
@@ -195,7 +218,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Refresh token bulunamadı.' } })
       }
 
-      const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
+      const jwtSecret = requireJwtSecret()
 
       let decoded: { userId: string; type: string }
       try {
@@ -257,7 +280,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
       }
 
-      const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
+      const jwtSecret = requireJwtSecret()
       const payload = { userId: user.id, role: 'superadmin' }
       const token = jwt.sign(payload, jwtSecret, { expiresIn: '7d' })
       const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
@@ -288,15 +311,22 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       // Always return 200 to avoid email enumeration
       if (!user) return res.json({ ok: true })
 
-      const token = crypto.randomBytes(32).toString('hex')
+      // Önceki aktif token'ları geçersiz kıl (sadece son token kullanılabilir)
+      await db.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      })
+
+      const rawToken = crypto.randomBytes(32).toString('hex')
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
       await db.passwordResetToken.create({
-        data: { token, userId: user.id, expiresAt },
+        data: { token: tokenHash, userId: user.id, expiresAt },
       })
 
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
-      void sendPasswordResetEmail(parsed.data.email, `${frontendUrl}/reset-password?token=${token}`)
+      void sendPasswordResetEmail(parsed.data.email, `${frontendUrl}/reset-password?token=${rawToken}`)
 
       return res.json({ ok: true })
     } catch (err) {
@@ -307,8 +337,8 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
   router.post('/reset-password', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = z.object({
-        token: z.string().min(1),
-        password: z.string().min(8),
+        token: z.string().min(1).max(128),
+        password: strongPassword,
       }).safeParse(req.body)
 
       if (!parsed.success) {
@@ -316,8 +346,9 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       }
 
       const now = new Date()
+      const tokenHash = crypto.createHash('sha256').update(parsed.data.token).digest('hex')
       const resetToken = await db.passwordResetToken.findUnique({
-        where: { token: parsed.data.token },
+        where: { token: tokenHash },
         select: { id: true, userId: true, expiresAt: true, usedAt: true },
       })
 
@@ -325,7 +356,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(400).json({ error: { code: 'INVALID_TOKEN', message: 'Geçersiz veya süresi dolmuş token.' } })
       }
 
-      const passwordHash = await bcrypt.hash(parsed.data.password, 10)
+      const passwordHash = await bcrypt.hash(parsed.data.password, 12)
 
       await db.$transaction([
         db.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),

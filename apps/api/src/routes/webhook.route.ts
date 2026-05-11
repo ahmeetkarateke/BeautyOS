@@ -11,7 +11,7 @@ async function resolveTenantId(
   registry: TenantRegistry,
   source: 'telegram' | 'whatsapp',
   identifier: string, // botToken veya phoneNumberId
-): Promise<string> {
+): Promise<string | null> {
   // 1. Hızlı env var yolu (tek-tenant deployment)
   const fromEnv = TenantRegistry.fromEnv()
   if (fromEnv) return fromEnv
@@ -23,9 +23,8 @@ async function resolveTenantId(
 
   if (tenantId) return tenantId
 
-  // 3. Hiçbiri bulunamazsa geliştirme fallback'i
-  logger.warn({ source, identifier: identifier.slice(-6) }, 'Tenant bulunamadı, fallback kullanılıyor')
-  return 'test-tenant'
+  logger.warn({ source, identifier: identifier.slice(-6) }, 'Tenant bulunamadı, mesaj atlanıyor')
+  return null
 }
 
 export function createWebhookRouter(
@@ -64,6 +63,7 @@ export function createWebhookRouter(
       'telegram',
       process.env.TELEGRAM_BOT_TOKEN ?? '',
     )
+    if (!tenantId) return
 
     const salon = await getSalon(tenantId)
     await flowHandler.handle(channel, msg, salon, tenantId)
@@ -90,12 +90,11 @@ export function createWebhookRouter(
     res.status(200).json({ ok: true })
 
     try {
-      logger.info({ body: JSON.stringify(req.body).slice(0, 200) }, 'WhatsApp POST alındı')
+      logger.debug('WhatsApp POST alındı')
       const channel = getChannel('whatsapp')
       const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body)
 
       const sigOk = channel.verifyWebhook(rawBody, req.headers as Record<string, string>)
-      logger.info({ sigOk }, 'WhatsApp imza kontrol sonucu')
       if (!sigOk) {
         logger.warn('WhatsApp webhook imza doğrulaması başarısız')
         return
@@ -110,6 +109,7 @@ export function createWebhookRouter(
       const phoneNumberId = (changeValue['phone_number_id'] as string | undefined) ?? ''
 
       const tenantId = await resolveTenantId(tenantRegistry, 'whatsapp', phoneNumberId)
+      if (!tenantId) return
       const salon = await getSalon(tenantId)
 
       await flowHandler.handle(channel, msg, salon, tenantId)

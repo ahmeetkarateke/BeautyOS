@@ -19,6 +19,15 @@ function noXss(max: number) {
     .refine((v) => !XSS_PATTERN.test(v), { message: 'Geçersiz karakter içeriyor.' })
 }
 
+function httpsOnlyUrl() {
+  return z
+    .string()
+    .trim()
+    .max(500)
+    .url()
+    .refine((v) => /^https?:\/\//i.test(v), { message: 'Yalnızca http(s) URL kabul edilir.' })
+}
+
 // Salon settings.workingHours hem eski string ("09:00-19:00") hem yeni JSON formatını destekler.
 // Yeni personel oluştururken bu helper personelin default workingHours'unu üretir.
 type DaySchedule = { start: string; end: string } | null
@@ -239,12 +248,27 @@ export function createTenantRouter(): Router {
         dateFilter = { startAt: { gte: start, lte: end } }
       }
 
+      // Staff sadece kendi randevularını görebilir
+      let staffFilter: { staffId?: string } = {}
+      if (req.user!.role === 'staff') {
+        const myProfile = await db.staffProfile.findFirst({
+          where: { tenantId, userId: req.user!.userId },
+          select: { id: true },
+        })
+        if (!myProfile) {
+          return res.json({ data: [] })
+        }
+        staffFilter = { staffId: myProfile.id }
+      } else if (staffId) {
+        staffFilter = { staffId }
+      }
+
       const appointments = await db.appointment.findMany({
         where: {
           tenantId,
           isDeleted: false,
           ...dateFilter,
-          ...(staffId ? { staffId } : {}),
+          ...staffFilter,
           ...(serviceId ? { serviceId } : {}),
           ...(status ? { status } : {}),
           ...(search ? { customer: { fullName: { contains: search, mode: 'insensitive' as const } } } : {}),
@@ -697,7 +721,7 @@ export function createTenantRouter(): Router {
   // PATCH /api/v1/tenants/:slug/appointments/:appointmentId/status
   const appointmentStatusSchema = z.object({
     status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']),
-    cancellationReason: z.string().optional(),
+    cancellationReason: noXss(500).optional(),
     priceCharged: z.number().positive().optional(),
     paymentMethod: z.enum(['cash', 'card']).optional(),
   })
@@ -717,6 +741,17 @@ export function createTenantRouter(): Router {
       const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId } })
       if (!existing) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
+      }
+
+      // Staff sadece kendi randevularının durumunu değiştirebilir
+      if (req.user!.role === 'staff') {
+        const myProfile = await db.staffProfile.findFirst({
+          where: { tenantId, userId: req.user!.userId },
+          select: { id: true },
+        })
+        if (!myProfile || myProfile.id !== existing.staffId) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu randevuyu değiştirme yetkiniz yok.' } })
+        }
       }
 
       const TERMINAL_STATUSES = ['completed', 'cancelled', 'no_show']
@@ -1055,11 +1090,11 @@ export function createTenantRouter(): Router {
     botHidePrices: z.boolean().optional(),
     publicBookingEnabled: z.boolean().optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir hex renk (ör. #6B48FF)').optional(),
-    logoUrl: z.string().url().max(500).optional().or(z.literal('')),
-    coverUrl: z.string().url().max(500).optional().or(z.literal('')),
+    logoUrl: httpsOnlyUrl().optional().or(z.literal('')),
+    coverUrl: httpsOnlyUrl().optional().or(z.literal('')),
     whatsappNumber: z.string().trim().min(7).max(20).optional().or(z.literal('')),
-    mapsUrl: z.string().url().max(500).optional().or(z.literal('')),
-    aboutText: z.string().trim().max(500).optional().or(z.literal('')),
+    mapsUrl: httpsOnlyUrl().optional().or(z.literal('')),
+    aboutText: noXss(500).optional().or(z.literal('')),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {
@@ -1140,7 +1175,7 @@ export function createTenantRouter(): Router {
         return res.status(401).json({ error: { code: 'INVALID_PASSWORD', message: 'Mevcut şifre hatalı.' } })
       }
 
-      const newHash = await bcrypt.hash(newPassword, 10)
+      const newHash = await bcrypt.hash(newPassword, 12)
       await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } })
 
       return res.json({ ok: true })
@@ -1301,7 +1336,7 @@ export function createTenantRouter(): Router {
         return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresiyle kayıtlı kullanıcı zaten var.' } })
       }
 
-      const passwordHash = await bcrypt.hash(password, 10)
+      const passwordHash = await bcrypt.hash(password, 12)
 
       const tenantSettings = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
       const settingsObj = tenantSettings?.settings as { workingHours?: unknown } | null
@@ -1958,6 +1993,17 @@ export function createTenantRouter(): Router {
   router.get('/staff/:staffId/leaves', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
+      const role = req.user!.role
+      // Staff sadece kendi izinlerini görebilir
+      if (role === 'staff') {
+        const myProfile = await db.staffProfile.findFirst({
+          where: { tenantId, userId: req.user!.userId },
+          select: { id: true },
+        })
+        if (!myProfile || myProfile.id !== req.params.staffId) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
+        }
+      }
       const leaves = await db.staffLeave.findMany({
         where: { staffId: req.params.staffId, tenantId },
         orderBy: { leaveDate: 'asc' },

@@ -71,18 +71,19 @@ export class IntentService {
 
       const result = await model.generateContent(prompt)
       const raw = result.response.text()
-      logger.info({ raw, userMessage, model: modelName }, 'Gemini RAW response')
+      // PII sızıntısı riski — production'da raw response loglanmaz
+      logger.debug({ rawLength: raw.length, model: modelName }, 'Gemini response received')
 
       // JSON objesini response içinde ara — model öncesine/sonrasına metin ekleyebilir
       const jsonMatch = raw.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
-        logger.warn({ raw }, 'Gemini JSON objesi bulunamadı')
+        logger.warn({ model: modelName }, 'Gemini JSON objesi bulunamadı')
         return fallbackResult()
       }
       const parsed = IntentResultSchema.safeParse(JSON.parse(jsonMatch[0]))
 
       if (!parsed.success) {
-        logger.warn({ raw, zodError: parsed.error.flatten() }, 'Gemini JSON parse hatası')
+        logger.warn({ model: modelName, zodError: parsed.error.flatten() }, 'Gemini JSON parse hatası')
         return fallbackResult()
       }
 
@@ -93,7 +94,7 @@ export class IntentService {
 
       return parsed.data
     } catch (error) {
-      logger.error({ error, model: modelName, message: userMessage }, 'Gemini API hatası — tam hata:')
+      logger.error({ error: (error as Error).message, model: modelName }, 'Gemini API hatası')
       return fallbackResult()
     }
   }

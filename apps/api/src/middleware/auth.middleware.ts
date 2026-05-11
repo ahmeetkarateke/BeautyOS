@@ -26,8 +26,13 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
   }
 
   const token = authHeader.slice(7)
+  const secret = process.env.JWT_SECRET
+  if (!secret || secret.length < 32) {
+    res.status(500).json({ error: { code: 'CONFIG_ERROR', message: 'Sunucu yapılandırma hatası.' } })
+    return
+  }
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET ?? 'dev-secret') as JwtPayload
+    const payload = jwt.verify(token, secret) as JwtPayload
     req.user = payload
     next()
   } catch {

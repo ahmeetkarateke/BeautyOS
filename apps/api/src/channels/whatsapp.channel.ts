@@ -142,20 +142,27 @@ export class WhatsAppChannel implements MessagingChannel {
   }
 
   verifyWebhook(rawBody: string, headers: Record<string, string>): boolean {
-    // 360dialog sandbox imza doğrulaması kullanmaz — her isteği kabul et
-    if (!this.appSecret) return true
+    const isProd = process.env.NODE_ENV === 'production'
+
+    // App secret set edilmemişse: production'da reddet, dev'de geç
+    if (!this.appSecret) {
+      return !isProd
+    }
 
     const signature = headers['x-hub-signature-256']
-    if (!signature) return true // 360dialog bazen imza göndermez
+    if (!signature) return false
 
     try {
       const expected = `sha256=${crypto
         .createHmac('sha256', this.appSecret)
         .update(rawBody)
         .digest('hex')}`
-      return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+      const sig = Buffer.from(signature)
+      const exp = Buffer.from(expected)
+      if (sig.length !== exp.length) return false
+      return crypto.timingSafeEqual(sig, exp)
     } catch {
-      return true
+      return false
     }
   }
 

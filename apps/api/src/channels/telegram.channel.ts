@@ -119,15 +119,21 @@ export class TelegramChannel implements MessagingChannel {
     return null // Desteklenmeyen update tipi (sticker, foto vs.)
   }
 
-  verifyWebhook(rawBody: string, headers: Record<string, string>): boolean {
+  verifyWebhook(_rawBody: string, headers: Record<string, string>): boolean {
     // Telegram webhook'u X-Telegram-Bot-Api-Secret-Token header'ı ile doğrular.
-    // Telegram'a webhook kaydederken secret_token parametresi verilmişse kontrol et.
     const incomingToken = headers['x-telegram-bot-api-secret-token']
-    if (!incomingToken) return true // Token set edilmemişse geç (geliştirme ortamı)
-    return crypto.timingSafeEqual(
-      Buffer.from(incomingToken),
-      Buffer.from(this.secretToken),
-    )
+    // Secret token set edilmemişse: production'da reddet, development'ta geç
+    if (!this.secretToken) {
+      if (process.env.NODE_ENV === 'production') {
+        return false
+      }
+      return true
+    }
+    if (!incomingToken) return false
+    const incoming = Buffer.from(incomingToken)
+    const expected = Buffer.from(this.secretToken)
+    if (incoming.length !== expected.length) return false
+    return crypto.timingSafeEqual(incoming, expected)
   }
 
   // ─── Telegram Bot API yardımcı metodları ──────────────────────────────────
