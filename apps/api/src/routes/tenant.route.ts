@@ -1018,6 +1018,12 @@ export function createTenantRouter(): Router {
     botFaqs: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })).max(20).optional(),
     botHidePrices: z.boolean().optional(),
     publicBookingEnabled: z.boolean().optional(),
+    brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir hex renk (ör. #6B48FF)').optional(),
+    logoUrl: z.string().url().max(500).optional().or(z.literal('')),
+    coverUrl: z.string().url().max(500).optional().or(z.literal('')),
+    whatsappNumber: z.string().trim().min(7).max(20).optional().or(z.literal('')),
+    mapsUrl: z.string().url().max(500).optional().or(z.literal('')),
+    aboutText: z.string().trim().max(500).optional().or(z.literal('')),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {

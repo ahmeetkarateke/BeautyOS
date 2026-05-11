@@ -86,6 +86,12 @@ interface TenantSettings {
     botFaqs?: BotFaq[]
     botHidePrices?: boolean
     publicBookingEnabled?: boolean
+    brandColor?: string
+    logoUrl?: string
+    coverUrl?: string
+    whatsappNumber?: string
+    mapsUrl?: string
+    aboutText?: string
   }
 }
 
@@ -371,21 +377,50 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
           setPublicBookingEnabled(next)
           mutation.mutate({ publicBookingEnabled: next })
         }}
+        initialSettings={{
+          brandColor: data?.settings?.brandColor ?? '',
+          logoUrl: data?.settings?.logoUrl ?? '',
+          coverUrl: data?.settings?.coverUrl ?? '',
+          whatsappNumber: data?.settings?.whatsappNumber ?? '',
+          mapsUrl: data?.settings?.mapsUrl ?? '',
+          aboutText: data?.settings?.aboutText ?? '',
+        }}
+        onSavePatch={(patch) => mutation.mutate(patch)}
       />
     </div>
   )
+}
+
+interface BookingPageSettings {
+  brandColor: string
+  logoUrl: string
+  coverUrl: string
+  whatsappNumber: string
+  mapsUrl: string
+  aboutText: string
 }
 
 function PublicBookingSection({
   tenantSlug,
   enabled,
   onToggle,
+  initialSettings,
+  onSavePatch,
 }: {
   tenantSlug: string
   enabled: boolean
   onToggle: (next: boolean) => void
+  initialSettings: BookingPageSettings
+  onSavePatch: (patch: Record<string, unknown>) => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [form, setForm] = useState<BookingPageSettings>(initialSettings)
+
+  useEffect(() => { setForm(initialSettings) }, [
+    initialSettings.brandColor, initialSettings.logoUrl, initialSettings.coverUrl,
+    initialSettings.whatsappNumber, initialSettings.mapsUrl, initialSettings.aboutText,
+  ])
+
   const bookingUrl = typeof window !== 'undefined' ? `${window.location.origin}/book/${tenantSlug}` : `/book/${tenantSlug}`
 
   async function copyLink() {
@@ -398,8 +433,13 @@ function PublicBookingSection({
     }
   }
 
+  function saveField<K extends keyof BookingPageSettings>(key: K, value: BookingPageSettings[K]) {
+    setForm((f) => ({ ...f, [key]: value }))
+    onSavePatch({ [key]: value })
+  }
+
   return (
-    <div className="pt-4 border-t border-salon-border space-y-3">
+    <div className="pt-4 border-t border-salon-border space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <p className="text-sm font-medium text-gray-900">Online Rezervasyon Sayfası</p>
@@ -428,28 +468,125 @@ function PublicBookingSection({
       </div>
 
       {enabled && (
-        <div className="flex items-center gap-2 p-2 bg-zinc-50 border border-salon-border rounded-lg">
-          <input
-            readOnly
-            value={bookingUrl}
-            className="flex-1 bg-transparent text-xs text-gray-700 focus:outline-none truncate"
-          />
-          <button
-            type="button"
-            onClick={copyLink}
-            className="px-2.5 py-1 text-xs font-medium bg-primary text-white rounded transition-colors hover:bg-primary/90"
-          >
-            {copied ? 'Kopyalandı ✓' : 'Kopyala'}
-          </button>
-          <a
-            href={bookingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2.5 py-1 text-xs font-medium border border-salon-border rounded text-gray-700 hover:bg-white transition-colors"
-          >
-            Aç
-          </a>
-        </div>
+        <>
+          <div className="flex items-center gap-2 p-2 bg-zinc-50 border border-salon-border rounded-lg">
+            <input
+              readOnly
+              value={bookingUrl}
+              className="flex-1 bg-transparent text-xs text-gray-700 focus:outline-none truncate"
+            />
+            <button
+              type="button"
+              onClick={copyLink}
+              className="px-2.5 py-1 text-xs font-medium bg-primary text-white rounded transition-colors hover:bg-primary/90"
+            >
+              {copied ? 'Kopyalandı ✓' : 'Kopyala'}
+            </button>
+            <a
+              href={bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 text-xs font-medium border border-salon-border rounded text-gray-700 hover:bg-white transition-colors"
+            >
+              Aç
+            </a>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <p className="text-xs font-medium text-gray-700">Görünüm ve İletişim</p>
+
+            <div className="space-y-1">
+              <Label htmlFor="brand-color" className="text-xs">Marka Rengi</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="brand-color"
+                  type="color"
+                  value={form.brandColor || '#6B48FF'}
+                  onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))}
+                  onBlur={() => onSavePatch({ brandColor: form.brandColor })}
+                  className="w-12 h-9 rounded border border-salon-border cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={form.brandColor}
+                  onChange={(e) => setForm((f) => ({ ...f, brandColor: e.target.value }))}
+                  onBlur={() => /^#[0-9a-fA-F]{6}$/.test(form.brandColor) && onSavePatch({ brandColor: form.brandColor })}
+                  placeholder="#6B48FF"
+                  className="flex-1 border border-salon-border rounded px-2 py-1.5 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="logo-url" className="text-xs">Logo URL</Label>
+              <input
+                id="logo-url"
+                type="url"
+                value={form.logoUrl}
+                onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))}
+                onBlur={() => saveField('logoUrl', form.logoUrl)}
+                placeholder="https://..."
+                className="w-full border border-salon-border rounded px-2 py-1.5 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="cover-url" className="text-xs">Kapak Fotoğrafı URL</Label>
+              <input
+                id="cover-url"
+                type="url"
+                value={form.coverUrl}
+                onChange={(e) => setForm((f) => ({ ...f, coverUrl: e.target.value }))}
+                onBlur={() => saveField('coverUrl', form.coverUrl)}
+                placeholder="https://..."
+                className="w-full border border-salon-border rounded px-2 py-1.5 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="whatsapp" className="text-xs">WhatsApp</Label>
+                <input
+                  id="whatsapp"
+                  type="tel"
+                  value={form.whatsappNumber}
+                  onChange={(e) => setForm((f) => ({ ...f, whatsappNumber: e.target.value }))}
+                  onBlur={() => saveField('whatsappNumber', form.whatsappNumber)}
+                  placeholder="905XX..."
+                  className="w-full border border-salon-border rounded px-2 py-1.5 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="maps" className="text-xs">Google Maps Linki</Label>
+                <input
+                  id="maps"
+                  type="url"
+                  value={form.mapsUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, mapsUrl: e.target.value }))}
+                  onBlur={() => saveField('mapsUrl', form.mapsUrl)}
+                  placeholder="https://maps.google.com/..."
+                  className="w-full border border-salon-border rounded px-2 py-1.5 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="about-text" className="text-xs">Kısa Tanıtım</Label>
+              <textarea
+                id="about-text"
+                value={form.aboutText}
+                onChange={(e) => setForm((f) => ({ ...f, aboutText: e.target.value }))}
+                onBlur={() => saveField('aboutText', form.aboutText)}
+                placeholder="Salonunuzu kısaca tanıtın..."
+                rows={2}
+                maxLength={500}
+                className="w-full border border-salon-border rounded px-2 py-1.5 text-xs resize-none"
+              />
+            </div>
+
+            <p className="text-[11px] text-salon-muted">Değişiklikler odak değişince otomatik kaydedilir.</p>
+          </div>
+        </>
       )}
     </div>
   )

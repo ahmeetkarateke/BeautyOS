@@ -51,6 +51,13 @@ export function createPublicRouter(): Router {
         publicBookingEnabled: isPublicBookingEnabled(tenant.settings),
         address: settings.address ?? null,
         phone: settings.phone ?? null,
+        whatsappNumber: settings.whatsappNumber ?? null,
+        mapsUrl: settings.mapsUrl ?? null,
+        workingHours: settings.workingHours ?? null,
+        brandColor: settings.brandColor ?? null,
+        logoUrl: settings.logoUrl ?? null,
+        coverUrl: settings.coverUrl ?? null,
+        aboutText: settings.aboutText ?? null,
       })
     } catch (err) {
       next(err)

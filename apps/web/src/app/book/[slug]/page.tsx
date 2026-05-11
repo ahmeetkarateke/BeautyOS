@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { ArrowLeft, Calendar, Check, Clock, User, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Check, Clock, User, AlertCircle, MapPin, Phone, MessageCircle } from 'lucide-react'
 
 interface TenantInfo {
   name: string
   publicBookingEnabled: boolean
   address: string | null
   phone: string | null
+  whatsappNumber: string | null
+  mapsUrl: string | null
+  workingHours: string | null
+  brandColor: string | null
+  logoUrl: string | null
+  coverUrl: string | null
+  aboutText: string | null
 }
 
 interface Service {
@@ -146,14 +153,82 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   const staff = staffData?.data ?? []
   const slots = slotsData?.slots ?? []
 
+  const brandColor = tenantInfo.brandColor || '#6B48FF'
+  const cssVars = { '--brand': brandColor } as React.CSSProperties
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white">
-      <div className="max-w-md mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <header className="text-center mb-6 pt-4">
-          <h1 className="text-2xl font-bold text-gray-900">{tenantInfo.name}</h1>
-          <p className="text-sm text-zinc-500 mt-1">Online Randevu</p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white" style={cssVars}>
+      <div className="max-w-md mx-auto">
+        {/* Cover */}
+        {tenantInfo.coverUrl && (
+          <div className="w-full h-40 sm:h-48 overflow-hidden">
+            <img
+              src={tenantInfo.coverUrl}
+              alt="Kapak"
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          </div>
+        )}
+
+        <div className="p-4 sm:p-6">
+          {/* Header — logo + name */}
+          <header className="text-center mb-4 pt-2">
+            {tenantInfo.logoUrl && (
+              <img
+                src={tenantInfo.logoUrl}
+                alt={tenantInfo.name}
+                className="w-20 h-20 rounded-full mx-auto mb-3 object-cover border-2 border-white shadow"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
+            <h1 className="text-2xl font-bold text-gray-900">{tenantInfo.name}</h1>
+            {tenantInfo.aboutText && (
+              <p className="text-sm text-zinc-600 mt-2 max-w-sm mx-auto leading-relaxed">{tenantInfo.aboutText}</p>
+            )}
+          </header>
+
+          {/* Contact strip */}
+          {(tenantInfo.phone || tenantInfo.whatsappNumber || tenantInfo.mapsUrl) && (
+            <div className="flex justify-center gap-2 mb-4">
+              {tenantInfo.phone && (
+                <a
+                  href={`tel:${tenantInfo.phone}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-gray-700 hover:bg-zinc-50"
+                >
+                  <Phone size={12} /> Ara
+                </a>
+              )}
+              {tenantInfo.whatsappNumber && (
+                <a
+                  href={`https://wa.me/${tenantInfo.whatsappNumber.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-xs text-green-700 hover:bg-green-100"
+                >
+                  <MessageCircle size={12} /> WhatsApp
+                </a>
+              )}
+              {tenantInfo.mapsUrl && (
+                <a
+                  href={tenantInfo.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-gray-700 hover:bg-zinc-50"
+                >
+                  <MapPin size={12} /> Yol Tarifi
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Address + working hours */}
+          {(tenantInfo.address || tenantInfo.workingHours) && (
+            <div className="text-center text-xs text-zinc-500 mb-5 space-y-0.5">
+              {tenantInfo.address && <p>{tenantInfo.address}</p>}
+              {tenantInfo.workingHours && <p>🕐 {tenantInfo.workingHours}</p>}
+            </div>
+          )}
 
         {step !== 'service' && step !== 'done' && (
           <button
@@ -191,7 +266,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
                     <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">{s.durationMinutes} dk</p>
                   </div>
-                  <span className="text-sm font-semibold text-primary shrink-0">{s.price}₺</span>
+                  <span className="text-sm font-semibold shrink-0" style={{ color: brandColor }}>{s.price}₺</span>
                 </button>
               ))}
             </div>
@@ -256,7 +331,8 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
               <button
                 onClick={() => setStep('slot')}
                 disabled={!date}
-                className="w-full py-2.5 bg-primary text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                style={{ backgroundColor: brandColor }}
+                className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
               >
                 Saatleri Gör
               </button>
@@ -319,7 +395,8 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
               <button
                 onClick={() => bookMutation.mutate()}
                 disabled={name.trim().length < 2 || phone.trim().length < 7 || bookMutation.isPending}
-                className="w-full py-2.5 bg-primary text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                style={{ backgroundColor: brandColor }}
+                className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
               >
                 {bookMutation.isPending ? 'Oluşturuluyor…' : 'Randevuyu Onayla'}
               </button>
@@ -347,6 +424,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
         <p className="text-center text-xs text-zinc-400 mt-6">
           BeautyOS ile randevu sistemi
         </p>
+        </div>
       </div>
     </div>
   )
