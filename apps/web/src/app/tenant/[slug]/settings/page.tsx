@@ -47,11 +47,17 @@ type PasswordFormValues = z.infer<typeof passwordSchema>
 
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
+const BOT_FEATURES_ENABLED = process.env.NEXT_PUBLIC_BOT_FEATURES_ENABLED === 'true'
+
 const tabs = [
   { id: 'salon', label: 'Salon Profili', icon: Building2 },
   { id: 'account', label: 'Hesabım', icon: Lock },
-  { id: 'integrations', label: 'Entegrasyonlar', icon: Plug },
-  { id: 'bot', label: 'Bot Ayarları', icon: Bot },
+  ...(BOT_FEATURES_ENABLED
+    ? [
+        { id: 'integrations' as const, label: 'Entegrasyonlar', icon: Plug },
+        { id: 'bot' as const, label: 'Bot Ayarları', icon: Bot },
+      ]
+    : []),
 ]
 
 // ─── Salon settings form ──────────────────────────────────────────────────────

@@ -19,6 +19,8 @@ interface SidebarProps {
   onToggle: () => void
 }
 
+const BOT_FEATURES_ENABLED = process.env.NEXT_PUBLIC_BOT_FEATURES_ENABLED === 'true'
+
 const navItems = (slug: string) => [
   { href: `/tenant/${slug}/dashboard`,    icon: LayoutDashboard, label: 'Dashboard' },
   { href: `/tenant/${slug}/appointments`, icon: Calendar,         label: 'Randevular' },
@@ -26,7 +28,7 @@ const navItems = (slug: string) => [
   { href: `/tenant/${slug}/services`,     icon: Sparkles,         label: 'Hizmetler' },
   { href: `/tenant/${slug}/staff`,        icon: UserCog,          label: 'Personel' },
   { href: `/tenant/${slug}/finance`,        icon: Banknote,         label: 'Kasa' },
-  { href: `/tenant/${slug}/bot-conversations`, icon: MessageSquare, label: 'Bot Konuşmaları' },
+  ...(BOT_FEATURES_ENABLED ? [{ href: `/tenant/${slug}/bot-conversations`, icon: MessageSquare, label: 'Bot Konuşmaları' }] : []),
   { href: `/tenant/${slug}/settings`,     icon: Settings,         label: 'Ayarlar' },
 ]
 
