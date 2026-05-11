@@ -73,13 +73,12 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla kayıt denemesi. 1 saat sonra tekrar deneyin.' } },
   })
 
-  // Login için daha sıkı: IP+email kombinasyonu başına 5/15dk
+  // Login için daha sıkı: IP başına 5/15dk
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => `${req.ip}:${(req.body as { email?: string })?.email ?? ''}`,
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.' } },
   })
 
