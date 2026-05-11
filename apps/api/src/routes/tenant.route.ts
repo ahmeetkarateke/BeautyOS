@@ -224,6 +224,8 @@ export function createTenantRouter(): Router {
 
       const querySchema = z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         limit: z.preprocess(
           (v) => (v === undefined || v === '' ? 10 : Number(v)),
           z.number().int().min(1).max(100),
@@ -231,6 +233,7 @@ export function createTenantRouter(): Router {
         staffId: z.string().uuid().optional(),
         serviceId: z.string().uuid().optional(),
         status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
+        statusIn: z.string().optional(),
         search: z.string().min(2).optional(),
       })
 
@@ -239,14 +242,26 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz sorgu parametresi.' } })
       }
 
-      const { date, limit, staffId, serviceId, status, search } = parsed.data
+      const { date, dateFrom, dateTo, limit, staffId, serviceId, status, statusIn, search } = parsed.data
 
       let dateFilter = {}
-      if (date) {
+      if (dateFrom || dateTo) {
+        const gte = dateFrom ? new Date(`${dateFrom}T00:00:00.000Z`) : undefined
+        const lte = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : undefined
+        dateFilter = { startAt: { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) } }
+      } else if (date) {
         const start = new Date(`${date}T00:00:00.000Z`)
         const end = new Date(`${date}T23:59:59.999Z`)
         dateFilter = { startAt: { gte: start, lte: end } }
       }
+
+      const VALID_STATUSES = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'] as const
+      const statusInArr = statusIn?.split(',').map((s) => s.trim()).filter((s): s is typeof VALID_STATUSES[number] => VALID_STATUSES.includes(s as never))
+      const statusFilter = status
+        ? { status }
+        : statusInArr && statusInArr.length > 0
+          ? { status: { in: statusInArr } }
+          : {}
 
       // Staff sadece kendi randevularını görebilir
       let staffFilter: { staffId?: string } = {}
@@ -270,7 +285,7 @@ export function createTenantRouter(): Router {
           ...dateFilter,
           ...staffFilter,
           ...(serviceId ? { serviceId } : {}),
-          ...(status ? { status } : {}),
+          ...statusFilter,
           ...(search ? { customer: { fullName: { contains: search, mode: 'insensitive' as const } } } : {}),
         },
         take: limit,
