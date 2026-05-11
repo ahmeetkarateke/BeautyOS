@@ -164,9 +164,11 @@ export default function CustomersPage({ params }: PageProps) {
 
       {/* Arama */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-salon-muted" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-salon-muted pointer-events-none" />
         <input
-          type="text"
+          type="search"
+          inputMode="search"
+          autoComplete="off"
           placeholder="İsim veya telefon ile ara..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
