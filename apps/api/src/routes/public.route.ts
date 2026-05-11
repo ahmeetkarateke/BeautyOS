@@ -201,6 +201,8 @@ export function createPublicRouter(): Router {
   })
 
   // POST /api/v1/tenants/:slug/public/book
+  const MAX_ACTIVE_PER_PHONE = 2
+
   const bookSchema = z.object({
     serviceId: z.string().uuid(),
     staffId: z.string().uuid(),
@@ -208,7 +210,27 @@ export function createPublicRouter(): Router {
     customerName: z.string().trim().min(2).max(100),
     customerPhone: z.string().trim().min(7).max(20),
     notes: z.string().trim().max(500).optional(),
+    captchaToken: z.string().optional(),
   })
+
+  async function verifyTurnstile(token: string | undefined, remoteIp: string | undefined): Promise<boolean> {
+    const secret = process.env.TURNSTILE_SECRET_KEY
+    if (!secret) return true // env yoksa doğrulama atla (dev/test)
+    if (!token) return false
+    try {
+      const params = new URLSearchParams({ secret, response: token })
+      if (remoteIp) params.set('remoteip', remoteIp)
+      const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      })
+      const data = (await res.json()) as { success?: boolean }
+      return data.success === true
+    } catch {
+      return false
+    }
+  }
 
   router.post('/book', bookLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -226,7 +248,32 @@ export function createPublicRouter(): Router {
         return res.status(403).json({ error: { code: 'BOOKING_DISABLED', message: 'Bu salon şu anda online rezervasyon kabul etmiyor.' } })
       }
 
-      const { serviceId, staffId, startAt, customerName, customerPhone, notes } = parsed.data
+      const { serviceId, staffId, startAt, customerName, customerPhone, notes, captchaToken } = parsed.data
+
+      // CAPTCHA doğrulama
+      const captchaOk = await verifyTurnstile(captchaToken, req.ip)
+      if (!captchaOk) {
+        return res.status(400).json({ error: { code: 'CAPTCHA_FAILED', message: 'Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.' } })
+      }
+
+      // Telefon başına aktif gelecek randevu limiti
+      const activeCount = await db.appointment.count({
+        where: {
+          tenantId: tenant.id,
+          customer: { phone: customerPhone },
+          isDeleted: false,
+          status: { in: ['pending', 'confirmed', 'in_progress'] },
+          startAt: { gte: new Date() },
+        },
+      })
+      if (activeCount >= MAX_ACTIVE_PER_PHONE) {
+        return res.status(429).json({
+          error: {
+            code: 'TOO_MANY_BOOKINGS',
+            message: `Bu telefon için aktif ${MAX_ACTIVE_PER_PHONE} randevu sınırına ulaşıldı. Mevcut randevularınızı tamamladıktan sonra yeni randevu alabilirsiniz.`,
+          },
+        })
+      }
 
       const service = await db.service.findFirst({
         where: { id: serviceId, tenantId: tenant.id, isActive: true, isOnlineBookable: true },
@@ -294,7 +341,7 @@ export function createPublicRouter(): Router {
           staffId,
           serviceId,
           referenceCode,
-          status: 'confirmed',
+          status: 'pending', // public booking → salon onayı bekler
           bookingChannel: 'web',
           startAt: startDate,
           endAt: endDate,

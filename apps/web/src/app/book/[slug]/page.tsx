@@ -1,8 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Script from 'next/script'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Calendar, Check, Clock, User, AlertCircle, MapPin, Phone, MessageCircle } from 'lucide-react'
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback'?: () => void }) => string
+      reset: (widgetId?: string) => void
+    }
+  }
+}
 
 interface TenantInfo {
   name: string
@@ -74,6 +86,9 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string>('')
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const turnstileWidgetId = useRef<string | null>(null)
 
   const { data: tenantInfo, isLoading: tenantLoading, error: tenantError } = useQuery({
     queryKey: ['public-tenant', slug],
@@ -112,13 +127,33 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
           startAt: selectedSlot!.id,
           customerName: name.trim(),
           customerPhone: phone.trim(),
+          captchaToken: captchaToken || undefined,
         }),
       }),
     onSuccess: (data) => {
       setConfirmedRef(data.referenceCode)
       setStep('done')
     },
+    onError: () => {
+      // CAPTCHA token tek kullanımlık — hata sonrası sıfırla
+      if (TURNSTILE_SITE_KEY && window.turnstile && turnstileWidgetId.current) {
+        window.turnstile.reset(turnstileWidgetId.current)
+        setCaptchaToken('')
+      }
+    },
   })
+
+  // Turnstile widget'ı contact step'inde mount et
+  useEffect(() => {
+    if (step !== 'contact' || !TURNSTILE_SITE_KEY) return
+    if (!turnstileRef.current || !window.turnstile) return
+    if (turnstileWidgetId.current) return
+    turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token: string) => setCaptchaToken(token),
+      'expired-callback': () => setCaptchaToken(''),
+    })
+  }, [step])
 
   useEffect(() => {
     setSelectedSlot(null)
@@ -156,6 +191,10 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   const cssVars = { '--brand': brandColor } as React.CSSProperties
 
   return (
+    <>
+      {TURNSTILE_SITE_KEY && (
+        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" async defer />
+      )}
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white" style={cssVars}>
       <div className="max-w-md mx-auto">
         {/* Cover */}
@@ -388,33 +427,48 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              {TURNSTILE_SITE_KEY && (
+                <div ref={turnstileRef} className="flex justify-center" />
+              )}
               {bookMutation.isError && (
                 <p className="text-xs text-red-500">{(bookMutation.error as Error).message}</p>
               )}
               <button
                 onClick={() => bookMutation.mutate()}
-                disabled={name.trim().length < 2 || phone.trim().length < 7 || bookMutation.isPending}
+                disabled={
+                  name.trim().length < 2
+                  || phone.trim().length < 7
+                  || bookMutation.isPending
+                  || (!!TURNSTILE_SITE_KEY && !captchaToken)
+                }
                 style={{ backgroundColor: brandColor }}
                 className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
               >
-                {bookMutation.isPending ? 'Oluşturuluyor…' : 'Randevuyu Onayla'}
+                {bookMutation.isPending ? 'Gönderiliyor…' : 'Randevu Talebini Gönder'}
               </button>
+              <p className="text-[11px] text-zinc-500 text-center">
+                Randevunuz salon tarafından onaylandıktan sonra kesinleşir.
+              </p>
             </div>
           )}
 
           {/* Step: Done */}
           {step === 'done' && confirmedRef && (
             <div className="text-center py-6 space-y-3">
-              <div className="w-16 h-16 mx-auto rounded-full bg-green-100 flex items-center justify-center">
-                <Check size={32} className="text-green-600" />
+              <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
+                <Check size={32} className="text-amber-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Randevunuz onaylandı!</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Talebiniz alındı!</h2>
               <p className="text-sm text-zinc-500">
                 {selectedService?.name}<br />
                 {formatDateTR(date)} · {selectedSlot?.label}
               </p>
+              <p className="text-sm text-gray-700 max-w-xs mx-auto leading-relaxed">
+                Randevu talebiniz salonun onayına gönderildi.
+                Onaylanınca size haber verilecek.
+              </p>
               <div className="inline-block px-3 py-1.5 bg-zinc-100 rounded text-xs font-mono text-zinc-700">
-                {confirmedRef}
+                Referans: {confirmedRef}
               </div>
             </div>
           )}
@@ -426,6 +480,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
         </div>
       </div>
     </div>
+    </>
   )
 }
 
