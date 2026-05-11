@@ -95,7 +95,7 @@ export function Step5Done({ slug }: Step5DoneProps) {
         transition={{ delay: 0.6 }}
         className="flex flex-wrap justify-center gap-2"
       >
-        {['Takvim', 'CRM', 'WhatsApp AI', 'Finans', 'Prim Takibi'].map((f) => (
+        {['Takvim', 'CRM', 'Online Rezervasyon', 'Finans', 'Prim Takibi'].map((f) => (
           <span
             key={f}
             className="px-3 py-1 rounded-full text-xs font-medium"
