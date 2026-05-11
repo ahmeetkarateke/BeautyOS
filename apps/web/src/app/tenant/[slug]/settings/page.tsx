@@ -85,6 +85,7 @@ interface TenantSettings {
     botRules?: string
     botFaqs?: BotFaq[]
     botHidePrices?: boolean
+    publicBookingEnabled?: boolean
   }
 }
 
@@ -209,6 +210,7 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
   const qc = useQueryClient()
   const [businessType, setBusinessType] = useState('')
   const [followUpEnabled, setFollowUpEnabled] = useState(false)
+  const [publicBookingEnabled, setPublicBookingEnabled] = useState(false)
   const [categories, setCategories] = useState<string[]>([])
   const [newCat, setNewCat] = useState('')
 
@@ -222,6 +224,7 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
       const bt = data.settings?.businessType ?? 'other'
       setBusinessType(bt)
       setFollowUpEnabled(data.settings?.followUpEnabled ?? false)
+      setPublicBookingEnabled(data.settings?.publicBookingEnabled ?? false)
       const saved = data.settings?.serviceCategories
       setCategories(saved && saved.length > 0 ? saved : (SECTOR_DATA[bt] ?? DEFAULT_SECTOR).categories)
     }
@@ -360,6 +363,94 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
           />
         </button>
       </div>
+
+      <PublicBookingSection
+        tenantSlug={tenantSlug}
+        enabled={publicBookingEnabled}
+        onToggle={(next) => {
+          setPublicBookingEnabled(next)
+          mutation.mutate({ publicBookingEnabled: next })
+        }}
+      />
+    </div>
+  )
+}
+
+function PublicBookingSection({
+  tenantSlug,
+  enabled,
+  onToggle,
+}: {
+  tenantSlug: string
+  enabled: boolean
+  onToggle: (next: boolean) => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const bookingUrl = typeof window !== 'undefined' ? `${window.location.origin}/book/${tenantSlug}` : `/book/${tenantSlug}`
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(bookingUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast('Kopyalama başarısız', 'error')
+    }
+  }
+
+  return (
+    <div className="pt-4 border-t border-salon-border space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-gray-900">Online Rezervasyon Sayfası</p>
+          <p className="text-xs text-salon-muted mt-1 leading-relaxed">
+            Müşteriler bu link üzerinden kendi randevularını alabilir. Instagram bio, Google profili
+            veya tabela QR kodu olarak kullanabilirsiniz.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => onToggle(!enabled)}
+          className={cn(
+            'relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200',
+            enabled ? 'bg-primary' : 'bg-gray-200',
+          )}
+        >
+          <span
+            className={cn(
+              'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200',
+              enabled ? 'translate-x-4' : 'translate-x-0',
+            )}
+          />
+        </button>
+      </div>
+
+      {enabled && (
+        <div className="flex items-center gap-2 p-2 bg-zinc-50 border border-salon-border rounded-lg">
+          <input
+            readOnly
+            value={bookingUrl}
+            className="flex-1 bg-transparent text-xs text-gray-700 focus:outline-none truncate"
+          />
+          <button
+            type="button"
+            onClick={copyLink}
+            className="px-2.5 py-1 text-xs font-medium bg-primary text-white rounded transition-colors hover:bg-primary/90"
+          >
+            {copied ? 'Kopyalandı ✓' : 'Kopyala'}
+          </button>
+          <a
+            href={bookingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1 text-xs font-medium border border-salon-border rounded text-gray-700 hover:bg-white transition-colors"
+          >
+            Aç
+          </a>
+        </div>
+      )}
     </div>
   )
 }

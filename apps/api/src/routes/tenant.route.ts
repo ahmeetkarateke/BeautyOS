@@ -1017,6 +1017,7 @@ export function createTenantRouter(): Router {
     botRules: z.string().trim().max(1000).optional(),
     botFaqs: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })).max(20).optional(),
     botHidePrices: z.boolean().optional(),
+    publicBookingEnabled: z.boolean().optional(),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {
