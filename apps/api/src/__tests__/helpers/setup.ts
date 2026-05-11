@@ -4,6 +4,13 @@ import { db } from '../../lib/db'
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret'
 
+// ─── Production DB'ye yanlışlıkla test çalıştırılmasını engelle ─────────────
+const dbUrl = process.env.DATABASE_URL ?? ''
+const PROD_DB_IDENTIFIERS = ['kpoqwdamkmdjntbgjbxy'] // production Supabase ref
+if (PROD_DB_IDENTIFIERS.some((id) => dbUrl.includes(id))) {
+  throw new Error('Tests cannot run against production DATABASE_URL. Aborting.')
+}
+
 export function uniqueSuffix(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
 }
