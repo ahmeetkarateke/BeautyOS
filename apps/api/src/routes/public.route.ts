@@ -80,7 +80,7 @@ export function createPublicRouter(): Router {
       const services = await db.service.findMany({
         where: { tenantId: tenant.id, isActive: true, isOnlineBookable: true },
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, durationMinutes: true, category: true, price: true },
+        select: { id: true, name: true, durationMinutes: true, category: true },
       })
 
       return res.json({
@@ -89,7 +89,6 @@ export function createPublicRouter(): Router {
           name: s.name,
           durationMinutes: s.durationMinutes,
           category: s.category ?? null,
-          price: Number(s.price),
         })),
       })
     } catch (err) {

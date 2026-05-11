@@ -23,7 +23,6 @@ interface Service {
   name: string
   durationMinutes: number
   category: string | null
-  price: number
 }
 
 interface StaffMember {
@@ -264,9 +263,9 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{s.durationMinutes} dk</p>
+                    {s.category && <p className="text-xs text-zinc-500 mt-0.5">{s.category}</p>}
                   </div>
-                  <span className="text-sm font-semibold shrink-0" style={{ color: brandColor }}>{s.price}₺</span>
+                  <span className="text-xs text-zinc-400 shrink-0">{s.durationMinutes} dk</span>
                 </button>
               ))}
             </div>
