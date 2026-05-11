@@ -87,6 +87,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   const [phone, setPhone] = useState('')
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string>('')
+  const [redirectNotice, setRedirectNotice] = useState<string>('')
   const turnstileRef = useRef<HTMLDivElement>(null)
   const turnstileWidgetId = useRef<string | null>(null)
 
@@ -134,11 +135,25 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
       setConfirmedRef(data.referenceCode)
       setStep('done')
     },
-    onError: () => {
+    onError: (err: Error) => {
       // CAPTCHA token tek kullanımlık — hata sonrası sıfırla
       if (TURNSTILE_SITE_KEY && window.turnstile && turnstileWidgetId.current) {
         window.turnstile.reset(turnstileWidgetId.current)
         setCaptchaToken('')
+      }
+      const msg = err.message.toLowerCase()
+      // Geçmiş saat → tarih seçimine geri dön
+      if (msg.includes('geçmiş') || msg.includes('past_time')) {
+        setSelectedSlot(null)
+        setRedirectNotice('Seçtiğiniz saat geçmişte kaldı. Lütfen yeni bir tarih seçin.')
+        setStep('date')
+        return
+      }
+      // Slot dolu → tekrar slot listesine dön
+      if (msg.includes('dolu') || msg.includes('slot_taken')) {
+        setSelectedSlot(null)
+        setRedirectNotice('Seçtiğiniz saat bu sırada dolduruldu. Başka bir saat seçin.')
+        setStep('slot')
       }
     },
   })
@@ -157,6 +172,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
 
   useEffect(() => {
     setSelectedSlot(null)
+    setRedirectNotice('')
   }, [date, selectedStaffId])
 
   if (tenantLoading) {
@@ -355,6 +371,11 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
           {/* Step: Date */}
           {step === 'date' && (
             <div className="space-y-3">
+              {redirectNotice && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                  {redirectNotice}
+                </div>
+              )}
               <h2 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
                 <Calendar size={18} /> Tarih seçin
               </h2>
@@ -379,6 +400,11 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
           {/* Step: Slot */}
           {step === 'slot' && (
             <div className="space-y-3">
+              {redirectNotice && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                  {redirectNotice}
+                </div>
+              )}
               <h2 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
                 <Clock size={18} /> Saat seçin
               </h2>
