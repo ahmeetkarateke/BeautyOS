@@ -91,62 +91,47 @@ export function AppointmentCalendar({
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  useEffect(() => {
-    const reposition = () => positionDateOverlay()
-    window.addEventListener('resize', reposition)
-    return () => window.removeEventListener('resize', reposition)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Title element bounding rect — React state ile takip
+  const [pickerStyle, setPickerStyle] = useState<React.CSSProperties | null>(null)
 
-  // Title'ın üzerine transparan date input overlay'i koy — kullanıcı title'a tıkladığında
-  // gerçekte input'a tıklamış oluyor, native date picker açılıyor. showPicker() yerine
-  // gerçek input click'i kullandığı için iOS Safari dahil her tarayıcıda çalışır.
-  function positionDateOverlay() {
+  function updateOverlayPosition() {
     setTimeout(() => {
-      const titleEl = document.querySelector('.beautyos-calendar .fc-toolbar-title') as HTMLElement | null
-      const input = dateInputRef.current
-      if (!titleEl || !input) return
-
-      const parent = titleEl.parentElement
-      if (!parent) return
-
-      // Parent'ı relative yap
-      if (getComputedStyle(parent).position === 'static') {
-        parent.style.position = 'relative'
-      }
-
-      // Input'u title'ın parent'ına taşı (henüz oraya değilse)
-      if (input.parentElement !== parent) {
-        parent.appendChild(input)
-      }
-
-      // FullCalendar'ın güncel tarihini input'a yaz
-      const current = calendarRef.current?.getApi().getDate()
-      if (current) {
-        const pad = (n: number) => String(n).padStart(2, '0')
-        input.value = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`
-      }
-
-      const rect = titleEl.getBoundingClientRect()
-      const parentRect = parent.getBoundingClientRect()
-      Object.assign(input.style, {
+      const wrapper = document.querySelector('.beautyos-calendar') as HTMLElement | null
+      const titleEl = wrapper?.querySelector('.fc-toolbar-title') as HTMLElement | null
+      if (!wrapper || !titleEl) return
+      const wr = wrapper.getBoundingClientRect()
+      const tr = titleEl.getBoundingClientRect()
+      setPickerStyle({
         position: 'absolute',
-        top: `${rect.top - parentRect.top}px`,
-        left: `${rect.left - parentRect.left}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        opacity: '0',
+        top: tr.top - wr.top,
+        left: tr.left - wr.left,
+        width: tr.width,
+        height: tr.height,
+        opacity: 0,
         cursor: 'pointer',
-        margin: '0',
-        padding: '0',
-        border: '0',
+        border: 0,
+        padding: 0,
+        margin: 0,
         background: 'transparent',
-        zIndex: '5',
+        zIndex: 5,
+        // iOS Safari için
+        WebkitAppearance: 'none',
+        appearance: 'none',
       })
       titleEl.style.cursor = 'pointer'
-      titleEl.title = 'Tarihe git'
-    }, 0)
+      titleEl.setAttribute('title', 'Tarihe git')
+    }, 50)
   }
+
+  useEffect(() => {
+    const reposition = () => updateOverlayPosition()
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, { passive: true })
+    return () => {
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition)
+    }
+  }, [])
 
   const { data } = useQuery({
     queryKey: ['appointments-calendar', tenantId, filterStaffId, filterStatus, filterSearch],
@@ -193,18 +178,26 @@ export function AppointmentCalendar({
   })
 
   return (
-    <div className="beautyos-calendar">
-      <input
-        ref={dateInputRef}
-        type="date"
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(e) => {
-          const v = e.target.value
-          if (v) calendarRef.current?.getApi().gotoDate(v)
-        }}
-      />
+    <div className="beautyos-calendar" style={{ position: 'relative' }}>
+      {pickerStyle && (
+        <input
+          ref={dateInputRef}
+          type="date"
+          style={pickerStyle}
+          onFocus={(e) => {
+            // Picker açılırken aktif tarihi yükle
+            const current = calendarRef.current?.getApi().getDate()
+            if (current) {
+              const pad = (n: number) => String(n).padStart(2, '0')
+              e.target.value = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`
+            }
+          }}
+          onChange={(e) => {
+            const v = e.target.value
+            if (v) calendarRef.current?.getApi().gotoDate(v)
+          }}
+        />
+      )}
 
       <div className="flex flex-wrap gap-3 mb-3 px-1">
         {LEGEND.map((item) => (
@@ -218,8 +211,8 @@ export function AppointmentCalendar({
       <FullCalendar
         key={isMobile ? 'mobile' : 'desktop'}
         ref={calendarRef}
-        viewDidMount={positionDateOverlay}
-        datesSet={positionDateOverlay}
+        viewDidMount={updateOverlayPosition}
+        datesSet={updateOverlayPosition}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={isMobile ? 'timeGridDay' : 'timeGridWeek'}
         locale={trLocale}

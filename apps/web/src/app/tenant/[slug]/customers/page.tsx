@@ -164,15 +164,16 @@ export default function CustomersPage({ params }: PageProps) {
 
       {/* Arama */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-salon-muted pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-salon-muted pointer-events-none z-0" />
         <input
           type="search"
           inputMode="search"
           autoComplete="off"
+          enterKeyHint="search"
           placeholder="İsim veya telefon ile ara..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full h-11 pl-9 pr-4 rounded-md border border-salon-border bg-white text-sm placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="relative z-10 w-full h-11 pl-9 pr-4 rounded-md border border-salon-border bg-white text-sm text-gray-900 placeholder:text-salon-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
         />
       </div>
 
