@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, UserX } from 'lucide-react'
+import { Plus, User, UserX } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,7 +34,6 @@ export default function StaffPage({ params }: PageProps) {
   useEffect(() => {
     if (user?.role === 'staff') router.replace(`/tenant/${params.slug}/dashboard`)
   }, [user, params.slug, router])
-  const [editTarget, setEditTarget] = useState<StaffMember | undefined>()
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | undefined>()
 
   const { data, isLoading } = useQuery({
@@ -62,7 +61,7 @@ export default function StaffPage({ params }: PageProps) {
           <h1 className="text-xl font-semibold text-gray-900">Personel</h1>
           <p className="text-sm text-salon-muted mt-0.5">{staff.length} personel</p>
         </div>
-        <Button size="sm" className="gap-2" onClick={() => { setEditTarget(undefined); setModalOpen(true) }}>
+        <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
           <Plus className="w-4 h-4" />
           Yeni Personel
         </Button>
@@ -75,7 +74,7 @@ export default function StaffPage({ params }: PageProps) {
       ) : staff.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-lg border border-salon-border">
           <p className="text-salon-muted text-sm">Henüz personel eklenmemiş</p>
-          <Button size="sm" className="mt-3 gap-2" onClick={() => { setEditTarget(undefined); setModalOpen(true) }}>
+          <Button size="sm" className="mt-3 gap-2" onClick={() => setModalOpen(true)}>
             <Plus className="w-4 h-4" /> İlk personelini ekle
           </Button>
         </div>
@@ -98,14 +97,12 @@ export default function StaffPage({ params }: PageProps) {
                   </div>
                 </Link>
                 <div className="flex gap-2 mt-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 gap-1.5 text-xs"
-                    onClick={() => { setEditTarget(member); setModalOpen(true) }}
+                  <Link
+                    href={`/tenant/${params.slug}/staff/${member.id}`}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-salon-border rounded-md text-gray-700 hover:bg-zinc-50 transition-colors"
                   >
-                    <Pencil className="w-3.5 h-3.5" /> Düzenle
-                  </Button>
+                    <User className="w-3.5 h-3.5" /> Profil
+                  </Link>
                   <button
                     onClick={() => setDeactivateTarget(member)}
                     className="p-2 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
@@ -124,7 +121,6 @@ export default function StaffPage({ params }: PageProps) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         tenantSlug={params.slug}
-        staff={editTarget}
       />
 
       <ConfirmDialog

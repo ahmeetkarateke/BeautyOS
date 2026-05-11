@@ -127,8 +127,8 @@ function DashboardContent({ params }: PageProps) {
         )}
       </div>
 
-      {/* Today's appointments — always shows today regardless of period filter */}
-      <TodaysAppointments tenantId={tenantId} />
+      {/* Period'a göre randevular */}
+      <TodaysAppointments tenantId={tenantId} period={period} />
     </div>
   )
 }
