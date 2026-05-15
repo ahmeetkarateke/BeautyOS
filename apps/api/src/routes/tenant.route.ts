@@ -8,6 +8,7 @@ import { logger } from '../lib/logger'
 import { remindersQueue } from '../lib/queue'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { TelegramChannel } from '../channels/telegram.channel'
+import { getSlots } from '../lib/slots'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -212,6 +213,59 @@ export function createTenantRouter(): Router {
         revenueChange,
         appointmentChange,
       })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/slots — Authenticated slot lookup for salon admin
+  // Salon admin'in randevu oluşturma akışı için. publicBookingEnabled flag'inden bağımsız çalışır.
+  router.get('/slots', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const slotsQuerySchema = z.object({
+        serviceId: z.string().uuid(),
+        staffId: z.union([z.string().uuid(), z.literal('any')]),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      const parsed = slotsQuerySchema.safeParse(req.query)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'serviceId, staffId ve date (YYYY-MM-DD) zorunludur.' } })
+      }
+      const { serviceId, staffId, date } = parsed.data
+      const tenantId = req.tenantId!
+
+      if (staffId !== 'any') {
+        const slots = await getSlots({ tenantId, serviceId, staffId, date })
+        return res.json({ date, slots: slots.map((s) => ({ ...s, staffId })) })
+      }
+
+      const staffList = await db.staffProfile.findMany({
+        where: {
+          tenantId,
+          serviceAssignments: { some: { serviceId, isActive: true } },
+        },
+        select: { id: true },
+      })
+
+      const allResults = await Promise.all(
+        staffList.map(async (sp) => {
+          const slots = await getSlots({ tenantId, serviceId, staffId: sp.id, date })
+          return slots.map((s) => ({ ...s, staffId: sp.id }))
+        }),
+      )
+
+      const byTime = new Map<string, { id: string; label: string; available: boolean; staffId: string }>()
+      for (const list of allResults) {
+        for (const slot of list) {
+          const existing = byTime.get(slot.id)
+          if (!existing || (!existing.available && slot.available)) {
+            byTime.set(slot.id, slot)
+          }
+        }
+      }
+
+      const merged = Array.from(byTime.values()).sort((a, b) => a.id.localeCompare(b.id))
+      return res.json({ date, slots: merged })
     } catch (err) {
       next(err)
     }

@@ -47,7 +47,7 @@ export function SlotSelect({
     queryKey: ['slots', tenantSlug, serviceId, staffId, date],
     queryFn: () =>
       apiFetch<{ slots: Slot[] }>(
-        `/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${serviceId}&staffId=${staffId}&date=${date}`,
+        `/api/v1/tenants/${tenantSlug}/slots?serviceId=${serviceId}&staffId=${staffId}&date=${date}`,
       ),
     enabled: ready,
     staleTime: 30_000,
