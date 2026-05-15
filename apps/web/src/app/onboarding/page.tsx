@@ -10,7 +10,7 @@ import { OnboardingProgress } from './OnboardingProgress'
 import { Step1Salon } from './steps/Step1Salon'
 import { Step2Services } from './steps/Step2Services'
 import { Step3Staff } from './steps/Step3Staff'
-import { Step5Done } from './steps/Step5Done'
+import { Step4Done } from './steps/Step4Done'
 
 const STEP_TITLES = [
   'Salon Bilgileri',
@@ -119,7 +119,7 @@ export default function OnboardingPage() {
               {step === 1 && <Step1Salon slug={slug} onNext={next} />}
               {step === 2 && <Step2Services slug={slug} onNext={next} onBack={back} />}
               {step === 3 && <Step3Staff slug={slug} onNext={next} onBack={back} />}
-              {step === 4 && <Step5Done slug={slug} />}
+              {step === 4 && <Step4Done slug={slug} />}
             </motion.div>
           </AnimatePresence>
         </motion.div>

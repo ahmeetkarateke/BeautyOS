@@ -7,11 +7,11 @@ import { Sparkles } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { apiFetch } from '@/lib/api'
 
-interface Step5DoneProps {
+interface Step4DoneProps {
   slug: string
 }
 
-export function Step5Done({ slug }: Step5DoneProps) {
+export function Step4Done({ slug }: Step4DoneProps) {
   const router = useRouter()
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding)
   const [saving, setSaving] = useState(false)
