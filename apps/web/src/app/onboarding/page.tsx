@@ -10,14 +10,12 @@ import { OnboardingProgress } from './OnboardingProgress'
 import { Step1Salon } from './steps/Step1Salon'
 import { Step2Services } from './steps/Step2Services'
 import { Step3Staff } from './steps/Step3Staff'
-import { Step4WhatsApp } from './steps/Step4WhatsApp'
 import { Step5Done } from './steps/Step5Done'
 
 const STEP_TITLES = [
   'Salon Bilgileri',
   'İlk Hizmeti Ekle',
   'İlk Personeli Ekle',
-  'WhatsApp Bağlantısı',
   'Hazır!',
 ]
 
@@ -25,7 +23,6 @@ const STEP_DESCRIPTIONS = [
   'Salonunuzun temel bilgilerini girin',
   'Sunduğunuz hizmetleri ekleyin',
   'Personelinizi sisteme kaydedin',
-  'Müşterilerinize WhatsApp bildirimi gönderin',
   'Kurulumunuz tamamlandı',
 ]
 
@@ -52,7 +49,7 @@ export default function OnboardingPage() {
 
   const slug = user.tenantSlug
 
-  function next() { setDirection(1); setStep((s) => Math.min(s + 1, 5)) }
+  function next() { setDirection(1); setStep((s) => Math.min(s + 1, 4)) }
   function back() { setDirection(-1); setStep((s) => Math.max(s - 1, 1)) }
 
   return (
@@ -83,7 +80,7 @@ export default function OnboardingPage() {
           transition={{ delay: 0.15, duration: 0.4 }}
           className="mb-6"
         >
-          <OnboardingProgress step={step} totalSteps={5} />
+          <OnboardingProgress step={step} totalSteps={4} />
         </motion.div>
 
         {/* Glass card */}
@@ -101,7 +98,7 @@ export default function OnboardingPage() {
           }}
         >
           {/* Step header */}
-          {step < 5 && (
+          {step < 4 && (
             <div className="mb-5">
               <p className="text-xs font-medium text-primary uppercase tracking-widest mb-1">
                 Adım {step} — {STEP_TITLES[step - 1]}
@@ -122,8 +119,7 @@ export default function OnboardingPage() {
               {step === 1 && <Step1Salon slug={slug} onNext={next} />}
               {step === 2 && <Step2Services slug={slug} onNext={next} onBack={back} />}
               {step === 3 && <Step3Staff slug={slug} onNext={next} onBack={back} />}
-              {step === 4 && <Step4WhatsApp onNext={next} onBack={back} />}
-              {step === 5 && <Step5Done slug={slug} />}
+              {step === 4 && <Step5Done slug={slug} />}
             </motion.div>
           </AnimatePresence>
         </motion.div>
