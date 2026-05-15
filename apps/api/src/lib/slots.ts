@@ -49,7 +49,29 @@ export async function getSlots(input: GetSlotsInput): Promise<SlotResult[]> {
   })
   if (onLeave) return []
 
-  const wh = staffProfile.workingHours as Record<string, { start: string; end: string } | null>
+  // Personel kendi saatleri boşsa salon default'una geri düş
+  let wh = staffProfile.workingHours as Record<string, { start: string; end: string } | null> | null
+  const hasAnyDay =
+    wh && typeof wh === 'object' && DAY_KEYS.some((d) => {
+      const v = wh![d]
+      return v && typeof v === 'object' && 'start' in v && 'end' in v
+    })
+  if (!hasAnyDay) {
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
+    const tenantSettings = tenant?.settings as { workingHours?: unknown } | null
+    const tenantWh = tenantSettings?.workingHours
+    if (tenantWh && typeof tenantWh === 'object' && !Array.isArray(tenantWh)) {
+      wh = tenantWh as Record<string, { start: string; end: string } | null>
+    } else if (typeof tenantWh === 'string') {
+      const m = (tenantWh as string).match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/)
+      if (m) {
+        const s = { start: m[1], end: m[2] }
+        wh = { monday: s, tuesday: s, wednesday: s, thursday: s, friday: s, saturday: s, sunday: null }
+      }
+    }
+  }
+
+  if (!wh) return []
   const dayKey = DAY_KEYS[dateObj.getUTCDay()]
   const daySchedule = wh[dayKey]
   if (!daySchedule?.start || !daySchedule?.end) return []
