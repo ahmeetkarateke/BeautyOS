@@ -7,7 +7,7 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
   try {
     const resend = new Resend(apiKey)
     await resend.emails.send({
-      from: 'BeautyOS <onboarding@resend.dev>',
+      from: 'BeautyOS <noreply@beautyossapp.com>',
       to: email,
       subject: 'BeautyOS — Şifre Sıfırlama',
       html: `<p>Merhaba,</p><p>BeautyOS şifrenizi sıfırlamak için aşağıdaki bağlantıya tıklayın:</p><p><a href="${resetLink}">Şifremi Sıfırla</a></p><p>Bu bağlantı <strong>1 saat</strong> süreyle geçerlidir.</p><p>Bu isteği siz yapmadıysanız bu e-postayı görmezden gelebilirsiniz.</p>`,
@@ -25,7 +25,7 @@ export async function sendWelcomeEmail(email: string, salonName: string, trialEn
     const resend = new Resend(apiKey)
     const trialEndStr = trialEndsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })
     await resend.emails.send({
-      from: 'BeautyOS <onboarding@resend.dev>',
+      from: 'BeautyOS <noreply@beautyossapp.com>',
       to: email,
       subject: `BeautyOS'a hoş geldin, ${salonName}!`,
       html: `<p>Merhaba,</p><p><strong>${salonName}</strong> adına BeautyOS'a hoş geldiniz! 30 günlük ücretsiz deneme süreniz başladı.</p><p>Deneme süreniz <strong>${trialEndStr}</strong> tarihinde sona erecek.</p>`,
