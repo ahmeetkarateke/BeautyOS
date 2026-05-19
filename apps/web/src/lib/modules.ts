@@ -209,12 +209,10 @@ export const MODULE_CATEGORY_LABELS: Record<ModuleCategory, string> = {
 
 /**
  * Verilen activeModules değerini normalize eder.
- * - Boş/eksik ise tüm modüller aktif kabul edilir (mevcut tenant'lar bozulmasın).
- * - Kayıtlı liste varsa: defaultEnabled=true olan ve bilinmeyen yeni modüller
- *   otomatik eklenir (eski tenant yeni özelliği görür). Tenant aktif olarak
- *   kapatmış olabilir mi? Şimdilik default-on modülleri eklemek = ileriye dönük
- *   yeni özelliklerin sessizce gelmesi. Manuel kapatılan modüller için ileride
- *   `disabledModules` listesi düşünülebilir.
+ * - Boş/eksik ise tüm modüller aktif kabul edilir (hiç kaydetmemiş tenant).
+ * - Kayıtlı liste varsa: aynen kullanılır. Kullanıcı kapattığı modül
+ *   saygıyla gizli kalır. Yeni eklenen modülleri görmek isteyen tenant
+ *   Ayarlar → Modüller'den manuel açar.
  */
 export function resolveActiveModules(activeModules: unknown): string[] {
   if (!Array.isArray(activeModules) || activeModules.length === 0) {
@@ -222,11 +220,5 @@ export function resolveActiveModules(activeModules: unknown): string[] {
   }
   const filtered = activeModules.filter((k): k is string => typeof k === 'string' && MODULE_KEYS.includes(k))
   if (filtered.length === 0) return [...MODULE_KEYS]
-
-  // defaultEnabled=true olan yeni eklenmiş modüller listede yoksa dahil et
-  const set = new Set(filtered)
-  for (const m of MODULE_REGISTRY) {
-    if (m.defaultEnabled && !set.has(m.key)) set.add(m.key)
-  }
-  return Array.from(set)
+  return filtered
 }
