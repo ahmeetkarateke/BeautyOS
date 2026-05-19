@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ArrowLeft, Phone, Mail, Calendar, Star, TrendingUp, Pencil, Plus, Trash2, AlertTriangle, Heart, Clock } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -89,6 +90,16 @@ export default function CustomerDetailPage({ params }: PageProps) {
   const { activeModules } = useActiveModules(params.slug)
   const anamnesisEnabled = activeModules.includes('customer-anamnesis')
   const photosEnabled = activeModules.includes('customer-photos')
+  const currentAccountEnabled = activeModules.includes('current-accounts')
+
+  const { data: caExtract } = useQuery({
+    queryKey: ['customer-ca', params.slug, params.customerId],
+    queryFn: () =>
+      apiFetch<{ summary: { totalDebit: number; totalCredit: number; balance: number } }>(
+        `/api/v1/tenants/${params.slug}/current-accounts/customer/${params.customerId}/entries`,
+      ),
+    enabled: currentAccountEnabled,
+  })
 
   const [activeTab, setActiveTab] = useState<TabKey>('general')
   const [editOpen, setEditOpen] = useState(false)
@@ -343,6 +354,46 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </div>
+          )}
+
+          {currentAccountEnabled && caExtract && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-base">Cari Hesap</CardTitle>
+                <Link
+                  href={`/tenant/${params.slug}/current-accounts/customer/${params.customerId}`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Ekstreyi Aç →
+                </Link>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-salon-muted">Toplam Borç</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{formatCurrency(caExtract.summary.totalDebit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-salon-muted">Toplam Alacak</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{formatCurrency(caExtract.summary.totalCredit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-salon-muted">Bakiye</p>
+                    <p className={cn(
+                      'text-sm font-bold mt-0.5',
+                      caExtract.summary.balance > 0 ? 'text-red-600' : caExtract.summary.balance < 0 ? 'text-success' : 'text-salon-muted',
+                    )}>
+                      {formatCurrency(Math.abs(caExtract.summary.balance))}
+                      {caExtract.summary.balance !== 0 && (
+                        <span className="text-[10px] font-normal ml-1">
+                          {caExtract.summary.balance > 0 ? 'borçlu' : 'alacaklı'}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           <CustomerPackagesSection

@@ -97,6 +97,15 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     defaultEnabled: true,
   },
   {
+    key: 'current-accounts',
+    label: 'Cari Hesap',
+    description: 'Müşteri ve tedarikçi açık hesap takibi.',
+    category: 'finance',
+    icon: 'BookOpen',
+    href: (slug) => `/tenant/${slug}/current-accounts`,
+    defaultEnabled: true,
+  },
+  {
     key: 'inventory',
     label: 'Stok',
     description: 'Ürün stoğu ve düşüm takibi.',

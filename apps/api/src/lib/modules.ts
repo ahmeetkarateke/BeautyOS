@@ -11,6 +11,7 @@ export const MODULE_KEYS = [
   'tips',
   'staff-payouts',
   'finance',
+  'current-accounts',
   'inventory',
   'waitlist',
   'customer-anamnesis',
