@@ -5,8 +5,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
-import { Building2, Lock, Check, Plug, Plus, X, RotateCcw, Bot } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Building2, Lock, Check, Plug, Plus, X, RotateCcw, Bot, Layers } from 'lucide-react'
+import { ModulesPanel } from '@/components/settings/modules-panel'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -51,6 +52,7 @@ const BOT_FEATURES_ENABLED = process.env.NEXT_PUBLIC_BOT_FEATURES_ENABLED === 't
 
 const tabs = [
   { id: 'salon', label: 'Salon Profili', icon: Building2 },
+  { id: 'modules', label: 'Modüller', icon: Layers },
   { id: 'account', label: 'Hesabım', icon: Lock },
   ...(BOT_FEATURES_ENABLED
     ? [
@@ -895,10 +897,12 @@ function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type TabId = 'salon' | 'account' | 'integrations' | 'bot'
+type TabId = 'salon' | 'modules' | 'account' | 'integrations' | 'bot'
 
 export default function SettingsPage({ params }: PageProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('salon')
+  const searchParams = useSearchParams()
+  const initialTab = (searchParams?.get('tab') as TabId | null) ?? 'salon'
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab)
   const user = useAuthStore((s) => s.user)
   const router = useRouter()
 
@@ -946,6 +950,12 @@ export default function SettingsPage({ params }: PageProps) {
             <CardContent><AdvancedSettingsPanel tenantSlug={params.slug} /></CardContent>
           </Card>
         </div>
+      )}
+      {activeTab === 'modules' && (
+        <Card>
+          <CardHeader><CardTitle>Aktif Modüller</CardTitle></CardHeader>
+          <CardContent><ModulesPanel tenantSlug={params.slug} /></CardContent>
+        </Card>
       )}
       {activeTab === 'account' && (
         <Card>
