@@ -76,7 +76,10 @@ export async function checkTenantActive(req: Request, res: Response, next: NextF
   })
 
   if (!tenant) {
-    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tenant bulunamadı.' } })
+    // Token'daki tenantId DB'de yoksa (tenant silinmiş vb.) — 401 dön ki
+    // frontend auto-logout/refresh denesin. 404 dönmek sonsuz retry'a sebep
+    // oluyordu (donma sebebi).
+    res.status(401).json({ error: { code: 'TENANT_DELETED', message: 'Hesap aktif değil, lütfen yeniden giriş yapın.' } })
     return
   }
 
