@@ -1863,18 +1863,18 @@ export function createTenantRouter(): Router {
       const userMap = new Map(users.map((u) => [u.id, u.fullName]))
       const staffMap = new Map(staffProfiles.map((s) => [s.id, userMap.get(s.userId) ?? 'Bilinmiyor']))
 
-      const grouped = new Map<string, { staffName: string; completedCount: number; grossAmount: number; commissionAmount: number }>()
+      const grouped = new Map<string, { staffName: string; completedAppointments: number; revenue: number; commission: number }>()
       for (const t of transactions) {
         if (!t.staffId) continue
         const entry = grouped.get(t.staffId) ?? {
           staffName: staffMap.get(t.staffId) ?? 'Bilinmiyor',
-          completedCount: 0,
-          grossAmount: 0,
-          commissionAmount: 0,
+          completedAppointments: 0,
+          revenue: 0,
+          commission: 0,
         }
-        entry.completedCount += 1
-        entry.grossAmount += Number(t.grossAmount)
-        entry.commissionAmount += Number(t.commissionAmount)
+        entry.completedAppointments += 1
+        entry.revenue += Number(t.grossAmount)
+        entry.commission += Number(t.commissionAmount)
         grouped.set(t.staffId, entry)
       }
 
