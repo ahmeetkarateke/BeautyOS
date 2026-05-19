@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import {
   Calendar, Users, Globe, Package, Wallet, Banknote,
-  ClipboardList, Phone, MapPin, Sparkles, Award,
+  ClipboardList, Phone, MapPin, Sparkles, Award, AlertTriangle, TrendingDown,
 } from 'lucide-react'
 
 const FEATURES = [
@@ -48,16 +48,16 @@ const FEATURES = [
   },
   {
     number: '04',
-    title: 'Paket, bahşiş ve cari hesap',
-    eyebrow: 'Finansal Operasyon',
+    title: 'Akıllı stok yönetimi',
+    eyebrow: 'Stok & Tedarik',
     body:
-      'Çoklu seans paketleri, bahşiş kasası ve müşteri-tedarikçi cari ekstresi entegre çalışır. Tek tıkla raporlanır.',
+      'Ürün stoğunu gerçek zamanlı izleyin. Eşik altına düşen ürünler anında bildirim olarak gelir; alış faturasıyla stok otomatik güncellenir.',
     bullets: [
-      'Çoklu seans paketleri',
-      'Bahşiş kasası ve adil dağıtım',
-      'Müşteri ve tedarikçi cari takibi',
+      'Düşük stok için otomatik bildirim',
+      'Alış faturasıyla otomatik stok girişi',
+      'Hizmet bazlı malzeme tüketim takibi',
     ],
-    Visual: VisualPackage,
+    Visual: VisualStock,
   },
   {
     number: '05',
@@ -330,36 +330,65 @@ function VisualBooking() {
   )
 }
 
-function VisualPackage() {
+function VisualStock() {
+  const items = [
+    { name: 'Saç Boyası 6.0',     unit: 'tüp',  current: 24, threshold: 10, color: '#28A745' },
+    { name: 'Şampuan 1L',         unit: 'şişe', current: 4,  threshold: 8,  color: '#D67D78', low: true },
+    { name: 'Tek Kullanımlık Eldiven', unit: 'kutu', current: 12, threshold: 5,  color: '#28A745' },
+    { name: 'Oje 015',            unit: 'şişe', current: 2,  threshold: 6,  color: '#D67D78', low: true },
+    { name: 'Aseton 500ml',       unit: 'şişe', current: 9,  threshold: 4,  color: '#6B48FF' },
+  ]
+  const lowCount = items.filter((i) => i.low).length
   return (
     <VisualShell>
-      <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: 'rgba(31,62,71,0.5)' }}>
-        Aktif Paketler — 3 abonelik
-      </p>
-      <div className="space-y-3">
-        {[
-          { name: 'Müşteri A', pack: '10 Seans Cilt Bakımı', used: 7, total: 10, color: '#28A745' },
-          { name: 'Müşteri B', pack: '6 Seans Lazer Epilasyon', used: 5, total: 6, color: '#E89B96' },
-          { name: 'Müşteri C', pack: '5 Seans Manikür', used: 2, total: 5, color: '#6B48FF' },
-        ].map((p) => (
-          <div key={p.name}>
-            <div className="flex items-center justify-between mb-1.5">
-              <div>
-                <p className="text-[13px] font-medium" style={{ color: '#1F3E47' }}>{p.name}</p>
-                <p className="text-[10px]" style={{ color: 'rgba(31,62,71,0.5)' }}>{p.pack}</p>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Package size={16} style={{ color: '#6B48FF' }} />
+          <span className="text-[13px] font-semibold" style={{ color: '#1F3E47' }}>Stok Durumu</span>
+        </div>
+        <span
+          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+          style={{ backgroundColor: 'rgba(214,125,120,0.14)', color: '#D67D78' }}
+        >
+          <AlertTriangle size={11} strokeWidth={2.4} />
+          {lowCount} düşük stok
+        </span>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const percent = Math.min(100, Math.round((item.current / Math.max(item.threshold * 2, 1)) * 100))
+          return (
+            <div
+              key={item.name}
+              className="rounded-lg px-3 py-2"
+              style={{
+                backgroundColor: item.low ? 'rgba(214,125,120,0.06)' : 'rgba(31,62,71,0.025)',
+                border: item.low ? '1px solid rgba(214,125,120,0.18)' : '1px solid rgba(31,62,71,0.04)',
+              }}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {item.low && <TrendingDown size={11} style={{ color: '#D67D78' }} strokeWidth={2.4} />}
+                  <p className="text-[12px] font-medium truncate" style={{ color: '#1F3E47' }}>{item.name}</p>
+                </div>
+                <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: item.low ? '#D67D78' : '#1F3E47' }}>
+                  {item.current} {item.unit}
+                </span>
               </div>
-              <span className="text-[12px] font-bold" style={{ color: '#1F3E47' }}>
-                {p.used}/{p.total}
-              </span>
+              <div className="h-1 rounded-full" style={{ backgroundColor: 'rgba(31,62,71,0.06)' }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: item.color, width: `${percent}%` }}
+                />
+              </div>
+              {item.low && (
+                <p className="text-[10px] mt-1" style={{ color: '#D67D78' }}>
+                  Eşik altı ({item.threshold} {item.unit}) — sipariş önerilir
+                </p>
+              )}
             </div>
-            <div className="h-1.5 rounded-full" style={{ backgroundColor: 'rgba(31,62,71,0.06)' }}>
-              <div
-                className="h-full rounded-full"
-                style={{ backgroundColor: p.color, width: `${(p.used / p.total) * 100}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </VisualShell>
   )
