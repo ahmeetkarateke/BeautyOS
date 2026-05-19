@@ -256,6 +256,15 @@ function NewEntryForm({
   const [refType, setRefType] = useState<FormRefType>('payment')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [accountId, setAccountId] = useState('')
+
+  const { data: accountsData } = useQuery({
+    queryKey: ['accounts', slug, 'active-only'],
+    queryFn: () =>
+      apiFetch<{ data: Array<{ id: string; name: string; type: string; balance: number }> }>(
+        `/api/v1/tenants/${slug}/accounts`,
+      ),
+  })
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -269,16 +278,19 @@ function NewEntryForm({
           credit: direction === 'credit' ? Number(amount) : 0,
           description: description || (
             refType === 'opening_balance' ? 'Açılış bakiyesi'
-            : refType === 'payment' ? (direction === 'credit' ? 'Tahsilat' : 'Ödeme')
+            : refType === 'payment' ? (direction === 'credit' ? (partyType === 'customer' ? 'Tahsilat' : 'Ödeme') : 'Manuel kayıt')
             : refType === 'adjustment' ? 'Düzeltme'
             : 'Manuel kayıt'
           ),
           referenceType: refType,
+          accountId: refType === 'payment' && direction === 'credit' && accountId ? accountId : undefined,
         }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['current-account-extract', slug, partyType, partyId] })
       qc.invalidateQueries({ queryKey: ['current-accounts', slug] })
+      qc.invalidateQueries({ queryKey: ['accounts', slug] })
+      qc.invalidateQueries({ queryKey: ['account-detail', slug] })
       toast('Hareket kaydedildi')
       onClose()
     },
@@ -378,6 +390,28 @@ function NewEntryForm({
               autoFocus
             />
           </div>
+
+          {refType === 'payment' && direction === 'credit' && (accountsData?.data ?? []).length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-account">
+                {partyType === 'customer' ? 'Tahsil edilen hesap (opsiyonel)' : 'Ödeme yapılan hesap (opsiyonel)'}
+              </Label>
+              <select
+                id="entry-account"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className="w-full border border-salon-border rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                <option value="">— Hesaba yansıtma —</option>
+                {(accountsData?.data ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>{a.name} ({a.balance.toFixed(2)}₺)</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-salon-muted">
+                Hesap seçerseniz {partyType === 'customer' ? 'gelir' : 'gider'} olarak da kaydedilir.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="entry-desc">Açıklama (opsiyonel)</Label>

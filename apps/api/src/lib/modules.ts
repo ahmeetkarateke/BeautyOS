@@ -14,6 +14,7 @@ export const MODULE_KEYS = [
   'current-accounts',
   'purchase-invoices',
   'suppliers',
+  'accounts',
   'inventory',
   'waitlist',
   'customer-anamnesis',

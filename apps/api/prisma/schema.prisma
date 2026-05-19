@@ -66,6 +66,23 @@ enum PurchaseInvoiceStatus {
   cancelled
 }
 
+enum FinancialAccountType {
+  cash          // Kasa
+  bank          // Banka hesabı
+  pos           // POS hesabı (kart tahsilatları)
+  credit_card   // Kredi kartı (gideri yansıyan)
+  other
+}
+
+enum FinancialTransactionType {
+  income          // Gelir / tahsilat
+  expense         // Gider / ödeme
+  transfer_in     // Virmandan gelen
+  transfer_out    // Virmana giden
+  opening_balance // Hesap açılış bakiyesi
+  adjustment      // Düzeltme
+}
+
 enum UserRole {
   owner
   manager
@@ -236,6 +253,8 @@ model Tenant {
   anamnesisAnswers            CustomerAnamnesisAnswer[]
   currentAccountEntries       CurrentAccountEntry[]
   purchaseInvoices            PurchaseInvoice[]
+  financialAccounts           FinancialAccount[]
+  financialTransactions       FinancialTransaction[]
   staffPayouts                StaffPayout[]
   suppliers                   Supplier[]
   stockMovements              StockMovement[]
@@ -321,6 +340,7 @@ model Customer {
   anamnesisAnswers CustomerAnamnesisAnswer[]
   waitlistEntries  Waitlist[]
   currentAccountEntries CurrentAccountEntry[]
+  financialTransactions FinancialTransaction[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -815,6 +835,7 @@ model Supplier {
   movements  StockMovement[]
   currentAccountEntries CurrentAccountEntry[]
   purchaseInvoices PurchaseInvoice[]
+  financialTransactions FinancialTransaction[]
 
   @@index([tenantId])
   @@map("suppliers")
@@ -991,4 +1012,65 @@ model PurchaseInvoiceItem {
 
   @@index([invoiceId])
   @@map("purchase_invoice_items")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BANKA & KASA HESAPLARI + HAREKETLER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model FinancialAccount {
+  id          String                @id @default(uuid()) @db.Uuid
+  tenantId    String                @db.Uuid
+  type        FinancialAccountType
+  name        String                                                              // "Ana Kasa", "Garanti Bankası", "İş POS"
+  bankName    String?
+  accountHolder String?                                                            // hesap sahibi
+  iban        String?
+  currency    String                @default("TRY")
+  openingBalance Decimal            @default(0) @db.Decimal(14, 2)
+  isActive    Boolean               @default(true)
+  isDefault   Boolean               @default(false)                               // ana kasa / ana hesap
+  notes       String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[] @relation("AccountTransactions")
+  counterpartyTransactions FinancialTransaction[] @relation("CounterpartyAccountTransactions")
+
+  @@index([tenantId, type])
+  @@map("financial_accounts")
+}
+
+model FinancialTransaction {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  tenantId              String                   @db.Uuid
+  accountId             String                   @db.Uuid
+  type                  FinancialTransactionType
+  amount                Decimal                  @db.Decimal(14, 2)               // pozitif sayı; type yön belirler
+  date                  DateTime
+  description           String
+  category              String?                                                    // gelir/gider kategorisi (manuel)
+  // Cari hesap entegrasyonu
+  customerId            String?                  @db.Uuid
+  supplierId            String?                  @db.Uuid
+  // Virman karşı hesap
+  counterpartyAccountId String?                  @db.Uuid
+  // Genel referans (purchase_invoice, appointment vb.)
+  referenceType         String?
+  referenceId           String?                  @db.Uuid
+  createdBy             String?                  @db.Uuid
+  createdAt             DateTime                 @default(now())
+
+  tenant               Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account              FinancialAccount  @relation("AccountTransactions", fields: [accountId], references: [id], onDelete: Cascade)
+  counterpartyAccount  FinancialAccount? @relation("CounterpartyAccountTransactions", fields: [counterpartyAccountId], references: [id])
+  customer             Customer?         @relation(fields: [customerId], references: [id])
+  supplier             Supplier?         @relation(fields: [supplierId], references: [id])
+
+  @@index([tenantId, date(sort: Desc)])
+  @@index([accountId, date(sort: Desc)])
+  @@index([customerId])
+  @@index([supplierId])
+  @@map("financial_transactions")
 }

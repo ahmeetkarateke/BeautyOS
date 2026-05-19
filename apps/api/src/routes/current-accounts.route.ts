@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
-import { Prisma, CurrentAccountPartyType, CurrentAccountEntryRefType } from '@prisma/client'
+import { Prisma, CurrentAccountPartyType, CurrentAccountEntryRefType, FinancialTransactionType } from '@prisma/client'
 import { db } from '../lib/db'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
@@ -181,6 +181,8 @@ export function createCurrentAccountsRouter(): Router {
     credit: z.number().min(0).max(99999999).default(0),
     description: noXss(2, 300),
     referenceType: z.nativeEnum(CurrentAccountEntryRefType).optional(),
+    /** Bağlı kasa/banka hesabı — varsa karşılığında income/expense kaydı oluşur */
+    accountId: z.string().uuid().optional(),
   }).refine((d) => d.debit > 0 || d.credit > 0, {
     message: 'Borç veya alacak tutarı pozitif olmalıdır.',
   }).refine((d) => !(d.debit > 0 && d.credit > 0), {
@@ -212,20 +214,53 @@ export function createCurrentAccountsRouter(): Router {
         const s = await db.supplier.findFirst({ where: { id: data.partyId, tenantId }, select: { id: true } })
         if (!s) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tedarikçi bulunamadı.' } })
       }
+      if (data.accountId) {
+        const acc = await db.financialAccount.findFirst({ where: { id: data.accountId, tenantId }, select: { id: true } })
+        if (!acc) return res.status(400).json({ error: { code: 'INVALID_ACCOUNT', message: 'Hesap bulunamadı.' } })
+      }
 
-      const created = await db.currentAccountEntry.create({
-        data: {
-          tenantId,
-          partyType: data.partyType,
-          customerId: data.partyType === 'customer' ? data.partyId : null,
-          supplierId: data.partyType === 'supplier' ? data.partyId : null,
-          date: data.date ? new Date(data.date) : new Date(),
-          debit: new Prisma.Decimal(data.debit),
-          credit: new Prisma.Decimal(data.credit),
-          description: data.description,
-          referenceType: data.referenceType ?? CurrentAccountEntryRefType.manual,
-          createdBy: userId,
-        },
+      const refType = data.referenceType ?? CurrentAccountEntryRefType.manual
+      const isPayment = refType === CurrentAccountEntryRefType.payment
+
+      const created = await db.$transaction(async (tx) => {
+        const entry = await tx.currentAccountEntry.create({
+          data: {
+            tenantId,
+            partyType: data.partyType,
+            customerId: data.partyType === 'customer' ? data.partyId : null,
+            supplierId: data.partyType === 'supplier' ? data.partyId : null,
+            date: data.date ? new Date(data.date) : new Date(),
+            debit: new Prisma.Decimal(data.debit),
+            credit: new Prisma.Decimal(data.credit),
+            description: data.description,
+            referenceType: refType,
+            createdBy: userId,
+          },
+        })
+
+        // Payment + accountId varsa → hesap hareketi
+        // Müşteri tahsilatı → income, Tedarikçi ödemesi → expense
+        // (credit > 0 olduğunda payment yapılıyor varsayımı)
+        if (data.accountId && isPayment && data.credit > 0) {
+          const isCustomer = data.partyType === 'customer'
+          await tx.financialTransaction.create({
+            data: {
+              tenantId,
+              accountId: data.accountId,
+              type: isCustomer ? FinancialTransactionType.income : FinancialTransactionType.expense,
+              amount: new Prisma.Decimal(data.credit),
+              date: entry.date,
+              description: data.description,
+              customerId: isCustomer ? data.partyId : null,
+              supplierId: !isCustomer ? data.partyId : null,
+              referenceType: 'current_account_entry',
+              referenceId: entry.id,
+              createdBy: userId,
+            },
+          })
+        }
+
+        return entry
       })
 
       return res.status(201).json({
@@ -263,6 +298,7 @@ export function createCurrentAccountsRouter(): Router {
         CurrentAccountEntryRefType.manual,
         CurrentAccountEntryRefType.opening_balance,
         CurrentAccountEntryRefType.adjustment,
+        CurrentAccountEntryRefType.payment,
       ]
       if (!deletable.includes(existing.referenceType)) {
         return res.status(400).json({
@@ -270,7 +306,13 @@ export function createCurrentAccountsRouter(): Router {
         })
       }
 
-      await db.currentAccountEntry.delete({ where: { id } })
+      // Bağlı finansal işlem de silinsin (payment ise)
+      await db.$transaction(async (tx) => {
+        await tx.financialTransaction.deleteMany({
+          where: { tenantId, referenceType: 'current_account_entry', referenceId: id },
+        })
+        await tx.currentAccountEntry.delete({ where: { id } })
+      })
       return res.status(204).send()
     } catch (err) { next(err) }
   })

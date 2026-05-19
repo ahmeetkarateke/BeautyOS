@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut,
-  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins, ChevronDown, BookOpen, FileText, Truck,
+  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins, ChevronDown, BookOpen, FileText, Truck, Landmark,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -63,7 +63,8 @@ const navGroups = (slug: string): NavGroup[] => [
   {
     label: 'FİNANS & STOK',
     items: [
-      { href: `/tenant/${slug}/finance`,           icon: Banknote, label: 'Kasa',             moduleKey: 'finance' },
+      { href: `/tenant/${slug}/finance`,           icon: Banknote, label: 'Günlük Kasa',      moduleKey: 'finance' },
+      { href: `/tenant/${slug}/accounts`,          icon: Landmark, label: 'Banka & Kasa',     moduleKey: 'accounts' },
       { href: `/tenant/${slug}/current-accounts`,  icon: BookOpen, label: 'Cari Hesap',       moduleKey: 'current-accounts' },
       { href: `/tenant/${slug}/purchase-invoices`, icon: FileText, label: 'Alış Faturaları',  moduleKey: 'purchase-invoices' },
       { href: `/tenant/${slug}/suppliers`,         icon: Truck,    label: 'Tedarikçiler',     moduleKey: 'suppliers' },

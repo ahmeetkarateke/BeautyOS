@@ -115,6 +115,15 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     defaultEnabled: true,
   },
   {
+    key: 'accounts',
+    label: 'Banka & Kasa',
+    description: 'Banka hesapları, kasa, POS, virman ve hesap hareketleri.',
+    category: 'finance',
+    icon: 'Landmark',
+    href: (slug) => `/tenant/${slug}/accounts`,
+    defaultEnabled: true,
+  },
+  {
     key: 'suppliers',
     label: 'Tedarikçiler',
     description: 'Tedarikçi listesi ve iletişim bilgileri.',

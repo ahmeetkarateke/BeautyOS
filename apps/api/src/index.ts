@@ -19,6 +19,7 @@ import { createTipsRouter } from './routes/tips.route'
 import { createCustomerEnrichmentRouter } from './routes/customer-enrichment.route'
 import { createCurrentAccountsRouter } from './routes/current-accounts.route'
 import { createPurchaseInvoicesRouter } from './routes/purchase-invoices.route'
+import { createFinancialAccountsRouter } from './routes/financial-accounts.route'
 import { createStaffPayoutsRouter } from './routes/staff-payouts.route'
 import { createStockRouter } from './routes/stock.route'
 import { createWaitlistRouter } from './routes/waitlist.route'
@@ -98,6 +99,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api/v1/tenants/:slug', createCustomerEnrichmentRouter())
   app.use('/api/v1/tenants/:slug', createCurrentAccountsRouter())
   app.use('/api/v1/tenants/:slug', createPurchaseInvoicesRouter())
+  app.use('/api/v1/tenants/:slug', createFinancialAccountsRouter())
   app.use('/api/v1/tenants/:slug', createStockRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
