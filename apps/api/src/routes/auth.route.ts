@@ -3,8 +3,10 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
+import { BusinessType } from '@prisma/client'
 import { db } from '../lib/db'
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../lib/email'
+import { seedDefaultAnamnesisQuestions } from '../lib/anamnesis-seeder'
 import crypto from 'crypto'
 
 const loginSchema = z.object({
@@ -26,7 +28,7 @@ const registerSchema = z.object({
   phone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin.').optional(),
   email: z.string().email(),
   password: strongPassword,
-  businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
+  businessType: z.nativeEnum(BusinessType).optional(),
 })
 
 const ACCESS_EXPIRY = '15m'
@@ -104,6 +106,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       const passwordHash = await bcrypt.hash(password, 12)
       const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
+      const resolvedBusinessType = businessType ?? BusinessType.beauty_center
       const { tenant, user } = await db.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({
           data: {
@@ -112,7 +115,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
             plan: 'trial',
             isActive: true,
             trialEndsAt,
-            ...(businessType ? { settings: { businessType } } : {}),
+            businessType: resolvedBusinessType,
           },
         })
         const user = await tx.user.create({
@@ -128,6 +131,13 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         })
         return { tenant, user }
       })
+
+      // Default anamnez sorularını seed et (fail-safe — kayıt etkilenmesin)
+      try {
+        await seedDefaultAnamnesisQuestions(tenant.id, resolvedBusinessType)
+      } catch (e) {
+        console.error('seedDefaultAnamnesisQuestions failed:', (e as Error).message)
+      }
 
       const jwtSecret = requireJwtSecret()
       const payload = { userId: user.id, tenantId: tenant.id, tenantSlug: tenant.slug, role: user.role }

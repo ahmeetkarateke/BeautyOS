@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Phone, Mail, Calendar, Star, TrendingUp, Pencil, Plus, Trash2, AlertTriangle, Heart, Clock } from 'lucide-react'
@@ -9,14 +9,15 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EditCustomerModal } from '@/components/customers/edit-customer-modal'
-import { HairFormulaModal, type HairFormulaItem } from '@/components/customers/hair-formula-modal'
 import { PhotoUploadModal } from '@/components/customers/photo-upload-modal'
 import { PhotoLightbox, type LightboxPhoto } from '@/components/customers/photo-lightbox'
 import { CustomerPackagesSection } from '@/components/packages/customer-packages-section'
+import { AnamnesisForm } from '@/components/customers/anamnesis-form'
 import { apiFetch } from '@/lib/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
+import { useActiveModules } from '@/hooks/use-active-modules'
 
 interface PageProps {
   params: { slug: string; customerId: string }
@@ -80,22 +81,33 @@ const PHOTO_CATEGORIES: Array<{ value: string; label: string }> = [
   { value: 'general',      label: 'Diğer' },
 ]
 
-type TabKey = 'general' | 'formulas' | 'photos' | 'visits'
+type TabKey = 'general' | 'anamnesis' | 'photos' | 'visits'
 
 export default function CustomerDetailPage({ params }: PageProps) {
   const router = useRouter()
   const qc = useQueryClient()
+  const { activeModules } = useActiveModules(params.slug)
+  const anamnesisEnabled = activeModules.includes('customer-anamnesis')
+  const photosEnabled = activeModules.includes('customer-photos')
+
   const [activeTab, setActiveTab] = useState<TabKey>('general')
   const [editOpen, setEditOpen] = useState(false)
-
-  const [formulaModalOpen, setFormulaModalOpen] = useState(false)
-  const [editingFormula, setEditingFormula] = useState<HairFormulaItem | null>(null)
-  const [formulaToDelete, setFormulaToDelete] = useState<string | null>(null)
 
   const [photoModalOpen, setPhotoModalOpen] = useState(false)
   const [photoCategoryFilter, setPhotoCategoryFilter] = useState<string>('all')
   const [lightboxPhoto, setLightboxPhoto] = useState<LightboxPhoto | null>(null)
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null)
+
+  const tabs = useMemo(() => {
+    const list: Array<{ key: TabKey; label: string }> = [{ key: 'general', label: 'Genel' }]
+    if (anamnesisEnabled) list.push({ key: 'anamnesis', label: 'Müşteri Hakkında' })
+    if (photosEnabled) list.push({ key: 'photos', label: 'Fotoğraflar' })
+    list.push({ key: 'visits', label: 'Ziyaret Geçmişi' })
+    return list
+  }, [anamnesisEnabled, photosEnabled])
+
+  // Modül kapatılırsa aktif tab geçersiz olabilir → geneli göster
+  const effectiveTab: TabKey = tabs.some((t) => t.key === activeTab) ? activeTab : 'general'
 
   const { data, isLoading } = useQuery({
     queryKey: ['customer', params.slug, params.customerId],
@@ -112,29 +124,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
   })
   const waitlistCount = (waitlistData?.data ?? []).filter((w) => w.customerId === params.customerId).length
 
-  const { data: formulas, isLoading: formulasLoading } = useQuery({
-    queryKey: ['hair-formulas', params.slug, params.customerId],
-    queryFn: () =>
-      apiFetch<HairFormulaItem[]>(`/api/v1/tenants/${params.slug}/customers/${params.customerId}/hair-formulas`),
-    enabled: activeTab === 'formulas',
-  })
-
   const { data: photos, isLoading: photosLoading } = useQuery({
     queryKey: ['customer-photos', params.slug, params.customerId],
     queryFn: () =>
       apiFetch<PhotoItem[]>(`/api/v1/tenants/${params.slug}/customers/${params.customerId}/photos`),
-    enabled: activeTab === 'photos',
-  })
-
-  const deleteFormulaMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/v1/tenants/${params.slug}/hair-formulas/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['hair-formulas', params.slug, params.customerId] })
-      toast('Formül silindi')
-      setFormulaToDelete(null)
-    },
-    onError: (err: Error) => toast(err.message, 'error'),
+    enabled: effectiveTab === 'photos' && photosEnabled,
   })
 
   const deletePhotoMutation = useMutation({
@@ -252,18 +246,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
       {/* Tabs */}
       <div className="border-b border-salon-border">
         <nav className="-mb-px flex gap-1 overflow-x-auto">
-          {([
-            { key: 'general',  label: 'Genel' },
-            { key: 'formulas', label: 'Saç Formülleri' },
-            { key: 'photos',   label: 'Fotoğraflar' },
-            { key: 'visits',   label: 'Ziyaret Geçmişi' },
-          ] as Array<{ key: TabKey; label: string }>).map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
               className={cn(
                 'px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors',
-                activeTab === t.key
+                effectiveTab === t.key
                   ? 'border-primary text-primary'
                   : 'border-transparent text-salon-muted hover:text-gray-900',
               )}
@@ -275,7 +264,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'general' && (
+      {effectiveTab === 'general' && (
         <div className="space-y-6">
           {/* Contact info */}
           <Card>
@@ -355,71 +344,20 @@ export default function CustomerDetailPage({ params }: PageProps) {
               </Card>
             </div>
           )}
+
+          <CustomerPackagesSection
+            tenantSlug={params.slug}
+            customerId={params.customerId}
+            customerName={data?.fullName}
+          />
         </div>
       )}
 
-      {activeTab === 'formulas' && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>Saç Formülleri</CardTitle>
-            <Button size="sm" className="gap-1.5" onClick={() => { setEditingFormula(null); setFormulaModalOpen(true) }}>
-              <Plus className="w-4 h-4" /> Yeni Formül
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {formulasLoading ? (
-              <div className="p-4 space-y-3">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-              </div>
-            ) : !formulas?.length ? (
-              <div className="text-center py-10 px-4">
-                <p className="text-sm text-salon-muted">Henüz saç formülü kaydı yok. İlk formülü ekleyin.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-salon-border">
-                {formulas.map((f) => (
-                  <li key={f.id} className="px-4 sm:px-6 py-3 flex items-start justify-between gap-3 hover:bg-salon-bg transition-colors">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-gray-900">{f.formula}</p>
-                        {f.brand && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary-100 text-primary">{f.brand}</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-salon-muted mt-1">
-                        {formatDate(f.date)}
-                        {f.processTime != null && <> · {f.processTime} dk</>}
-                        {f.staffName && <> · {f.staffName}</>}
-                      </p>
-                      {f.result && (
-                        <p className="text-xs text-gray-700 mt-1.5 italic">&ldquo;{f.result}&rdquo;</p>
-                      )}
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => { setEditingFormula(f); setFormulaModalOpen(true) }}
-                        className="p-1.5 rounded-md text-salon-muted hover:text-primary hover:bg-primary-100 transition-colors"
-                        aria-label="Düzenle"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setFormulaToDelete(f.id)}
-                        className="p-1.5 rounded-md text-salon-muted hover:text-red-600 hover:bg-red-50 transition-colors"
-                        aria-label="Sil"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      {effectiveTab === 'anamnesis' && (
+        <AnamnesisForm tenantSlug={params.slug} customerId={params.customerId} />
       )}
 
-      {activeTab === 'photos' && (
+      {effectiveTab === 'photos' && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>Fotoğraflar</CardTitle>
@@ -490,15 +428,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
         </Card>
       )}
 
-      {activeTab === 'general' && (
-        <CustomerPackagesSection
-          tenantSlug={params.slug}
-          customerId={params.customerId}
-          customerName={data?.fullName}
-        />
-      )}
-
-      {activeTab === 'visits' && (
+      {effectiveTab === 'visits' && (
         <Card>
           <CardHeader>
             <CardTitle>Randevu Geçmişi</CardTitle>
@@ -550,14 +480,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
         />
       )}
 
-      <HairFormulaModal
-        open={formulaModalOpen}
-        onOpenChange={(o) => { setFormulaModalOpen(o); if (!o) setEditingFormula(null) }}
-        tenantSlug={params.slug}
-        customerId={params.customerId}
-        formula={editingFormula}
-      />
-
       <PhotoUploadModal
         open={photoModalOpen}
         onOpenChange={setPhotoModalOpen}
@@ -566,16 +488,6 @@ export default function CustomerDetailPage({ params }: PageProps) {
       />
 
       <PhotoLightbox photo={lightboxPhoto} onClose={() => setLightboxPhoto(null)} />
-
-      <ConfirmDialog
-        open={!!formulaToDelete}
-        onOpenChange={(o) => { if (!o) setFormulaToDelete(null) }}
-        title="Formülü sil"
-        description="Bu saç formülü kaydı kalıcı olarak silinecek. Devam etmek istiyor musunuz?"
-        confirmLabel="Sil"
-        loading={deleteFormulaMutation.isPending}
-        onConfirm={() => { if (formulaToDelete) deleteFormulaMutation.mutate(formulaToDelete) }}
-      />
 
       <ConfirmDialog
         open={!!photoToDelete}

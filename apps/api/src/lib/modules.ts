@@ -13,6 +13,8 @@ export const MODULE_KEYS = [
   'finance',
   'inventory',
   'waitlist',
+  'customer-anamnesis',
+  'customer-photos',
   'settings',
 ] as const
 

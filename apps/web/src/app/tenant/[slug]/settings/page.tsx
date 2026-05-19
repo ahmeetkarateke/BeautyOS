@@ -6,7 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Building2, Lock, Check, Plug, Plus, X, RotateCcw, Bot, Layers } from 'lucide-react'
+import { Building2, Lock, Check, Plug, Plus, X, RotateCcw, Bot, Layers, ClipboardList, GripVertical, Trash2 } from 'lucide-react'
+import { useActiveModules } from '@/hooks/use-active-modules'
+import { AnamnesisQuestionsManager } from '@/components/settings/anamnesis-questions-manager'
 import { ModulesPanel } from '@/components/settings/modules-panel'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -65,11 +67,17 @@ const tabs = [
 // ─── Salon settings form ──────────────────────────────────────────────────────
 
 const BUSINESS_TYPES = [
-  { value: 'barbershop',    label: 'Berber / Kuaför' },
-  { value: 'beauty_center', label: 'Güzellik Merkezi / Spa' },
-  { value: 'nail_studio',   label: 'Nail Art Stüdyosu' },
-  { value: 'aesthetic',     label: 'Estetik & Medikal Estetik' },
-  { value: 'other',         label: 'Diğer' },
+  { value: 'dentist',          label: 'Diş Hekimi' },
+  { value: 'aesthetic_clinic', label: 'Estetik Klinik' },
+  { value: 'beauty_center',    label: 'Güzellik Merkezi' },
+  { value: 'hair_salon',       label: 'Kuaför' },
+  { value: 'barbershop',       label: 'Berber' },
+  { value: 'spa',              label: 'SPA' },
+  { value: 'nail_studio',      label: 'Nail Studio' },
+  { value: 'massage',          label: 'Masaj Salonu' },
+  { value: 'tattoo_piercing',  label: 'Dövme / Piercing' },
+  { value: 'hair_transplant',  label: 'Saç Ekim Merkezi' },
+  { value: 'other',            label: 'Diğer' },
 ] as const
 
 interface BotFaq {
@@ -81,6 +89,7 @@ interface TenantSettings {
   id: string
   name: string
   slug: string
+  businessType?: string
   settings: {
     phone?: string
     address?: string
@@ -201,7 +210,7 @@ function AdvancedSettingsPanel({ tenantSlug }: { tenantSlug: string }) {
 
   useEffect(() => {
     if (data) {
-      const bt = data.settings?.businessType ?? 'other'
+      const bt = data.businessType ?? data.settings?.businessType ?? 'beauty_center'
       setBusinessType(bt)
       setFollowUpEnabled(data.settings?.followUpEnabled ?? false)
       setPublicBookingEnabled(data.settings?.publicBookingEnabled ?? false)
@@ -897,7 +906,7 @@ function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type TabId = 'salon' | 'modules' | 'account' | 'integrations' | 'bot'
+type TabId = 'salon' | 'modules' | 'anamnesis' | 'account' | 'integrations' | 'bot'
 
 export default function SettingsPage({ params }: PageProps) {
   const searchParams = useSearchParams()
@@ -905,6 +914,14 @@ export default function SettingsPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
   const user = useAuthStore((s) => s.user)
   const router = useRouter()
+  const { activeModules } = useActiveModules(params.slug)
+  const anamnesisEnabled = activeModules.includes('customer-anamnesis')
+
+  const visibleTabs = [
+    ...tabs.filter((t) => t.id !== 'integrations' && t.id !== 'bot' && t.id !== 'account'),
+    ...(anamnesisEnabled ? [{ id: 'anamnesis' as const, label: 'Anamnez Soruları', icon: ClipboardList }] : []),
+    ...tabs.filter((t) => t.id === 'account' || t.id === 'integrations' || t.id === 'bot'),
+  ]
 
   useEffect(() => {
     if (user?.role === 'staff') router.replace(`/tenant/${params.slug}/dashboard`)
@@ -918,8 +935,8 @@ export default function SettingsPage({ params }: PageProps) {
       </div>
 
       {/* Tab nav */}
-      <div className="flex gap-1 border-b border-salon-border">
-        {tabs.map((tab) => {
+      <div className="flex gap-1 border-b border-salon-border overflow-x-auto">
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon
           return (
             <button
@@ -955,6 +972,17 @@ export default function SettingsPage({ params }: PageProps) {
         <Card>
           <CardHeader><CardTitle>Aktif Modüller</CardTitle></CardHeader>
           <CardContent><ModulesPanel tenantSlug={params.slug} /></CardContent>
+        </Card>
+      )}
+      {activeTab === 'anamnesis' && anamnesisEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Anamnez Soruları</CardTitle>
+            <p className="text-xs text-salon-muted mt-1">
+              Müşteri kartında doldurulacak anamnez formu sorularını yönetin. Sektörünüze göre öneriler yüklü.
+            </p>
+          </CardHeader>
+          <CardContent><AnamnesisQuestionsManager tenantSlug={params.slug} /></CardContent>
         </Card>
       )}
       {activeTab === 'account' && (

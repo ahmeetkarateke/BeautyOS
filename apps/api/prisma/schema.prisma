@@ -20,6 +20,30 @@ enum Plan {
   enterprise
 }
 
+enum BusinessType {
+  dentist
+  aesthetic_clinic
+  beauty_center
+  hair_salon
+  barbershop
+  spa
+  nail_studio
+  massage
+  tattoo_piercing
+  hair_transplant
+  other
+}
+
+enum AnamnesisQuestionType {
+  short_text
+  long_text
+  yes_no
+  single_choice
+  multi_choice
+  date
+  number
+}
+
 enum UserRole {
   owner
   manager
@@ -155,7 +179,8 @@ model Tenant {
   id                 String    @id @default(uuid()) @db.Uuid
   name               String
   slug               String    @unique
-  plan               Plan      @default(basic)
+  plan               Plan         @default(basic)
+  businessType       BusinessType @default(beauty_center)
   whatsappNumber     String?
   whatsappApiToken   String?
   telegramBotToken   String?
@@ -185,7 +210,8 @@ model Tenant {
   tipEntries                  TipEntry[]
   tipDistributions            TipDistribution[]
   customerPhotos              CustomerPhoto[]
-  customerHairFormulas        CustomerHairFormula[]
+  anamnesisQuestions          AnamnesisQuestion[]
+  anamnesisAnswers            CustomerAnamnesisAnswer[]
   staffPayouts                StaffPayout[]
   suppliers                   Supplier[]
   stockMovements              StockMovement[]
@@ -268,7 +294,7 @@ model Customer {
   notificationLogs NotificationLog[]
   packages         CustomerPackage[]
   photos           CustomerPhoto[]
-  hairFormulas     CustomerHairFormula[]
+  anamnesisAnswers CustomerAnamnesisAnswer[]
   waitlistEntries  Waitlist[]
 
   @@unique([tenantId, phone])
@@ -672,23 +698,48 @@ model CustomerPhoto {
   @@map("customer_photos")
 }
 
-model CustomerHairFormula {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @db.Uuid
-  customerId   String   @db.Uuid
-  date         DateTime @default(now())
-  formula      String                                           // "3.65 + 6%, 30dk"
-  brand        String?                                          // "Schwarzkopf"
-  processTime  Int?                                             // dakika
-  result       String?                                          // sonuç notu
-  staffId      String?  @db.Uuid                                // kim uyguladı
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANAMNEZ / MÜŞTERİ HAKKINDA (Per-tenant dynamic questionnaire)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+model AnamnesisQuestion {
+  id          String                @id @default(uuid()) @db.Uuid
+  tenantId    String                @db.Uuid
+  label       String                                                          // "Kalp rahatsızlığınız var mı?"
+  type        AnamnesisQuestionType
+  options     Json?                                                           // ["Var", "Yok"] vb. choice tipleri için
+  helperText  String?                                                         // Açıklama / ipucu
+  isRequired  Boolean               @default(false)
+  isCustom    Boolean               @default(true)                            // false: seed edilen default
+  order       Int                   @default(0)
+  isActive    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
+  tenant  Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  answers CustomerAnamnesisAnswer[]
+
+  @@index([tenantId, order])
+  @@map("anamnesis_questions")
+}
+
+model CustomerAnamnesisAnswer {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  customerId String   @db.Uuid
+  questionId String   @db.Uuid
+  value      Json                                                              // tipine göre string|bool|string[]|number
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  question AnamnesisQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, questionId])
   @@index([tenantId])
-  @@index([customerId, date(sort: Desc)])
-  @@map("customer_hair_formulas")
+  @@index([customerId])
+  @@map("customer_anamnesis_answers")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

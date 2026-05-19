@@ -9,8 +9,9 @@ export interface ModuleDef {
   description: string
   category: ModuleCategory
   icon: string // lucide-react icon adı
-  href: (slug: string) => string
+  href: ((slug: string) => string) | null // null = sidebar'da görünmez; sadece feature toggle
   defaultEnabled: boolean
+  hiddenInSidebar?: boolean
 }
 
 export const MODULE_REGISTRY: ModuleDef[] = [
@@ -112,6 +113,26 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: 'Clock',
     href: (slug) => `/tenant/${slug}/waitlist`,
     defaultEnabled: true,
+  },
+  {
+    key: 'customer-anamnesis',
+    label: 'Müşteri Hakkında',
+    description: 'Anamnez / müşteri formu — diş hekimleri, estetik klinik, masaj gibi sektörler için.',
+    category: 'core',
+    icon: 'ClipboardList',
+    href: null,
+    defaultEnabled: true,
+    hiddenInSidebar: true,
+  },
+  {
+    key: 'customer-photos',
+    label: 'Müşteri Fotoğrafları',
+    description: 'Müşteri kartında öncesi/sonrası fotoğraf galerisi.',
+    category: 'core',
+    icon: 'Image',
+    href: null,
+    defaultEnabled: true,
+    hiddenInSidebar: true,
   },
   {
     key: 'settings',

@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
+import { Prisma, BusinessType } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import rateLimit from 'express-rate-limit'
 import { db } from '../lib/db'
@@ -706,7 +706,7 @@ export function createTenantRouter(): Router {
 
       const tenant = await db.tenant.findUnique({
         where: { id: tenantId },
-        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true, plan: true, trialEndsAt: true, isActive: true },
+        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true, plan: true, trialEndsAt: true, isActive: true, businessType: true },
       })
 
       if (!tenant) {
@@ -1151,7 +1151,7 @@ export function createTenantRouter(): Router {
       z.record(z.string(), z.object({ start: z.string(), end: z.string() }).nullable()),
     ]).optional(),
     onboardingCompleted: z.boolean().optional(),
-    businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
+    businessType: z.nativeEnum(BusinessType).optional(),
     followUpEnabled: z.boolean().optional(),
     botIntro: z.string().trim().max(500).optional(),
     botTone: z.enum(['formal', 'friendly', 'energetic']).optional(),
@@ -1186,10 +1186,10 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz alan değeri.' } })
       }
 
-      const { name, onboardingCompleted, ...settingsPatch } = parsed.data
+      const { name, onboardingCompleted, businessType, ...settingsPatch } = parsed.data
       const tenantId = req.tenantId!
 
-      const existing = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
+      const existing = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true, businessType: true } })
       if (!existing) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Tenant bulunamadı.' } })
       }
@@ -1204,10 +1204,21 @@ export function createTenantRouter(): Router {
         data: {
           ...(name ? { name } : {}),
           ...(onboardingCompleted !== undefined ? { onboardingCompleted } : {}),
+          ...(businessType ? { businessType } : {}),
           settings: mergedSettings,
         },
-        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true },
+        select: { id: true, name: true, slug: true, settings: true, onboardingCompleted: true, businessType: true },
       })
+
+      // BusinessType değiştiyse ve henüz hiç anamnez sorusu yoksa, yeni kategoriye göre seed et
+      if (businessType && businessType !== existing.businessType) {
+        try {
+          const { seedDefaultAnamnesisQuestions } = await import('../lib/anamnesis-seeder')
+          await seedDefaultAnamnesisQuestions(tenantId, businessType)
+        } catch (e) {
+          console.error('seedDefaultAnamnesisQuestions failed:', (e as Error).message)
+        }
+      }
 
       return res.json(updated)
     } catch (err) {
