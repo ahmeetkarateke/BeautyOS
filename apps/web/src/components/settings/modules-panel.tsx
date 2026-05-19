@@ -15,6 +15,7 @@ import {
   MODULE_TEMPLATES,
   MODULE_TEMPLATE_META,
   MODULE_CATEGORY_LABELS,
+  REQUIRED_MODULE_KEYS,
   resolveActiveModules,
   type ModuleCategory,
   type ModuleDef,
@@ -72,7 +73,12 @@ export function ModulesPanel({ tenantSlug }: { tenantSlug: string }) {
     return map
   }, [])
 
+  const requiredSet = useMemo(() => new Set(REQUIRED_MODULE_KEYS), [])
+
   const toggle = (key: string) => {
+    // Required modüller (dashboard, settings) kapatılamaz — kullanıcının
+    // ayarlardan geri açabilmesini garanti et.
+    if (requiredSet.has(key)) return
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
@@ -84,7 +90,10 @@ export function ModulesPanel({ tenantSlug }: { tenantSlug: string }) {
   const applyTemplate = (templateKey: string) => {
     const keys = MODULE_TEMPLATES[templateKey]
     if (!keys) return
-    setSelected(new Set(keys))
+    // Required modülleri her şablona zorla ekle
+    const merged = new Set<string>(keys)
+    for (const k of REQUIRED_MODULE_KEYS) merged.add(k)
+    setSelected(merged)
   }
 
   const isDirty = useMemo(() => {
@@ -139,22 +148,30 @@ export function ModulesPanel({ tenantSlug }: { tenantSlug: string }) {
                 <CardContent className="space-y-2">
                   {items.map((m) => {
                     const on = selected.has(m.key)
+                    const isRequired = requiredSet.has(m.key)
                     return (
                       <button
                         type="button"
                         key={m.key}
                         onClick={() => toggle(m.key)}
+                        disabled={isRequired}
                         className={cn(
                           'w-full flex items-start justify-between gap-4 p-3 rounded-md border text-left transition-colors',
+                          isRequired && 'opacity-70 cursor-not-allowed',
                           on
                             ? 'border-primary/40 bg-primary-50/40 dark:bg-primary/10'
                             : 'border-salon-border hover:bg-salon-bg dark:border-white/10 dark:hover:bg-white/5',
                         )}
+                        title={isRequired ? 'Bu modül devre dışı bırakılamaz' : undefined}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-gray-900 dark:text-white">{m.label}</span>
-                            {m.category === 'core' && (
+                            {isRequired ? (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                Zorunlu
+                              </span>
+                            ) : m.category === 'core' && (
                               <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                                 Önerilen
                               </span>

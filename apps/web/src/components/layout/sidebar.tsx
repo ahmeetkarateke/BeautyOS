@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut,
-  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins, ChevronDown,
+  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins, ChevronDown, Layers,
 } from 'lucide-react'
+import { ModulesDialog } from '@/components/settings/modules-dialog'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useThemeStore } from '@/store/theme'
@@ -116,6 +117,8 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
 
   const { activeModules } = useActiveModules(tenantSlug)
   const activeSet = new Set(activeModules)
+  const [modulesDialogOpen, setModulesDialogOpen] = useState(false)
+  const canManageModules = user?.role === 'owner' || user?.role === 'manager'
 
   // Açılır/kapanır grup state'i — localStorage ile persist
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -278,6 +281,21 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
 
       {/* Alt alan */}
       <div className="px-2 py-3 border-t border-salon-border dark:border-white/8 space-y-1">
+        {/* Modülleri Yönet — her zaman görünür, kullanıcı kilitli kalmasın */}
+        {canManageModules && (
+          <button
+            onClick={() => setModulesDialogOpen(true)}
+            title={!open ? 'Modülleri Yönet' : undefined}
+            className={cn(
+              'flex items-center gap-3 px-2.5 py-2.5 w-full rounded-md text-sm font-medium transition-colors touch-target text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white',
+              !open && 'justify-center',
+            )}
+          >
+            <Layers className="w-5 h-5 flex-shrink-0" />
+            {open && <span className="truncate">Modülleri Yönet</span>}
+          </button>
+        )}
+
         {/* Tema toggle */}
         <button
           onClick={toggle}
@@ -344,6 +362,12 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
           {open && 'Çıkış Yap'}
         </button>
       </div>
+
+      <ModulesDialog
+        open={modulesDialogOpen}
+        onOpenChange={setModulesDialogOpen}
+        tenantSlug={tenantSlug}
+      />
     </aside>
   )
 }
