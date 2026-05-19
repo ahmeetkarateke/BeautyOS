@@ -1,10 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut,
-  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins,
+  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -116,6 +117,24 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
   const { activeModules } = useActiveModules(tenantSlug)
   const activeSet = new Set(activeModules)
 
+  // Açılır/kapanır grup state'i — localStorage ile persist
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('beautyos_sidebar_collapsed')
+      if (raw) setCollapsed(JSON.parse(raw))
+    } catch { /* ignore */ }
+    setHydrated(true)
+  }, [])
+  function toggleGroup(label: string) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [label]: !prev[label] }
+      try { localStorage.setItem('beautyos_sidebar_collapsed', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
   // Aktif modüller + rol filtresi
   const visibleGroups: NavGroup[] = navGroups(tenantSlug)
     .map((g) => ({
@@ -156,40 +175,65 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
         )}
       </div>
 
-      {/* Nav — kategorize */}
+      {/* Nav — kategorize, accordion */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
-        {visibleGroups.map((group, gi) => (
-          <div key={group.label} className={cn(gi > 0 && 'mt-4')}>
-            {open && (
-              <p className="px-2.5 pb-1.5 text-[10px] font-semibold tracking-widest text-salon-muted/70 dark:text-white/30 uppercase">
-                {group.label}
-              </p>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const Icon = item.icon
-                const active = pathname === item.href || pathname.startsWith(item.href + '/')
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={!open ? item.label : undefined}
+        {visibleGroups.map((group, gi) => {
+          // Aktif sayfa içeren grubu otomatik açık tut (kullanıcı manuel kapatsa bile)
+          const hasActiveChild = group.items.some(
+            (item) => pathname === item.href || pathname.startsWith(item.href + '/'),
+          )
+          // Sidebar daraltılmışsa (icon-only) — başlık + chevron yerine sadece itemları göster
+          const isCollapsed = open && hydrated && !hasActiveChild && collapsed[group.label] === true
+          return (
+            <div key={group.label} className={cn(gi > 0 && 'mt-3')}>
+              {open ? (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.label)}
+                  className="w-full flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold tracking-widest text-salon-muted/70 dark:text-white/30 uppercase hover:text-salon-muted dark:hover:text-white/50 transition-colors"
+                  aria-expanded={!isCollapsed}
+                  aria-label={`${group.label} grubunu aç/kapa`}
+                >
+                  <span>{group.label}</span>
+                  <ChevronDown
                     className={cn(
-                      'flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors touch-target',
-                      open ? '' : 'justify-center',
-                      active
-                        ? 'bg-primary-50 text-primary dark:bg-primary/15 dark:text-primary'
-                        : 'text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white',
+                      'w-3.5 h-3.5 transition-transform duration-200',
+                      isCollapsed && '-rotate-90',
                     )}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    {open && <span className="truncate">{item.label}</span>}
-                  </Link>
-                )
-              })}
+                  />
+                </button>
+              ) : null}
+              <div
+                className={cn(
+                  'space-y-0.5 overflow-hidden transition-all duration-200',
+                  isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[600px] opacity-100 mt-0.5',
+                )}
+              >
+                {group.items.map((item) => {
+                  const Icon = item.icon
+                  const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={!open ? item.label : undefined}
+                      className={cn(
+                        'flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors touch-target',
+                        open ? '' : 'justify-center',
+                        active
+                          ? 'bg-primary-50 text-primary dark:bg-primary/15 dark:text-primary'
+                          : 'text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white',
+                      )}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      {open && <span className="truncate">{item.label}</span>}
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {/* Ayarlar — alt blok */}
         {showSettings && (
