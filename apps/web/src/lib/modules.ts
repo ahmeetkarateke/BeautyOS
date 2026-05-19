@@ -1,7 +1,7 @@
 // Modüler aktivasyon sistemi — frontend kaynağı.
 // apps/api/src/lib/modules.ts içindeki MODULE_KEYS ile senkron tutulmalıdır.
 
-export type ModuleCategory = 'core' | 'finance' | 'staff' | 'inventory' | 'automation' | 'marketing'
+export type ModuleCategory = 'core' | 'customer' | 'finance' | 'staff' | 'inventory' | 'automation' | 'marketing'
 
 export interface ModuleDef {
   key: string
@@ -118,7 +118,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     key: 'customer-anamnesis',
     label: 'Müşteri Hakkında',
     description: 'Anamnez / müşteri formu — diş hekimleri, estetik klinik, masaj gibi sektörler için.',
-    category: 'core',
+    category: 'customer',
     icon: 'ClipboardList',
     href: null,
     defaultEnabled: true,
@@ -128,7 +128,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     key: 'customer-photos',
     label: 'Müşteri Fotoğrafları',
     description: 'Müşteri kartında öncesi/sonrası fotoğraf galerisi.',
-    category: 'core',
+    category: 'customer',
     icon: 'Image',
     href: null,
     defaultEnabled: true,
@@ -163,6 +163,7 @@ export const MODULE_TEMPLATE_META: Array<{ key: keyof typeof MODULE_TEMPLATES; l
 
 export const MODULE_CATEGORY_LABELS: Record<ModuleCategory, string> = {
   core: 'Temel',
+  customer: 'Müşteri',
   finance: 'Finans',
   staff: 'Personel',
   inventory: 'Stok',
