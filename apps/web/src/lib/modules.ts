@@ -11,20 +11,17 @@ export interface ModuleDef {
   icon: string // lucide-react icon adı
   href: (slug: string) => string
   defaultEnabled: boolean
-  /** Devre dışı bırakılamaz — kullanıcının "kilitli kalma" tuzağına düşmesini engeller. */
-  required?: boolean
 }
 
 export const MODULE_REGISTRY: ModuleDef[] = [
   {
     key: 'dashboard',
     label: 'Dashboard',
-    description: 'Günlük özet, randevular ve hızlı erişim. (Devre dışı bırakılamaz)',
+    description: 'Günlük özet, randevular ve hızlı erişim.',
     category: 'core',
     icon: 'LayoutDashboard',
     href: (slug) => `/tenant/${slug}/dashboard`,
     defaultEnabled: true,
-    required: true,
   },
   {
     key: 'appointments',
@@ -119,12 +116,11 @@ export const MODULE_REGISTRY: ModuleDef[] = [
   {
     key: 'settings',
     label: 'Ayarlar',
-    description: 'Salon profili, hesap ve modüller. (Devre dışı bırakılamaz)',
+    description: 'Salon profili, hesap ve modüller.',
     category: 'core',
     icon: 'Settings',
     href: (slug) => `/tenant/${slug}/settings`,
     defaultEnabled: true,
-    required: true,
   },
 ]
 
@@ -153,23 +149,15 @@ export const MODULE_CATEGORY_LABELS: Record<ModuleCategory, string> = {
   marketing: 'Pazarlama',
 }
 
-export const REQUIRED_MODULE_KEYS: string[] = MODULE_REGISTRY.filter((m) => m.required).map((m) => m.key)
-
 /**
  * Verilen activeModules değerini normalize eder.
- * - Boş/eksik ise tüm modüller aktif kabul edilir (mevcut tenant'lar bozulmasın).
- * - Required modüller (dashboard, settings) her zaman aktif olarak eklenir.
+ * Boş/eksik ise tüm modüller aktif kabul edilir (mevcut tenant'lar bozulmasın).
  */
 export function resolveActiveModules(activeModules: unknown): string[] {
-  let base: string[]
   if (!Array.isArray(activeModules) || activeModules.length === 0) {
-    base = [...MODULE_KEYS]
-  } else {
-    const filtered = activeModules.filter((k): k is string => typeof k === 'string' && MODULE_KEYS.includes(k))
-    base = filtered.length === 0 ? [...MODULE_KEYS] : filtered
+    return [...MODULE_KEYS]
   }
-  // Required modülleri zorla ekle
-  const set = new Set(base)
-  for (const k of REQUIRED_MODULE_KEYS) set.add(k)
-  return MODULE_KEYS.filter((k) => set.has(k))
+  const filtered = activeModules.filter((k): k is string => typeof k === 'string' && MODULE_KEYS.includes(k))
+  if (filtered.length === 0) return [...MODULE_KEYS]
+  return filtered
 }

@@ -5,12 +5,11 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Calendar, Users, Clock, Menu, X, LogOut,
-  Sparkles, UserCog, Banknote, MessageSquare, Wallet, Package, Boxes, HandCoins, Settings, Scissors, Layers,
+  Sparkles, UserCog, Banknote, MessageSquare, Wallet, Package, Boxes, HandCoins, Settings, Scissors,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useActiveModules } from '@/hooks/use-active-modules'
-import { ModulesDialog } from '@/components/settings/modules-dialog'
 
 interface MobileNavProps {
   tenantSlug: string
@@ -92,8 +91,6 @@ export function MobileNav({ tenantSlug }: MobileNavProps) {
   const { activeModules } = useActiveModules(tenantSlug)
   const activeSet = new Set(activeModules)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [modulesDialogOpen, setModulesDialogOpen] = useState(false)
-  const canManageModules = user?.role === 'owner' || user?.role === 'manager'
 
   // Drawer açıkken body scroll engelle
   useEffect(() => {
@@ -243,15 +240,6 @@ export function MobileNav({ tenantSlug }: MobileNavProps) {
 
         {/* Drawer footer — kullanıcı + çıkış */}
         <div className="border-t border-salon-border dark:border-white/8 px-3 py-3 space-y-1 flex-shrink-0">
-          {canManageModules && (
-            <button
-              onClick={() => { setDrawerOpen(false); setModulesDialogOpen(true) }}
-              className="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-md text-sm font-medium text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white transition-colors touch-target"
-            >
-              <Layers className="w-5 h-5 flex-shrink-0" />
-              <span>Modülleri Yönet</span>
-            </button>
-          )}
           <div className="flex items-center gap-3 px-2.5 py-2">
             <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary/20 flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-semibold text-primary">
@@ -272,12 +260,6 @@ export function MobileNav({ tenantSlug }: MobileNavProps) {
           </button>
         </div>
       </aside>
-
-      <ModulesDialog
-        open={modulesDialogOpen}
-        onOpenChange={setModulesDialogOpen}
-        tenantSlug={tenantSlug}
-      />
     </>
   )
 }

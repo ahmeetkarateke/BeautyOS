@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Building2, Lock, Check, Plug, Plus, X, RotateCcw, Bot, Layers } from 'lucide-react'
-import { ModulesDialog } from '@/components/settings/modules-dialog'
+import { ModulesPanel } from '@/components/settings/modules-panel'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +52,7 @@ const BOT_FEATURES_ENABLED = process.env.NEXT_PUBLIC_BOT_FEATURES_ENABLED === 't
 
 const tabs = [
   { id: 'salon', label: 'Salon Profili', icon: Building2 },
+  { id: 'modules', label: 'Modüller', icon: Layers },
   { id: 'account', label: 'Hesabım', icon: Lock },
   ...(BOT_FEATURES_ENABLED
     ? [
@@ -896,17 +897,12 @@ function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type TabId = 'salon' | 'account' | 'integrations' | 'bot'
+type TabId = 'salon' | 'modules' | 'account' | 'integrations' | 'bot'
 
 export default function SettingsPage({ params }: PageProps) {
   const searchParams = useSearchParams()
   const initialTab = (searchParams?.get('tab') as TabId | null) ?? 'salon'
-  const [activeTab, setActiveTab] = useState<TabId>(
-    initialTab === 'salon' || initialTab === 'account' || initialTab === 'integrations' || initialTab === 'bot'
-      ? initialTab
-      : 'salon',
-  )
-  const [modulesOpen, setModulesOpen] = useState(searchParams?.get('tab') === 'modules')
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab)
   const user = useAuthStore((s) => s.user)
   const router = useRouter()
 
@@ -916,15 +912,9 @@ export default function SettingsPage({ params }: PageProps) {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Ayarlar</h1>
-          <p className="text-sm text-salon-muted mt-1">Salon ve hesap ayarlarınızı yönetin</p>
-        </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setModulesOpen(true)}>
-          <Layers className="w-4 h-4" />
-          Modülleri Yönet
-        </Button>
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">Ayarlar</h1>
+        <p className="text-sm text-salon-muted mt-1">Salon ve hesap ayarlarınızı yönetin</p>
       </div>
 
       {/* Tab nav */}
@@ -961,6 +951,12 @@ export default function SettingsPage({ params }: PageProps) {
           </Card>
         </div>
       )}
+      {activeTab === 'modules' && (
+        <Card>
+          <CardHeader><CardTitle>Aktif Modüller</CardTitle></CardHeader>
+          <CardContent><ModulesPanel tenantSlug={params.slug} /></CardContent>
+        </Card>
+      )}
       {activeTab === 'account' && (
         <Card>
           <CardHeader><CardTitle>Şifre Değiştir</CardTitle></CardHeader>
@@ -979,8 +975,6 @@ export default function SettingsPage({ params }: PageProps) {
           <CardContent><BotSettingsForm tenantSlug={params.slug} /></CardContent>
         </Card>
       )}
-
-      <ModulesDialog open={modulesOpen} onOpenChange={setModulesOpen} tenantSlug={params.slug} />
     </div>
   )
 }
