@@ -57,22 +57,23 @@ export function LandingHero() {
           >
             Salon ve klinikler için{' '}
             <span className="relative inline-block" style={{ color: '#D67D78' }}>
-              bütünleşik
+              kişiselleştirilebilir
               <svg
                 aria-hidden
-                viewBox="0 0 320 14"
+                viewBox="0 0 640 14"
+                preserveAspectRatio="none"
                 className="absolute left-0 -bottom-2 w-full"
                 style={{ height: '0.5em' }}
               >
                 <motion.path
-                  d="M 4 9 Q 80 2 160 7 T 316 6"
+                  d="M 4 9 Q 160 2 320 7 T 636 6"
                   fill="none"
                   stroke="#E89B96"
                   strokeWidth="3"
                   strokeLinecap="round"
                   initial={{ pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 0.9, ease: EASE_REVEAL, delay: 0.55 }}
+                  transition={{ duration: 1.0, ease: EASE_REVEAL, delay: 0.55 }}
                 />
               </svg>
             </span>{' '}
