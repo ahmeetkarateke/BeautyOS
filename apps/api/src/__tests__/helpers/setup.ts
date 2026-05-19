@@ -154,7 +154,26 @@ export async function cleanupTenant(tenantId: string) {
     )
   }
 
+  // Cleanup tüm CASCADE-bağlı child tabloları siler. Yeni model eklendikçe
+  // buraya da eklenmeli — yoksa tenant.delete FK constraint hatası verir
+  // ve önceki user.deleteMany çalışmış olur → orphan'lar.
   try {
+    // Yeni modüller (CASCADE bağımlı child kayıtlar)
+    await db.packageUsage.deleteMany({ where: { tenantId } })
+    await db.customerPackage.deleteMany({ where: { tenantId } })
+    await db.servicePackage.deleteMany({ where: { tenantId } })
+    await db.tipDistribution.deleteMany({ where: { tenantId } })
+    await db.tipEntry.deleteMany({ where: { tenantId } })
+    await db.customerPhoto.deleteMany({ where: { tenantId } })
+    await db.customerHairFormula.deleteMany({ where: { tenantId } })
+    await db.staffPayout.deleteMany({ where: { tenantId } })
+    await db.stockMovement.deleteMany({ where: { tenantId } })
+    await db.serviceInventoryRecipe.deleteMany({ where: { tenantId } })
+    await db.supplier.deleteMany({ where: { tenantId } })
+    await db.waitlist.deleteMany({ where: { tenantId } })
+    await db.activityLog.deleteMany({ where: { tenantId } })
+
+    // Mevcut child'lar
     await db.notificationLog.deleteMany({ where: { tenantId } })
     await db.transaction.deleteMany({ where: { tenantId } })
     await db.appointment.deleteMany({ where: { tenantId } })
@@ -165,7 +184,9 @@ export async function cleanupTenant(tenantId: string) {
     await db.user.deleteMany({ where: { tenantId } })
     await db.service.deleteMany({ where: { tenantId } })
     await db.tenant.delete({ where: { id: tenantId } })
-  } catch {
-    // best-effort cleanup
+  } catch (e) {
+    // best-effort cleanup — ama logla ki gelecekte FK hatası gözden kaçmasın
+    // eslint-disable-next-line no-console
+    console.error('cleanupTenant failed (may leave orphans):', (e as Error).message)
   }
 }
