@@ -7,17 +7,17 @@ import {
 } from 'lucide-react'
 
 const SECTORS = [
-  { icon: Stethoscope,   label: 'Diş Hekimliği Klinikleri',     hint: 'Anamnez yönetimi ve KVKK uyumlu hasta dosyaları' },
-  { icon: Sparkles,      label: 'Estetik Klinikler',            hint: 'Görsel arşiv, paket satışı ve depozito takibi' },
-  { icon: Heart,         label: 'Güzellik Merkezleri',          hint: 'Müşteri geçmişi ve seans yönetimi' },
-  { icon: Scissors,      label: 'Kuaför Salonları',             hint: 'Müşteri sadakati ve randevu yönetimi' },
-  { icon: Activity,      label: 'Berber Salonları',             hint: 'Sıra düzeni ve günlük kasa takibi' },
-  { icon: Bath,          label: 'Spa ve Wellness Merkezleri',   hint: 'Oda ve uygulayıcı bazlı takvim' },
-  { icon: Hand,          label: 'Tırnak Stüdyoları',            hint: 'Tasarım arşivi ve müşteri tercihleri' },
-  { icon: Droplets,      label: 'Masaj Merkezleri',             hint: 'Uygulayıcı ataması ve paket takibi' },
-  { icon: Anchor,        label: 'Dövme ve Piercing Stüdyoları', hint: 'Tasarım onayı ve depozito süreçleri' },
-  { icon: FlaskConical,  label: 'Saç Ekim Merkezleri',          hint: 'Operasyon dosyası ve kontrol takvimi' },
-  { icon: Grid3X3,       label: 'Diğer Hizmet İşletmeleri',     hint: 'Hizmet bazlı tüm randevulu işletmeler' },
+  { icon: Stethoscope,   label: 'Diş Hekimliği',       hint: 'Anamnez ve hasta dosyası' },
+  { icon: Sparkles,      label: 'Estetik Klinik',      hint: 'Görsel arşiv ve paket' },
+  { icon: Heart,         label: 'Güzellik Merkezi',    hint: 'Cilt geçmişi ve seans' },
+  { icon: Scissors,      label: 'Kuaför',              hint: 'Hızlı randevu ve sadakat' },
+  { icon: Activity,      label: 'Berber',              hint: 'Sıra ve günlük kasa' },
+  { icon: Bath,          label: 'Spa & Wellness',      hint: 'Oda ve uygulayıcı takvimi' },
+  { icon: Hand,          label: 'Nail Stüdyo',         hint: 'Tasarım arşivi ve tercih' },
+  { icon: Droplets,      label: 'Masaj Salonu',        hint: 'Uygulayıcı ve paket' },
+  { icon: Anchor,        label: 'Dövme & Piercing',    hint: 'Tasarım onayı ve depozito' },
+  { icon: FlaskConical,  label: 'Saç Ekim Merkezi',    hint: 'Operasyon ve kontrol' },
+  { icon: Grid3X3,       label: 'Diğer Sektörler',     hint: 'Hizmet bazlı her işletme' },
 ]
 
 export function LandingSectors() {
@@ -32,7 +32,7 @@ export function LandingSectors() {
           className="max-w-2xl mb-12 sm:mb-16"
         >
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: '#6B48FF' }}>
-            Sektörel uzmanlaşma
+            Sektörler
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -43,12 +43,11 @@ export function LandingSectors() {
               fontWeight: 560,
             }}
           >
-            İşletmenizin sektörüne özel yapılandırılmış yönetim deneyimi.
+            Birçok sektör için kişiselleştirilebilir.
           </h2>
           <p className="mt-4 text-[16px] leading-[1.6]" style={{ color: 'rgba(31,62,71,0.65)', maxWidth: '54ch' }}>
-            Kurulum sırasında sektörünüzü seçtiğinizde anamnez formları, hizmet kategorileri ve
-            raporlama yapıları sektörünüze uygun şekilde otomatik olarak yapılandırılır. Tüm
-            parametreler ihtiyaçlarınıza göre özelleştirilebilir.
+            Sektörünüzü seçin — anamnez, hizmetler ve raporlar otomatik gelir.
+            Sonra istediğiniz gibi özelleştirin.
           </p>
         </motion.div>
 

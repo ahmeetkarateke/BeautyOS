@@ -26,7 +26,7 @@ export function LandingFinalCTA() {
           />
 
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-4" style={{ color: '#D67D78' }}>
-            Ücretsiz denemeye başlayın
+            Hemen başlayın
           </p>
 
           <h2
@@ -38,18 +38,15 @@ export function LandingFinalCTA() {
               fontWeight: 560,
             }}
           >
-            Platformumuzu{' '}
-            <span style={{ color: '#D67D78' }}>30 gün boyunca</span>{' '}
-            ücretsiz deneyimleyin.
+            <span style={{ color: '#D67D78' }}>30 gün</span>{' '}
+            ücretsiz deneyin.
           </h2>
 
           <p
             className="mt-6 text-[17px] sm:text-[18px] leading-[1.55] max-w-xl mx-auto"
             style={{ color: 'rgba(31,62,71,0.65)' }}
           >
-            Hesap oluşturmak için yalnızca e-posta adresi ve işletme bilgileri yeterlidir.
-            Kredi kartı bilgisi talep edilmez, cayma bedeli ve uzun vadeli taahhüt bulunmaz.
-            Verilerinizi istediğiniz zaman dışa aktarabilirsiniz.
+            Kredi kartı gerekmez. Taahhüt yok. İstediğiniz zaman iptal edebilirsiniz.
           </p>
 
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">

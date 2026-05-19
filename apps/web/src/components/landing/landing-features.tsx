@@ -9,79 +9,79 @@ import {
 const FEATURES = [
   {
     number: '01',
-    title: 'Merkezi randevu yönetim sistemi',
-    eyebrow: 'Randevu Yönetimi',
+    title: 'Akıllı randevu yönetimi',
+    eyebrow: 'Randevu',
     body:
-      'Personel takvimleri tek bir ekranda görüntülenir; çakışmalar otomatik olarak engellenir. Sürükle-bırak yöntemiyle randevular yeniden düzenlenebilir. Koltuk, oda ve cihaz gibi kaynakların müsaitlik durumu eş zamanlı takip edilir.',
+      'Tüm personel takvimi tek ekranda. Yapay zeka çakışma riskini tespit eder, sürükle-bırak ile saniyeler içinde yeniden planlanır.',
     bullets: [
-      'Personel bazlı renk kodlu takvim görünümü',
-      'Sürükle-bırak ile randevu yeniden planlama',
-      'Kaynak çakışma tespiti ve önleme',
+      'Renk kodlu personel takvimi',
+      'Yapay zeka destekli çakışma kontrolü',
+      'Koltuk, oda ve cihaz takibi',
     ],
     Visual: VisualCalendar,
   },
   {
     number: '02',
-    title: 'Müşteri kayıt ve klinik anamnez sistemi',
-    eyebrow: 'Müşteri Kartı + Anamnez',
+    title: 'Kişiselleştirilebilir müşteri kartı',
+    eyebrow: 'Müşteri & Anamnez',
     body:
-      'Müşterilere ait işlem geçmişi, alerji bilgileri, tercih notları ve görseller dijital olarak arşivlenir. Sektöre özel anamnez formları diş hekimliği, estetik, masaj ve güzellik merkezleri için önceden tanımlanmış soru setleri ile sunulur.',
+      'Geçmiş işlem, alerji, fotoğraf ve klinik anamnez tek yerde. Sektörünüze göre özelleştirilebilir form şablonları hazır gelir.',
     bullets: [
-      '11 sektör için hazırlanmış anamnez şablonları',
-      'Görsel arşivi ile öncesi ve sonrası takibi',
-      'Alerji ve tercih bilgilerinin sistematik kaydı',
+      'Birçok sektör için hazır anamnez şablonu',
+      'Sınırsız özel soru ekleme',
+      'Öncesi/sonrası görsel arşivi',
     ],
     Visual: VisualCustomer,
   },
   {
     number: '03',
-    title: 'Online rezervasyon ve müşteri portalı',
+    title: 'Online rezervasyon sayfası',
     eyebrow: 'Çevrim İçi Rezervasyon',
     body:
-      'İşletmenize özel markalı rezervasyon sayfası; sosyal medya bağlantılarınızda, Google işletme profilinizde ve QR kodlarda kullanılabilir. Müşteriler uygun saatleri görüntüleyerek randevu oluşturur; sistem onay ve hatırlatma süreçlerini otomatik yürütür.',
+      'Markalı rezervasyon linkiniz Instagram bio, Google profil ve QR kodlarda kullanılabilir. Onay ve hatırlatma otomatik.',
     bullets: [
-      'İşletmeye özel rezervasyon sayfası',
-      'Otomatik onay ve hatırlatma süreçleri',
-      'İsteğe bağlı depozito ile rezervasyon güvencesi',
+      'İşletmeye özel marka sayfası',
+      'Otomatik onay ve hatırlatma',
+      'Opsiyonel depozito ile no-show koruması',
     ],
     Visual: VisualBooking,
   },
   {
     number: '04',
-    title: 'Paket satışı, bahşiş ve cari hesap takibi',
+    title: 'Paket, bahşiş ve cari hesap',
     eyebrow: 'Finansal Operasyon',
     body:
-      'Çoklu seanslı paketlerin satışı ve kalan bakiye takibi otomatik gerçekleştirilir. Müşteri ve tedarikçi cari hesapları detaylı ekstre üzerinden izlenebilir; bahşiş kasası personel bazında şeffaf biçimde dağıtılır.',
+      'Çoklu seans paketleri, bahşiş kasası ve müşteri-tedarikçi cari ekstresi entegre çalışır. Tek tıkla raporlanır.',
     bullets: [
-      'Çoklu seanslı paket abonelik yönetimi',
-      'Bahşiş kasası ve personel bazlı dağıtım',
-      'Müşteri ve tedarikçi cari hesap takibi',
+      'Çoklu seans paketleri',
+      'Bahşiş kasası ve adil dağıtım',
+      'Müşteri ve tedarikçi cari takibi',
     ],
     Visual: VisualPackage,
   },
   {
     number: '05',
-    title: 'Personel ve komisyon yönetimi',
+    title: 'Personel ve komisyon',
     eyebrow: 'İnsan Kaynakları',
     body:
-      'Personellerin gerçekleştirdiği işlemler, hak edilen komisyonlar ve izinler sistem tarafından otomatik hesaplanır. Esnek komisyon kuralları (yüzde, sabit tutar, hizmet bazlı) tanımlanabilir; aylık ödeme raporları tek tıkla hazırlanır.',
+      'Komisyon kuralları kişiselleştirilebilir: yüzde, sabit veya hizmet bazlı. Hak ediş ve raporlar otomatik hesaplanır.',
     bullets: [
-      'Esnek komisyon yapılandırması',
-      'Personel performans göstergeleri',
-      'İzin ve mesai takip altyapısı',
+      'Esnek komisyon kuralları',
+      'Personel performans karnesi',
+      'İzin ve mesai yönetimi',
     ],
     Visual: VisualStaff,
   },
   {
     number: '06',
-    title: 'Entegre finans ve muhasebe modülü',
+    title: 'Entegre finans yönetimi',
     eyebrow: 'Finans',
     body:
-      'Banka hesapları, kasa, POS işlemleri, alış faturaları ve tedarikçi carileri birbirine entegre çalışır. Alış faturası oluşturulduğunda stok girişleri ve cari hesap kayıtları otomatik güncellenir; mali müşavir için raporlar hazır biçimde sunulur.',
+      'Kasa, banka, POS ve alış faturaları birbirine bağlı. Fatura kesildiğinde stok ve cari otomatik güncellenir.',
     bullets: [
-      'Otomatik stok ve cari hesap entegrasyonu',
-      'Banka ve kasa arası virman işlemleri',
-      'Mali müşavir uyumlu finansal raporlama',
+      'Otomatik stok ve cari entegrasyonu',
+      'Banka-kasa virmanı',
+      'Mali müşavir uyumlu raporlar',
     ],
     Visual: VisualFinance,
   },
@@ -100,7 +100,7 @@ export function LandingFeatures() {
           className="max-w-2xl mb-16 sm:mb-24"
         >
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: '#6B48FF' }}>
-            Çözüm modülleri
+            Çözümler
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -111,7 +111,7 @@ export function LandingFeatures() {
               fontWeight: 560,
             }}
           >
-            İşletmenizin tüm operasyonel süreçleri için bütünleşik altı modül.
+            Salonunuza göre kişiselleştirilebilir, yapay zeka destekli altı modül.
           </h2>
         </motion.div>
 

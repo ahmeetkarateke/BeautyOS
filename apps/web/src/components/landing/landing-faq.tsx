@@ -6,36 +6,36 @@ import { Plus, Minus } from 'lucide-react'
 
 const FAQS = [
   {
-    q: 'Ücretsiz deneme için kredi kartı bilgisi gerekli midir?',
-    a: 'Hayır. Hesap oluşturmak için yalnızca e-posta adresi ve işletme adı yeterlidir. 30 günlük deneme süresinin sonunda abone olmak isterseniz fatura bilgilerinizi tarafımıza iletmeniz gerekmektedir. Abonelik tercih edilmediği takdirde hesap otomatik olarak askıya alınır; herhangi bir ödeme tahsil edilmez.',
+    q: 'Kredi kartı gerekiyor mu?',
+    a: 'Hayır. E-posta ve işletme adı yeterli. 30 günün sonunda devam etmek istemezseniz hesap kendiliğinden kapanır.',
   },
   {
-    q: 'Veriler nerede saklanır ve veri güvenliği nasıl sağlanır?',
-    a: 'Tüm veriler AWS Avrupa bölgesinde, KVKK uyumlu sunucularda uçtan uca şifreli olarak saklanmaktadır. Verilere yalnızca yetkilendirilen kullanıcılar erişebilir. Sözleşmenizin sonlanması durumunda tüm verilerinizi standart formatlarda (Excel, CSV) dışa aktarabilirsiniz.',
+    q: 'Veriler nerede saklanıyor?',
+    a: 'AWS Avrupa bölgesinde, KVKK uyumlu sunucularda şifreli olarak saklanır. İstediğiniz zaman Excel/CSV olarak dışa aktarabilirsiniz.',
   },
   {
-    q: 'İnternet bağlantısı kesildiğinde sistem nasıl davranır?',
-    a: 'Platform mobil veri bağlantısı üzerinden çalışmaya devam eder. İnternet bağlantısı tamamen kesilse dahi son görüntülenen randevu bilgilerine erişim mümkündür. Bağlantı yeniden sağlandığında veriler otomatik olarak senkronize edilir. Müşteri kayıtları ve finansal veriler hiçbir koşulda kaybolmaz.',
+    q: 'Yapay zeka neyi yapıyor?',
+    a: 'Randevu çakışmalarını öngörür, müşteri segmentasyonunu otomatikleştirir ve operasyon önerileri sunar. Tüm özellikler arttırılarak geliştirilmektedir.',
   },
   {
-    q: 'Mevcut yönetim sistemimden veri aktarımı mümkün müdür?',
-    a: 'Excel dosyalarınızı, fiziksel defter görüntülerinizi veya diğer yazılımlardan dışa aktarılmış verileri tarafımıza iletebilirsiniz. İlk hafta içinde veri taşıma hizmeti ücretsiz olarak sağlanmaktadır. Mevcut tüm randevu ve müşteri kayıtlarınız sisteme aktarılır.',
+    q: 'Sektörüme göre kişiselleştirme nasıl?',
+    a: 'Onboarding\'de sektörünüzü seçin — anamnez soruları, hizmet kategorileri ve raporlar otomatik gelir. Her şey sonradan özelleştirilebilir.',
   },
   {
-    q: 'Personel yetkileri nasıl yapılandırılır?',
-    a: 'Her personel için ayrı yetki seviyeleri tanımlanabilir. Bazı personeller yalnızca kendi randevu takvimini, diğerleri ise tüm işletme bilgilerini görüntüleyebilir. Personel ayrılması durumunda erişim hakları yönetim panelinden anında iptal edilebilir.',
+    q: 'İnternet kesilirse ne olur?',
+    a: 'Mobil veriyle çalışır. Tamamen kesilse bile son ekran görünür, bağlantı geldiğinde otomatik senkronize olur.',
   },
   {
-    q: 'Online rezervasyon sayfası arama motorlarında görünür mü?',
-    a: 'Evet. Her işletmeye özel oluşturulan rezervasyon sayfası (/book/[işletme-adı] formatında) arama motoru optimizasyonuna uygun yapılandırılmıştır. Bu bağlantıyı sosyal medya profillerinizde, Google İşletme sayfanızda veya QR kodlar aracılığıyla müşterilerinizle paylaşabilirsiniz.',
+    q: 'Mevcut verilerimi taşıyabilir miyim?',
+    a: 'Evet. Excel, defter fotoğrafı veya başka sistemden dışa aktarımı gönderin — ilk hafta ücretsiz biz aktarıyoruz.',
   },
   {
-    q: 'Abonelik ücreti ileride değişecek midir?',
-    a: 'Kurucu üye programı kapsamında abone olan ilk 50 işletme için aylık ₺499 tarifesi sözleşme süresince sabit kalmaktadır. Standart fiyatlandırma güncellense dahi kurucu üyelerin aboneliği aynı ücret üzerinden devam eder.',
+    q: 'Fiyat ileride artar mı?',
+    a: 'Kurucu üyelerde asla. İlk 50 işletmeye ömür boyu ₺499 sözü veriyoruz.',
   },
   {
-    q: 'Aboneliği iptal etmek isterseniz süreç nasıl işler?',
-    a: 'Abonelik iptali yönetim paneli üzerinden tek bir işlemle gerçekleştirilebilir. Cayma bedeli, uzun vadeli taahhüt veya cezai şart uygulanmamaktadır. İptal işleminden önce tüm verilerinizi dışa aktarabilir, ardından hesabınızı kapatabilirsiniz.',
+    q: 'Aboneliği nasıl iptal ederim?',
+    a: 'Panelden tek tıkla. Cayma bedeli, taahhüt yok. Verilerinizi indirip hesabı kapatırsınız.',
   },
 ]
 

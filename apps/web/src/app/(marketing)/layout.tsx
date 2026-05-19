@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   description:
     'Randevu, müşteri kartı, anamnez, paket, personel komisyonu, kasa ve cari hesap — tek panelde. Türk salonları için ₺499/ay, 30 gün ücretsiz.',
   openGraph: {
-    title: 'BeautyOS — Salonunuz, akıllı çalışsın',
-    description: 'Türkiye salonları için modern yönetim sistemi. 11 sektör, 30 gün ücretsiz deneme.',
+    title: 'BeautyOS — Kişiselleştirilebilir, yapay zeka destekli yönetim platformu',
+    description: 'Salon, klinik ve güzellik merkezleri için tek panel. Birçok sektör, 30 gün ücretsiz.',
     type: 'website',
     locale: 'tr_TR',
   },

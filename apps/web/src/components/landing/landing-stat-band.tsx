@@ -3,10 +3,10 @@
 import { motion } from 'framer-motion'
 
 const STATS = [
-  { value: '30', unit: 'gün', label: 'Ücretsiz deneme süresi' },
-  { value: '11', unit: 'sektör', label: 'Sektöre özel yapılandırma' },
-  { value: '₺499', unit: '/ ay', label: 'Tek fiyat, ek ücret yoktur' },
-  { value: '0', unit: '₺', label: 'Cayma bedeli bulunmamaktadır' },
+  { value: '30', unit: 'gün',  label: 'Ücretsiz deneme' },
+  { value: 'AI', unit: '',     label: 'Yapay zeka destekli' },
+  { value: '100%', unit: '',   label: 'Kişiselleştirilebilir' },
+  { value: '₺499', unit: '/ ay', label: 'Tek fiyat' },
 ]
 
 export function LandingStatBand() {

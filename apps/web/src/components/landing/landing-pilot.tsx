@@ -61,9 +61,7 @@ export function LandingPilot() {
                 className="mt-5 text-[16px] sm:text-[17px] leading-[1.6] max-w-xl"
                 style={{ color: 'rgba(255,255,255,0.72)' }}
               >
-                Kurucu üye programı kapsamında platformumuza katılan ilk 50 işletme için aylık
-                ₺499 fiyatı sözleşme süresi boyunca sabit kalır. Platform geliştikçe ve standart
-                fiyatlandırma güncellense dahi kurucu üyelerin aboneliği aynı tarifede devam eder.
+                İlk 50 işletme için ₺499 ömür boyu sabit. Fiyatlar yükselse bile siz aynı tarifedesiniz.
               </p>
 
               <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -122,7 +120,7 @@ export function LandingPilot() {
                 />
               </div>
               <p className="mt-4 text-[12px] leading-[1.5]" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                8 işletme programa dâhil olmuştur. Kontenjan tamamlandığında yeni abonelikler güncel fiyatlandırma üzerinden değerlendirilir.
+                Kontenjan tamamlandığında program kapanır.
               </p>
             </div>
           </div>

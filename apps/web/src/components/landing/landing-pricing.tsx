@@ -5,14 +5,14 @@ import { motion } from 'framer-motion'
 import { Check, Sparkles, ArrowRight } from 'lucide-react'
 
 const INCLUDED = [
-  'Sınırsız randevu ve müşteri kaydı',
-  'Tüm modüllere erişim (paket, anamnez, görsel arşiv, finans)',
-  'Online rezervasyon sayfası ve depozito sistemi',
-  'Sınırsız personel ve kullanıcı tanımlama',
-  'Cari hesap, banka entegrasyonu ve alış faturası yönetimi',
-  'Türkçe müşteri desteği ve uygulama içi yardım merkezi',
-  'KVKK uyumlu altyapı ve günlük otomatik yedekleme',
-  'İlk haftada ücretsiz veri taşıma hizmeti',
+  'Sınırsız randevu ve müşteri',
+  'Tüm modüllere tam erişim',
+  'Yapay zeka destekli iş akışları',
+  'Online rezervasyon ve depozito',
+  'Sınırsız personel ve kullanıcı',
+  'Cari, banka, alış faturası',
+  'Türkçe müşteri desteği',
+  'Ücretsiz veri taşıma',
 ]
 
 export function LandingPricing() {
@@ -38,10 +38,10 @@ export function LandingPricing() {
               fontWeight: 560,
             }}
           >
-            Tek planla tüm modüllere tam erişim.
+            Tek plan, tüm özellikler.
           </h2>
           <p className="mt-4 text-[16px]" style={{ color: 'rgba(31,62,71,0.6)' }}>
-            Sabit aylık ücret. Uzun vadeli taahhüt ve cayma bedeli bulunmamaktadır.
+            Sabit aylık ücret. Taahhüt ve cayma bedeli yok.
           </p>
         </motion.div>
 

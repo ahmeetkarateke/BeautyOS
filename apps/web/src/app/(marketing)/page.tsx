@@ -1,7 +1,6 @@
 import { LandingNav } from '@/components/landing/landing-nav'
 import { LandingHero } from '@/components/landing/landing-hero'
 import { LandingStatBand } from '@/components/landing/landing-stat-band'
-import { LandingProblem } from '@/components/landing/landing-problem'
 import { LandingFeatures } from '@/components/landing/landing-features'
 import { LandingSectors } from '@/components/landing/landing-sectors'
 import { LandingTrustBand } from '@/components/landing/landing-trust-band'
@@ -18,7 +17,6 @@ export default function LandingPage() {
       <main>
         <LandingHero />
         <LandingStatBand />
-        <LandingProblem />
         <LandingFeatures />
         <LandingSectors />
         <LandingTrustBand />

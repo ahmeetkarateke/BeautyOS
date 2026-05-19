@@ -39,7 +39,7 @@ export function LandingHero() {
               className="w-1.5 h-1.5 rounded-full"
               style={{ backgroundColor: '#D67D78' }}
             />
-            Türkiye merkezli, KVKK uyumlu yönetim platformu
+            Yapay zeka destekli, kişiselleştirilebilir platform
           </motion.div>
 
           {/* H1 */}
@@ -88,9 +88,8 @@ export function LandingHero() {
             className="mt-7 text-[17px] sm:text-[19px] leading-[1.55]"
             style={{ color: 'rgba(31,62,71,0.68)', maxWidth: '54ch' }}
           >
-            Randevu yönetimi, müşteri kayıt sistemi, klinik anamnezi, paket
-            satışı, kasa ve cari hesap takibi tek bir platformda. Türkiye'deki
-            işletmelerin operasyonel ihtiyaçlarına özel olarak geliştirilmiştir.
+            Randevudan kasaya, anamnezden cariye — tek panel. Sektörünüze göre
+            kişiselleştirilebilir, yapay zeka destekli iş akışları.
           </motion.p>
 
           {/* CTA Row */}
