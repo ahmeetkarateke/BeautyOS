@@ -69,6 +69,7 @@ export default function CustomersPage({ params }: PageProps) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: debouncedSearch.length === 0 || debouncedSearch.length >= 2,
+    retry: false, // 401/404'te retry yapma; donma riskini azalt
   })
 
   // Show empty list while user is typing but hasn't reached 2 chars yet
@@ -135,14 +136,14 @@ export default function CustomersPage({ params }: PageProps) {
       <div className="p-4 sm:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Müşteriler</h1>
-          <Button size="sm" className="gap-2" onClick={() => { console.log('[customers] open modal'); setModalOpen(true) }}>
+          <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
             <Plus className="w-4 h-4" />
             Yeni Müşteri
           </Button>
         </div>
         <div className="bg-white rounded-lg border border-salon-border p-8 text-center">
           <p className="text-sm text-salon-muted">Müşteri listesini görüntüleme yetkiniz yok.</p>
-          <Button size="sm" className="mt-4 gap-2" onClick={() => { console.log('[customers] open modal staff'); setModalOpen(true) }}>
+          <Button size="sm" className="mt-4 gap-2" onClick={() => setModalOpen(true)}>
             <Plus className="w-4 h-4" />
             Yeni Müşteri Oluştur
           </Button>
@@ -156,7 +157,7 @@ export default function CustomersPage({ params }: PageProps) {
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Müşteriler</h1>
-        <Button size="sm" className="gap-2" onClick={() => { console.log('[customers] open modal main'); setModalOpen(true) }}>
+        <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
           <Plus className="w-4 h-4" />
           Yeni Müşteri
         </Button>

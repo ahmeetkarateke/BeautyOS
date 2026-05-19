@@ -92,11 +92,14 @@ export function MobileNav({ tenantSlug }: MobileNavProps) {
   const activeSet = new Set(activeModules)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // Drawer açıkken body scroll engelle
+  // Drawer açıkken body scroll engelle.
+  // Sadece drawer açıkken müdahale et — kapalı durumda body.style'a dokunma
+  // (Radix Dialog'un kendi scroll-lock'unu bozma riski var).
   useEffect(() => {
-    if (drawerOpen) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
-    return () => { document.body.style.overflow = '' }
+    if (!drawerOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previous }
   }, [drawerOpen])
 
   // Path değişince drawer kapansın

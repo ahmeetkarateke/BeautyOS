@@ -100,9 +100,15 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
   const user = useAuthStore((s) => s.user)
   const { dark, toggle } = useThemeStore()
 
+  // NOT: useActiveModules da aynı queryKey'i kullanıyor; tek query, paylaşılan cache
   const { data: settingsData } = useQuery({
     queryKey: ['tenant-settings', tenantSlug],
-    queryFn: () => apiFetch<TrialSettings>(`/api/v1/tenants/${tenantSlug}/settings`),
+    queryFn: () => apiFetch<TrialSettings & { settings?: { activeModules?: unknown } }>(
+      `/api/v1/tenants/${tenantSlug}/settings`,
+    ),
+    enabled: Boolean(tenantSlug),
+    staleTime: 60_000,
+    retry: false,
   })
 
   const plan = settingsData?.plan
