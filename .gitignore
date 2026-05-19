@@ -22,3 +22,6 @@ skills-lock.json
 apps/api/SETUP.md
 apps/api/prisma/seed-*.ts
 apps/api/test-*.ts
+
+# Claude Code MCP server config (API keys)
+.mcp.json
