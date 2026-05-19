@@ -111,7 +111,7 @@ export function LandingFeatures() {
               fontWeight: 560,
             }}
           >
-            Salonunuza göre kişiselleştirilebilir, yapay zeka destekli altı modül.
+            İşletmenize özel göre kişiselleştirilebilir, yapay zeka destekli teknolojik çözümler.
           </h2>
         </motion.div>
 
