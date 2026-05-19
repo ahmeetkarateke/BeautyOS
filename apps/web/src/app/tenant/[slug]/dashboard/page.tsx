@@ -94,6 +94,7 @@ function DashboardContent({ params }: PageProps) {
             iconColor="bg-primary-100 text-primary"
             trend={data && data.revenueChange !== null ? { value: data.revenueChange, label: period === 'today' ? 'dün' : period === 'week' ? 'geçen hafta' : 'geçen ay' } : undefined}
             loading={isLoading}
+            href={`/tenant/${tenantId}/finance?preset=${period}`}
           />
         )}
         <KpiCard

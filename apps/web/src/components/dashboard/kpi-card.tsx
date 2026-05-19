@@ -1,4 +1,5 @@
 import { type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -11,9 +12,10 @@ interface KpiCardProps {
   iconColor?: string
   trend?: { value: number; label: string }
   loading?: boolean
+  href?: string
 }
 
-export function KpiCard({ title, value, subtitle, icon: Icon, iconColor = 'bg-primary-100 text-primary', trend, loading }: KpiCardProps) {
+export function KpiCard({ title, value, subtitle, icon: Icon, iconColor = 'bg-primary-100 text-primary', trend, loading, href }: KpiCardProps) {
   if (loading) {
     return (
       <Card>
@@ -31,8 +33,8 @@ export function KpiCard({ title, value, subtitle, icon: Icon, iconColor = 'bg-pr
     )
   }
 
-  return (
-    <Card className="hover:shadow-card-hover transition-shadow">
+  const content = (
+    <Card className={cn('hover:shadow-card-hover transition-shadow', href && 'cursor-pointer hover:border-primary/40')}>
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
@@ -52,4 +54,9 @@ export function KpiCard({ title, value, subtitle, icon: Icon, iconColor = 'bg-pr
       </CardContent>
     </Card>
   )
+
+  if (href) {
+    return <Link href={href} className="block">{content}</Link>
+  }
+  return content
 }

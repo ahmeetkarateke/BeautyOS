@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Banknote, CreditCard, Wallet, TrendingUp, Trash2, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
@@ -128,8 +128,14 @@ export default function FinancePage({ params }: PageProps) {
     if (user?.role === 'staff') router.replace(`/tenant/${slug}/dashboard`)
   }, [user, slug, router])
   const today = new Date().toISOString().split('T')[0]
+  const searchParams = useSearchParams()
+  const initialPreset = ((): DatePreset => {
+    const p = searchParams?.get('preset')
+    if (p === 'today' || p === 'week' || p === 'month' || p === 'year' || p === 'custom') return p
+    return 'today'
+  })()
 
-  const [preset, setPreset] = useState<DatePreset>('today')
+  const [preset, setPreset] = useState<DatePreset>(initialPreset)
   const [customFrom, setCustomFrom] = useState(today)
   const [customTo, setCustomTo] = useState(today)
 
