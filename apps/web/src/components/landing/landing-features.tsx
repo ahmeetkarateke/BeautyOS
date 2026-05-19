@@ -62,7 +62,7 @@ const FEATURES = [
   {
     number: '05',
     title: 'Personel ve komisyon',
-    eyebrow: 'İnsan Kaynakları',
+    eyebrow: 'Personel Takibi',
     body:
       'Komisyon kuralları kişiselleştirilebilir: yüzde, sabit veya hizmet bazlı. Hak ediş ve raporlar otomatik hesaplanır.',
     bullets: [
@@ -100,7 +100,7 @@ export function LandingFeatures() {
           className="max-w-2xl mb-16 sm:mb-24"
         >
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: '#6B48FF' }}>
-            Çözümler
+            Hizmetler
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -111,7 +111,7 @@ export function LandingFeatures() {
               fontWeight: 560,
             }}
           >
-            İşletmenize özel göre kişiselleştirilebilir, yapay zeka destekli teknolojik çözümler.
+            İşletmenize özel kişiselleştirilebilir, yapay zeka destekli teknolojik çözümler.
           </h2>
         </motion.div>
 
