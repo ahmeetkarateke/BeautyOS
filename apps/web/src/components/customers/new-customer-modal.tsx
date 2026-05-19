@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -28,14 +29,25 @@ export function NewCustomerModal({ open, onOpenChange, tenantSlug }: Props) {
   const qc = useQueryClient()
   const [form, setForm] = useState<CustomerInput>(INITIAL)
   const [errors, setErrors] = useState<Partial<Record<keyof CustomerInput, string>>>({})
+  const [mounted, setMounted] = useState(false)
 
-  // Modal açılıp kapandığında form sıfırla
+  useEffect(() => { setMounted(true) }, [])
+
+  // Modal kapandığında form sıfırla
   useEffect(() => {
     if (!open) {
       setForm(INITIAL)
       setErrors({})
     }
   }, [open])
+
+  // ESC ile kapat
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onOpenChange(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onOpenChange])
 
   const mutation = useMutation({
     mutationFn: (data: CustomerInput) =>
@@ -73,40 +85,88 @@ export function NewCustomerModal({ open, onOpenChange, tenantSlug }: Props) {
     mutation.mutate(form)
   }
 
-  function field<K extends keyof CustomerInput>(key: K) {
-    return {
-      name: key,
-      value: form[key],
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [key]: e.target.value })),
-    }
+  function update<K extends keyof CustomerInput>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Yeni Müşteri</DialogTitle>
-        </DialogHeader>
+  if (!mounted || !open) return null
+
+  const modal = (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-customer-title"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => onOpenChange(false)}
+      />
+
+      {/* Content */}
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-xl border border-salon-border p-6">
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
+          aria-label="Kapat"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="mb-5">
+          <h2 id="new-customer-title" className="text-lg font-semibold text-gray-900">Yeni Müşteri</h2>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="fullName">Ad Soyad</Label>
-            <Input id="fullName" placeholder="Ayşe Yılmaz" error={errors.fullName} {...field('fullName')} />
+            <Label htmlFor="nc-fullName">Ad Soyad</Label>
+            <Input
+              id="nc-fullName"
+              name="fullName"
+              placeholder="Ayşe Yılmaz"
+              error={errors.fullName}
+              value={form.fullName}
+              onChange={(e) => update('fullName', e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefon</Label>
-            <Input id="phone" type="tel" placeholder="+90 555 000 00 00" error={errors.phone} {...field('phone')} />
+            <Label htmlFor="nc-phone">Telefon</Label>
+            <Input
+              id="nc-phone"
+              name="phone"
+              type="tel"
+              placeholder="+90 555 000 00 00"
+              error={errors.phone}
+              value={form.phone}
+              onChange={(e) => update('phone', e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">E-posta (isteğe bağlı)</Label>
-            <Input id="email" type="email" placeholder="ayse@email.com" error={errors.email} {...field('email')} />
+            <Label htmlFor="nc-email">E-posta (isteğe bağlı)</Label>
+            <Input
+              id="nc-email"
+              name="email"
+              type="email"
+              placeholder="ayse@email.com"
+              error={errors.email}
+              value={form.email}
+              onChange={(e) => update('email', e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="birthDate">Doğum Tarihi (isteğe bağlı)</Label>
-            <Input id="birthDate" type="date" {...field('birthDate')} />
+            <Label htmlFor="nc-birthDate">Doğum Tarihi (isteğe bağlı)</Label>
+            <Input
+              id="nc-birthDate"
+              name="birthDate"
+              type="date"
+              value={form.birthDate}
+              onChange={(e) => update('birthDate', e.target.value)}
+            />
           </div>
 
           {mutation.isError && (
@@ -127,7 +187,9 @@ export function NewCustomerModal({ open, onOpenChange, tenantSlug }: Props) {
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
+
+  return createPortal(modal, document.body)
 }
