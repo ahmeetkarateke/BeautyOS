@@ -142,9 +142,11 @@ export default function AppointmentsPage({ params }: PageProps) {
         </select>
 
         <div className="relative col-span-2 sm:col-span-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-salon-muted" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-salon-muted pointer-events-none" />
           <input
-            type="text"
+            type="search"
+            inputMode="search"
+            autoComplete="off"
             placeholder="Müşteri ara..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}

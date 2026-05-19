@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Scissors, LayoutDashboard, Calendar, Users, Settings, LogOut,
-  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare,
+  Sparkles, UserCog, Banknote, Sun, Moon, Menu, X, MessageSquare, Clock, Wallet, Package, Boxes, HandCoins,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -12,6 +12,7 @@ import { useThemeStore } from '@/store/theme'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
+import { useActiveModules } from '@/hooks/use-active-modules'
 
 interface SidebarProps {
   tenantSlug: string
@@ -21,15 +22,27 @@ interface SidebarProps {
 
 const BOT_FEATURES_ENABLED = process.env.NEXT_PUBLIC_BOT_FEATURES_ENABLED === 'true'
 
-const navItems = (slug: string) => [
-  { href: `/tenant/${slug}/dashboard`,    icon: LayoutDashboard, label: 'Dashboard' },
-  { href: `/tenant/${slug}/appointments`, icon: Calendar,         label: 'Randevular' },
-  { href: `/tenant/${slug}/customers`,    icon: Users,            label: 'Müşteriler' },
-  { href: `/tenant/${slug}/services`,     icon: Sparkles,         label: 'Hizmetler' },
-  { href: `/tenant/${slug}/staff`,        icon: UserCog,          label: 'Personel' },
-  { href: `/tenant/${slug}/finance`,        icon: Banknote,         label: 'Kasa' },
+interface NavItem {
+  href: string
+  icon: typeof LayoutDashboard
+  label: string
+  moduleKey?: string
+}
+
+const navItems = (slug: string): NavItem[] => [
+  { href: `/tenant/${slug}/dashboard`,    icon: LayoutDashboard, label: 'Dashboard',     moduleKey: 'dashboard' },
+  { href: `/tenant/${slug}/appointments`, icon: Calendar,         label: 'Randevular',   moduleKey: 'appointments' },
+  { href: `/tenant/${slug}/customers`,    icon: Users,            label: 'Müşteriler',   moduleKey: 'customers' },
+  { href: `/tenant/${slug}/waitlist`,     icon: Clock,            label: 'Bekleme Listesi', moduleKey: 'waitlist' },
+  { href: `/tenant/${slug}/services`,     icon: Sparkles,         label: 'Hizmetler',    moduleKey: 'services' },
+  { href: `/tenant/${slug}/packages`,     icon: Boxes,            label: 'Paketler',     moduleKey: 'packages' },
+  { href: `/tenant/${slug}/staff`,        icon: UserCog,          label: 'Personel',     moduleKey: 'staff' },
+  { href: `/tenant/${slug}/staff-payouts`, icon: Wallet,           label: 'Personel Ödemeleri', moduleKey: 'staff-payouts' },
+  { href: `/tenant/${slug}/tips`,         icon: HandCoins,        label: 'Bahşiş',       moduleKey: 'tips' },
+  { href: `/tenant/${slug}/inventory`,    icon: Package,          label: 'Stok',         moduleKey: 'inventory' },
+  { href: `/tenant/${slug}/finance`,        icon: Banknote,         label: 'Kasa',         moduleKey: 'finance' },
   ...(BOT_FEATURES_ENABLED ? [{ href: `/tenant/${slug}/bot-conversations`, icon: MessageSquare, label: 'Bot Konuşmaları' }] : []),
-  { href: `/tenant/${slug}/settings`,     icon: Settings,         label: 'Ayarlar' },
+  { href: `/tenant/${slug}/settings`,     icon: Settings,         label: 'Ayarlar',      moduleKey: 'settings' },
 ]
 
 interface TrialSettings {
@@ -64,11 +77,16 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
     router.push('/login')
   }
 
-  const items = navItems(tenantSlug).filter(
-    (item) =>
-      user?.role !== 'staff' ||
-      !['/staff', '/finance', '/settings'].some((p) => item.href.endsWith(p)),
-  )
+  const { activeModules } = useActiveModules(tenantSlug)
+  const activeSet = new Set(activeModules)
+
+  const items = navItems(tenantSlug)
+    .filter((item) => !item.moduleKey || activeSet.has(item.moduleKey))
+    .filter(
+      (item) =>
+        user?.role !== 'staff' ||
+        !['/staff', '/staff-payouts', '/finance', '/settings'].some((p) => item.href.endsWith(p)),
+    )
 
   return (
     <aside

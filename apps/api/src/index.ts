@@ -14,6 +14,12 @@ import { createAuthRouter } from './routes/auth.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { createPublicRouter } from './routes/public.route'
 import { createAdminRouter } from './routes/admin.route'
+import { createPackagesRouter } from './routes/packages.route'
+import { createTipsRouter } from './routes/tips.route'
+import { createCustomerEnrichmentRouter } from './routes/customer-enrichment.route'
+import { createStaffPayoutsRouter } from './routes/staff-payouts.route'
+import { createStockRouter } from './routes/stock.route'
+import { createWaitlistRouter } from './routes/waitlist.route'
 import { TenantRegistry } from './lib/tenant.registry'
 import { startReminderWorker } from './lib/queue'
 import { db } from './lib/db'
@@ -83,6 +89,12 @@ async function bootstrap(): Promise<void> {
   app.use('/api/v1/auth', authLimiter, createAuthRouter())
   app.use('/api/v1/admin', createAdminRouter())
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
+  app.use('/api/v1/tenants/:slug/staff-payouts', createStaffPayoutsRouter())
+  app.use('/api/v1/tenants/:slug/waitlist', createWaitlistRouter())
+  app.use('/api/v1/tenants/:slug', createPackagesRouter())
+  app.use('/api/v1/tenants/:slug', createTipsRouter())
+  app.use('/api/v1/tenants/:slug', createCustomerEnrichmentRouter())
+  app.use('/api/v1/tenants/:slug', createStockRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   // ─── Global error handler ─────────────────────────────────────────────────

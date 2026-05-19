@@ -78,6 +78,7 @@ export function AppointmentCalendar({
   filterSearch,
 }: AppointmentCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
+  const dateInputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const isEditable = user?.role === 'owner' || user?.role === 'manager'
@@ -88,6 +89,48 @@ export function AppointmentCalendar({
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Title element bounding rect — React state ile takip
+  const [pickerStyle, setPickerStyle] = useState<React.CSSProperties | null>(null)
+
+  function updateOverlayPosition() {
+    setTimeout(() => {
+      const wrapper = document.querySelector('.beautyos-calendar') as HTMLElement | null
+      const titleEl = wrapper?.querySelector('.fc-toolbar-title') as HTMLElement | null
+      if (!wrapper || !titleEl) return
+      const wr = wrapper.getBoundingClientRect()
+      const tr = titleEl.getBoundingClientRect()
+      setPickerStyle({
+        position: 'absolute',
+        top: tr.top - wr.top,
+        left: tr.left - wr.left,
+        width: tr.width,
+        height: tr.height,
+        opacity: 0,
+        cursor: 'pointer',
+        border: 0,
+        padding: 0,
+        margin: 0,
+        background: 'transparent',
+        zIndex: 5,
+        // iOS Safari için
+        WebkitAppearance: 'none',
+        appearance: 'none',
+      })
+      titleEl.style.cursor = 'pointer'
+      titleEl.setAttribute('title', 'Tarihe git')
+    }, 50)
+  }
+
+  useEffect(() => {
+    const reposition = () => updateOverlayPosition()
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, { passive: true })
+    return () => {
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition)
+    }
   }, [])
 
   const { data } = useQuery({
@@ -135,7 +178,27 @@ export function AppointmentCalendar({
   })
 
   return (
-    <div className="beautyos-calendar">
+    <div className="beautyos-calendar" style={{ position: 'relative' }}>
+      {pickerStyle && (
+        <input
+          ref={dateInputRef}
+          type="date"
+          style={pickerStyle}
+          onFocus={(e) => {
+            // Picker açılırken aktif tarihi yükle
+            const current = calendarRef.current?.getApi().getDate()
+            if (current) {
+              const pad = (n: number) => String(n).padStart(2, '0')
+              e.target.value = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`
+            }
+          }}
+          onChange={(e) => {
+            const v = e.target.value
+            if (v) calendarRef.current?.getApi().gotoDate(v)
+          }}
+        />
+      )}
+
       <div className="flex flex-wrap gap-3 mb-3 px-1">
         {LEGEND.map((item) => (
           <div key={item.label} className="flex items-center gap-1.5">
@@ -148,6 +211,8 @@ export function AppointmentCalendar({
       <FullCalendar
         key={isMobile ? 'mobile' : 'desktop'}
         ref={calendarRef}
+        viewDidMount={updateOverlayPosition}
+        datesSet={updateOverlayPosition}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={isMobile ? 'timeGridDay' : 'timeGridWeek'}
         locale={trLocale}
