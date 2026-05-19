@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Calendar, Users, Clock, Menu, X, LogOut,
-  Sparkles, UserCog, Banknote, MessageSquare, Wallet, Package, Boxes, HandCoins, Settings, Scissors,
+  Sparkles, UserCog, Banknote, MessageSquare, Wallet, Package, Boxes, HandCoins, Settings, Scissors, BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -64,8 +64,9 @@ const DRAWER_GROUPS = (slug: string): NavGroup[] => [
   {
     label: 'FİNANS & STOK',
     items: [
-      { href: `/tenant/${slug}/finance`,   icon: Banknote, label: 'Kasa', moduleKey: 'finance' },
-      { href: `/tenant/${slug}/inventory`, icon: Package,  label: 'Stok', moduleKey: 'inventory' },
+      { href: `/tenant/${slug}/finance`,          icon: Banknote, label: 'Kasa',       moduleKey: 'finance' },
+      { href: `/tenant/${slug}/current-accounts`, icon: BookOpen, label: 'Cari Hesap', moduleKey: 'current-accounts' },
+      { href: `/tenant/${slug}/inventory`,        icon: Package,  label: 'Stok',       moduleKey: 'inventory' },
     ],
   },
   ...(BOT_FEATURES_ENABLED
