@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, User, Briefcase, Calendar } from 'lucide-react'
+import { ArrowLeft, User, Briefcase, Calendar, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -77,9 +77,34 @@ const tabs = [
   { id: 'profile', label: 'Profil', icon: User },
   { id: 'skills', label: 'Yetenekler', icon: Briefcase },
   { id: 'leaves', label: 'İzinler', icon: Calendar },
+  { id: 'payouts', label: 'Ödeme Geçmişi', icon: Wallet },
 ]
 
-type TabId = 'profile' | 'skills' | 'leaves'
+type TabId = 'profile' | 'skills' | 'leaves' | 'payouts'
+
+type PaymentMethod = 'cash' | 'card' | 'mixed' | 'online'
+type PayoutStatus = 'pending' | 'paid' | 'cancelled'
+
+interface StaffPayoutRow {
+  id: string
+  staffId: string
+  staffName: string | null
+  periodStart: string
+  periodEnd: string
+  grossEarned: number
+  bonus: number
+  deductions: number
+  netAmount: number
+  paymentMethod: PaymentMethod
+  status: PayoutStatus
+  paidAt: string | null
+}
+
+const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
+  pending: 'Bekliyor',
+  paid: 'Ödendi',
+  cancelled: 'İptal',
+}
 
 interface PageProps {
   params: { slug: string; staffId: string }
@@ -116,6 +141,12 @@ export default function StaffDetailPage({ params }: PageProps) {
     queryKey: ['staff-leaves', slug, staffId],
     queryFn: () => apiFetch<{ data: StaffLeave[] }>(`/api/v1/tenants/${slug}/staff/${staffId}/leaves`),
     enabled: activeTab === 'leaves',
+  })
+
+  const { data: payoutsData, isLoading: payoutsLoading } = useQuery({
+    queryKey: ['staff-payouts', slug, staffId],
+    queryFn: () => apiFetch<{ data: StaffPayoutRow[] }>(`/api/v1/tenants/${slug}/staff-payouts?staffId=${staffId}`),
+    enabled: activeTab === 'payouts',
   })
 
   interface CommissionEdit {
@@ -628,6 +659,64 @@ export default function StaffDetailPage({ params }: PageProps) {
                     </Button>
                   </div>
                 </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tab: Ödeme Geçmişi */}
+      {activeTab === 'payouts' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ödeme Geçmişi</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!isOwnerOrManager ? (
+              <p className="text-sm text-salon-muted">Bu bölümü görüntüleme yetkiniz yok.</p>
+            ) : payoutsLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+              </div>
+            ) : !payoutsData?.data.length ? (
+              <p className="text-sm text-salon-muted">Henüz ödeme kaydı yok.</p>
+            ) : (
+              <div className="overflow-x-auto -mx-6">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-salon-bg border-y border-salon-border">
+                      <th className="text-left px-6 py-2 text-xs font-medium text-salon-muted">Dönem</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-salon-muted">Brüt</th>
+                      <th className="text-right px-3 py-2 text-xs font-medium text-salon-muted">Net</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-salon-muted">Durum</th>
+                      <th className="text-left px-6 py-2 text-xs font-medium text-salon-muted">Ödendi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payoutsData.data.map((p) => (
+                      <tr key={p.id} className="border-b border-salon-border last:border-0">
+                        <td className="px-6 py-3 text-gray-900 whitespace-nowrap">
+                          {formatDate(p.periodStart)} — {formatDate(p.periodEnd)}
+                        </td>
+                        <td className="px-3 py-3 text-right text-salon-muted">{formatCurrency(p.grossEarned)}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-primary">{formatCurrency(p.netAmount)}</td>
+                        <td className="px-3 py-3">
+                          <span className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border',
+                            p.status === 'paid' && 'bg-green-50 text-green-700 border-green-200',
+                            p.status === 'pending' && 'bg-amber-50 text-amber-700 border-amber-200',
+                            p.status === 'cancelled' && 'bg-gray-100 text-gray-600 border-gray-300',
+                          )}>
+                            {PAYOUT_STATUS_LABELS[p.status]}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-salon-muted whitespace-nowrap">
+                          {p.paidAt ? formatDate(p.paidAt) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, PowerOff, Power } from 'lucide-react'
+import { Plus, Pencil, PowerOff, Power, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ServiceModal } from '@/components/services/service-modal'
@@ -12,6 +12,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
+import { ServiceRecipesSection } from '@/components/inventory/service-recipes-section'
 
 interface Service {
   id: string
@@ -34,6 +35,7 @@ export default function ServicesPage({ params }: PageProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Service | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<Service | undefined>()
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['services', params.slug],
@@ -106,53 +108,75 @@ export default function ServicesPage({ params }: PageProps) {
             <div key={category}>
               <h2 className="text-xs font-semibold text-salon-muted uppercase tracking-wide mb-2">{category}</h2>
               <div className="bg-white rounded-lg border border-salon-border divide-y divide-salon-border">
-                {items.map((svc) => (
-                  <div key={svc.id} className="flex items-center gap-4 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={cn('text-sm font-medium', !svc.isActive && 'text-salon-muted line-through')}>
-                          {svc.name}
-                        </p>
-                        {!svc.isActive && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Pasif</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-salon-muted mt-0.5">{svc.durationMinutes} dk</p>
-                    </div>
-                    <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
-                      {formatCurrency(svc.price)}
-                    </p>
-                    {!isStaff && (
-                      <div className="flex gap-1 flex-shrink-0">
+                {items.map((svc) => {
+                  const expanded = expandedId === svc.id
+                  return (
+                    <div key={svc.id}>
+                      <div className="flex items-center gap-4 px-4 py-3">
                         <button
-                          onClick={() => { setEditTarget(svc); setModalOpen(true) }}
-                          className="p-2 text-salon-muted hover:text-primary hover:bg-primary-50 rounded-md transition-colors"
-                          title="Düzenle"
+                          type="button"
+                          onClick={() => setExpandedId(expanded ? null : svc.id)}
+                          className="p-1 -ml-1 text-salon-muted hover:text-gray-900"
+                          aria-label="Malzemeleri göster"
                         >
-                          <Pencil className="w-4 h-4" />
+                          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
-                        {svc.isActive ? (
-                          <button
-                            onClick={() => setDeleteTarget(svc)}
-                            className="p-2 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                            title="Pasif yap"
-                          >
-                            <PowerOff className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => activateMutation.mutate(svc.id)}
-                            disabled={activateMutation.isPending}
-                            className="p-2 text-salon-muted hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                            title="Aktif et"
-                          >
-                            <Power className="w-4 h-4" />
-                          </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className={cn('text-sm font-medium', !svc.isActive && 'text-salon-muted line-through')}>
+                              {svc.name}
+                            </p>
+                            {!svc.isActive && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Pasif</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-salon-muted mt-0.5">{svc.durationMinutes} dk</p>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
+                          {formatCurrency(svc.price)}
+                        </p>
+                        {!isStaff && (
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => { setEditTarget(svc); setModalOpen(true) }}
+                              className="p-2 text-salon-muted hover:text-primary hover:bg-primary-50 rounded-md transition-colors"
+                              title="Düzenle"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            {svc.isActive ? (
+                              <button
+                                onClick={() => setDeleteTarget(svc)}
+                                className="p-2 text-salon-muted hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                title="Pasif yap"
+                              >
+                                <PowerOff className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => activateMutation.mutate(svc.id)}
+                                disabled={activateMutation.isPending}
+                                className="p-2 text-salon-muted hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                                title="Aktif et"
+                              >
+                                <Power className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {expanded && (
+                        <div className="px-4 pb-4 pt-1 bg-salon-bg/40">
+                          <ServiceRecipesSection
+                            tenantSlug={params.slug}
+                            serviceId={svc.id}
+                            canEdit={!isStaff}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}

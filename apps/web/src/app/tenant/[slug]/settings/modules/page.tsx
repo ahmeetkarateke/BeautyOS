@@ -1,0 +1,250 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, Loader2, Sparkles } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { apiFetch } from '@/lib/api'
+import { toast } from '@/components/ui/toaster'
+import { cn } from '@/lib/utils'
+import {
+  MODULE_REGISTRY,
+  MODULE_KEYS,
+  MODULE_TEMPLATES,
+  MODULE_TEMPLATE_META,
+  MODULE_CATEGORY_LABELS,
+  resolveActiveModules,
+  type ModuleCategory,
+  type ModuleDef,
+} from '@/lib/modules'
+
+interface PageProps {
+  params: { slug: string }
+}
+
+interface TenantSettingsResponse {
+  settings?: {
+    activeModules?: unknown
+  } | null
+}
+
+const CATEGORY_ORDER: ModuleCategory[] = ['core', 'staff', 'finance', 'inventory', 'automation', 'marketing']
+
+export default function ModulesPage({ params }: PageProps) {
+  const { slug } = params
+  const qc = useQueryClient()
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['tenant-settings', slug],
+    queryFn: () => apiFetch<TenantSettingsResponse>(`/api/v1/tenants/${slug}/settings`),
+  })
+
+  const serverActive = useMemo(
+    () => resolveActiveModules(data?.settings?.activeModules),
+    [data],
+  )
+
+  const [selected, setSelected] = useState<Set<string>>(new Set(serverActive))
+
+  useEffect(() => {
+    setSelected(new Set(serverActive))
+  }, [serverActive])
+
+  const mutation = useMutation({
+    mutationFn: (activeModules: string[]) =>
+      apiFetch<TenantSettingsResponse>(`/api/v1/tenants/${slug}/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify({ activeModules }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tenant-settings', slug] })
+      toast('Aktif modüller kaydedildi')
+    },
+    onError: () => {
+      toast('Modüller kaydedilemedi')
+    },
+  })
+
+  const grouped = useMemo(() => {
+    const map = new Map<ModuleCategory, ModuleDef[]>()
+    for (const m of MODULE_REGISTRY) {
+      const list = map.get(m.category) ?? []
+      list.push(m)
+      map.set(m.category, list)
+    }
+    return map
+  }, [])
+
+  const toggle = (key: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const applyTemplate = (templateKey: string) => {
+    const keys = MODULE_TEMPLATES[templateKey]
+    if (!keys) return
+    setSelected(new Set(keys))
+  }
+
+  const isDirty = useMemo(() => {
+    if (selected.size !== serverActive.length) return true
+    for (const k of serverActive) if (!selected.has(k)) return true
+    return false
+  }, [selected, serverActive])
+
+  const handleSave = () => {
+    // Sıralamayı registry'e göre stabil tut.
+    const ordered = MODULE_KEYS.filter((k) => selected.has(k))
+    mutation.mutate(ordered)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Aktif Modüller</h1>
+          <p className="text-sm text-salon-muted dark:text-white/60 mt-1">
+            Salonunuzda hangi modüllerin görüneceğini seçin. Devre dışı bıraktığınız modüller menüden gizlenir.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isDirty && (
+            <span className="text-xs text-amber-600 dark:text-amber-400">Kaydedilmemiş değişiklikler</span>
+          )}
+          <Button
+            onClick={handleSave}
+            disabled={!isDirty || mutation.isPending}
+          >
+            {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            Kaydet
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        {/* Sol: kategori bazlı modüller */}
+        <div className="space-y-5">
+          {CATEGORY_ORDER.map((cat) => {
+            const items = grouped.get(cat)
+            if (!items || items.length === 0) return null
+            return (
+              <Card key={cat}>
+                <CardHeader>
+                  <CardTitle className="text-base">{MODULE_CATEGORY_LABELS[cat]}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {items.map((m) => {
+                    const on = selected.has(m.key)
+                    return (
+                      <button
+                        type="button"
+                        key={m.key}
+                        onClick={() => toggle(m.key)}
+                        className={cn(
+                          'w-full flex items-start justify-between gap-4 p-3 rounded-md border text-left transition-colors',
+                          on
+                            ? 'border-primary/40 bg-primary-50/40 dark:bg-primary/10'
+                            : 'border-salon-border hover:bg-salon-bg dark:border-white/10 dark:hover:bg-white/5',
+                        )}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">{m.label}</span>
+                            {m.category === 'core' && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                Önerilen
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-salon-muted dark:text-white/50 mt-0.5">{m.description}</p>
+                        </div>
+                        <SwitchPill on={on} />
+                      </button>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Sağ: şablonlar */}
+        <div className="space-y-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> Şablonlar
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-salon-muted dark:text-white/50 mb-2">
+                İşletme türünüze göre hazır bir set seçin. Sonra ince ayar yapabilirsiniz.
+              </p>
+              {MODULE_TEMPLATE_META.map((t) => {
+                const keys = MODULE_TEMPLATES[t.key] ?? []
+                const matches =
+                  keys.length === selected.size &&
+                  keys.every((k) => selected.has(k))
+                return (
+                  <button
+                    type="button"
+                    key={t.key}
+                    onClick={() => applyTemplate(t.key)}
+                    className={cn(
+                      'w-full text-left p-3 rounded-md border transition-colors',
+                      matches
+                        ? 'border-primary/40 bg-primary-50/40 dark:bg-primary/10'
+                        : 'border-salon-border hover:bg-salon-bg dark:border-white/10 dark:hover:bg-white/5',
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-900 dark:text-white">{t.label}</span>
+                      <span className="text-[11px] text-salon-muted dark:text-white/50">
+                        {keys.length} modül
+                      </span>
+                    </div>
+                    <p className="text-xs text-salon-muted dark:text-white/50 mt-0.5">{t.description}</p>
+                  </button>
+                )
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SwitchPill({ on }: { on: boolean }) {
+  return (
+    <span
+      className={cn(
+        'relative inline-flex h-6 w-10 flex-shrink-0 rounded-full transition-colors',
+        on ? 'bg-primary' : 'bg-gray-300 dark:bg-white/15',
+      )}
+      aria-hidden
+    >
+      <span
+        className={cn(
+          'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all',
+          on ? 'left-[18px]' : 'left-0.5',
+        )}
+      />
+    </span>
+  )
+}

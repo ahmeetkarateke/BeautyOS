@@ -9,6 +9,7 @@ import { remindersQueue } from '../lib/queue'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
+import { isValidModuleKey } from '../lib/modules'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -1164,6 +1165,13 @@ export function createTenantRouter(): Router {
     whatsappNumber: z.string().trim().min(7).max(20).optional().or(z.literal('')),
     mapsUrl: httpsOnlyUrl().optional().or(z.literal('')),
     aboutText: noXss(500).optional().or(z.literal('')),
+    activeModules: z
+      .array(z.string().trim().min(1).max(50))
+      .max(50)
+      .refine((arr) => arr.every((k) => isValidModuleKey(k)), {
+        message: 'Geçersiz modül anahtarı.',
+      })
+      .optional(),
   })
 
   router.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {

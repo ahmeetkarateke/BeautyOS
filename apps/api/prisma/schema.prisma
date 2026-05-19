@@ -98,6 +98,57 @@ enum LeaveType {
   other
 }
 
+enum PackageStatus {
+  active
+  completed
+  expired
+  refunded
+}
+
+enum StockMovementType {
+  in              // alım
+  out             // satış/kullanım
+  adjustment_in   // sayım fazla
+  adjustment_out  // sayım eksik
+  transfer_in
+  transfer_out
+  waste           // fire
+  return          // iade
+}
+
+enum TipSource {
+  cash
+  card
+  salon_pool
+}
+
+enum StaffPayoutStatus {
+  pending
+  paid
+  cancelled
+}
+
+enum WaitlistStatus {
+  waiting
+  notified
+  booked
+  expired
+  cancelled
+}
+
+enum ActivityAction {
+  create
+  update
+  delete
+  login
+  logout
+  pay
+  refund
+  cancel
+  status_change
+  message_send
+}
+
 // ─── Tenant (Salon / İşletme) ─────────────────────────────────────────────────
 
 model Tenant {
@@ -128,6 +179,19 @@ model Tenant {
   staffServiceAssignments     StaffServiceAssignment[]
   staffLeaves                 StaffLeave[]
   botConversations            BotConversation[]
+  servicePackages             ServicePackage[]
+  customerPackages            CustomerPackage[]
+  packageUsages               PackageUsage[]
+  tipEntries                  TipEntry[]
+  tipDistributions            TipDistribution[]
+  customerPhotos              CustomerPhoto[]
+  customerHairFormulas        CustomerHairFormula[]
+  staffPayouts                StaffPayout[]
+  suppliers                   Supplier[]
+  stockMovements              StockMovement[]
+  serviceInventoryRecipes     ServiceInventoryRecipe[]
+  waitlist                    Waitlist[]
+  activityLogs                ActivityLog[]
 
   @@map("tenants")
 }
@@ -202,6 +266,10 @@ model Customer {
   tenant           Tenant            @relation(fields: [tenantId], references: [id])
   appointments     Appointment[]
   notificationLogs NotificationLog[]
+  packages         CustomerPackage[]
+  photos           CustomerPhoto[]
+  hairFormulas     CustomerHairFormula[]
+  waitlistEntries  Waitlist[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -230,6 +298,8 @@ model Service {
   tenant           Tenant                   @relation(fields: [tenantId], references: [id])
   appointments     Appointment[]
   staffAssignments StaffServiceAssignment[]
+  packages         ServicePackage[]
+  inventoryRecipes ServiceInventoryRecipe[]
 
   @@index([tenantId])
   @@map("services")
@@ -349,7 +419,9 @@ model InventoryItem {
   unit              String   @default("adet")
   updatedAt         DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant    Tenant                   @relation(fields: [tenantId], references: [id])
+  movements StockMovement[]
+  recipes   ServiceInventoryRecipe[]
 
   @@index([tenantId])
   @@map("inventory")
@@ -465,4 +537,300 @@ model BotConversation {
 
   @@index([tenantId, endedAt(sort: Desc)])
   @@map("bot_conversations")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAKET SİSTEMİ (Service Packages)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model ServicePackage {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  serviceId       String   @db.Uuid
+  name            String                          // "Cilt Bakım Paketi 6 Seans"
+  totalSessions   Int                             // 6
+  price           Decimal  @db.Decimal(10, 2)     // 1800 TL (1 seans 350 → 6'sı 2100, paket 1800)
+  validityDays    Int?                            // 180 (paket 6 ay geçerli, null = sınırsız)
+  description     String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  service           Service           @relation(fields: [serviceId], references: [id])
+  customerPackages  CustomerPackage[]
+
+  @@index([tenantId])
+  @@index([serviceId])
+  @@map("service_packages")
+}
+
+model CustomerPackage {
+  id                  String        @id @default(uuid()) @db.Uuid
+  tenantId            String        @db.Uuid
+  customerId          String        @db.Uuid
+  packageId           String        @db.Uuid
+  totalSessions       Int                                       // satın alındığında snapshot
+  remainingSessions   Int                                       // mevcut kalan
+  pricePaid           Decimal       @db.Decimal(10, 2)
+  status              PackageStatus @default(active)
+  purchaseDate        DateTime      @default(now())
+  expiresAt           DateTime?
+  completedAt         DateTime?
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer       @relation(fields: [customerId], references: [id])
+  package  ServicePackage @relation(fields: [packageId], references: [id])
+  usages   PackageUsage[]
+
+  @@index([tenantId])
+  @@index([customerId, status])
+  @@index([expiresAt])
+  @@map("customer_packages")
+}
+
+model PackageUsage {
+  id                  String   @id @default(uuid()) @db.Uuid
+  customerPackageId   String   @db.Uuid
+  appointmentId       String?  @db.Uuid                         // randevu üzerinden kullanıldıysa
+  tenantId            String   @db.Uuid
+  usedAt              DateTime @default(now())
+  notes               String?
+
+  customerPackage CustomerPackage @relation(fields: [customerPackageId], references: [id], onDelete: Cascade)
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([customerPackageId])
+  @@index([tenantId])
+  @@index([appointmentId])
+  @@map("package_usages")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BAHŞİŞ (Tips)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model TipEntry {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  appointmentId   String?   @db.Uuid                            // randevuya bağlı bahşiş
+  staffId         String?   @db.Uuid                            // direkt personele kim
+  amount          Decimal   @db.Decimal(10, 2)
+  source          TipSource @default(cash)
+  notes           String?
+  collectedAt     DateTime  @default(now())
+  isDistributed   Boolean   @default(false)                     // havuza atıldıysa true
+
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  distributions  TipDistribution[]
+
+  @@index([tenantId])
+  @@index([staffId])
+  @@index([appointmentId])
+  @@map("tip_entries")
+}
+
+model TipDistribution {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  tipEntryId  String?  @db.Uuid                                 // tek bahşiş paylaşılırsa
+  staffId     String   @db.Uuid                                 // alan personel
+  amount      Decimal  @db.Decimal(10, 2)
+  shareWeight Decimal? @db.Decimal(5, 2)                        // 1.0 = eşit pay, 1.5 = 1.5x
+  notes       String?
+  distributedAt DateTime @default(now())
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tipEntry TipEntry?  @relation(fields: [tipEntryId], references: [id])
+
+  @@index([tenantId])
+  @@index([staffId])
+  @@map("tip_distributions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MÜŞTERİ ZENGİNLEŞTİRME (Customer Enrichment)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model CustomerPhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  customerId  String   @db.Uuid
+  url         String                                            // S3/Vercel Blob URL
+  caption     String?                                           // "Öncesi", "Sonrası", boyama vb.
+  category    String?                                           // "saç_oncesi", "saç_sonrası", "tırnak" vs
+  takenAt     DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([customerId, takenAt(sort: Desc)])
+  @@map("customer_photos")
+}
+
+model CustomerHairFormula {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  customerId   String   @db.Uuid
+  date         DateTime @default(now())
+  formula      String                                           // "3.65 + 6%, 30dk"
+  brand        String?                                          // "Schwarzkopf"
+  processTime  Int?                                             // dakika
+  result       String?                                          // sonuç notu
+  staffId      String?  @db.Uuid                                // kim uyguladı
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([customerId, date(sort: Desc)])
+  @@map("customer_hair_formulas")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERSONEL MUHASEBESİ (Staff Payouts)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model StaffPayout {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @db.Uuid
+  staffId       String            @db.Uuid
+  periodStart   DateTime          @db.Date
+  periodEnd     DateTime          @db.Date
+  grossEarned   Decimal           @db.Decimal(10, 2)            // dönemde hak ettiği komisyon toplamı
+  bonus         Decimal           @default(0) @db.Decimal(10, 2)
+  deductions    Decimal           @default(0) @db.Decimal(10, 2)
+  netAmount     Decimal           @db.Decimal(10, 2)            // ödenen
+  paymentMethod PaymentMethod     @default(cash)
+  status        StaffPayoutStatus @default(pending)
+  notes         String?
+  paidAt        DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([staffId, periodEnd(sort: Desc)])
+  @@map("staff_payouts")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STOK HAREKETLERİ + HİZMET-MALZEME EŞLEŞMESİ (Stock Movements & Recipes)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Supplier {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  phone       String?
+  email       String?
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  movements  StockMovement[]
+
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+model StockMovement {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @db.Uuid
+  inventoryId  String            @db.Uuid
+  type         StockMovementType
+  quantity     Int                                              // pozitif sayı, type yön belirler
+  unitCost     Decimal?          @db.Decimal(10, 2)
+  totalCost    Decimal?          @db.Decimal(10, 2)
+  supplierId   String?           @db.Uuid
+  appointmentId String?          @db.Uuid                        // kullanım randevuya bağlıysa
+  notes        String?
+  performedBy  String?           @db.Uuid                        // userId
+  occurredAt   DateTime          @default(now())
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inventory   InventoryItem  @relation(fields: [inventoryId], references: [id])
+  supplier    Supplier?      @relation(fields: [supplierId], references: [id])
+
+  @@index([tenantId])
+  @@index([inventoryId, occurredAt(sort: Desc)])
+  @@index([appointmentId])
+  @@map("stock_movements")
+}
+
+model ServiceInventoryRecipe {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  serviceId      String   @db.Uuid
+  inventoryId    String   @db.Uuid
+  quantityPerUse Decimal  @db.Decimal(10, 3)                    // hizmet başına kullanılan miktar (0.080 = 80ml)
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  service   Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  inventory InventoryItem @relation(fields: [inventoryId], references: [id])
+
+  @@unique([serviceId, inventoryId])
+  @@index([tenantId])
+  @@map("service_inventory_recipes")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BEKLEME LİSTESİ (Waitlist)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Waitlist {
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @db.Uuid
+  customerId    String          @db.Uuid
+  serviceId     String?         @db.Uuid                        // istediği hizmet
+  staffId       String?         @db.Uuid                        // tercih edilen personel (opsiyonel)
+  preferredDate DateTime?       @db.Date                         // istediği gün
+  preferredTimeRange String?                                    // "10:00-14:00" gibi serbest
+  status        WaitlistStatus  @default(waiting)
+  notes         String?
+  notifiedAt    DateTime?                                       // slot çıktı bildirildi
+  bookedAppointmentId String?  @db.Uuid                          // sonra rezervasyon yapıldıysa
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([preferredDate])
+  @@map("waitlist")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AKTİVİTE GÜNLÜĞÜ (Audit Log)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model ActivityLog {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @db.Uuid
+  userId      String?        @db.Uuid                            // null = sistem
+  action      ActivityAction
+  entityType  String                                              // "Appointment", "Customer", "Service"
+  entityId    String?
+  description String                                              // human-readable
+  metadata    Json?                                               // ek detay (eski değer, yeni değer)
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@map("activity_logs")
 }
