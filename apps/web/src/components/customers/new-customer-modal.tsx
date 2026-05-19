@@ -1,8 +1,6 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -17,29 +15,30 @@ interface Props {
   tenantSlug: string
 }
 
-const schema = z.object({
-  fullName: z.string().min(2, 'İsim en az 2 karakter olmalıdır'),
-  phone: z.string().min(10, 'Geçerli bir telefon numarası giriniz'),
-  email: z.string().email('Geçerli bir e-posta giriniz').optional().or(z.literal('')),
-  birthDate: z.string().optional(),
-})
+interface CustomerInput {
+  fullName: string
+  phone: string
+  email: string
+  birthDate: string
+}
 
-type FormValues = z.infer<typeof schema>
+const INITIAL: CustomerInput = { fullName: '', phone: '', email: '', birthDate: '' }
 
 export function NewCustomerModal({ open, onOpenChange, tenantSlug }: Props) {
   const qc = useQueryClient()
+  const [form, setForm] = useState<CustomerInput>(INITIAL)
+  const [errors, setErrors] = useState<Partial<Record<keyof CustomerInput, string>>>({})
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-  })
+  // Modal açılıp kapandığında form sıfırla
+  useEffect(() => {
+    if (!open) {
+      setForm(INITIAL)
+      setErrors({})
+    }
+  }, [open])
 
   const mutation = useMutation({
-    mutationFn: (data: FormValues) =>
+    mutationFn: (data: CustomerInput) =>
       apiFetch(`/api/v1/tenants/${tenantSlug}/customers`, {
         method: 'POST',
         body: JSON.stringify({
@@ -52,13 +51,35 @@ export function NewCustomerModal({ open, onOpenChange, tenantSlug }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers', tenantSlug] })
       toast('Müşteri eklendi')
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => {
       toast(err.message, 'error')
     },
   })
+
+  function validate(): boolean {
+    const next: typeof errors = {}
+    if (form.fullName.trim().length < 2) next.fullName = 'İsim en az 2 karakter olmalıdır'
+    if (form.phone.trim().length < 10) next.phone = 'Geçerli bir telefon numarası giriniz'
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) next.email = 'Geçerli bir e-posta giriniz'
+    setErrors(next)
+    return Object.keys(next).length === 0
+  }
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!validate()) return
+    mutation.mutate(form)
+  }
+
+  function field<K extends keyof CustomerInput>(key: K) {
+    return {
+      name: key,
+      value: form[key],
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [key]: e.target.value })),
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,42 +88,25 @@ export function NewCustomerModal({ open, onOpenChange, tenantSlug }: Props) {
           <DialogTitle>Yeni Müşteri</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="fullName">Ad Soyad</Label>
-            <Input
-              id="fullName"
-              placeholder="Ayşe Yılmaz"
-              error={errors.fullName?.message}
-              {...register('fullName')}
-            />
+            <Input id="fullName" placeholder="Ayşe Yılmaz" error={errors.fullName} {...field('fullName')} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="phone">Telefon</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="+90 555 000 00 00"
-              error={errors.phone?.message}
-              {...register('phone')}
-            />
+            <Input id="phone" type="tel" placeholder="+90 555 000 00 00" error={errors.phone} {...field('phone')} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">E-posta (isteğe bağlı)</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="ayse@email.com"
-              error={errors.email?.message}
-              {...register('email')}
-            />
+            <Input id="email" type="email" placeholder="ayse@email.com" error={errors.email} {...field('email')} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="birthDate">Doğum Tarihi (isteğe bağlı)</Label>
-            <Input id="birthDate" type="date" {...register('birthDate')} />
+            <Input id="birthDate" type="date" {...field('birthDate')} />
           </div>
 
           {mutation.isError && (
