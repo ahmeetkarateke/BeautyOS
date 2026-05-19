@@ -251,7 +251,8 @@ function NewEntryForm({
   const qc = useQueryClient()
   const today = new Date().toISOString().slice(0, 10)
   const [date, setDate] = useState(today)
-  const [direction, setDirection] = useState<Direction>(partyType === 'customer' ? 'debit' : 'credit')
+  // Default işlem 'payment' (tahsilat/ödeme) → açık hesabı kapatır → credit
+  const [direction, setDirection] = useState<Direction>('credit')
   const [refType, setRefType] = useState<FormRefType>('payment')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -294,14 +295,15 @@ function NewEntryForm({
     mutation.mutate()
   }
 
-  // Hızlı yön ön-seçimi: refType'a göre direction'ı set et
+  // Hızlı yön ön-seçimi: yeni konvansiyon — debit=açık hesap artışı, credit=kapanış
   function updateRefType(rt: FormRefType) {
     setRefType(rt)
     if (rt === 'payment') {
-      // müşteri için tahsilat → alacak, tedarikçi için ödeme → borç
-      setDirection(partyType === 'customer' ? 'credit' : 'debit')
+      // Tahsilat veya ödeme → açık hesabı kapatır → alacak
+      setDirection('credit')
     } else if (rt === 'opening_balance') {
-      setDirection(partyType === 'customer' ? 'debit' : 'credit')
+      // Geçmişten gelen borç → açık hesap → borç
+      setDirection('debit')
     }
   }
 

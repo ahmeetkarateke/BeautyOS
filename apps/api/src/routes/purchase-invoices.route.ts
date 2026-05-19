@@ -135,15 +135,16 @@ async function postInvoiceTx(
     })
   }
 
-  // 2) Tedarikçi cari — alacak (biz tedarikçiye borçluyuz)
+  // 2) Tedarikçi cari — borç (biz tedarikçiye borçlandık; açık hesap büyür)
+  // Konvansiyon: debit = açık hesap artışı (her iki cari tipi için)
   await tx.currentAccountEntry.create({
     data: {
       tenantId,
       partyType: CurrentAccountPartyType.supplier,
       supplierId: invoice.supplierId,
       date: invoice.invoiceDate,
-      debit: new Prisma.Decimal(0),
-      credit: invoice.total,
+      debit: invoice.total,
+      credit: new Prisma.Decimal(0),
       description: `Alış faturası ${invoice.invoiceNumber ?? '#' + invoice.id.slice(0, 8)}`,
       referenceType: CurrentAccountEntryRefType.purchase_invoice,
       referenceId: invoice.id,
@@ -199,15 +200,15 @@ async function cancelPostedInvoiceTx(
     })
   }
 
-  // 2) Cari hesap iptal kaydı (borç tarafına yaz → orjinal alacağı kapatır)
+  // 2) Cari hesap iptal kaydı (alacak tarafına yaz → orijinal borçu kapatır)
   await tx.currentAccountEntry.create({
     data: {
       tenantId,
       partyType: CurrentAccountPartyType.supplier,
       supplierId: invoice.supplierId,
       date: new Date(),
-      debit: invoice.total,
-      credit: new Prisma.Decimal(0),
+      debit: new Prisma.Decimal(0),
+      credit: invoice.total,
       description: `Alış faturası iptali ${invoice.invoiceNumber ?? '#' + invoice.id.slice(0, 8)}`,
       referenceType: CurrentAccountEntryRefType.adjustment,
       referenceId: invoice.id,
