@@ -29,20 +29,49 @@ interface NavItem {
   moduleKey?: string
 }
 
-const navItems = (slug: string): NavItem[] => [
-  { href: `/tenant/${slug}/dashboard`,    icon: LayoutDashboard, label: 'Dashboard',     moduleKey: 'dashboard' },
-  { href: `/tenant/${slug}/appointments`, icon: Calendar,         label: 'Randevular',   moduleKey: 'appointments' },
-  { href: `/tenant/${slug}/customers`,    icon: Users,            label: 'Müşteriler',   moduleKey: 'customers' },
-  { href: `/tenant/${slug}/waitlist`,     icon: Clock,            label: 'Bekleme Listesi', moduleKey: 'waitlist' },
-  { href: `/tenant/${slug}/services`,     icon: Sparkles,         label: 'Hizmetler',    moduleKey: 'services' },
-  { href: `/tenant/${slug}/packages`,     icon: Boxes,            label: 'Paketler',     moduleKey: 'packages' },
-  { href: `/tenant/${slug}/staff`,        icon: UserCog,          label: 'Personel',     moduleKey: 'staff' },
-  { href: `/tenant/${slug}/staff-payouts`, icon: Wallet,           label: 'Personel Ödemeleri', moduleKey: 'staff-payouts' },
-  { href: `/tenant/${slug}/tips`,         icon: HandCoins,        label: 'Bahşiş',       moduleKey: 'tips' },
-  { href: `/tenant/${slug}/inventory`,    icon: Package,          label: 'Stok',         moduleKey: 'inventory' },
-  { href: `/tenant/${slug}/finance`,        icon: Banknote,         label: 'Kasa',         moduleKey: 'finance' },
-  ...(BOT_FEATURES_ENABLED ? [{ href: `/tenant/${slug}/bot-conversations`, icon: MessageSquare, label: 'Bot Konuşmaları' }] : []),
-  { href: `/tenant/${slug}/settings`,     icon: Settings,         label: 'Ayarlar',      moduleKey: 'settings' },
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const navGroups = (slug: string): NavGroup[] => [
+  {
+    label: 'GÜNLÜK',
+    items: [
+      { href: `/tenant/${slug}/dashboard`,    icon: LayoutDashboard, label: 'Dashboard',         moduleKey: 'dashboard' },
+      { href: `/tenant/${slug}/appointments`, icon: Calendar,         label: 'Randevular',       moduleKey: 'appointments' },
+      { href: `/tenant/${slug}/waitlist`,     icon: Clock,            label: 'Bekleme Listesi',  moduleKey: 'waitlist' },
+    ],
+  },
+  {
+    label: 'MÜŞTERİ',
+    items: [
+      { href: `/tenant/${slug}/customers`, icon: Users, label: 'Müşteriler', moduleKey: 'customers' },
+      { href: `/tenant/${slug}/packages`,  icon: Boxes, label: 'Paketler',   moduleKey: 'packages' },
+    ],
+  },
+  {
+    label: 'PERSONEL & HİZMET',
+    items: [
+      { href: `/tenant/${slug}/services`,      icon: Sparkles,  label: 'Hizmetler',          moduleKey: 'services' },
+      { href: `/tenant/${slug}/staff`,         icon: UserCog,   label: 'Personel',           moduleKey: 'staff' },
+      { href: `/tenant/${slug}/staff-payouts`, icon: Wallet,    label: 'Personel Ödemeleri', moduleKey: 'staff-payouts' },
+      { href: `/tenant/${slug}/tips`,          icon: HandCoins, label: 'Bahşiş',             moduleKey: 'tips' },
+    ],
+  },
+  {
+    label: 'FİNANS & STOK',
+    items: [
+      { href: `/tenant/${slug}/finance`,   icon: Banknote, label: 'Kasa', moduleKey: 'finance' },
+      { href: `/tenant/${slug}/inventory`, icon: Package,  label: 'Stok', moduleKey: 'inventory' },
+    ],
+  },
+  ...(BOT_FEATURES_ENABLED
+    ? [{
+        label: 'BOT',
+        items: [{ href: `/tenant/${slug}/bot-conversations`, icon: MessageSquare, label: 'Bot Konuşmaları' } as NavItem],
+      }]
+    : []),
 ]
 
 interface TrialSettings {
@@ -54,6 +83,13 @@ function trialDaysLeft(trialEndsAt: string): number {
   const end = new Date(trialEndsAt)
   const now = new Date()
   return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+const STAFF_EXCLUDED_SUFFIXES = ['/staff', '/staff-payouts', '/finance', '/settings']
+
+function isVisibleForRole(href: string, role?: string): boolean {
+  if (role !== 'staff') return true
+  return !STAFF_EXCLUDED_SUFFIXES.some((p) => href.endsWith(p))
 }
 
 export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
@@ -80,13 +116,18 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
   const { activeModules } = useActiveModules(tenantSlug)
   const activeSet = new Set(activeModules)
 
-  const items = navItems(tenantSlug)
-    .filter((item) => !item.moduleKey || activeSet.has(item.moduleKey))
-    .filter(
-      (item) =>
-        user?.role !== 'staff' ||
-        !['/staff', '/staff-payouts', '/finance', '/settings'].some((p) => item.href.endsWith(p)),
-    )
+  // Aktif modüller + rol filtresi
+  const visibleGroups: NavGroup[] = navGroups(tenantSlug)
+    .map((g) => ({
+      ...g,
+      items: g.items
+        .filter((item) => !item.moduleKey || activeSet.has(item.moduleKey))
+        .filter((item) => isVisibleForRole(item.href, user?.role)),
+    }))
+    .filter((g) => g.items.length > 0)
+
+  const settingsHref = `/tenant/${tenantSlug}/settings`
+  const showSettings = isVisibleForRole(settingsHref, user?.role) && activeSet.has('settings')
 
   return (
     <aside
@@ -115,29 +156,60 @@ export function Sidebar({ tenantSlug, open, onToggle }: SidebarProps) {
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-2 py-4 space-y-0.5">
-        {items.map((item) => {
-          const Icon = item.icon
-          const active = pathname === item.href || pathname.startsWith(item.href + '/')
-          return (
+      {/* Nav — kategorize */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
+        {visibleGroups.map((group, gi) => (
+          <div key={group.label} className={cn(gi > 0 && 'mt-4')}>
+            {open && (
+              <p className="px-2.5 pb-1.5 text-[10px] font-semibold tracking-widest text-salon-muted/70 dark:text-white/30 uppercase">
+                {group.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon
+                const active = pathname === item.href || pathname.startsWith(item.href + '/')
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={!open ? item.label : undefined}
+                    className={cn(
+                      'flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors touch-target',
+                      open ? '' : 'justify-center',
+                      active
+                        ? 'bg-primary-50 text-primary dark:bg-primary/15 dark:text-primary'
+                        : 'text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white',
+                    )}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    {open && <span className="truncate">{item.label}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Ayarlar — alt blok */}
+        {showSettings && (
+          <div className="mt-4 pt-3 border-t border-salon-border/40 dark:border-white/8">
             <Link
-              key={item.href}
-              href={item.href}
-              title={!open ? item.label : undefined}
+              href={settingsHref}
+              title={!open ? 'Ayarlar' : undefined}
               className={cn(
-                'flex items-center gap-3 px-2.5 py-2.5 rounded-md text-sm font-medium transition-colors touch-target',
+                'flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors touch-target',
                 open ? '' : 'justify-center',
-                active
+                pathname === settingsHref || pathname.startsWith(settingsHref + '/')
                   ? 'bg-primary-50 text-primary dark:bg-primary/15 dark:text-primary'
                   : 'text-salon-muted hover:bg-salon-bg hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white',
               )}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {open && <span className="truncate">{item.label}</span>}
+              <Settings className="w-5 h-5 flex-shrink-0" />
+              {open && <span className="truncate">Ayarlar</span>}
             </Link>
-          )
-        })}
+          </div>
+        )}
       </nav>
 
       {/* Trial banner */}
