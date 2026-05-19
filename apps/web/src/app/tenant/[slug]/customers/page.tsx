@@ -11,12 +11,12 @@ import {
 } from '@tanstack/react-table'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Search, Plus, Phone, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetch } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
-import { NewCustomerModal } from '@/components/customers/new-customer-modal'
 import { useAuthStore } from '@/store/auth'
 import { useDebounce } from '@/hooks/use-debounce'
 
@@ -47,7 +47,6 @@ export default function CustomersPage({ params }: PageProps) {
   const isStaff = user?.role === 'staff'
   const [search, setSearch] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
-  const [modalOpen, setModalOpen] = useState(false)
 
   const debouncedSearch = useDebounce(search, 400)
 
@@ -69,6 +68,7 @@ export default function CustomersPage({ params }: PageProps) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: debouncedSearch.length === 0 || debouncedSearch.length >= 2,
+    retry: false, // 401/404'te retry yapma; donma riskini azalt
   })
 
   // Show empty list while user is typing but hasn't reached 2 chars yet
@@ -130,24 +130,29 @@ export default function CustomersPage({ params }: PageProps) {
     getSortedRowModel: getSortedRowModel(),
   })
 
+  const newHref = `/tenant/${params.slug}/customers/new`
+
   if (isStaff) {
     return (
       <div className="p-4 sm:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Müşteriler</h1>
-          <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Yeni Müşteri
-          </Button>
+          <Link href={newHref}>
+            <Button size="sm" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Yeni Müşteri
+            </Button>
+          </Link>
         </div>
         <div className="bg-white rounded-lg border border-salon-border p-8 text-center">
           <p className="text-sm text-salon-muted">Müşteri listesini görüntüleme yetkiniz yok.</p>
-          <Button size="sm" className="mt-4 gap-2" onClick={() => setModalOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Yeni Müşteri Oluştur
-          </Button>
+          <Link href={newHref}>
+            <Button size="sm" className="mt-4 gap-2">
+              <Plus className="w-4 h-4" />
+              Yeni Müşteri Oluştur
+            </Button>
+          </Link>
         </div>
-        <NewCustomerModal open={modalOpen} onOpenChange={setModalOpen} tenantSlug={params.slug} />
       </div>
     )
   }
@@ -156,10 +161,12 @@ export default function CustomersPage({ params }: PageProps) {
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Müşteriler</h1>
-        <Button size="sm" className="gap-2" onClick={() => setModalOpen(true)}>
-          <Plus className="w-4 h-4" />
-          Yeni Müşteri
-        </Button>
+        <Link href={newHref}>
+          <Button size="sm" className="gap-2">
+            <Plus className="w-4 h-4" />
+            Yeni Müşteri
+          </Button>
+        </Link>
       </div>
 
       {/* Arama */}
@@ -256,11 +263,6 @@ export default function CustomersPage({ params }: PageProps) {
         </div>
       </div>
 
-      <NewCustomerModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        tenantSlug={params.slug}
-      />
     </div>
   )
 }
