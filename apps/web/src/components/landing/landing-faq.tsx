@@ -6,36 +6,36 @@ import { Plus, Minus } from 'lucide-react'
 
 const FAQS = [
   {
-    q: 'Deneme için kredi kartı verecek miyim?',
-    a: 'Hayır. E-posta ve salon adı yeter. 30 gün sonunda devam etmek isterseniz fatura bilgilerinizi alırız; istemezseniz hesap kendiliğinden kapanır, kimse sizi aramaz.',
+    q: 'Ücretsiz deneme için kredi kartı bilgisi gerekli midir?',
+    a: 'Hayır. Hesap oluşturmak için yalnızca e-posta adresi ve işletme adı yeterlidir. 30 günlük deneme süresinin sonunda abone olmak isterseniz fatura bilgilerinizi tarafımıza iletmeniz gerekmektedir. Abonelik tercih edilmediği takdirde hesap otomatik olarak askıya alınır; herhangi bir ödeme tahsil edilmez.',
   },
   {
-    q: 'Verilerim kimde duruyor, güvende mi?',
-    a: 'Veriler AWS İstanbul yakın bölgesinde, KVKK uyumlu sunucularda, şifreli olarak duruyor. Sadece siz ve yetki verdiğiniz personel erişebilir. Çıkmak isterseniz tüm veriyi Excel olarak indirip alabilirsiniz.',
+    q: 'Veriler nerede saklanır ve veri güvenliği nasıl sağlanır?',
+    a: 'Tüm veriler AWS Avrupa bölgesinde, KVKK uyumlu sunucularda uçtan uca şifreli olarak saklanmaktadır. Verilere yalnızca yetkilendirilen kullanıcılar erişebilir. Sözleşmenizin sonlanması durumunda tüm verilerinizi standart formatlarda (Excel, CSV) dışa aktarabilirsiniz.',
   },
   {
-    q: 'İnternet kesilirse salonum durur mu?',
-    a: 'Mobil veriyle çalışır. İnternet tamamen giderse son açık ekran üzerinden randevuya bakabilir, kapanışta sistem otomatik senkronize olur. Kasanız ve müşteri kayıtlarınız hiçbir koşulda kaybolmaz.',
+    q: 'İnternet bağlantısı kesildiğinde sistem nasıl davranır?',
+    a: 'Platform mobil veri bağlantısı üzerinden çalışmaya devam eder. İnternet bağlantısı tamamen kesilse dahi son görüntülenen randevu bilgilerine erişim mümkündür. Bağlantı yeniden sağlandığında veriler otomatik olarak senkronize edilir. Müşteri kayıtları ve finansal veriler hiçbir koşulda kaybolmaz.',
   },
   {
-    q: 'Mevcut sistemimden veri taşıyabilir miyim?',
-    a: 'Excel, defter fotoğrafı veya başka programdan dışa aktarımınızı bize gönderin — ilk hafta ücretsiz olarak biz aktarıyoruz. Tek bir randevu bile kaybolmaz.',
+    q: 'Mevcut yönetim sistemimden veri aktarımı mümkün müdür?',
+    a: 'Excel dosyalarınızı, fiziksel defter görüntülerinizi veya diğer yazılımlardan dışa aktarılmış verileri tarafımıza iletebilirsiniz. İlk hafta içinde veri taşıma hizmeti ücretsiz olarak sağlanmaktadır. Mevcut tüm randevu ve müşteri kayıtlarınız sisteme aktarılır.',
   },
   {
-    q: 'Personelim müşteri telefonlarını görebilir mi?',
-    a: 'Siz karar verirsiniz. Her personel için ayrı yetki: bazıları sadece kendi randevusunu görür, bazıları tüm salonu. Salondan ayrılan personelin erişimini tek tıkla kapatırsınız.',
+    q: 'Personel yetkileri nasıl yapılandırılır?',
+    a: 'Her personel için ayrı yetki seviyeleri tanımlanabilir. Bazı personeller yalnızca kendi randevu takvimini, diğerleri ise tüm işletme bilgilerini görüntüleyebilir. Personel ayrılması durumunda erişim hakları yönetim panelinden anında iptal edilebilir.',
   },
   {
-    q: 'Online rezervasyon sayfam Google\'da görünür mü?',
-    a: 'Evet. /book/[salon-adı] linkiniz public ve SEO uyumlu. Instagram bio\'ya, Google profilinize, QR koda koyup paylaşabilirsiniz.',
+    q: 'Online rezervasyon sayfası arama motorlarında görünür mü?',
+    a: 'Evet. Her işletmeye özel oluşturulan rezervasyon sayfası (/book/[işletme-adı] formatında) arama motoru optimizasyonuna uygun yapılandırılmıştır. Bu bağlantıyı sosyal medya profillerinizde, Google İşletme sayfanızda veya QR kodlar aracılığıyla müşterilerinizle paylaşabilirsiniz.',
   },
   {
-    q: 'Fiyat ileride artar mı?',
-    a: 'Bugün üye olanların fiyatı asla artmaz — kuruluş üyelerine ömür boyu ₺499 sözü veriyoruz. Yeni gelenler için fiyat değişebilir, sizinki kilitli kalır.',
+    q: 'Abonelik ücreti ileride değişecek midir?',
+    a: 'Kurucu üye programı kapsamında abone olan ilk 50 işletme için aylık ₺499 tarifesi sözleşme süresince sabit kalmaktadır. Standart fiyatlandırma güncellense dahi kurucu üyelerin aboneliği aynı ücret üzerinden devam eder.',
   },
   {
-    q: 'Beğenmezsem nasıl çıkarım?',
-    a: 'Panelden tek tıkla. Cayma bedeli, taahhüt, "3 ay daha öde" diye bir şey yok. Verilerinizi indirin, hesabı kapatın, biter.',
+    q: 'Aboneliği iptal etmek isterseniz süreç nasıl işler?',
+    a: 'Abonelik iptali yönetim paneli üzerinden tek bir işlemle gerçekleştirilebilir. Cayma bedeli, uzun vadeli taahhüt veya cezai şart uygulanmamaktadır. İptal işleminden önce tüm verilerinizi dışa aktarabilir, ardından hesabınızı kapatabilirsiniz.',
   },
 ]
 
@@ -51,7 +51,7 @@ export function LandingFAQ() {
           className="text-center mb-12 sm:mb-16"
         >
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: '#D67D78' }}>
-            Sıkça sorulan
+            Sıkça Sorulan Sorular
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -62,7 +62,7 @@ export function LandingFAQ() {
               fontWeight: 560,
             }}
           >
-            Aklınızda hâlâ soru kaldıysa…
+            Karar sürecinize destek olacak temel bilgiler.
           </h2>
         </motion.div>
 
@@ -80,7 +80,7 @@ export function LandingFAQ() {
           className="mt-10 text-center text-[14px]"
           style={{ color: 'rgba(31,62,71,0.6)' }}
         >
-          Başka sorunuz var mı?{' '}
+          Yanıt bulamadığınız sorularınız için lütfen iletişime geçiniz:{' '}
           <a href="mailto:destek@beautyossapp.com" className="font-semibold" style={{ color: '#6B48FF' }}>
             destek@beautyossapp.com
           </a>

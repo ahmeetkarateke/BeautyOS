@@ -39,7 +39,7 @@ export function LandingHero() {
               className="w-1.5 h-1.5 rounded-full"
               style={{ backgroundColor: '#D67D78' }}
             />
-            Türkiye'nin salonları için • Pilot başladı
+            Türkiye merkezli, KVKK uyumlu yönetim platformu
           </motion.div>
 
           {/* H1 */}
@@ -55,17 +55,17 @@ export function LandingHero() {
               fontWeight: 560,
             }}
           >
-            Salonunuz,{' '}
+            Salon ve klinikler için{' '}
             <span className="relative inline-block" style={{ color: '#D67D78' }}>
-              akıllı
+              bütünleşik
               <svg
                 aria-hidden
-                viewBox="0 0 220 14"
+                viewBox="0 0 320 14"
                 className="absolute left-0 -bottom-2 w-full"
                 style={{ height: '0.5em' }}
               >
                 <motion.path
-                  d="M 4 9 Q 60 2 110 7 T 216 6"
+                  d="M 4 9 Q 80 2 160 7 T 316 6"
                   fill="none"
                   stroke="#E89B96"
                   strokeWidth="3"
@@ -76,7 +76,7 @@ export function LandingHero() {
                 />
               </svg>
             </span>{' '}
-            çalışsın.
+            yönetim platformu.
           </motion.h1>
 
           {/* Sub */}
@@ -87,8 +87,9 @@ export function LandingHero() {
             className="mt-7 text-[17px] sm:text-[19px] leading-[1.55]"
             style={{ color: 'rgba(31,62,71,0.68)', maxWidth: '54ch' }}
           >
-            Randevu, müşteri kartı, anamnez, paket, kasa ve cari hesap — tek panelde.
-            Türk salonlarının diliyle, kurulum dakikalar içinde.
+            Randevu yönetimi, müşteri kayıt sistemi, klinik anamnezi, paket
+            satışı, kasa ve cari hesap takibi tek bir platformda. Türkiye'deki
+            işletmelerin operasyonel ihtiyaçlarına özel olarak geliştirilmiştir.
           </motion.p>
 
           {/* CTA Row */}
@@ -99,7 +100,7 @@ export function LandingHero() {
             className="mt-9 flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center"
           >
             <PrimaryCTA href="/signup">
-              Hemen başla
+              Ücretsiz Deneyin
               <ArrowRight size={16} className="ml-0.5" />
             </PrimaryCTA>
             <SecondaryCTA href="#demo">
@@ -109,9 +110,9 @@ export function LandingHero() {
               >
                 <Play size={11} fill="#1F3E47" stroke="#1F3E47" className="ml-0.5" />
               </span>
-              Demo izle
+              Tanıtım Videosu
               <span className="text-[12px] font-normal" style={{ color: 'rgba(31,62,71,0.5)' }}>
-                2 dk
+                2 dakika
               </span>
             </SecondaryCTA>
           </motion.div>
@@ -125,10 +126,10 @@ export function LandingHero() {
             style={{ color: 'rgba(31,62,71,0.6)' }}
           >
             {[
-              'Kredi kartı gerekmez',
-              '30 gün ücretsiz',
-              'KVKK uyumlu',
-              'Tek tıkla iptal',
+              'Kredi kartı bilgisi talep edilmez',
+              '30 gün ücretsiz deneme',
+              'KVKK uyumludur',
+              'İstediğiniz zaman iptal edebilirsiniz',
             ].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
                 <Check size={14} style={{ color: '#28A745' }} strokeWidth={2.5} />
@@ -287,13 +288,13 @@ function DashboardMockup() {
           >
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(31,62,71,0.5)' }}>
-                Bugünün Randevuları
+                Günlük Randevular
               </span>
               <span
                 className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                 style={{ backgroundColor: 'rgba(40,167,69,0.12)', color: '#28A745' }}
               >
-                3 yaklaşıyor
+                3 aktif
               </span>
             </div>
             <div className="space-y-1.5">
@@ -315,7 +316,7 @@ function DashboardMockup() {
               ●
             </span>
             <span className="text-[11px]" style={{ color: 'rgba(31,62,71,0.7)' }}>
-              <strong style={{ color: '#1F3E47' }}>Yağmur</strong> şimdi <strong>Ayşe Yılmaz</strong> ile çalışıyor — kalan: <strong>12 dk</strong>
+              <strong style={{ color: '#1F3E47' }}>Aktif seans:</strong> Personel ve müşteri eşleştirmesi · <strong>Kalan süre: 12 dk</strong>
             </span>
           </div>
         </div>
@@ -342,14 +343,14 @@ function DashboardMockup() {
               className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-semibold text-white"
               style={{ backgroundColor: '#E89B96' }}
             >
-              Z
+              MP
             </span>
             <div>
               <p className="text-[12px] font-semibold leading-tight" style={{ color: '#1F3E47' }}>
-                Zeynep K.
+                Müşteri Paketi
               </p>
               <p className="text-[10px]" style={{ color: 'rgba(31,62,71,0.5)' }}>
-                10 seans paketi
+                10 seanslık abonelik
               </p>
             </div>
           </div>

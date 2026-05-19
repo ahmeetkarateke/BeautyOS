@@ -32,27 +32,27 @@ function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
 
 const COLUMNS = [
   {
-    title: 'Ürün',
+    title: 'Platform',
     links: [
-      { label: 'Özellikler', href: '#features' },
-      { label: 'Sektörler', href: '#sectors' },
-      { label: 'Fiyat', href: '#pricing' },
+      { label: 'Çözüm Modülleri', href: '#features' },
+      { label: 'Desteklenen Sektörler', href: '#sectors' },
+      { label: 'Fiyatlandırma', href: '#pricing' },
       { label: 'Online Rezervasyon', href: '/iletisim' },
     ],
   },
   {
     title: 'Kaynaklar',
     links: [
-      { label: 'Sıkça Sorulanlar', href: '#faq' },
+      { label: 'Sıkça Sorulan Sorular', href: '#faq' },
       { label: 'Yardım Merkezi', href: '/yardim' },
       { label: 'İletişim', href: '/iletisim' },
-      { label: 'Demo İste', href: '/iletisim' },
+      { label: 'Demo Talebi', href: '/iletisim' },
     ],
   },
   {
-    title: 'Yasal',
+    title: 'Yasal Bilgiler',
     links: [
-      { label: 'KVKK & Aydınlatma Metni', href: '/kvkk' },
+      { label: 'KVKK Aydınlatma Metni', href: '/kvkk' },
       { label: 'Gizlilik Politikası', href: '/gizlilik' },
       { label: 'Kullanım Şartları', href: '/sartlar' },
       { label: 'Çerez Politikası', href: '/cerez' },
@@ -88,8 +88,9 @@ export function LandingFooter() {
               </span>
             </Link>
             <p className="text-[14px] leading-[1.55] max-w-xs" style={{ color: 'rgba(31,62,71,0.6)' }}>
-              Türkiye salonları, klinikleri ve güzellik merkezleri için modern yönetim sistemi.
-              Defter, Excel ve sohbetlerin yerine.
+              Türkiye'deki salon, klinik ve güzellik merkezleri için tasarlanmış bütünleşik
+              yönetim platformu. Randevu, müşteri, finans ve operasyon süreçleri için tek
+              çözüm.
             </p>
             <div className="mt-5 flex items-center gap-2">
               <SocialButton href="mailto:hello@beautyossapp.com" label="E-posta" Icon={Mail} />
@@ -130,10 +131,10 @@ export function LandingFooter() {
           style={{ borderColor: 'rgba(31,62,71,0.06)' }}
         >
           <p className="text-[13px]" style={{ color: 'rgba(31,62,71,0.5)' }}>
-            © 2026 BeautyOS. Tüm hakları saklıdır. Made in Türkiye.
+            © 2026 BeautyOS. Tüm hakları saklıdır. Türkiye'de tasarlandı ve geliştirildi.
           </p>
           <p className="text-[13px]" style={{ color: 'rgba(31,62,71,0.5)' }}>
-            KVKK uyumlu · AWS İstanbul yakın bölge
+            KVKK uyumlu altyapı · AWS Avrupa bölgesi
           </p>
         </div>
       </div>

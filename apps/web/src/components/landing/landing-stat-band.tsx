@@ -3,10 +3,10 @@
 import { motion } from 'framer-motion'
 
 const STATS = [
-  { value: '30', unit: 'gün', label: 'Ücretsiz deneme' },
-  { value: '11', unit: 'sektör', label: 'Salon, klinik, SPA için özel' },
-  { value: '₺499', unit: '/ay', label: 'Tek plan, gizli ücret yok' },
-  { value: '0', unit: '₺', label: 'Cayma bedeli — istediğinde çık' },
+  { value: '30', unit: 'gün', label: 'Ücretsiz deneme süresi' },
+  { value: '11', unit: 'sektör', label: 'Sektöre özel yapılandırma' },
+  { value: '₺499', unit: '/ ay', label: 'Tek fiyat, ek ücret yoktur' },
+  { value: '0', unit: '₺', label: 'Cayma bedeli bulunmamaktadır' },
 ]
 
 export function LandingStatBand() {

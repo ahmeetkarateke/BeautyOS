@@ -26,7 +26,7 @@ export function LandingFinalCTA() {
           />
 
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-4" style={{ color: '#D67D78' }}>
-            Şimdi sıra sizde
+            Ücretsiz denemeye başlayın
           </p>
 
           <h2
@@ -38,17 +38,18 @@ export function LandingFinalCTA() {
               fontWeight: 560,
             }}
           >
-            Bugün başlayın,{' '}
-            <span style={{ color: '#D67D78' }}>beğenmezseniz</span>{' '}
-            tek tıkla çıkın.
+            Platformumuzu{' '}
+            <span style={{ color: '#D67D78' }}>30 gün boyunca</span>{' '}
+            ücretsiz deneyimleyin.
           </h2>
 
           <p
             className="mt-6 text-[17px] sm:text-[18px] leading-[1.55] max-w-xl mx-auto"
             style={{ color: 'rgba(31,62,71,0.65)' }}
           >
-            30 gün ücretsiz deneme. Kredi kartı yok. Cayma bedeli yok.
-            Verilerinizi istediğiniz zaman indirip alabilirsiniz.
+            Hesap oluşturmak için yalnızca e-posta adresi ve işletme bilgileri yeterlidir.
+            Kredi kartı bilgisi talep edilmez, cayma bedeli ve uzun vadeli taahhüt bulunmaz.
+            Verilerinizi istediğiniz zaman dışa aktarabilirsiniz.
           </p>
 
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
@@ -72,7 +73,7 @@ export function LandingFinalCTA() {
                 e.currentTarget.style.boxShadow = '0 1px 2px rgba(31,62,71,0.06), inset 0 1px 0 rgba(255,255,255,0.15)'
               }}
             >
-              30 gün ücretsiz başla
+              Ücretsiz Hesap Oluşturun
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
@@ -80,12 +81,12 @@ export function LandingFinalCTA() {
               className="inline-flex items-center px-4 h-12 rounded-lg text-[15px] font-medium"
               style={{ color: '#1F3E47' }}
             >
-              Demo iste →
+              Demo Talep Edin →
             </Link>
           </div>
 
           <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px]" style={{ color: 'rgba(31,62,71,0.6)' }}>
-            {['Kredi kartı gerekmez', 'Cayma bedeli yok', 'Veri taşıma ücretsiz', '7/24 destek'].map((t) => (
+            {['Kredi kartı gerekmez', 'Cayma bedeli yoktur', 'Ücretsiz veri taşıma', 'Türkçe müşteri desteği'].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
                 <Check size={14} style={{ color: '#28A745' }} strokeWidth={2.5} />
                 <span>{t}</span>

@@ -5,14 +5,14 @@ import { motion } from 'framer-motion'
 import { Check, Sparkles, ArrowRight } from 'lucide-react'
 
 const INCLUDED = [
-  'Sınırsız randevu ve müşteri',
-  'Tüm modüller (paket, anamnez, fotoğraf, finans)',
-  'Online rezervasyon sayfası + depozito',
-  'Tüm personel, sınırsız kullanıcı',
-  'Cari hesap, banka, alış faturası',
-  '7/24 Türkçe destek + uygulama içi yardım',
-  'KVKK uyumlu altyapı, otomatik yedek',
-  'Veri taşıma ücretsiz (ilk hafta)',
+  'Sınırsız randevu ve müşteri kaydı',
+  'Tüm modüllere erişim (paket, anamnez, görsel arşiv, finans)',
+  'Online rezervasyon sayfası ve depozito sistemi',
+  'Sınırsız personel ve kullanıcı tanımlama',
+  'Cari hesap, banka entegrasyonu ve alış faturası yönetimi',
+  'Türkçe müşteri desteği ve uygulama içi yardım merkezi',
+  'KVKK uyumlu altyapı ve günlük otomatik yedekleme',
+  'İlk haftada ücretsiz veri taşıma hizmeti',
 ]
 
 export function LandingPricing() {
@@ -27,7 +27,7 @@ export function LandingPricing() {
           className="text-center mb-12 sm:mb-14"
         >
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: '#6B48FF' }}>
-            Tek plan, gizli ücret yok
+            Şeffaf fiyatlandırma
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -38,10 +38,10 @@ export function LandingPricing() {
               fontWeight: 560,
             }}
           >
-            Salonunuzun hak ettiği fiyat.
+            Tek planla tüm modüllere tam erişim.
           </h2>
           <p className="mt-4 text-[16px]" style={{ color: 'rgba(31,62,71,0.6)' }}>
-            Ay sonu sürpriz yok, taahhüt yok, kredi kartı sormuyoruz.
+            Sabit aylık ücret. Uzun vadeli taahhüt ve cayma bedeli bulunmamaktadır.
           </p>
         </motion.div>
 
@@ -83,14 +83,14 @@ export function LandingPricing() {
                     </h3>
                   </div>
                   <p className="mt-2 text-[14px]" style={{ color: 'rgba(31,62,71,0.6)' }}>
-                    Salonunuzu çalıştırmak için ihtiyacınız olan her şey.
+                    İşletmenizin tüm operasyonel ihtiyaçlarını karşılayan tam kapsamlı plan.
                   </p>
                 </div>
                 <span
                   className="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold"
                   style={{ backgroundColor: 'rgba(232,155,150,0.16)', color: '#A45F5A' }}
                 >
-                  En popüler
+                  Önerilen
                 </span>
               </div>
 
@@ -111,7 +111,7 @@ export function LandingPricing() {
                 </span>
               </div>
               <p className="text-[13px] mb-7" style={{ color: 'rgba(31,62,71,0.5)' }}>
-                + KDV · Aylık ödeme · Cayma bedeli yok · İlk 30 gün ücretsiz
+                KDV hariçtir · Aylık faturalama · Taahhüt ve cayma bedeli yoktur · 30 gün ücretsiz deneme süresi
               </p>
 
               {/* CTA */}
@@ -135,11 +135,11 @@ export function LandingPricing() {
                   e.currentTarget.style.boxShadow = '0 1px 2px rgba(31,62,71,0.06), inset 0 1px 0 rgba(255,255,255,0.15)'
                 }}
               >
-                30 gün ücretsiz başla
+                Ücretsiz Denemeye Başlayın
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
               </Link>
               <p className="mt-3 text-center text-[12px]" style={{ color: 'rgba(31,62,71,0.5)' }}>
-                Kredi kartı istemiyoruz · İlk 50 üye fiyat kilidi
+                Kredi kartı bilgisi gerekmez · Kurucu üye fiyat kilidi geçerlidir
               </p>
 
               {/* Divider */}
@@ -147,7 +147,7 @@ export function LandingPricing() {
 
               {/* Features */}
               <p className="text-[12px] font-semibold uppercase tracking-[0.1em] mb-4" style={{ color: 'rgba(31,62,71,0.5)' }}>
-                Neler dahil
+                Plan Kapsamı
               </p>
               <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
                 {INCLUDED.map((item) => (
@@ -167,7 +167,7 @@ export function LandingPricing() {
 
           {/* Sub-band */}
           <p className="mt-6 text-center text-[13px]" style={{ color: 'rgba(31,62,71,0.55)' }}>
-            Birden fazla şube? <Link href="/iletisim" style={{ color: '#6B48FF', fontWeight: 600 }}>İletişime geçin →</Link>
+            Çoklu şube ya da kurumsal ihtiyaçlar için <Link href="/iletisim" style={{ color: '#6B48FF', fontWeight: 600 }}>satış ekibimizle iletişime geçin →</Link>
           </p>
         </motion.div>
       </div>

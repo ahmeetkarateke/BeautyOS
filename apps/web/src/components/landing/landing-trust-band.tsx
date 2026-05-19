@@ -4,10 +4,10 @@ import { motion } from 'framer-motion'
 import { ShieldCheck, FileText, CreditCard, Server } from 'lucide-react'
 
 const ITEMS = [
-  { icon: ShieldCheck, label: 'KVKK Uyumlu',     sub: 'Veriler şifreli, sadece sizde' },
-  { icon: FileText,    label: 'e-Fatura Hazır',  sub: 'Mali müşavir entegrasyonu' },
-  { icon: CreditCard,  label: 'iyzico ile Güvenli', sub: 'Yerel ödeme altyapısı' },
-  { icon: Server,      label: 'Türkiye Sunucu',  sub: 'AWS eu-west, İstanbul yakın' },
+  { icon: ShieldCheck, label: 'KVKK Uyumluluğu',          sub: 'Veriler uçtan uca şifreli olarak saklanır' },
+  { icon: FileText,    label: 'e-Fatura Entegrasyonu',    sub: 'Mali müşavir uyumlu raporlama' },
+  { icon: CreditCard,  label: 'iyzico Ödeme Altyapısı',   sub: 'PCI-DSS sertifikalı, yerel ödeme' },
+  { icon: Server,      label: 'Yerel Sunucu Altyapısı',   sub: 'AWS Avrupa bölgesi, düşük gecikme' },
 ]
 
 export function LandingTrustBand() {
@@ -22,7 +22,7 @@ export function LandingTrustBand() {
           className="text-center text-[12px] font-semibold uppercase tracking-[0.16em] mb-8"
           style={{ color: 'rgba(31,62,71,0.5)' }}
         >
-          Türkiye'nin işletme standartları için kuruldu
+          Türkiye'nin yasal ve teknik standartlarına tam uyumlu altyapı
         </motion.p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {ITEMS.map((item, i) => {

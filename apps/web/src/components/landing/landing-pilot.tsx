@@ -43,7 +43,7 @@ export function LandingPilot() {
                 }}
               >
                 <Crown size={13} strokeWidth={2.2} />
-                Kurucu Üyelik
+                Kurucu Üye Programı
               </span>
               <h2
                 className="font-semibold tracking-tight leading-[1.1]"
@@ -54,15 +54,16 @@ export function LandingPilot() {
                   fontWeight: 560,
                 }}
               >
-                İlk 50 salon — fiyatı{' '}
-                <span style={{ color: '#E89B96' }}>ömür boyu</span> kilitli.
+                İlk 50 işletmeye özel{' '}
+                <span style={{ color: '#E89B96' }}>ömür boyu</span> sabit fiyat.
               </h2>
               <p
                 className="mt-5 text-[16px] sm:text-[17px] leading-[1.6] max-w-xl"
                 style={{ color: 'rgba(255,255,255,0.72)' }}
               >
-                BeautyOS büyüse de, kurucu üyelerin fiyatı asla artmaz.
-                Bugün ₺499'la başlayan salonlar, 5 yıl sonra da ₺499 ödüyor olacak.
+                Kurucu üye programı kapsamında platformumuza katılan ilk 50 işletme için aylık
+                ₺499 fiyatı sözleşme süresi boyunca sabit kalır. Platform geliştikçe ve standart
+                fiyatlandırma güncellense dahi kurucu üyelerin aboneliği aynı tarifede devam eder.
               </p>
 
               <div className="mt-7 flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -84,12 +85,12 @@ export function LandingPilot() {
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  Kurucu üye ol
+                  Kurucu Üye Olun
                   <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <span className="flex items-center gap-1.5 text-[13px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
                   <Lock size={12} />
-                  Kontenjan dolduğunda fiyat değişebilir
+                  Kontenjan tamamlandığında program kapatılacaktır
                 </span>
               </div>
             </div>
@@ -104,11 +105,11 @@ export function LandingPilot() {
               }}
             >
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-2" style={{ color: 'rgba(232,155,150,0.8)' }}>
-                Kalan kontenjan
+                Kalan Kontenjan
               </p>
               <p className="text-[64px] font-bold leading-none tracking-tight" style={{ color: 'white', letterSpacing: '-0.03em' }}>
                 42
-                <span className="text-[24px]" style={{ color: 'rgba(255,255,255,0.4)' }}>/50</span>
+                <span className="text-[24px]" style={{ color: 'rgba(255,255,255,0.4)' }}>/ 50</span>
               </p>
               <div className="mt-4 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
                 <motion.div
@@ -121,7 +122,7 @@ export function LandingPilot() {
                 />
               </div>
               <p className="mt-4 text-[12px] leading-[1.5]" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                8 salon kayıt oldu. Kontenjan dolunca yeni gelenler yeni fiyat planındadır.
+                8 işletme programa dâhil olmuştur. Kontenjan tamamlandığında yeni abonelikler güncel fiyatlandırma üzerinden değerlendirilir.
               </p>
             </div>
           </div>

@@ -5,10 +5,10 @@ import { useEffect, useState } from 'react'
 import { Menu, X } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { label: 'Özellikler', href: '#features' },
+  { label: 'Çözümler', href: '#features' },
   { label: 'Sektörler', href: '#sectors' },
-  { label: 'Fiyat', href: '#pricing' },
-  { label: 'SSS', href: '#faq' },
+  { label: 'Fiyatlandırma', href: '#pricing' },
+  { label: 'Sıkça Sorulanlar', href: '#faq' },
 ]
 
 export function LandingNav() {
@@ -59,7 +59,7 @@ export function LandingNav() {
             className="hidden sm:inline-flex items-center px-3.5 py-2 rounded-md text-[14px] font-medium transition-colors"
             style={{ color: 'rgba(31,62,71,0.85)' }}
           >
-            Giriş
+            Oturum Aç
           </Link>
           <Link
             href="/signup"
@@ -80,7 +80,7 @@ export function LandingNav() {
               e.currentTarget.style.boxShadow = '0 1px 2px rgba(31,62,71,0.08)'
             }}
           >
-            Ücretsiz Başla
+            Ücretsiz Deneyin
           </Link>
           <button
             onClick={() => setMobileOpen((v) => !v)}
@@ -119,14 +119,14 @@ export function LandingNav() {
               className="px-3 py-2.5 rounded-md text-[15px] font-medium"
               style={{ color: 'rgba(31,62,71,0.85)' }}
             >
-              Giriş
+              Oturum Aç
             </Link>
             <Link
               href="/signup"
               className="mt-1 px-3 py-2.5 rounded-md text-[15px] font-medium text-white text-center"
               style={{ backgroundColor: '#6B48FF' }}
             >
-              Ücretsiz Başla
+              Ücretsiz Deneyin
             </Link>
           </div>
         </div>

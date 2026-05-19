@@ -9,56 +9,80 @@ import {
 const FEATURES = [
   {
     number: '01',
-    title: 'Bir daha asla boş koltuk',
+    title: 'Merkezi randevu yönetim sistemi',
     eyebrow: 'Randevu Yönetimi',
     body:
-      'Çakışan saat, unutulan müşteri, kayıp randevu yok. Personel takvimi tek ekranda, dolu saatler renk renk. Sürükle-bırak ile dakikalar içinde yeniden planlayın.',
-    bullets: ['Personel renk kodlu takvim', 'Sürükle-bırak ile yeniden planla', 'Kaynak (koltuk/oda) çakışma engeli'],
+      'Personel takvimleri tek bir ekranda görüntülenir; çakışmalar otomatik olarak engellenir. Sürükle-bırak yöntemiyle randevular yeniden düzenlenebilir. Koltuk, oda ve cihaz gibi kaynakların müsaitlik durumu eş zamanlı takip edilir.',
+    bullets: [
+      'Personel bazlı renk kodlu takvim görünümü',
+      'Sürükle-bırak ile randevu yeniden planlama',
+      'Kaynak çakışma tespiti ve önleme',
+    ],
     Visual: VisualCalendar,
   },
   {
     number: '02',
-    title: 'Her müşteriyi adıyla tanıyın',
+    title: 'Müşteri kayıt ve klinik anamnez sistemi',
     eyebrow: 'Müşteri Kartı + Anamnez',
     body:
-      'Geçmiş işlemler, alerji, tercih notları, fotoğraflar ve klinik anamnez formu — kapıdan girer girmez ekranda. Diş hekimi, estetik, masaj sektörleri için hazır soru setleriyle.',
-    bullets: ['11 sektör için hazır anamnez', 'Fotoğraf galerisi (öncesi/sonrası)', 'Alerji ve tercih notları'],
+      'Müşterilere ait işlem geçmişi, alerji bilgileri, tercih notları ve görseller dijital olarak arşivlenir. Sektöre özel anamnez formları diş hekimliği, estetik, masaj ve güzellik merkezleri için önceden tanımlanmış soru setleri ile sunulur.',
+    bullets: [
+      '11 sektör için hazırlanmış anamnez şablonları',
+      'Görsel arşivi ile öncesi ve sonrası takibi',
+      'Alerji ve tercih bilgilerinin sistematik kaydı',
+    ],
     Visual: VisualCustomer,
   },
   {
     number: '03',
-    title: 'Müşteri uyurken randevu alır',
-    eyebrow: 'Online Rezervasyon Sayfası',
+    title: 'Online rezervasyon ve müşteri portalı',
+    eyebrow: 'Çevrim İçi Rezervasyon',
     body:
-      'Markalı booking linkiniz Instagram bio\'da, Google profilinizde, QR kodda. Müşteri saat seçer, sistem onaylar, hatırlatır. Telefonu kapatın, salona bakın.',
-    bullets: ['Markalı /book sayfası', 'Otomatik onay + hatırlatma', 'Depozito desteği (no-show önler)'],
+      'İşletmenize özel markalı rezervasyon sayfası; sosyal medya bağlantılarınızda, Google işletme profilinizde ve QR kodlarda kullanılabilir. Müşteriler uygun saatleri görüntüleyerek randevu oluşturur; sistem onay ve hatırlatma süreçlerini otomatik yürütür.',
+    bullets: [
+      'İşletmeye özel rezervasyon sayfası',
+      'Otomatik onay ve hatırlatma süreçleri',
+      'İsteğe bağlı depozito ile rezervasyon güvencesi',
+    ],
     Visual: VisualBooking,
   },
   {
     number: '04',
-    title: 'Kim ne kadar borçlu, anında',
-    eyebrow: 'Paket, Bahşiş, Cari Hesap',
+    title: 'Paket satışı, bahşiş ve cari hesap takibi',
+    eyebrow: 'Finansal Operasyon',
     body:
-      'Kalan seans, ödenmemiş bakiye, bahşiş dağılımı, müşteri ve tedarikçi cari ekstresi — kafadan değil tek tıkla. Ay sonu "kim kime ne kaldı" kavgası yok.',
-    bullets: ['Çoklu seans paketleri', 'Bahşiş kasası ve dağıtım', 'Müşteri + tedarikçi cari hesap'],
+      'Çoklu seanslı paketlerin satışı ve kalan bakiye takibi otomatik gerçekleştirilir. Müşteri ve tedarikçi cari hesapları detaylı ekstre üzerinden izlenebilir; bahşiş kasası personel bazında şeffaf biçimde dağıtılır.',
+    bullets: [
+      'Çoklu seanslı paket abonelik yönetimi',
+      'Bahşiş kasası ve personel bazlı dağıtım',
+      'Müşteri ve tedarikçi cari hesap takibi',
+    ],
     Visual: VisualPackage,
   },
   {
     number: '05',
-    title: 'Komisyonu sistem hesaplasın',
-    eyebrow: 'Personel ve Komisyon',
+    title: 'Personel ve komisyon yönetimi',
+    eyebrow: 'İnsan Kaynakları',
     body:
-      'Her personelin cirosu, hak edişi, izni otomatik. Esnek komisyon kuralları (yüzde, sabit, hizmet bazlı). Ay sonu 2 saat Excel yerine 2 dakika onaylama.',
-    bullets: ['Hizmet bazlı esnek komisyon', 'Personel performans karnesi', 'İzin ve mesai takibi'],
+      'Personellerin gerçekleştirdiği işlemler, hak edilen komisyonlar ve izinler sistem tarafından otomatik hesaplanır. Esnek komisyon kuralları (yüzde, sabit tutar, hizmet bazlı) tanımlanabilir; aylık ödeme raporları tek tıkla hazırlanır.',
+    bullets: [
+      'Esnek komisyon yapılandırması',
+      'Personel performans göstergeleri',
+      'İzin ve mesai takip altyapısı',
+    ],
     Visual: VisualStaff,
   },
   {
     number: '06',
-    title: 'Kasa, banka, alış faturası — tek defterde',
-    eyebrow: 'Finans Modülü',
+    title: 'Entegre finans ve muhasebe modülü',
+    eyebrow: 'Finans',
     body:
-      'Banka hesabı, kasa, POS, alış faturası, tedarikçi cari — birbirine bağlı çalışır. Bir faturayı kestiniz, stok düştü, tedarikçiye borç yazıldı, kasanız güncellendi.',
-    bullets: ['Otomatik stok girişi', 'Banka-kasa virmanı', 'Mali müşavir raporu hazır'],
+      'Banka hesapları, kasa, POS işlemleri, alış faturaları ve tedarikçi carileri birbirine entegre çalışır. Alış faturası oluşturulduğunda stok girişleri ve cari hesap kayıtları otomatik güncellenir; mali müşavir için raporlar hazır biçimde sunulur.',
+    bullets: [
+      'Otomatik stok ve cari hesap entegrasyonu',
+      'Banka ve kasa arası virman işlemleri',
+      'Mali müşavir uyumlu finansal raporlama',
+    ],
     Visual: VisualFinance,
   },
 ]
@@ -76,7 +100,7 @@ export function LandingFeatures() {
           className="max-w-2xl mb-16 sm:mb-24"
         >
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3" style={{ color: '#6B48FF' }}>
-            Tek panel, altı modül
+            Çözüm modülleri
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -87,7 +111,7 @@ export function LandingFeatures() {
               fontWeight: 560,
             }}
           >
-            Defter, Excel ve sohbetlerin yerine bir şey koymak için tasarlandı.
+            İşletmenizin tüm operasyonel süreçleri için bütünleşik altı modül.
           </h2>
         </motion.div>
 
@@ -187,16 +211,16 @@ function VisualShell({ children }: { children: React.ReactNode }) {
 
 function VisualCalendar() {
   const slots = [
-    { time: '09:00', name: 'Ayşe Y.', staff: 'Yağmur', color: '#6B48FF' },
-    { time: '10:30', name: 'Esra D.', staff: 'Selin', color: '#E89B96' },
-    { time: '11:00', name: 'Zeynep K.', staff: 'Yağmur', color: '#28A745' },
+    { time: '09:00', name: 'A. Yılmaz',  staff: 'Personel 1', color: '#6B48FF' },
+    { time: '10:30', name: 'E. Demir',   staff: 'Personel 2', color: '#E89B96' },
+    { time: '11:00', name: 'Z. Kaya',    staff: 'Personel 1', color: '#28A745' },
   ]
   return (
     <VisualShell>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Calendar size={16} style={{ color: '#6B48FF' }} />
-          <span className="text-[13px] font-semibold" style={{ color: '#1F3E47' }}>Bugün — 19 Mayıs</span>
+          <span className="text-[13px] font-semibold" style={{ color: '#1F3E47' }}>Günlük randevu listesi</span>
         </div>
         <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(107,72,255,0.10)', color: '#6B48FF', fontWeight: 600 }}>
           3 randevu
@@ -224,10 +248,10 @@ function VisualCalendar() {
 
 function VisualCustomer() {
   const questions = [
-    { q: 'Alerji geçmişi', a: 'Yok' },
-    { q: 'Düzenli ilaç kullanımı', a: 'Yok' },
-    { q: 'Cilt tipi', a: 'Kuru / Hassas' },
-    { q: 'Önceki bakım', a: '2 hafta önce — peeling' },
+    { q: 'Alerji geçmişi',         a: 'Bildirilmedi' },
+    { q: 'Düzenli ilaç kullanımı', a: 'Bildirilmedi' },
+    { q: 'Cilt tipi',              a: 'Kuru / Hassas' },
+    { q: 'Önceki uygulama',        a: '2 hafta önce — peeling' },
   ]
   return (
     <VisualShell>
@@ -236,18 +260,18 @@ function VisualCustomer() {
           className="w-12 h-12 rounded-full flex items-center justify-center text-white text-[15px] font-bold"
           style={{ background: 'linear-gradient(135deg, #6B48FF, #E89B96)' }}
         >
-          ZK
+          MK
         </span>
         <div className="flex-1">
-          <p className="text-[14px] font-semibold" style={{ color: '#1F3E47' }}>Zeynep Kara</p>
-          <p className="text-[11px]" style={{ color: 'rgba(31,62,71,0.5)' }}>14 ziyaret · son 3 gün önce</p>
+          <p className="text-[14px] font-semibold" style={{ color: '#1F3E47' }}>Müşteri Kaydı</p>
+          <p className="text-[11px]" style={{ color: 'rgba(31,62,71,0.5)' }}>14 ziyaret · son ziyaret 3 gün önce</p>
         </div>
         <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: 'rgba(40,167,69,0.12)', color: '#28A745' }}>
-          VIP
+          Sadık Müşteri
         </span>
       </div>
       <p className="text-[11px] font-semibold uppercase tracking-wide mb-2.5" style={{ color: 'rgba(31,62,71,0.5)' }}>
-        Anamnez — Güzellik Merkezi
+        Anamnez Formu — Güzellik Merkezi
       </p>
       <div className="space-y-2">
         {questions.map((qa) => (
@@ -310,13 +334,13 @@ function VisualPackage() {
   return (
     <VisualShell>
       <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: 'rgba(31,62,71,0.5)' }}>
-        Aktif Paketler — 3 müşteri
+        Aktif Paketler — 3 abonelik
       </p>
       <div className="space-y-3">
         {[
-          { name: 'Ayşe Y.', pack: '10 Seans Cilt Bakımı', used: 7, total: 10, color: '#28A745' },
-          { name: 'Esra D.', pack: '6 Seans Lazer', used: 5, total: 6, color: '#E89B96' },
-          { name: 'Zeynep K.', pack: '5 Seans Manikür', used: 2, total: 5, color: '#6B48FF' },
+          { name: 'Müşteri A', pack: '10 Seans Cilt Bakımı', used: 7, total: 10, color: '#28A745' },
+          { name: 'Müşteri B', pack: '6 Seans Lazer Epilasyon', used: 5, total: 6, color: '#E89B96' },
+          { name: 'Müşteri C', pack: '5 Seans Manikür', used: 2, total: 5, color: '#6B48FF' },
         ].map((p) => (
           <div key={p.name}>
             <div className="flex items-center justify-between mb-1.5">
@@ -345,13 +369,13 @@ function VisualStaff() {
   return (
     <VisualShell>
       <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: 'rgba(31,62,71,0.5)' }}>
-        Bu Ay — Personel Performans
+        Aylık Personel Performans Raporu
       </p>
       <div className="space-y-2.5">
         {[
-          { name: 'Yağmur Demir', revenue: '₺18.420', commission: '₺3.684', percent: '20%', barColor: '#6B48FF' },
-          { name: 'Selin Aksoy', revenue: '₺14.180', commission: '₺2.836', percent: '20%', barColor: '#E89B96' },
-          { name: 'Berra Yılmaz', revenue: '₺9.860', commission: '₺1.972', percent: '20%', barColor: '#28A745' },
+          { name: 'Personel 1', revenue: '₺18.420', commission: '₺3.684', percent: '20%', barColor: '#6B48FF' },
+          { name: 'Personel 2', revenue: '₺14.180', commission: '₺2.836', percent: '20%', barColor: '#E89B96' },
+          { name: 'Personel 3', revenue: '₺9.860',  commission: '₺1.972', percent: '20%', barColor: '#28A745' },
         ].map((s, i) => (
           <div key={s.name} className="flex items-center gap-3">
             <span
@@ -381,22 +405,22 @@ function VisualFinance() {
   return (
     <VisualShell>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-[13px] font-semibold" style={{ color: '#1F3E47' }}>Mayıs Kasa Özeti</p>
+        <p className="text-[13px] font-semibold" style={{ color: '#1F3E47' }}>Aylık Finansal Özet</p>
         <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(40,167,69,0.12)', color: '#28A745' }}>
-          Pozitif
+          Pozitif bakiye
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <FinanceMini label="Gelir" value="₺48.6K" color="#28A745" />
-        <FinanceMini label="Gider" value="₺12.4K" color="#D67D78" />
-        <FinanceMini label="Net" value="₺36.2K" color="#1F3E47" />
+        <FinanceMini label="Toplam Gelir" value="₺48.6K" color="#28A745" />
+        <FinanceMini label="Toplam Gider" value="₺12.4K" color="#D67D78" />
+        <FinanceMini label="Net Sonuç"    value="₺36.2K" color="#1F3E47" />
       </div>
       <div className="space-y-1.5">
         {[
-          { label: '🏦  Garanti İşletme', value: '₺28.4K' },
-          { label: '💳  POS Hesabı', value: '₺18.6K' },
-          { label: '💵  Ana Kasa', value: '₺4.2K' },
-          { label: '⚠️  Tedarikçi Borç', value: '−₺2.8K', warn: true },
+          { label: 'Banka Hesabı',      value: '₺28.4K' },
+          { label: 'POS Hesabı',         value: '₺18.6K' },
+          { label: 'Kasa',               value: '₺4.2K' },
+          { label: 'Tedarikçi Bakiyesi', value: '−₺2.8K', warn: true },
         ].map((row) => (
           <div
             key={row.label}

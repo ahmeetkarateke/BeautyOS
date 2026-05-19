@@ -6,21 +6,21 @@ import { BookOpenText, FileSpreadsheet, MessageSquareText } from 'lucide-react'
 const PROBLEMS = [
   {
     icon: BookOpenText,
-    title: 'Defter dolup taşıyor.',
+    title: 'Kâğıt tabanlı kayıt sistemlerinin yetersizliği',
     body:
-      'Geçen haftanın randevusunu bulmak için 3 sayfa geri çeviriyorsunuz. Müşteri "bende ne kalmıştı" diye soruyor, paket bakiyesini kafadan hesaplıyorsunuz. Bir gün defteri kaybederseniz salonun 6 ayı uçuyor.',
+      'Randevu defterleri ve manuel müşteri kayıtları, işletme büyüdükçe yetersiz kalmaktadır. Geçmiş işlem bilgilerine hızlı erişim sağlanamaz; paket bakiyeleri, müşteri tercihleri ve tedavi geçmişi sistematik olarak takip edilemez. Fiziksel kayıtların kaybolması durumunda veri kurtarma mümkün değildir.',
   },
   {
     icon: FileSpreadsheet,
-    title: 'Excel her gün biraz daha karışıyor.',
+    title: 'Elektronik tablolarla yönetimin sürdürülemezliği',
     body:
-      'Cironun formülü bozuluyor, personel kendi sayfasını saklı tutuyor, ay sonu komisyon hesabı 2 saat sürüyor. Tablo büyüdükçe hata çoğalıyor — siz salona değil dosyaya bakıyorsunuz.',
+      'Excel ve benzeri elektronik tablo çözümleri, işletme operasyonları büyüdükçe karmaşıklaşmaktadır. Personel komisyon hesaplamaları, ciro takibi ve raporlama uzun süre almakta; formül hataları finansal kayıplara yol açabilmektedir. Çoklu kullanıcı senaryolarında veri tutarlılığı sağlamak güçleşir.',
   },
   {
     icon: MessageSquareText,
-    title: 'Sohbetlerde 80 randevu kayboluyor.',
+    title: 'Mesajlaşma kanalları üzerinden randevu yönetimi',
     body:
-      '"Salı 3\'e yazdım" yazıyorsunuz, müşteri okumuyor, gelmiyor, koltuk boş kalıyor. Hangi müşteri ne istemişti — sohbeti yukarı kaydırıp arıyorsunuz. Bu telefon trafiği size salon işletmek için kalan zamanı yiyor.',
+      'Anlık mesajlaşma uygulamaları üzerinden alınan randevular sistematik biçimde takip edilemediğinde çakışmalar ve atlamalar meydana gelmektedir. Müşteri geçmişine erişim sohbet kayıtlarının manuel taranmasını gerektirir. Bu durum personelin operasyonel verimliliğini ve hizmet kalitesini doğrudan etkilemektedir.',
   },
 ]
 
@@ -39,7 +39,7 @@ export function LandingProblem() {
             className="text-[12px] font-semibold uppercase tracking-[0.12em] mb-3"
             style={{ color: '#D67D78' }}
           >
-            Tanıdık geliyor mu?
+            Sektörel zorluklar
           </p>
           <h2
             className="font-semibold tracking-tight leading-[1.1]"
@@ -50,7 +50,7 @@ export function LandingProblem() {
               fontWeight: 560,
             }}
           >
-            Salonun ardındaki gerçek iş, salonun kendisinden ağır olmaya başladı.
+            Geleneksel yöntemlerle yönetilen işletmelerin karşılaştığı temel sorunlar.
           </h2>
         </motion.div>
 
