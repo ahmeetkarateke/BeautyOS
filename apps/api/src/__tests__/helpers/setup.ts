@@ -4,11 +4,32 @@ import { db } from '../../lib/db'
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret'
 
-// ─── Production DB'ye yanlışlıkla test çalıştırılmasını engelle ─────────────
+// ─── DB güvenlik kontrolleri ─────────────────────────────────────────────────
+// Hem production hem staging DB'ye test çalıştırmayı engelle.
+// Veri kaybı riski: test cleanup tenant'lar siler; bug olursa real veriyi alır.
 const dbUrl = process.env.DATABASE_URL ?? ''
-const PROD_DB_IDENTIFIERS = ['kpoqwdamkmdjntbgjbxy'] // production Supabase ref
-if (PROD_DB_IDENTIFIERS.some((id) => dbUrl.includes(id))) {
-  throw new Error('Tests cannot run against production DATABASE_URL. Aborting.')
+const FORBIDDEN_DB_IDENTIFIERS = [
+  'kpoqwdamkmdjntbgjbxy', // production Supabase ref
+  'lnrobattysyfoljalndu', // staging Supabase ref
+  '.supabase.co',         // herhangi bir paylaşılan Supabase host
+  '.pooler.supabase.com', // Supabase pooler (staging dahil)
+]
+if (FORBIDDEN_DB_IDENTIFIERS.some((id) => dbUrl.includes(id))) {
+  throw new Error(
+    'Tests cannot run against production/staging DATABASE_URL. ' +
+    'Use an ephemeral test database (CI service container or local Postgres). ' +
+    `Got host: ${dbUrl.replace(/:[^@]+@/, ':***@').replace(/\/[^?]+/, '/***')}`,
+  )
+}
+
+// ─── Sadece test slug'lı tenant'lar silinebilir ─────────────────────────────
+// cleanupTenant yanlış bir ID alırsa veya bug nedeniyle gerçek bir tenant'ı
+// silmeye çalışırsa engelliyor. Son savunma katmanı.
+const TEST_SLUG_PREFIXES = ['tst-', 'test-']
+async function isTestTenant(tenantId: string): Promise<boolean> {
+  const t = await db.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } })
+  if (!t) return true // zaten yok, silmeyi denemek zararsız
+  return TEST_SLUG_PREFIXES.some((p) => t.slug.startsWith(p))
 }
 
 export function uniqueSuffix(): string {
@@ -121,6 +142,18 @@ export async function createTestCustomer(tenantId: string, phone: string, suffix
 }
 
 export async function cleanupTenant(tenantId: string) {
+  // KRİTİK GÜVENLİK: sadece "tst-"/"test-" prefix'li tenant'ları sil.
+  // cleanup yanlış ID alırsa veya buggy bir test gerçek tenant'ı silmek
+  // isterse engelliyor. Üçüncü savunma katmanı.
+  const isTest = await isTestTenant(tenantId)
+  if (!isTest) {
+    throw new Error(
+      `cleanupTenant refused: tenant ${tenantId} is NOT a test tenant ` +
+      `(slug prefix must be 'tst-' or 'test-'). If CI hit this, a test created ` +
+      `a tenant without the required prefix — please fix.`,
+    )
+  }
+
   try {
     await db.notificationLog.deleteMany({ where: { tenantId } })
     await db.transaction.deleteMany({ where: { tenantId } })
