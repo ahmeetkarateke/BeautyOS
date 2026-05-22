@@ -12,10 +12,38 @@ export function createApp(options?: { rateLimitMax?: number }) {
 
   app.set('trust proxy', 1)
 
-  const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  // CORS origin kontrolü:
+  // - Env'de CORS_ORIGIN tanımlıysa virgülle ayrılmış liste KULLANILIR (tam eşleşme)
+  // - Ek olarak beautyossapp.com apex + tüm subdomain'leri (app, test, www) otomatik kabul
+  // - Localhost (dev) her zaman serbest
+  const envAllowed = process.env.CORS_ORIGIN
+    ? new Set(process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean))
     : null
-  app.use(cors({ origin: corsOrigins ?? true, credentials: true }))
+
+  function isOriginAllowed(origin: string): boolean {
+    if (envAllowed && envAllowed.has(origin)) return true
+    try {
+      const url = new URL(origin)
+      const host = url.hostname
+      if (host === 'localhost' || host === '127.0.0.1') return true
+      if (host === 'beautyossapp.com') return true
+      if (host.endsWith('.beautyossapp.com')) return true
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        // origin yoksa (server-to-server / curl) izin ver
+        if (!origin) return cb(null, true)
+        return cb(null, isOriginAllowed(origin))
+      },
+      credentials: true,
+    }),
+  )
   app.use(
     express.json({
       verify: (req, _res, buf) => {
