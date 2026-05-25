@@ -1,8 +1,9 @@
 import { Queue, Worker, type Job } from 'bullmq'
 import IORedis from 'ioredis'
+import { DeliveryPurpose } from '@prisma/client'
 import { db } from './db'
 import { logger } from './logger'
-import { TelegramChannel } from '../channels/telegram.channel'
+import { sendSms, normalizePhoneTR } from './sms'
 
 export type ReminderJobData =
   | { type: 'reminder_24h'; appointmentId: string }
@@ -41,8 +42,9 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     appointment = await db.appointment.findUnique({
       where: { id: appointmentId },
       include: {
-        customer: { select: { fullName: true, phone: true } },
+        customer: { select: { id: true, fullName: true, phone: true, marketingConsentSms: true } },
         service: { select: { name: true } },
+        tenant: { select: { id: true, name: true } },
       },
     })
   } catch (err) {
@@ -55,29 +57,49 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     return
   }
 
+  // Sadece pending/confirmed/in_progress randevular için hatırlatma at
+  if (!['pending', 'confirmed', 'in_progress'].includes(appointment.status)) {
+    logger.info({ appointmentId, status: appointment.status }, 'Randevu aktif değil, hatırlatma atlandı')
+    return
+  }
+
   const saat = appointment.startAt.toLocaleTimeString('tr-TR', {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'Europe/Istanbul',
   })
 
-  const { fullName, phone } = appointment.customer
+  const { id: customerId, fullName, phone } = appointment.customer
   const serviceName = appointment.service.name
+  const salonName = appointment.tenant.name
 
   const text =
     type === 'reminder_24h'
-      ? `Merhaba ${fullName}! Yarın saat ${saat}'de ${serviceName} randevunuz var. İptal için 'İptal' yazın.`
-      : `Merhaba ${fullName}! ${saat}'deki ${serviceName} randevunuzu hatırlatmak istedik. Görüşürüz!`
+      ? `${salonName}: Sayın ${fullName}, yarın saat ${saat}'de ${serviceName} randevunuz bulunmaktadır. Bilginize.`
+      : `${salonName}: Sayın ${fullName}, bugün saat ${saat}'de ${serviceName} randevunuz vardır. Sizi bekliyoruz.`
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) {
-    logger.warn({ appointmentId }, 'TELEGRAM_BOT_TOKEN eksik, hatırlatma gönderilemedi')
+  // SMS gönder
+  const normalized = normalizePhoneTR(phone)
+  if (!normalized) {
+    logger.warn({ appointmentId, phone }, 'Telefon normalize edilemedi, hatırlatma atlandı')
     return
   }
 
-  const channel = new TelegramChannel(botToken)
-  await channel.sendText(phone, text)
-  logger.info({ appointmentId, type }, 'Hatırlatma gönderildi')
+  const purpose = type === 'reminder_24h' ? DeliveryPurpose.reminder_24h : DeliveryPurpose.reminder_2h
+  const { result } = await sendSms({
+    tenantId: appointment.tenantId,
+    customerId,
+    appointmentId,
+    to: normalized,
+    body: text,
+    purpose,
+  })
+
+  if (result.success) {
+    logger.info({ appointmentId, type, provider: result.providerName }, 'Hatırlatma SMS gönderildi')
+  } else {
+    logger.error({ appointmentId, type, error: result.errorMessage }, 'Hatırlatma SMS başarısız')
+  }
 }
 
 async function processNightlyNoShow(): Promise<void> {
@@ -94,9 +116,9 @@ async function processNightlyNoShow(): Promise<void> {
       startAt: { gte: todayStart, lte: todayEnd },
     },
     include: {
-      customer: { select: { fullName: true, phone: true } },
+      customer: { select: { id: true, fullName: true, phone: true } },
       service: { select: { name: true } },
-      tenant: { select: { telegramBotToken: true } },
+      tenant: { select: { id: true, name: true } },
     },
   })
 
@@ -109,9 +131,9 @@ async function processNightlyNoShow(): Promise<void> {
         data: { status: 'no_show' },
       })
 
-      const botToken = appt.tenant.telegramBotToken ?? process.env.TELEGRAM_BOT_TOKEN
-      if (!botToken) {
-        logger.warn({ appointmentId: appt.id }, 'Bot token yok, no-show mesajı atlandı')
+      const normalized = normalizePhoneTR(appt.customer.phone)
+      if (!normalized) {
+        logger.warn({ appointmentId: appt.id }, 'Telefon normalize edilemedi, no-show SMS atlandı')
         continue
       }
 
@@ -121,12 +143,18 @@ async function processNightlyNoShow(): Promise<void> {
         timeZone: 'Europe/Istanbul',
       })
 
-      const text = `Merhaba ${appt.customer.fullName}! Bugün saat ${saat}'deki ${appt.service.name} randevunuza gelemediniz. Yeniden randevu almak ister misiniz? Hemen yazabilirsiniz.`
+      const text = `${appt.tenant.name}: Sayın ${appt.customer.fullName}, bugün saat ${saat}'deki ${appt.service.name} randevunuza katılamadınız. Yeni randevu için bizimle iletişime geçebilirsiniz.`
 
-      const channel = new TelegramChannel(botToken)
-      await channel.sendText(appt.customer.phone, text)
+      await sendSms({
+        tenantId: appt.tenant.id,
+        customerId: appt.customer.id,
+        appointmentId: appt.id,
+        to: normalized,
+        body: text,
+        purpose: DeliveryPurpose.cancellation,
+      })
 
-      logger.info({ appointmentId: appt.id }, 'No-show işlendi, mesaj gönderildi')
+      logger.info({ appointmentId: appt.id }, 'No-show işlendi, SMS gönderildi')
     } catch (err) {
       logger.error({ err, appointmentId: appt.id }, 'No-show işlenirken hata')
     }

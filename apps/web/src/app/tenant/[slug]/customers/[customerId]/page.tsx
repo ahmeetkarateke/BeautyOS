@@ -45,6 +45,9 @@ interface CustomerDetail {
   lifetimeValue: number
   segment: 'vip' | 'regular' | 'sleeping' | 'at_risk'
   lastVisitAt?: string
+  phoneVerifiedAt?: string | null
+  marketingConsentSms?: boolean
+  marketingConsentEmail?: boolean
   createdAt: string
   appointments: AppointmentRow[]
 }
@@ -290,13 +293,27 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 </>
               ) : (
                 <>
-                  <a
-                    href={`tel:${data?.phone}`}
-                    className="flex items-center gap-2 text-sm text-gray-700 hover:text-primary transition-colors"
-                  >
-                    <Phone className="w-4 h-4 text-salon-muted" />
-                    {data?.phone}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${data?.phone}`}
+                      className="flex items-center gap-2 text-sm text-gray-700 hover:text-primary transition-colors"
+                    >
+                      <Phone className="w-4 h-4 text-salon-muted" />
+                      {data?.phone}
+                    </a>
+                    {data?.phoneVerifiedAt ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200"
+                        title={`SMS ile doğrulandı: ${new Date(data.phoneVerifiedAt).toLocaleDateString('tr-TR')}`}
+                      >
+                        ✓ Doğrulanmış
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                        Doğrulanmamış
+                      </span>
+                    )}
+                  </div>
                   {data?.email && (
                     <a
                       href={`mailto:${data.email}`}

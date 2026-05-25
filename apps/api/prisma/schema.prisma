@@ -255,6 +255,8 @@ model Tenant {
   purchaseInvoices            PurchaseInvoice[]
   financialAccounts           FinancialAccount[]
   financialTransactions       FinancialTransaction[]
+  messageDeliveries           MessageDelivery[]
+  phoneVerifications          PhoneVerification[]
   staffPayouts                StaffPayout[]
   suppliers                   Supplier[]
   stockMovements              StockMovement[]
@@ -329,6 +331,11 @@ model Customer {
   lifetimeValue    Decimal         @default(0) @db.Decimal(10, 2)
   segment          CustomerSegment @default(regular)
   lastVisitAt      DateTime?
+  // SMS / KVKK / IYS
+  phoneVerifiedAt           DateTime?
+  marketingConsentSms       Boolean   @default(false)
+  marketingConsentEmail     Boolean   @default(false)
+  marketingConsentUpdatedAt DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -341,6 +348,8 @@ model Customer {
   waitlistEntries  Waitlist[]
   currentAccountEntries CurrentAccountEntry[]
   financialTransactions FinancialTransaction[]
+  messageDeliveries MessageDelivery[]
+  phoneVerifications PhoneVerification[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -1073,4 +1082,80 @@ model FinancialTransaction {
   @@index([customerId])
   @@index([supplierId])
   @@map("financial_transactions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SMS & EMAIL ALTYAPISI — Phone verification + Hatırlatma + Marketing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum MessageChannel {
+  sms
+  email
+}
+
+enum DeliveryStatus {
+  queued
+  sent
+  delivered
+  failed
+  bounced
+}
+
+enum DeliveryPurpose {
+  verification        // booking sırasında SMS doğrulama
+  reminder_24h        // 24 saat öncesi randevu hatırlatma
+  reminder_2h         // 2 saat öncesi randevu hatırlatma
+  booking_confirm     // randevu onayı
+  cancellation        // iptal bildirimi
+  campaign            // pazarlama kampanyası
+  transactional       // diğer sistem mesajları
+}
+
+model PhoneVerification {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String?   @db.Uuid                       // null = public booking (henüz tenant context'i yok)
+  customerId  String?   @db.Uuid
+  phone       String                                    // E.164 normalize edilmiş
+  code        String                                    // 6 haneli, hash'lenmemiş (kısa ömürlü)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  attempts    Int       @default(0)
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([phone, createdAt(sort: Desc)])
+  @@index([tenantId])
+  @@map("phone_verifications")
+}
+
+model MessageDelivery {
+  id                String          @id @default(uuid()) @db.Uuid
+  tenantId          String          @db.Uuid
+  customerId        String?         @db.Uuid
+  appointmentId     String?         @db.Uuid
+  channel           MessageChannel
+  purpose           DeliveryPurpose
+  phone             String?
+  email             String?
+  body              String
+  status            DeliveryStatus  @default(queued)
+  providerName      String?                            // 'netgsm', 'resend' vb.
+  providerMessageId String?                            // sağlayıcı reference
+  errorCode         String?
+  errorMessage      String?
+  cost              Decimal?        @db.Decimal(10, 4) // SMS başına maliyet (TL)
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime        @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([customerId])
+  @@index([appointmentId])
+  @@map("message_deliveries")
 }

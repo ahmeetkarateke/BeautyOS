@@ -88,6 +88,14 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null)
   const [captchaToken, setCaptchaToken] = useState<string>('')
   const [redirectNotice, setRedirectNotice] = useState<string>('')
+
+  // SMS doğrulama durumu
+  const [verifyCodeSent, setVerifyCodeSent] = useState(false)
+  const [verifyCode, setVerifyCode] = useState('')
+  const [phoneVerified, setPhoneVerified] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+  const [verifyCooldown, setVerifyCooldown] = useState(0)
+  const [devCodeHint, setDevCodeHint] = useState<string | null>(null)
   const turnstileRef = useRef<HTMLDivElement>(null)
   const turnstileWidgetId = useRef<string | null>(null)
 
@@ -116,6 +124,41 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
         `/api/v1/tenants/${slug}/public/slots?serviceId=${selectedService!.id}&staffId=${selectedStaffId}&date=${date}`,
       ),
     enabled: !!selectedService && !!selectedStaffId && step === 'slot',
+  })
+
+  const sendCodeMutation = useMutation({
+    mutationFn: () =>
+      publicFetch<{ ok: true; devCode?: string }>(`/api/v1/tenants/${slug}/public/verify/send`, {
+        method: 'POST',
+        body: JSON.stringify({ phone: phone.trim() }),
+      }),
+    onSuccess: (data) => {
+      setVerifyCodeSent(true)
+      setVerifyError('')
+      setDevCodeHint(data.devCode ?? null)
+      // 60 sn cooldown başlat (frontend tarafı; backend zaten 3dk koruyor)
+      setVerifyCooldown(60)
+      const iv = setInterval(() => {
+        setVerifyCooldown((c) => {
+          if (c <= 1) { clearInterval(iv); return 0 }
+          return c - 1
+        })
+      }, 1000)
+    },
+    onError: (err: Error) => setVerifyError(err.message),
+  })
+
+  const confirmCodeMutation = useMutation({
+    mutationFn: () =>
+      publicFetch<{ ok: true; phone: string }>(`/api/v1/tenants/${slug}/public/verify/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ phone: phone.trim(), code: verifyCode.trim() }),
+      }),
+    onSuccess: () => {
+      setPhoneVerified(true)
+      setVerifyError('')
+    },
+    onError: (err: Error) => setVerifyError(err.message),
   })
 
   const bookMutation = useMutation({
@@ -445,13 +488,85 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
                 onChange={(e) => setName(e.target.value)}
                 className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <input
-                type="tel"
-                placeholder="Telefon (05XX XXX XX XX)"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    placeholder="Telefon (05XX XXX XX XX)"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value)
+                      // Telefon değişince doğrulamayı sıfırla
+                      if (phoneVerified) {
+                        setPhoneVerified(false)
+                        setVerifyCodeSent(false)
+                        setVerifyCode('')
+                        setDevCodeHint(null)
+                      }
+                    }}
+                    disabled={phoneVerified}
+                    className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-zinc-50"
+                  />
+                  {!phoneVerified && (
+                    <button
+                      onClick={() => sendCodeMutation.mutate()}
+                      disabled={phone.trim().length < 7 || sendCodeMutation.isPending || verifyCooldown > 0}
+                      className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {sendCodeMutation.isPending
+                        ? 'Gönderiliyor…'
+                        : verifyCooldown > 0
+                        ? `${verifyCooldown}sn`
+                        : verifyCodeSent
+                        ? 'Yeniden'
+                        : 'Kod Gönder'}
+                    </button>
+                  )}
+                  {phoneVerified && (
+                    <span className="px-3 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 border border-green-200 inline-flex items-center gap-1 whitespace-nowrap">
+                      <Check size={13} strokeWidth={2.5} /> Doğrulandı
+                    </span>
+                  )}
+                </div>
+
+                {verifyCodeSent && !phoneVerified && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="6 haneli kod"
+                        value={verifyCode}
+                        onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
+                        className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono tracking-widest"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => confirmCodeMutation.mutate()}
+                        disabled={verifyCode.length !== 6 || confirmCodeMutation.isPending}
+                        className="px-4 py-2 text-xs font-medium text-white rounded-lg disabled:opacity-50 whitespace-nowrap"
+                        style={{ backgroundColor: brandColor }}
+                      >
+                        {confirmCodeMutation.isPending ? '…' : 'Doğrula'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      Telefonunuza gönderilen 6 haneli kodu giriniz. Kod 10 dakika geçerlidir.
+                    </p>
+                    {devCodeHint && (
+                      <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                        🛈 Geliştirme modu — kod: <strong>{devCodeHint}</strong>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {verifyError && (
+                  <p className="text-xs text-red-500">{verifyError}</p>
+                )}
+              </div>
+
               {TURNSTILE_SITE_KEY && (
                 <div ref={turnstileRef} className="flex justify-center" />
               )}
@@ -463,6 +578,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
                 disabled={
                   name.trim().length < 2
                   || phone.trim().length < 7
+                  || !phoneVerified
                   || bookMutation.isPending
                   || (!!TURNSTILE_SITE_KEY && !captchaToken)
                 }
@@ -471,6 +587,11 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
               >
                 {bookMutation.isPending ? 'Gönderiliyor…' : 'Randevu Talebini Gönder'}
               </button>
+              {!phoneVerified && phone.trim().length >= 7 && !verifyCodeSent && (
+                <p className="text-[11px] text-amber-600 text-center">
+                  ⚠ Randevu için önce telefonunuzu doğrulamanız gerekir.
+                </p>
+              )}
               <p className="text-[11px] text-zinc-500 text-center">
                 Randevunuz salon tarafından onaylandıktan sonra kesinleşir.
               </p>

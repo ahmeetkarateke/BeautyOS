@@ -739,6 +739,9 @@ export function createTenantRouter(): Router {
           lifetimeValue: true,
           segment: true,
           lastVisitAt: true,
+          phoneVerifiedAt: true,
+          marketingConsentSms: true,
+          marketingConsentEmail: true,
           createdAt: true,
           appointments: {
             orderBy: { startAt: 'desc' },
@@ -772,6 +775,9 @@ export function createTenantRouter(): Router {
         lifetimeValue: Number(customer.lifetimeValue),
         segment: customer.segment,
         lastVisitAt: customer.lastVisitAt?.toISOString() ?? null,
+        phoneVerifiedAt: customer.phoneVerifiedAt?.toISOString() ?? null,
+        marketingConsentSms: customer.marketingConsentSms,
+        marketingConsentEmail: customer.marketingConsentEmail,
         createdAt: customer.createdAt.toISOString(),
         appointments: customer.appointments.map((a) => ({
           id: a.id,

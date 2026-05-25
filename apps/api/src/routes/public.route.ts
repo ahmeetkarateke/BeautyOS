@@ -3,6 +3,9 @@ import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import { db } from '../lib/db'
 import { getSlots } from '../lib/slots'
+import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
+import { normalizePhoneTR } from '../lib/sms'
+import { remindersQueue } from '../lib/queue'
 
 const publicLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -236,6 +239,72 @@ export function createPublicRouter(): Router {
     }
   }
 
+  // ─── Telefon doğrulama: Kod gönder ────────────────────────────────────────
+  const verifySendLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,  // 1 saat
+    max: 10,                    // IP başına saatte 10 deneme
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla doğrulama isteği. 1 saat sonra tekrar deneyin.' } },
+  })
+
+  router.post('/verify/send', verifySendLimiter, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { slug } = req.params
+      const schema = z.object({ phone: z.string().min(7).max(20) })
+      const parsed = schema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Telefon numarası gerekli.' } })
+      }
+
+      const tenant = await loadTenant(slug)
+      if (!tenant || !tenant.isActive) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Salon bulunamadı.' } })
+      }
+
+      const result = await sendVerificationCode({
+        phone: parsed.data.phone,
+        tenantId: tenant.id,
+        ipAddress: req.ip,
+      })
+
+      if (!result.ok) {
+        const status = result.error === 'TOO_SOON' ? 429 : 400
+        return res.status(status).json({
+          error: { code: result.error, message: result.message },
+          retryAfterSec: 'retryAfterSec' in result ? result.retryAfterSec : undefined,
+        })
+      }
+
+      return res.json({
+        ok: true,
+        // Dev/mock modunda kod konsoldan da görülebilir; production'da return EDİLMEZ
+        devCode: result.devCode,
+      })
+    } catch (err) { next(err) }
+  })
+
+  // ─── Telefon doğrulama: Kod doğrula ───────────────────────────────────────
+  router.post('/verify/confirm', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const schema = z.object({
+        phone: z.string().min(7).max(20),
+        code: z.string().regex(/^\d{6}$/, '6 haneli kod giriniz.'),
+      })
+      const parsed = schema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' } })
+      }
+
+      const result = await verifyCode(parsed.data)
+      if (!result.ok) {
+        return res.status(400).json({ error: { code: result.error, message: result.message } })
+      }
+
+      return res.json({ ok: true, phone: result.phone })
+    } catch (err) { next(err) }
+  })
+
   router.post('/book', bookLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { slug } = req.params
@@ -328,11 +397,35 @@ export function createPublicRouter(): Router {
         return res.status(409).json({ error: { code: 'SLOT_TAKEN', message: 'Bu saat dolu, lütfen başka bir saat seçin.' } })
       }
 
-      // Müşteri upsert (telefon ile)
+      // Telefon doğrulanmış mı? Son 30 dakika içinde başarılı verify olmuş olmalı.
+      const normalizedPhone = normalizePhoneTR(customerPhone)
+      if (!normalizedPhone) {
+        return res.status(400).json({ error: { code: 'INVALID_PHONE', message: 'Geçersiz telefon numarası.' } })
+      }
+      const recentVerification = await db.phoneVerification.findFirst({
+        where: {
+          phone: normalizedPhone,
+          consumedAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+        },
+        orderBy: { consumedAt: 'desc' },
+        select: { id: true, consumedAt: true },
+      })
+      if (!recentVerification) {
+        return res.status(403).json({
+          error: { code: 'PHONE_NOT_VERIFIED', message: 'Telefon numaranızı önce doğrulamanız gerekmektedir.' },
+        })
+      }
+
+      // Müşteri upsert (telefon ile) + phoneVerifiedAt set
       const customer = await db.customer.upsert({
         where: { tenantId_phone: { tenantId: tenant.id, phone: customerPhone } },
-        create: { tenantId: tenant.id, phone: customerPhone, fullName: customerName },
-        update: {},
+        create: {
+          tenantId: tenant.id,
+          phone: customerPhone,
+          fullName: customerName,
+          phoneVerifiedAt: recentVerification.consumedAt,
+        },
+        update: { phoneVerifiedAt: recentVerification.consumedAt },
         select: { id: true },
       })
 
@@ -354,6 +447,30 @@ export function createPublicRouter(): Router {
         },
         select: { id: true, referenceCode: true, startAt: true },
       })
+
+      // SMS hatırlatma jobs (24h ve 2h önce)
+      const now = Date.now()
+      const delay24h = startDate.getTime() - now - 24 * 60 * 60 * 1000
+      const delay2h = startDate.getTime() - now - 2 * 60 * 60 * 1000
+      try {
+        if (delay24h > 0) {
+          await remindersQueue.add(
+            'reminder-24h',
+            { type: 'reminder_24h', appointmentId: appointment.id },
+            { delay: delay24h, jobId: `reminder-24h-${appointment.id}` },
+          )
+        }
+        if (delay2h > 0) {
+          await remindersQueue.add(
+            'reminder-2h',
+            { type: 'reminder_2h', appointmentId: appointment.id },
+            { delay: delay2h, jobId: `reminder-2h-${appointment.id}` },
+          )
+        }
+      } catch (err) {
+        // Hatırlatma zamanlanamasa bile randevu oluştu — log atla
+        console.error('Reminder zamanlama hatası:', err)
+      }
 
       return res.status(201).json({
         id: appointment.id,
