@@ -29,7 +29,7 @@
 | G1 | CI testleri geçici Postgres 17'de | gelistirici | — | bekliyor |
 | G2 | API imajı | gelistirici | — | devam ediyor (`tasima/docker`) |
 | G3 | Web imajı (standalone) + zorunlu API adresi | gelistirici | — | devam ediyor (Dockerfile + standalone); API adresi kısmı bekliyor |
-| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | — | **devam ediyor (ayrı hotfix)** |
+| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık** (müdür takipte; plan §5.1, §12) |
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
@@ -159,11 +159,17 @@
   - K6: `veri-dogrula.sh` satır sayısını ve 4 tablonun kimlik özetini karşılaştırır; fark varsa tabloyu adlandırarak sıfır dışı kodla çıkar. `prisma migrate status` ve rol kontrolü de yapar.
   - K7: Dökümler `/srv/beautyos/tasima/` (700) altında 600 izinle. Çıktıda satır içeriği yok.
   - K8: Örnek veriyle doldurulmuş yerel bir "kaynak" `postgres:17`'den uçtan uca aktarım yeşil.
+  - K9 (yol b, plan §5.1): `yedekten-ac <dosya>` alt komutu:
+    - Kaynak sürümü yalnız dosya başlığından okur; > 17 ise durur.
+    - Geçici, ağsız `postgres:<kaynak ana sürüm>` ara konteynerine düz SQL'i `ON_ERROR_STOP` kapalı yükler. `public` dışı hata sayısını raporlar; `public` nesnesinde hata varsa sıfır dışı kodla durur.
+    - `on-kontrol` denetimlerini ara konteynerde çalıştırır, ardından `-Fc` `public` dökümü üretir.
+    - Ara konteyner, volume ve düz dosya iş sonunda silinir. Hata durumunda da silinir (`trap`).
+    - Gzip'li ve gzip'siz dosya kabul edilir. Denemede, Supabase benzeri `auth` şeması ve eksik uzantı içeren sahte bir küme dökümü kullanılır.
 
 ### G13 — Veri betiğinin ön denemesi — kurucu + devops
 - **Ön koşul:** G12 denetçi ONAY'lı. `.env.supabase` kurucu tarafından yazıldı.
 - **Kabul kriterleri:**
-  - K1: Kurucu `on-kontrol` ve `dok` çalıştırır. D1, D7 ve D8 sonuçları mimara bildirilir.
+  - K1: Kurucu, plan §5.1'deki yola göre çalıştırır: yol (a) `on-kontrol` ve `dok`; yol (b) `yedekten-ac <dosya>`. D1, D7, D8 (ve b'de D11) sonuçları mimara bildirilir.
   - K2: `yukle`, **geçici, ağsız** bir `postgres:17` konteynerine (rolleri `01-roller.sh` ile kurulmuş) yapılır. Canlı `beautyos` veritabanına dokunulmaz.
   - K3: `veri-dogrula.sh` geçici hedefte yeşil.
   - K4: Deneme bitince geçici konteyner, volume'u ve döküm dosyası silinir (`ls /srv/beautyos/tasima` yalnız sayım dosyalarını gösterir).

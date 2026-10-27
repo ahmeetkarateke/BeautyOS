@@ -1,6 +1,6 @@
 # BeautyOS — Şirket Sunucusuna Taşıma Planı
 
-- **Tarih:** 2026-10-27 · **Hazırlayan:** mimar · **Sürüm:** 2 (kurucu yanıtları ve KVKK değerlendirmesiyle sadeleştirildi) · **Durum:** kurucu onayı bekliyor
+- **Tarih:** 2026-10-27 (sürüm 3: 2026-10-28) · **Hazırlayan:** mimar · **Sürüm:** 3 (kurucu kararları işlendi; Supabase duraklatma riski ve iki veri kaynağı seçeneği eklendi) · **Durum:** kurucu kararları alındı; veri kaynağı seçimi (§5.1) bekliyor
 - **Kurucu kararı:** Veritabanı dahil her şey şirket sunucusuna (`sirket-sunucu-1`, DO FRA1, 209.38.237.171) taşınır. Yalnız **canlı** Supabase verisi taşınır.
 - **Girdiler:** `docs/mevcut-durum.md` (bulgular R1–R14), `docs/kvkk-tasima-degerlendirmesi.md` (hukuk-uyum). **Kararlar:** `docs/kararlar.md`. **Görevler:** `docs/gorevler.md`.
 - **İşaretler:** `[ONAY]` = kurucu onayı olmadan yapılmaz (müdür toplar). **VARSAYIM** = doğrulanmamış.
@@ -18,6 +18,18 @@
 | Gerçek kullanıcı yok; geçiş her an yapılabilir | Ayrı kuru prova kaldırıldı. Veri betiği atılabilir bir veritabanında önceden denenir (G13); geçiş tek oturumda yapılır |
 | Geliştirme bu sunucuda sürecek; kalıcı staging (`yeni`) | ADR-0016: aynı compose projesinde kalıcı staging, ortak Postgres/Redis örneğinde ayrı veritabanı/rol/Redis DB. Bellek bütçesi içinde |
 | DO günlük droplet yedeği açık (7 gün); Backblaze ve Healthchecks hesapları açılıyor | Yedek düzenine ikinci katman olarak eklendi (§8) |
+
+### Kurucu kararları (2026-10-28)
+
+| No | Karar | Durum ve etki |
+|---|---|---|
+| K1 | Canlı `/debug` kapatılsın: EVET | Hotfix `master`'a push edildi (`9894212`), ama **Railway dağıtımı başarısız**; `/debug` hâlâ açık (müdür takipte). Muhtemel neden: API açılışta `SELECT 1` başarısız olursa `process.exit(1)` yapıyor (`src/index.ts`). Supabase duraklatılmışsa yeni dağıtım hiç ayağa kalkamaz, eski dağıtım çalışmaya devam eder. Bkz. §5.1 ve §12 |
+| K2 | Cloudflare turuncu bulut ve ayarları: EVET | ADR-0008 ve ADR-0009 **kabul edildi**. Token oluşturuldu ve sunucuda doğrulandı; ortak Caddy çalışıyor |
+| K3 | SMS kapalı | Plan v2 ile aynı |
+| K4 | Telegram yalnız test ortamında | Canlıda `TELEGRAM_*` boş; bot staging'e bağlanır |
+| K5 | Yalnız canlı veritabanı taşınır; kurucu uygulamayı ekiple birlikte bitirecek | Kalıcı staging (ADR-0016) doğrulandı |
+| K6 | Başka hesap yok; eski hizmetler doğrudan kapatılır | §11 aynen; "başka proje" kontrolü yok |
+| K7 | Geçiş zamanı serbest; ürün canlıya çıkmadı | §10 gün/saat serbest (03:00–04:30 hariç) |
 
 ---
 
@@ -160,6 +172,32 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA varsa `letsencry
 - **Önceden deneme (G13):** `on-kontrol` ve `dok` kaynağa yalnız okuma yaptığı için geçişten önce güvenle çalışır. `yukle`, sunucuda **geçici, ağsız** bir `postgres:17` konteynerine yapılır, doğrulanır, sonra konteyner ve volume'u silinir. Kişisel veri kalıcı kopyaya dönüşmez.
 - **Redis verisi taşınmaz** (ADR-0005). SMS kapalı olduğu için hatırlatma işlerini yeniden kuyruğa almaya gerek yok. Gece no-show işi açılışta kendiliğinden kaydolur.
 
+### 5.1 Kaynak veri: Supabase duraklatılmış görünüyor (2026-10-28)
+
+Canlı API `/health` yanıtı `{"status":"degraded","db":"error"}`. Büyük olasılıkla Supabase projesi hareketsizlik yüzünden duraklatıldı (ücretsiz plan). Kurucu panelden kontrol ediyor. Veri aktarımı (G12/G13/geçiş adım 3) iki yoldan biriyle yapılır. **Öneri: (a)**; (a) mümkün değilse (b).
+
+**(a) Proje geri açılır (Restore/Resume), canlı kaynaktan `pg_dump` alınır**: ana yol.
+1. Kurucu Supabase panelinden projeyi yeniden başlatır `[ONAY]`. Yalnız Postgres açılır; Railway API'si kendiliğinden düzelir ve G4a hotfix'i yeniden dağıtılabilir hale gelir. Dağıtımı kurucu panelden "Redeploy" ile tetikler; `/debug` kapanır.
+2. Hemen ardından `veri-aktar.sh on-kontrol` ve `dok` çalıştırılır. Döküm `/srv/beautyos/tasima/` altında durur. Ücretsiz plan 7 gün hareketsizlikte yeniden duraklatır, bu yüzden döküm alınmadan beklenmez.
+3. Bu döküm G13 ön denemesinde kullanılır. Geçiş günü adım 2–3'te yazma durdurulup **taze** döküm alınır. Supabase o arada yeniden duraklatılmışsa adım 1 tekrarlanır ya da kurucu onayıyla G13'teki döküm son kopya sayılır. Ürün canlıda değil, arada yazılan veri yok.
+- Artısı: plandaki akış değişmez; `on-kontrol` kaynakta tüm denetimleri yapar; yalnız `public` şeması gelir.
+- Eksisi: projenin geri açılabilir olması gerekir. Supabase uzun süre duraklatılmış projeler için geri açmayı kapatıp yalnız yedek indirmeye izin verebilir.
+
+**(b) Panelden indirilen yedek dosyası kullanılır**: yedek yol.
+1. Kurucu Supabase panelinden yedeği indirir (genelde tüm kümenin düz SQL dökümü, `.backup`/`.sql`, gzip olabilir). Dosyayı `scp` ile `/srv/beautyos/tasima/` altına koyar (700/600). **Kurucunun bilgisayarındaki kopya aktarım biter bitmez silinir** (kişisel veri).
+2. Dosya `pg_restore -n public` ile seçici yüklenemez; Supabase'in `auth`, `storage`, rol ve uzantı nesnelerini de içerir. Bu yüzden **ara konteyner** kullanılır. `veri-aktar.sh` yeni alt komutu `yedekten-ac <dosya>`:
+   - Dosyanın yalnız başlık satırından (`Dumped from database version …`) kaynak sürümü okunur. Ana sürüm 17'den büyükse betik durur.
+   - Ara konteyner geçici ve **ağsız** bir `postgres:<kaynak ana sürüm>` konteyneridir. Dosya bu konteynerde `psql` ile `ON_ERROR_STOP` kapalı yüklenir. `public` dışındaki hatalar (eksik `pgsodium`, `pg_graphql`, `supabase_vault` uzantıları, Supabase rolleri) beklenir ve sayılır; `public` nesnelerinde hata varsa betik durur.
+   - `on-kontrol` denetimleri (RLS/politika, `auth.`/`extensions.` bağımlılığı, satır sayıları, kimlik özetleri) **ara konteynere karşı** çalışır.
+   - Ara konteynerden `pg_dump -Fc --schema=public --no-owner --no-privileges` alınır. Sonrası (`yukle`, `veri-dogrula.sh`) (a) ile aynı.
+   - Ara konteyner, volume'u ve düz SQL dosyası iş bitince silinir. Yalnız `-Fc` döküm ve sayım dosyaları kalır.
+3. Geçiş günü yazma durdurma adımı anlamsızdır (kaynak zaten kapalı). Adım 2'de yalnız otomatik dağıtım kapatılır ve Railway servisi durdurulur.
+- Artısı: Supabase'in geri açılmasına bağlı değil.
+- Eksisi: yedek tarihine kadar olan veri gelir. Kişisel veri kurucunun bilgisayarından geçer. Betikte ek alt komut gerekir (G12-K9).
+- **Geri dönüş (§10) bu yolda fiilen yoktur:** Supabase kapalıyken Railway API çalışmaz. Sorun çıkarsa ileriye doğru düzeltilir.
+
+**Karar sahibi:** kurucu (müdür üzerinden). Panelde "Restore project" seçeneği görünüyorsa (a), yalnız "Download backup" görünüyorsa (b).
+
 ## 6. CI/CD (ADR-0012)
 
 - `imaj.yml` (`workflow_dispatch` + `v*`): tek API imajı + iki web imajı (`-prod`: `NEXT_PUBLIC_API_URL=https://api.beautyossapp.com`; `-staging`: `https://yeni-api.beautyossapp.com`) → özel GHCR. Değerler repository variables'tan gelir. Sunucuya SSH yok.
@@ -219,7 +257,7 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA varsa `letsencry
 |---|---|---|---|
 | 1 | kurucu | Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımını kapat (R1) | Panel |
 | 2 | kurucu | Railway prod ve staging API servislerini durdur (silme) | Eski `/health` yanıt vermiyor |
-| 3 | kurucu | `veri-aktar.sh on-kontrol`, `dok`, `yukle beautyos` | Hatasız |
+| 3 | kurucu | Yol (a): `veri-aktar.sh on-kontrol`, `dok`, `yukle beautyos`. Yol (b): `yedekten-ac <dosya>` (ön denemede yapılmışsa döküm hazırdır), `yukle beautyos` (§5.1) | Hatasız |
 | 4 | devops | `veri-dogrula.sh` | Sayılar ve özetler eşit, migrate güncel |
 | 5 | kurucu | `.env` canlı değerleri: `NETGSM_*` boş, `TELEGRAM_*` boş, `SENTRY_DSN` S7'ye göre, Resend/Turnstile/Gemini dolu, `FRONTEND_URL=https://app.beautyossapp.com` | Kurucu "tamam" der |
 | 6 | devops | `docker compose up -d api web` | healthy; log'da "SMS provider: Mock" |
@@ -232,7 +270,7 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA varsa `letsencry
 2. `docker compose stop api web`.
 3. Railway prod servisi son dağıtımdan başlatılır.
 
-Geçişten sonra yeni sunucuda yazılan veri geri taşınmaz. Gerçek kullanıcı yok ve SMS kapalı, bu yüzden kayıp kabul edilir. Yeni sunucudaki veri silinmez; neden araştırılır.
+Geçişten sonra yeni sunucuda yazılan veri geri taşınmaz. Gerçek kullanıcı yok ve SMS kapalı, bu yüzden kayıp kabul edilir. Yeni sunucudaki veri silinmez; neden araştırılır. **Yol (b) seçildiyse ya da Supabase yeniden duraklatıldıysa geri dönüş çalışmaz** (Railway API veritabanına bağlanamaz); bu durumda ileriye doğru düzeltilir.
 
 ## 11. Eski servislerin kapatılması (geçiş + 3 gün, kurucu onayıyla)
 
@@ -250,6 +288,8 @@ Her silme ayrı `[ONAY]`; her biri için `sirket/` altında **imha tutanağı** 
 | Risk | Önlem |
 |---|---|
 | `master` push'unun eski API'yi yeniden açması (R1). Hotfix push'u bu yüzden geçişten önce bilerek yapılır; Railway hâlâ canlı olduğu için doğru davranış budur | Geçiş adım 1 |
+| **Supabase duraklatılmış (2026-10-28):** veri kaynağına erişim yok; `/debug` hotfix'i dağıtılamıyor (açılışta DB kontrolü süreci durduruyor), açık sürüyor | §5.1 yol (a) ya da (b). `/debug` için ara önlem (kurucu, `[ONAY]`): Railway servisinin herkese açık alan adını kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil ve API zaten veritabanına bağlanamıyor, yani kayıp yok. Ek olarak Gemini API anahtarı yenilenirse `/debug` ücretli çağrı yapamaz |
+| Yol (b)'de kişisel verinin kurucunun bilgisayarından geçmesi | Aktarımdan hemen sonra yerel kopya silinir; sunucuda 700/600 |
 | Panelden açılmış RLS/uzantı bağımlılığı | `on-kontrol` + ön deneme |
 | Cloudflare arkasında yanlış istemci IP'si → hız sınırı kilidi | ADR-0010 + G14-K7 |
 | Staging'in canlıyla aynı Postgres/Redis'i paylaşması (kaynak ya da yanlış yapılandırma) | Ayrı veritabanı ve roller, `REVOKE CONNECT`, bellek sınırları, ayrı `JWT_SECRET`; G11-K3 testi |
@@ -258,11 +298,13 @@ Her silme ayrı `[ONAY]`; her biri için `sirket/` altında **imha tutanağı** 
 
 ## 13. Kurucudan beklenenler
 
-1. **S1:** Kullanılan alt alan adlarının tam listesi (`app`, `www`, başka?) ve `www` apex'e yönlensin mi?
-2. **S2:** Cloudflare ekran görüntüleri: kayıtların proxy durumu, SSL modu, CAA (bekleniyor).
+**Yanıtlananlar (2026-10-28):** Cloudflare turuncu bulut + ayarlar + token (K2). Telegram yalnız test, bot staging'e (K4). Başka hesap yok (K6). Geçiş zamanı serbest (K7).
+
+**Hâlâ açık:**
+1. **Veri kaynağı (§5.1):** Supabase panelinde "Restore/Resume" mı görünüyor (yol a), yalnız "Download backup" mı (yol b)? (Müdür takipte.)
+2. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? `app` ve apex dışında başka alt alan adı var mı?
 3. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?
-4. **S4:** Mevcut Telegram botu test botu mu? Varsayım: staging'e (`yeni-api`) bağlanır, canlıda bot yok.
-5. **S5:** `JWT_SECRET` yenilensin mi (öneri: evet) ve kapatmada dış servis anahtarları (Telegram, Gemini, Resend, Turnstile) yenilensin mi?
-6. **S6:** Supabase canlı verisinin demo/deneme olduğu, gerçek kişi verisi olmadığı teyidi (KVKK G-5; arşiv süresi buna bağlı).
-7. **S7:** Sentry: geçişte kapalı mı kalsın (`SENTRY_DSN` boş), yoksa kod düzeltmesi (G5-K5) + AB bölgesi projesiyle mi açılsın?
-8. Hesaplar: Backblaze B2 ve Healthchecks açıldığında devops'a bildirim; ilgili hesaplarda 2FA.
+4. **S5:** `JWT_SECRET` yenilensin mi (öneri: evet) ve kapatmada dış servis anahtarları yenilensin mi?
+5. **S6:** Supabase canlı verisinin demo/deneme olduğu, gerçek kişi verisi olmadığı teyidi (KVKK G-5; arşiv süresi ve yol (b)'deki yerel kopya riski buna bağlı).
+6. **S7:** Sentry geçişte kapalı mı kalsın (`SENTRY_DSN` boş), yoksa G5-K5 + AB bölgesi projesiyle mi açılsın?
+7. Backblaze B2 ve Healthchecks hesapları açıldığında devops'a bildirim; ilgili hesaplarda 2FA.

@@ -18,8 +18,8 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0005 | Redis kendi konteynerimizde; Upstash verisi taşınmaz | önerildi | 2026-10-27 |
 | ADR-0006 | BullMQ işçisi API sürecinde kalır; tek kopya; konteyner saati UTC | önerildi | 2026-10-27 |
 | ADR-0007 | Alan adları: yol tabanlı kiracı, joker sertifika yok; API `api.beautyossapp.com` | önerildi | 2026-10-27 |
-| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | önerildi (hukuk-uyum şartlı onay verdi) | 2026-10-27 |
-| ADR-0009 | Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token | önerildi | 2026-10-27 |
+| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | kabul edildi (kurucu 2026-10-28; hukuk-uyum şartlı) | 2026-10-27 |
+| ADR-0009 | Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token | kabul edildi (kurucu 2026-10-28; token doğrulandı, Caddy çalışıyor) | 2026-10-27 |
 | ADR-0010 | Gerçek istemci IP'si: Caddy CF-Connecting-IP'yi yalnız Cloudflare aralıklarından kabul eder | önerildi | 2026-10-27 |
 | ADR-0011 | 80/443 güvenlik duvarında Cloudflare IP'lerine kısıtlanmaz | önerildi | 2026-10-27 |
 | ADR-0012 | İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir | önerildi | 2026-10-27 |
@@ -120,12 +120,18 @@ Veri korunmalı ama gerçek kullanıcı yok; kısa bir yazma kesintisi kabul edi
 - **Ajanın bağlantı bilgisini görmesi:** şirket kuralına aykırı.
 
 ### Karar
-Yazma durdurulur (Railway API durdurulur). `pg_dump -Fc --schema=public --no-owner --no-privileges` ile döküm alınır, `pg_restore --role=app_owner --single-transaction --exit-on-error` ile yüklenir. Hedefte zaten var olan `SCHEMA public` girdisi listeden çıkarılır. İşi `deploy/betikler/veri-aktar.sh` yapar ve **kurucu çalıştırır**. Bağlantı bilgisi libpq değişkenleri olarak `.env.supabase`'ten konteynere girer, komut satırına girmez. Doğrulama satır sayısı + kimlik özeti + `prisma migrate status` ile yapılır.
+Yazma durdurulur (Railway API durdurulur). Kaynak iki yoldan biridir (plan §5.1):
+- **(a)** Supabase projesi açıksa ya da geri açılabiliyorsa canlı kaynağa bağlanılır. Tercih edilen yol budur.
+- **(b)** Proje duraklatılmış ve geri açılamıyorsa panelden indirilen yedek dosyası kullanılır. Dosya sunucuda geçici, ağsız bir ara konteynere (kaynakla aynı ana sürüm) düz SQL olarak yüklenir. `public` dışındaki Supabase nesnelerinin hataları yok sayılır, `public` hataları durdurur. Denetimler ara konteynerde yapılır. Ara konteyner ve düz dosya iş bitince silinir.
+
+İki yolda da `pg_dump -Fc --schema=public --no-owner --no-privileges` ile döküm alınır, `pg_restore --role=app_owner --single-transaction --exit-on-error` ile yüklenir. Hedefte zaten var olan `SCHEMA public` girdisi listeden çıkarılır. İşi `deploy/betikler/veri-aktar.sh` yapar ve **kurucu çalıştırır**. Bağlantı bilgisi libpq değişkenleri olarak `.env.supabase`'ten konteynere girer, komut satırına girmez. Doğrulama satır sayısı + kimlik özeti + `prisma migrate status` ile yapılır.
 
 ### Sonuçlar
 - **Olumlu:** Basit, tekrarlanabilir. Önce provada aynı betikle denenir.
 - **Olumsuz:** 15–30 dk yazma kesintisi.
-- **Riskler:** Supabase'de panelden açılmış RLS/politika ya da `extensions.` bağımlılığı geri yüklemeyi bozar. Önlem: `on-kontrol` adımı bunları arar ve durur.
+- **Riskler:**
+  - Supabase'de panelden açılmış RLS/politika ya da `extensions.` bağımlılığı geri yüklemeyi bozar. Önlem: `on-kontrol` adımı bunları arar ve durur.
+  - Supabase ücretsiz planı hareketsizlikte projeyi duraklatır (2026-10-28'de canlı `/health` `db: error` döndü). Önlem: (a)'da geri açılınca döküm hemen alınır; (b) yedek yoldur. (b)'de veri yedek tarihine kadardır ve Railway'e geri dönüş çalışmaz.
 
 ---
 
@@ -201,7 +207,7 @@ Hostlar şunlar: `beautyossapp.com`, `www.beautyossapp.com`, `app.beautyossapp.c
 ## ADR-0008: Cloudflare proxy açık (turuncu), SSL modu Full (strict)
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi (hukuk-uyum ŞARTLI ONAY verdi, `docs/kvkk-tasima-degerlendirmesi.md` §4)
+- **Durum:** kabul edildi (kurucu 2026-10-28; hukuk-uyum ŞARTLI ONAY, `docs/kvkk-tasima-degerlendirmesi.md` §4)
 - **Karar verenler:** mimar; hukuk-uyum; kurucu (alan adı ve DNS Cloudflare'de)
 
 ### Bağlam
@@ -230,8 +236,8 @@ DNS Cloudflare'de. Sunucu ortak ve IP'si sabit. Proxy açıkken TLS Cloudflare'd
 ## ADR-0009: Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi
-- **Karar verenler:** mimar, devops
+- **Durum:** kabul edildi (kurucu 2026-10-28; token oluşturuldu ve sunucuda doğrulandı, ortak Caddy çalışıyor)
+- **Karar verenler:** mimar, devops, kurucu
 
 ### Bağlam
 Proxy açıkken HTTP-01 doğrulaması Cloudflare'den geçmek zorunda ve kırılgan. Ayrıca sertifikayı DNS geçişinden **önce** almak istiyoruz; geçiş anında bekleme olmasın. Ortak Caddy ileride Cloudflare kullanmayan müşteri alan adlarını da sunacak.
@@ -408,7 +414,8 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | — |
 | D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
 | D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu staging'de geçer | G14 | — |
-| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump` yapılabilir | `on-kontrol` bağlanır | G13 | — |
+| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump` yapılabilir | `on-kontrol` bağlanır | G13 | 2026-10-28: canlı `/health` `db: error`; proje büyük olasılıkla duraklatılmış. Önce plan §5.1 yol seçimi |
+| D11 | Supabase yedek dosyası (yol b) ara konteynerde `public` şeması hatasız yüklenir | `public` hatası 0 | G12-K9 / G13 | — |
 | D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `on-kontrol` boş liste | G13 | — |
 | D9 | NetGSM API'de IP kısıtı yok ya da sunucu IP'si eklendi | — | — | Geçersiz: SMS kapalı (kurucu, 2026-10-27). SMS açılırken yeniden sorulur |
 | D10 | Aynı Postgres örneğinde `app_user` staging veritabanına, `stg_user` canlı veritabanına bağlanamaz | Bağlantı reddi | G11-K3 | — |
