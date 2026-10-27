@@ -11,7 +11,7 @@
 | Dal / yer | Sahibi | Dosyalar |
 |---|---|---|
 | `tasima/sunucu` (bu dal) | mimar | `docs/*` (`kvkk-tasima-degerlendirmesi.md` hariç: hukuk-uyum), `CLAUDE.md`, kök `.env.example`, `.gitignore` |
-| `tasima/docker` (ayrı worktree, master'dan) | gelistirici | `apps/*/Dockerfile`, `.dockerignore`, `apps/web/next.config.mjs`, `deploy/**`, `apps/api/src/**`, `apps/web/src/**`, `.github/workflows/**` |
+| `tasima/docker` (ayrı worktree, master'dan) | gelistirici | `apps/*/Dockerfile`, `.dockerignore`, `.gitattributes`, `apps/web/next.config.mjs`, `deploy/**` (`deploy/.env.example` dahil; adlar kök `.env.example`'a mimar tarafından da yansıtılır), `apps/api/src/**`, `apps/web/src/**`, `.github/workflows/**` |
 | hotfix dalı (`gorev/4a-debug-kapat`, master'dan) | gelistirici | `apps/api/src/index.ts` (yalnız `/debug` bloğu) + testi |
 | `projeler/sunucu-altyapi` | devops | Caddy, yedek, izleme; `sirket/sunucu.md` kayıtları |
 | `raporlar/test/beautyos-tasima-*.md` | test-muhendisi | Test planı ve raporları |
@@ -37,7 +37,7 @@
 | G8 | Ortak Caddy | devops | — | devam ediyor |
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
-| G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | devam ediyor (`tasima/docker`) |
+| G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` bf124e4) |
 | G12 | Veri aktarım ve doğrulama betikleri | gelistirici | G11 | bekliyor |
 | G13 | Veri betiğinin ön denemesi (geçici, ağsız konteyner) | kurucu + devops | G12 | bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
@@ -137,7 +137,8 @@
 ### G11 — `deploy/` yığını — *devam ediyor (`tasima/docker`)*
 - **Dosyalar:** `deploy/compose.yml`, `deploy/postgres/init/01-roller.sh`, `deploy/postgres/postgresql.conf`, `deploy/caddy/beautyos.caddy`
 - **Kabul kriterleri:**
-  - K1: Servisler, ağlar, takma adlar ve bellek sınırları plan §1–§2 ile birebir. Hiçbir serviste `ports:` yok. Postgres ve Redis `sirket-proxy`'de değil.
+  - K1: Servisler, ağlar, takma adlar ve bellek sınırları plan §1–§2 ile birebir. Hiçbir serviste `ports:` yok. Postgres ve Redis `sirket-proxy`'de değil; `icsel` `internal: true`; web servisleri `icsel`'de değil.
+  - K1b: `01-roller.sh` yalnız boş veri dizininde çalışır ve `POSTGRES_DB` `beautyos` değilse durur. Rol parolası sonradan değişirse elle `ALTER ROLE` yapılır (`[ONAY]`, işlem günlüğüne yazılır).
   - K2: `api` ve `api-staging` için `TZ=UTC`, tek kopya. Her serviste healthcheck, `restart: unless-stopped`, `no-new-privileges`, `cap_drop`.
   - K3: `01-roller.sh` dört rol ve iki veritabanı oluşturur. Yetkiler `ALTER DEFAULT PRIVILEGES` ile verilir. Doğrulama:
     - `app_user` ve `stg_user` için `rolsuper` ve `rolbypassrls` `false`; `CREATE TABLE` yetki hatası verir.
@@ -145,7 +146,7 @@
   - K4: `migrate`/`migrate-staging` `profiles: [migrate]` altında. Sahip rolünün URL'si yalnız kendi env dosyasından gelir. `api` ortamında `MIGRATION_DATABASE_URL` adı geçmez.
   - K5: Redis `noeviction`, `appendonly`, parolalı. Staging `REDIS_URL`'i DB 1'i gösterir.
   - K6: `beautyos.caddy` plan §1 ile aynı: `/debug*` 404, `header_up X-Forwarded-For {client_ip}`, basic auth yalnız `yeni` hostunda.
-  - K7: Staging `.env.staging` ile açılır. Log'da "SMS provider: Mock" görünür. `JWT_SECRET`'i canlıdan farklıdır (kurucu teyidi). Staging token'ıyla canlı API'ye istek atılınca 401 döner.
+  - K7: Staging `.env.staging` ile açılır. SMS'in kapalı olduğu açılış log'undan görünür. Not: "SMS provider: Mock" satırı bugün yalnız ilk SMS denemesinde yazılıyor (`lib/sms/index.ts` tembel başlatma); açılışta yazılması G5-K2'ye bağlı. G5 birleşmeden önce bu kriter kurucunun `.env.staging`'de `NETGSM_*` boş teyidiyle karşılanır. `JWT_SECRET`'i canlıdan farklıdır (kurucu teyidi). Staging token'ıyla canlı API'ye istek atılınca 401 döner.
 
 ### G12 — Veri aktarım ve doğrulama betikleri
 - **Dosyalar:** `deploy/betikler/veri-aktar.sh`, `deploy/betikler/veri-dogrula.sh`

@@ -37,9 +37,9 @@
 
 | Servis | İmaj | Ağlar | env dosyası | Sınır | Not |
 |---|---|---|---|---|---|
-| `web` | `ghcr.io/ahmeetkarateke/beautyos-web:<sha>-prod` | `icsel`, `sirket-proxy` (takma ad `beautyos-web`) | yok | 384M | `read_only`; `NEXT_PUBLIC_*` derlemede gömülü |
+| `web` | `ghcr.io/ahmeetkarateke/beautyos-web:<sha>-prod` | yalnız `sirket-proxy` (takma ad `beautyos-web`); veritabanı ağına erişimi yok | yok | 384M | `read_only`; `NEXT_PUBLIC_*` derlemede gömülü |
 | `api` | `ghcr.io/ahmeetkarateke/beautyos-api:<sha>` | `icsel`, `sirket-proxy` (`beautyos-api`) | `.env` | 512M | BullMQ işçisi aynı süreçte, **tek kopya**, `TZ=UTC` (ADR-0006) |
-| `web-staging` | `…/beautyos-web:<sha>-staging` | `icsel`, `sirket-proxy` (`beautyos-web-staging`) | yok | 256M | ADR-0016 |
+| `web-staging` | `…/beautyos-web:<sha>-staging` | yalnız `sirket-proxy` (`beautyos-web-staging`) | yok | 256M | ADR-0016 |
 | `api-staging` | `…/beautyos-api:<sha>` | `icsel`, `sirket-proxy` (`beautyos-api-staging`) | `.env.staging` | 384M | tek kopya, `TZ=UTC` |
 | `postgres` | `postgres:17.x` (sabit küçük sürüm) | `icsel` | `.env.db` | 768M | İki veritabanı, dört rol (§4); port yok |
 | `redis` | `redis:7.4.x-alpine` | `icsel` | `.env.redis` | 192M | `appendonly yes`, `maxmemory 128mb`, `noeviction`, parola; port yok |
@@ -47,6 +47,7 @@
 
 Kurallar (`docker-yayinlama` skill'i ve sunucu-altyapi ADR-0004):
 - Caddy dışında hiçbir servis port yayınlamaz.
+- `icsel` ağı `internal: true` (internete çıkışı yok). Web servisleri bu ağda değil; API'ler dış servislere (Gemini, Resend, Turnstile, Telegram) `sirket-proxy` ağı üzerinden çıkar (gelistirici, `tasima/docker` bf124e4).
 - Her serviste healthcheck, `restart: unless-stopped`, `no-new-privileges`, `cap_drop`, bellek sınırı.
 - Canlı ve staging yayınları servis adıyla ayrı yapılır: `docker compose up -d api web` ya da `… api-staging web-staging`.
 - **Ayrı worker servisi yok** (ADR-0006).
