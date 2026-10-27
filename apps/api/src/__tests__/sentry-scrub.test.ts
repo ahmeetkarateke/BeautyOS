@@ -125,6 +125,29 @@ describe('scrubEvent: Telegram bot token in the url path', () => {
     expect(JSON.stringify(scrubEvent(event))).not.toContain(TOKEN)
   })
 
+  it('strips query strings from the root span data (contexts.trace.data)', () => {
+    const event = baseEvent({
+      contexts: {
+        trace: {
+          trace_id: 't',
+          span_id: 's',
+          data: {
+            'http.target': '/api/v1/tenants/x/customers?search=Ayse%20Yilmaz&phone=905551112233',
+            'url.full': 'https://api.beautyossapp.com/api/v1/x?phone=905551112233',
+            'http.query': '?phone=905551112233',
+            'http.method': 'GET',
+          },
+        },
+      },
+    })
+    const data = scrubEvent(event).contexts?.trace?.data
+    expect(data).toEqual({
+      'http.target': '/api/v1/tenants/x/customers',
+      'url.full': 'https://api.beautyossapp.com/api/v1/x',
+      'http.method': 'GET',
+    })
+  })
+
   it('leaves urls without a bot token untouched', () => {
     const event = baseEvent({ request: { method: 'GET', url: 'https://api.beautyossapp.com/api/v1/bottles/1' } })
     expect(scrubEvent(event).request?.url).toBe('https://api.beautyossapp.com/api/v1/bottles/1')

@@ -40,15 +40,20 @@ function scrubSpan(span: Span): Span {
     scrubbed.description = scrubbed.description.split(/[?#]/)[0]
     scrubbed.description = maskSecrets(scrubbed.description)
   }
-  if (span.data) {
-    const safe: Record<string, string | number> = {}
-    for (const [key, value] of Object.entries(span.data)) {
-      if (/url/i.test(key) && typeof value === 'string') safe[key] = stripQuery(value)
-      else if (/method|status/i.test(key) && (typeof value === 'string' || typeof value === 'number')) safe[key] = value
-    }
-    scrubbed.data = safe
-  }
+  if (span.data) scrubbed.data = scrubSpanData(span.data)
   return scrubbed
+}
+
+// Yalnız URL (sorgusuz, belirteç maskeli), yöntem ve durum anahtarları kalır; http.target, url.full,
+// http.query gibi sorgu taşıyabilen alanlar da URL benzeri anahtarlar olarak aynı temizlikten geçer.
+function scrubSpanData(data: Record<string, unknown>): Record<string, string | number> {
+  const safe: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (/query/i.test(key)) continue
+    if (/url|target|route|path/i.test(key) && typeof value === 'string') safe[key] = stripQuery(value)
+    else if (/method|status/i.test(key) && (typeof value === 'string' || typeof value === 'number')) safe[key] = value
+  }
+  return safe
 }
 
 export function scrubEvent<T extends Event>(event: T): T {
@@ -65,6 +70,9 @@ export function scrubEvent<T extends Event>(event: T): T {
   if (event.breadcrumbs) {
     event.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb)
   }
+  // Kök span verisi (contexts.trace.data) http.target / url.full ile sorgu dizesi taşıyabilir.
+  const trace = event.contexts?.trace
+  if (trace?.data) trace.data = scrubSpanData(trace.data)
   if (event.spans) {
     event.spans = event.spans.map(scrubSpan)
   }
