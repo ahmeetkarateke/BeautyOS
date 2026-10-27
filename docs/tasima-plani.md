@@ -43,18 +43,18 @@ Tüm servislerde `docker-yayinlama` skill'inin kuralları geçerli: `restart: un
 
 **Ayrı worker servisi yok** (ADR-0006). İşçi API sürecinde kalır; ayırmak kod değişikliği ister ve şu yükte gerekmez.
 
-**Ortak Caddy** (kaynağı `projeler/sunucu-altyapi`, sunucuda `/srv/caddy`, sahibi devops; kurulumu sürüyor): özel imaj (`caddy-dns/cloudflare` + `WeidiDeng/caddy-cloudflare-ip` eklentileri, sabit sürüm), `0.0.0.0:80`, `0.0.0.0:443` (tcp+udp), ortak Docker ağı `sirket-proxy`. Site dosyaları `/srv/caddy/siteler/*.caddy` içinden `import` edilir. BeautyOS'unki `beautyos.caddy`: kaynağı bu depoda `deploy/` altında (`gelistirici`), sunucuya devops kopyalar. Taslak:
+**Ortak Caddy** (kaynağı `projeler/sunucu-altyapi`, sunucuda `/srv/caddy`, sahibi devops; kurulumu sürüyor): özel imaj (yalnız `caddy-dns/cloudflare` eklentisi, sabit sürüm; Cloudflare IP aralıkları eklentiyle değil statik listeyle, sunucu-altyapi ADR-0006..0010), `0.0.0.0:80`, `0.0.0.0:443` (tcp+udp), ortak Docker ağı `sirket-proxy`. Site dosyaları `/srv/caddy/siteler/*.caddy` içinden `import` edilir. BeautyOS'unki `beautyos.caddy`: kaynağı bu depoda `deploy/` altında (`gelistirici`), sunucuya devops kopyalar. Taslak:
 
 ```
 # Genel ayarlar (Caddyfile başı)
 {
   email <kurucunun ACME e-postası>
   servers {
-    trusted_proxies cloudflare { interval 12h }   # yalnız Cloudflare IP aralıklarına güven
+    trusted_proxies static <Cloudflare IPv4/IPv6 aralıkları>   # statik liste; devops ayda bir 11-caddy.sh --ip-kontrol ile karşılaştırır
     client_ip_headers CF-Connecting-IP
   }
 }
-(cf_dns) { tls { dns cloudflare {env.CF_API_TOKEN} } }
+(cf_dns) { tls { dns cloudflare {env.CLOUDFLARE_API_TOKEN} } }   # yalnız CF zonları; diğer alan adları HTTP-01
 
 # siteler/beautyos.caddy
 beautyossapp.com, www.beautyossapp.com, app.beautyossapp.com {
@@ -79,7 +79,7 @@ api.beautyossapp.com {
   betikler/veri-aktar.sh        betikler/veri-dogrula.sh
   .env  .env.db  .env.migrate  .env.redis  .env.supabase   (kurucu yazar, chmod 600; ajanlar okumaz)
   tasima/                       (chmod 700) döküm dosyaları ve sayım çıktıları; kapatma sonrası silinir [ONAY]
-/srv/caddy/                     ortak Caddy (+ .env.caddy: CF_API_TOKEN), siteler/beautyos.caddy
+/srv/caddy/                     ortak Caddy (+ .env: CLOUDFLARE_API_TOKEN), siteler/beautyos.caddy
 ```
 
 Yol düzeni (`/srv`) devops ve gelistirici ile hizalıdır.
@@ -110,8 +110,8 @@ Kurucu bilgisi: `beautyossapp.com` Cloudflare'den alındı, DNS Cloudflare'de.
 
 Kararlar (ayrıntı ve alternatifler `docs/kararlar.md`):
 - **ADR-0008: Cloudflare proxy açık (turuncu bulut), SSL modu Full (strict).** Origin IP gizlenir, DDoS koruması gelir, statik dosyalar önbelleğe alınır. Full (strict) Vercel için de güvenli; geçişten önce açılabilir. Bot Fight Mode **kapalı** kalır: ücretsiz planda kural ile atlanamaz ve Telegram/NetGSM çağrılarını engelleyebilir. **Koşul:** `hukuk-uyum` Cloudflare'in TLS sonlandırmasını (kişisel veri geçişi) onaylar. Onaylamazsa gri buluta geçilir; Caddy düzeni değişmeden çalışır.
-- **ADR-0009: Sertifikalar ACME DNS-01 ile (`caddy-dns/cloudflare`).** Proxy açıkken de çalışır. DNS kaydı henüz Vercel'i gösterirken sertifika alınabilir, bu yüzden geçiş anında sertifika bekleme yok. Token: Cloudflare'de **yalnız `Zone:DNS:Edit` yetkili, yalnız `beautyossapp.com` zonuna sınırlı** API token. Kurucu oluşturur ve `/srv/caddy/.env.caddy` dosyasına `CF_API_TOKEN` olarak yazar.
-- **ADR-0010: Gerçek istemci IP'si.** Caddy `CF-Connecting-IP` başlığını yalnız Cloudflare IP aralıklarından gelen bağlantıda kabul eder (`trusted_proxies cloudflare`). Upstream'e `X-Forwarded-For: {client_ip}` olarak tek değer yollar. Express'teki `trust proxy 1` böylece doğru IP'yi görür; kod değişmez. Doğrudan IP'ye gelen istekte başlık yok sayılır, sahte IP enjekte edilemez.
+- **ADR-0009: Sertifikalar ACME DNS-01 ile (`caddy-dns/cloudflare`).** Proxy açıkken de çalışır. DNS kaydı henüz Vercel'i gösterirken sertifika alınabilir, bu yüzden geçiş anında sertifika bekleme yok. Token: Cloudflare'de **yalnız `Zone:DNS:Edit` + `Zone:Zone:Read` yetkili, yalnız `beautyossapp.com` zonuna sınırlı** API token (eklentinin belgelediği en az yetki). Kurucu oluşturur ve `/srv/caddy/.env` dosyasına `CLOUDFLARE_API_TOKEN` olarak yazar.
+- **ADR-0010: Gerçek istemci IP'si.** Caddy `CF-Connecting-IP` başlığını yalnız Cloudflare IP aralıklarından gelen bağlantıda kabul eder (`trusted_proxies static`, aylık kontrol edilen liste). Upstream'e `X-Forwarded-For: {client_ip}` olarak tek değer yollar. Express'teki `trust proxy 1` böylece doğru IP'yi görür; kod değişmez. Doğrudan IP'ye gelen istekte başlık yok sayılır, sahte IP enjekte edilemez.
 - **ADR-0011: 80/443 güvenlik duvarında Cloudflare'e kısıtlanmaz.** Sunucu ortak; Cloudflare kullanmayan müşteri alan adları da gelecek. İsteğe bağlı sonraki adım: Caddy'de yalnız BeautyOS hostları için "Cloudflare dışı kaynağa 403" kuralı. Geçişten 2 hafta sonra, yeni ADR ile değerlendirilir.
 
 DNS kayıtları (hepsi kurucu tarafından Cloudflare panelinden, `[ONAY]`):
@@ -140,7 +140,7 @@ Dokunulmayacaklar: MX, Resend SPF/DKIM/DMARC TXT kayıtları, Turnstile. CAA kay
 | `.env.migrate` | `migrate` | `MIGRATION_DATABASE_URL` (`app_owner`). Migrate komutu bunu Prisma'nın beklediği `DATABASE_URL`/`DIRECT_URL` adlarına yalnız kendi sürecinde aktarır |
 | `.env.redis` | `redis` | `REDIS_PASSWORD` (aynı değer `.env` içindeki `REDIS_URL`'de) |
 | `.env.supabase` | yalnız `veri-aktar.sh` | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE`. Bağlantı bilgisi komut satırına hiç girmez (`ps` çıktısında görünmez). Kapatma sonrası silinir |
-| `/srv/caddy/.env.caddy` | caddy | `CF_API_TOKEN` |
+| `/srv/caddy/.env` (sunucu-altyapi) | caddy | `CLOUDFLARE_API_TOKEN` |
 
 `MIGRATION_DATABASE_URL` asla `.env` içine yazılmaz (skill kuralı). Yayın öncesi kontrol listesinde kurucu bunu teyit eder.
 
@@ -214,7 +214,8 @@ Mevcut Supabase staging projesi, Railway staging ve Vercel preview kapatılır. 
 Geçiş günü kontrol listesinde bu üç madde işaretli değilse geçiş yapılmaz.
 
 **Yedekleme (G9, sunucu-altyapi; ADR-0015):**
-- Her gece 03:15 (TR; 04:00 otomatik yeniden başlatmadan önce) `docker compose exec -T postgres pg_dump -Fc -U app_owner beautyos` çıktısı `restic` ile **Backblaze B2 AB bölgesine (eu-central)** gider. Şifreleme istemci tarafında yapılır; restic parolası sunucuda `.env.yedek` dosyasında ve kurucunun parola yöneticisinde durur.
+- Her gece 03:30 (TR; DO yedek penceresiyle çakışmaz, 04:00 otomatik yeniden başlatmadan önce biter) `pg_dump -Fc -U app_owner beautyos` (+ rol dökümü) çıktısı `restic` ile **Backblaze B2 AB bölgesine (eu-central)** gider. BeautyOS satırı devops'un `projeler.conf` dosyasında. Şifreleme istemci tarafında yapılır; restic parolası sunucu-altyapi'nin yedek ortam dosyasında ve kurucunun parola yöneticisinde durur.
+- Geri yükleme denemesi devops'un `yedek-geri-yukle.sh dene beautyos` komutuyla yapılır (geçici, ağsız Postgres konteyneri); sonuç `deneme-gunlugu.txt`'ye yazılır.
 - Saklama: 7 günlük, 4 haftalık, 6 aylık (VARSAYIM; `hukuk-uyum` onaylar, `docs/kvkk.md`).
 - Redis yedeklenmez (G6 betiğiyle yeniden kurulabilir). Caddy sertifika volume'u yedeklenmez (yeniden alınır).
 - **Geri yükleme denemesi zorunlu:** son yedek geçici bir `postgres:17` konteynerine açılır, `veri-dogrula.sh` satır sayıları eşleşir. Sonuç `sirket/sunucu.md` "Çalışan servisler" tablosuna yazılır.

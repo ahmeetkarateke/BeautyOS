@@ -234,7 +234,7 @@ Proxy açıkken HTTP-01 doğrulaması Cloudflare'den geçmek zorunda ve kırılg
 - **HTTP-01 / TLS-ALPN-01 (Caddy varsayılanı):** eklenti gerekmez, ama sertifika ancak DNS sunucuyu gösterdikten sonra alınır; proxy ile kırılgan.
 
 ### Karar
-Ortak Caddy, `caddy-dns/cloudflare` eklentili özel imajla çalışır. Cloudflare dışındaki alan adları varsayılan HTTP-01/TLS-ALPN ile devam eder. Token Cloudflare'de **yalnız `Zone:DNS:Edit` izinli ve yalnız `beautyossapp.com` zonuna sınırlı** olarak oluşturulur (kurucu). Değeri `/srv/caddy/.env.caddy` içinde `CF_API_TOKEN` olarak durur.
+Ortak Caddy, `caddy-dns/cloudflare` eklentili özel imajla çalışır. Cloudflare dışındaki alan adları varsayılan HTTP-01/TLS-ALPN ile devam eder. Token Cloudflare'de **yalnız `Zone:DNS:Edit` + `Zone:Zone:Read` izinli ve yalnız `beautyossapp.com` zonuna sınırlı** olarak oluşturulur (kurucu). Değeri `/srv/caddy/.env` içinde `CLOUDFLARE_API_TOKEN` olarak durur. Uygulama ayrıntısı sunucu-altyapi ADR-0006..0010'dadır.
 
 ### Sonuçlar
 - **Olumlu:** Proxy kipinden bağımsız, otomatik yenileme, geçiş öncesi sertifika.
@@ -257,12 +257,12 @@ API'de `trust proxy 1` var; hız sınırları (giriş 15 dk / 10 istek, SMS doğ
 - **Uygulamada `CF-Connecting-IP` okumak:** herkes bu başlığı sahteleyebilir (origin açık).
 
 ### Karar
-Caddy genel ayarında `trusted_proxies cloudflare` (`caddy-cloudflare-ip` eklentisi, aralıkları kendisi günceller) ve `client_ip_headers CF-Connecting-IP` kullanılır. Her `reverse_proxy` bloğunda `header_up X-Forwarded-For {client_ip}` yazılır. Express tek değer görür; `trust proxy 1` doğru IP'yi verir. Cloudflare dışından gelen bağlantıda başlık yok sayılır.
+Caddy genel ayarında `trusted_proxies static <Cloudflare aralıkları>` ve `client_ip_headers CF-Connecting-IP` kullanılır. Ek eklenti ve tedarik zinciri bağımlılığı olmasın diye liste statiktir; devops ayda bir `11-caddy.sh --ip-kontrol` ile Cloudflare'in yayımladığı listeyle karşılaştırır. Her `reverse_proxy` bloğunda `header_up X-Forwarded-For {client_ip}` yazılır. Express tek değer görür; `trust proxy 1` doğru IP'yi verir. Cloudflare dışından gelen bağlantıda başlık yok sayılır.
 
 ### Sonuçlar
 - **Olumlu:** Kod değişmez; sahte IP enjekte edilemez.
-- **Olumsuz:** Caddy'de bir eklenti daha.
-- **Riskler:** Eklenti çalışmazsa Cloudflare kenar IP'si görünür. Önlem: G14'te iki farklı istemciden giriş denemesi ve API log'unda IP doğrulaması. Eklenti sorun çıkarırsa Cloudflare aralıkları `trusted_proxies static` ile elle yazılır.
+- **Olumsuz:** Liste elle güncel tutulur.
+- **Riskler:** Cloudflare yeni aralık eklerse o aralıktan gelen isteklerde kenar IP'si görünür. Önlem: aylık `--ip-kontrol` ve G14'te iki farklı istemciden giriş denemesi + API log'unda IP doğrulaması.
 
 ---
 
@@ -372,7 +372,7 @@ Veritabanı artık bizde ve özel nitelikli kişisel veri (anamnez) içeriyor. S
 - **Yalnız yerel döküm:** sunucu kaybında yedek de gider.
 
 ### Karar
-Her gece 03:15 (TR) `pg_dump -Fc` çıktısı restic ile B2 AB bölgesine gider. Şifreleme istemci tarafında yapılır; restic parolası `.env.yedek` dosyasında ve kurucunun parola yöneticisinde durur. Saklama 7 günlük / 4 haftalık / 6 aylık (hukuk-uyum teyidi). Başarısız iş Telegram'a uyarı yollar. **Geçiş, en az bir başarılı yedek ve belgeli bir geri yükleme denemesi olmadan yapılmaz.** Uygulama ortak altyapıdadır (sunucu-altyapi, devops).
+Her gece 03:30 (TR) `pg_dump -Fc` (+ rol dökümü) çıktısı restic ile B2 AB bölgesine gider. Şifreleme istemci tarafında yapılır; restic parolası sunucu-altyapi'nin yedek ortam dosyasında ve kurucunun parola yöneticisinde durur. Saklama 7 günlük / 4 haftalık / 6 aylık (hukuk-uyum teyidi). Başarısız iş Telegram'a uyarı yollar. **Geçiş, en az bir başarılı yedek ve belgeli bir geri yükleme denemesi olmadan yapılmaz.** Uygulama ortak altyapıdadır (sunucu-altyapi, devops).
 
 ### Sonuçlar
 - **Olumlu:** Sunucu dışında, şifreli, test edilmiş yedek.
@@ -391,7 +391,7 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D2 | Prisma 5.22 PostgreSQL 17'de sorunsuz (migrate deploy + testler) | CI yeşil | G1 | — |
 | D3 | Prisma Client çalışma anında `DIRECT_URL` ister | Yoksa açılış hatası; bu yüzden `.env`'de `DATABASE_URL` ile aynı değer | G2 | — |
 | D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | — |
-| D5 | `caddy-cloudflare-ip` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
+| D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
 | D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu provada geçer | G13 | — |
 | D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump` yapılabilir | `on-kontrol` bağlanır | G13 | — |
 | D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `on-kontrol` boş liste | G13 | — |

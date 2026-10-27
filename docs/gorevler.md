@@ -118,19 +118,19 @@
 ### G8 — Ortak Caddy — *devam ediyor*
 - **Dosyalar:** `projeler/sunucu-altyapi/caddy/**` (+ o deponun `docs/kararlar.md`'sine ADR)
 - **Kabul kriterleri:**
-  - K1: Özel imaj sabit sürümlerle derlenir: Caddy 2.x + `caddy-dns/cloudflare` + `caddy-cloudflare-ip`. `caddy list-modules` iki modülü gösterir.
+  - K1: Özel imaj sabit sürümlerle derlenir: Caddy 2.x + `caddy-dns/cloudflare`. `caddy list-modules` modülü gösterir.
   - K2: `0.0.0.0` üzerinde yalnız 22/80/443 dinler (`sudo ss -tlnp`). Ortak ağ `sirket-proxy`. Postgres/Redis bu ağda değil.
-  - K3: Genel ayarlar: `trusted_proxies cloudflare`, `client_ip_headers CF-Connecting-IP`, `import /srv/caddy/siteler/*.caddy`. `caddy validate` geçer.
-  - K4: `CF_API_TOKEN` yalnız `/srv/caddy/.env.caddy`'den gelir. Token kurucu tarafından yalnız `Zone:DNS:Edit` + yalnız `beautyossapp.com` kapsamıyla oluşturulur (kurucu teyit eder).
+  - K3: Genel ayarlar: `trusted_proxies static` (Cloudflare listesi, aylık `11-caddy.sh --ip-kontrol`), `client_ip_headers CF-Connecting-IP`, `import /srv/caddy/siteler/*.caddy`. `caddy validate` geçer.
+  - K4: `CLOUDFLARE_API_TOKEN` yalnız `/srv/caddy/.env`'den gelir. Token kurucu tarafından yalnız `Zone:DNS:Edit` + `Zone:Zone:Read` ve yalnız `beautyossapp.com` kapsamıyla oluşturulur (kurucu teyit eder).
   - K5: DNS kaydı henüz Vercel'i gösterirken `api.beautyossapp.com` için sertifika DNS-01 ile alınır (log kanıtı).
   - K6: Caddy sertifika ve veri dizini adlandırılmış volume'da; yeniden başlatmada sertifika yeniden istenmez.
 
 ### G9 — Yedekleme — *devam ediyor*
 - **Kabul kriterleri:**
-  - K1: Her gece 03:15 TR: `docker compose exec -T postgres pg_dump -Fc -U app_owner beautyos` → restic → B2 AB bölgesi. Ara dosya diske şifresiz yazılmaz ya da 600 izinle yazılıp hemen silinir.
+  - K1: Her gece 03:30 TR: `pg_dump -Fc -U app_owner beautyos` (+ rol dökümü) → restic → B2 AB bölgesi. `projeler.conf`'taki BeautyOS satırının konteyner adı gelistirici'nin `deploy/compose.yml`'ıyla teyit edilir. Ara dosya diske şifresiz yazılmaz ya da 600 izinle yazılıp hemen silinir.
   - K2: Saklama `--keep-daily 7 --keep-weekly 4 --keep-monthly 6` (hukuk-uyum teyidine kadar VARSAYIM). `restic check` haftada bir.
   - K3: İş başarısızsa Telegram/heartbeat uyarısı gelir. Bilerek bozulmuş bir çalıştırmayla denenir.
-  - K4: **Geri yükleme denemesi:** son snapshot geçici `postgres:17` konteynerine açılır; `veri-dogrula.sh` satır sayıları canlıyla eşleşir. Tarih ve sonuç `sirket/sunucu.md` "Çalışan servisler" satırına yazılır.
+  - K4: **Geri yükleme denemesi** (`yedek-geri-yukle.sh dene beautyos`, sonuç `deneme-gunlugu.txt`): son snapshot geçici, ağsız bir `postgres:17` konteynerine açılır; `veri-dogrula.sh` satır sayıları canlıyla eşleşir. Tarih ve sonuç `sirket/sunucu.md` "Çalışan servisler" satırına yazılır.
   - K5: restic parolası ve B2 anahtarları yalnız `.env.yedek` dosyasında; kurucu parolayı parola yöneticisinde de saklar (teyit).
   - K6: Yurt dışı depolama için hukuk-uyum onayı alındı (müdür üzerinden).
 
@@ -214,7 +214,7 @@
 - **Çıktı:** `raporlar/test/beautyos-tasima-2.md`
 - **Kabul kriterleri:**
   - K1: Canlıda: giriş, takvim, randevu oluşturma, herkese açık randevu, kurucunun kendi numarasına test SMS'i, bota mesaj ve yanıt, şifre sıfırlama e-postası. Hepsi geçti.
-  - K2: İlk gece no-show işi 23:30 TR'de çalıştı (log). Yedek işi 03:15'te çalıştı.
+  - K2: İlk gece no-show işi 23:30 TR'de çalıştı (log). Yedek işi 03:30'da çalıştı.
   - K3: 48 saatte kalıcı bellek > %85 yok, yeniden başlama döngüsü yok, 5xx oranı ihmal edilebilir.
   - K4: Sorun varsa geri dönüş ölçütü (plan §13) müdüre raporlanır.
 
