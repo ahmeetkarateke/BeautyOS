@@ -136,32 +136,6 @@ async function bootstrap(): Promise<void> {
     })
   })
 
-  // ─── Debug endpoint ───────────────────────────────────────────────────────
-
-  app.get('/debug', async (_req, res) => {
-    const results: Record<string, unknown> = {}
-
-    try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-      const r = await model.generateContent('Say "ok"')
-      results.gemini = { ok: true, reply: r.response.text().slice(0, 50) }
-    } catch (e: unknown) {
-      results.gemini = { ok: false, error: (e as Error).message?.slice(0, 200) }
-    }
-
-    results.env = {
-      hasGeminiKey: !!process.env.GEMINI_API_KEY,
-      hasTelegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
-      publicUrl: process.env.PUBLIC_URL,
-      hasWhatsapp360ApiKey: !!process.env.WHATSAPP_360DIALOG_API_KEY,
-      whatsappSandbox: process.env.WHATSAPP_SANDBOX === 'true',
-      hasWhatsappVerifyToken: !!process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
-      hasTenantId: !!process.env.TELEGRAM_TENANT_ID,
-    }
-
-    res.json(results)
-  })
-
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
 
   startReminderWorker()
