@@ -68,7 +68,7 @@ SELECT migration_name || '|' || checksum || '|' ||
   CASE WHEN rolled_back_at IS NOT NULL THEN 'geri-alindi'
        WHEN finished_at IS NOT NULL THEN 'bitti'
        ELSE 'yarim' END
-FROM _prisma_migrations ORDER BY migration_name;
+FROM _prisma_migrations ORDER BY migration_name COLLATE "C";
 SQL
 }
 
