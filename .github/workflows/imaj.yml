@@ -1,98 +1,57 @@
-name: İmaj
+name: İmaj derleme kontrolü
 
-# Üretim imajlarını derleyip özel GHCR'a gönderir. Dağıtım YAPMAZ: sunucuya SSH, yayın ya da migration adımı yoktur.
-# Yayını devops elle yapar (önce staging, TEST GEÇTİ sonrası canlı).
-# master/staging push'unda çalışmaz; yalnız elle (workflow_dispatch) ya da v* etiketiyle.
+# İmajlar SUNUCUDA derlenir (ADR-0018, deploy/betikler/derle.sh); bu iş akışı yalnız iki Dockerfile'ın hâlâ
+# derlendiğini doğrular. Hiçbir yere GÖNDERMEZ (push: false), kayıt defterine giriş yapmaz, yetkisi yalnız okumadır.
+# Eylemler tam commit SHA'sına sabitlenmiştir (yorumdaki sürüm etiketi bilgi içindir).
 on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'deploy/derleme.conf'
+      - '.github/workflows/imaj.yml'
   workflow_dispatch:
-  push:
-    tags: ['v*']
 
 permissions:
   contents: read
-  packages: write
-
-concurrency:
-  group: imaj-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  KAYIT: ghcr.io
 
 jobs:
-  api:
-    name: API imajı
+  derleme:
+    name: Dockerfile derleme kontrolü
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Etiketleri hazırla
-        id: ad
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Derleme değerlerini oku (deploy/derleme.conf, gizli değil)
+        id: conf
         run: |
-          echo "sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
-          echo "sahip=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.KAYIT }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+          api_url="$(sed -n 's/^NEXT_PUBLIC_API_URL_PROD=//p' deploy/derleme.conf)"
+          if [ -z "$api_url" ]; then
+            echo "HATA: deploy/derleme.conf içinde NEXT_PUBLIC_API_URL_PROD boş" >&2
+            exit 1
+          fi
+          echo "api_url=$api_url" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: API imajı derlenir (gönderilmez)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: apps/api/Dockerfile
-          push: true
-          provenance: false
-          tags: ${{ env.KAYIT }}/${{ steps.ad.outputs.sahip }}/beautyos-api:${{ steps.ad.outputs.sha }}
+          push: false
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
-  web:
-    name: Web imajı (${{ matrix.ortam }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ortam: prod
-            api_url_degiskeni: NEXT_PUBLIC_API_URL_PROD
-          - ortam: staging
-            api_url_degiskeni: NEXT_PUBLIC_API_URL_STAGING
-    steps:
-      - uses: actions/checkout@v4
-      - name: Etiketleri ve derleme değerlerini hazırla
-        id: ad
-        env:
-          # Gizli değildir: repository variables (Settings > Variables). secrets.* kullanılmaz.
-          API_URL_PROD: ${{ vars.NEXT_PUBLIC_API_URL_PROD }}
-          API_URL_STAGING: ${{ vars.NEXT_PUBLIC_API_URL_STAGING }}
-          ORTAM: ${{ matrix.ortam }}
-        run: |
-          if [ "$ORTAM" = "prod" ]; then api_url="$API_URL_PROD"; else api_url="$API_URL_STAGING"; fi
-          if [ -z "$api_url" ]; then
-            echo "HATA: NEXT_PUBLIC_API_URL_${ORTAM^^} repository variable tanımlı olmalı" >&2
-            exit 1
-          fi
-          {
-            echo "sha=${GITHUB_SHA::12}"
-            echo "sahip=${GITHUB_REPOSITORY_OWNER,,}"
-            echo "api_url=$api_url"
-          } >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.KAYIT }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - name: Web imajı derlenir (gönderilmez)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: apps/web/Dockerfile
-          push: true
-          provenance: false
+          push: false
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ steps.ad.outputs.api_url }}
-            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
-            NEXT_PUBLIC_BOT_FEATURES_ENABLED=${{ vars.NEXT_PUBLIC_BOT_FEATURES_ENABLED || 'false' }}
-          tags: ${{ env.KAYIT }}/${{ steps.ad.outputs.sahip }}/beautyos-web:${{ steps.ad.outputs.sha }}-${{ matrix.ortam }}
-          cache-from: type=gha,scope=web-${{ matrix.ortam }}
-          cache-to: type=gha,mode=max,scope=web-${{ matrix.ortam }}
+            NEXT_PUBLIC_API_URL=${{ steps.conf.outputs.api_url }}
+            NODE_HEAP_MB=1536
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web

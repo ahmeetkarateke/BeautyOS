@@ -14,11 +14,13 @@ COPY apps/web ./apps/web
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 ARG NEXT_PUBLIC_BOT_FEATURES_ENABLED=false
+# Derleme belleği (MB): sunucuda canlı yığınla birlikte derlendiğinden sınırlı tutulur (derle.sh 1536 verir).
+ARG NODE_HEAP_MB=2048
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY \
     NEXT_PUBLIC_BOT_FEATURES_ENABLED=$NEXT_PUBLIC_BOT_FEATURES_ENABLED \
     NEXT_TELEMETRY_DISABLED=1 \
-    NODE_OPTIONS=--max-old-space-size=2048
+    NODE_OPTIONS=--max-old-space-size=$NODE_HEAP_MB
 # Kodda yedek (Railway) adresi var; yanlışlıkla ona düşülmesin diye adres zorunlu.
 RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "NEXT_PUBLIC_API_URL build arg zorunlu" && exit 1)
 RUN npm run build --workspace=apps/web
