@@ -5,7 +5,7 @@
 - **Durum değerleri:** `bekliyor` | `devam ediyor` | `incelemede` | `tamamlandı` | `iptal`. Bu dosya mimarındır. Görev sahibi durum değişikliğini mesajla bildirir, mimar işler.
 - **Kod görevleri** `kod-standartlari`'na göre test önce yazılır. `[İNCELEME HAZIR]` mesajında kabul kriteri → test adı eşlemesi verilir (ör. `G4b-K3: rejects origin evil-beautyossapp.com`). Denetçi ONAY'ı olmadan hiçbir görev "tamamlandı" sayılmaz.
 - `[ONAY]` = kurucu onayı (müdür toplar).
-- **Kalıcı izin (kurucu, 2026-10-28; şirket `CLAUDE.md` "Kalıcı izinler"):** Bu listedeki denetçi ONAY'lı teknik adımları (kurulum, derleme, migrate, Caddy, sertifika, sunucu temizliği) müdür kurucuya sormadan yürütür ya da yürütür. Kurucuya hâlâ sorulanlar:
+- **Kalıcı izin (kurucu, 2026-10-28; şirket `CLAUDE.md` "Kalıcı izinler"):** Bu listedeki denetçi ONAY'lı teknik adımları (kurulum, derleme, migrate, Caddy, sertifika, sunucu temizliği) müdür kurucuya sormadan yapar ya da yaptırır. Kurucuya hâlâ sorulanlar:
   - DNS değişiklikleri.
   - Eski servislerin kapatılması/silinmesi.
   - Taşıma dallarının `master`'a birleştirilmesi.
