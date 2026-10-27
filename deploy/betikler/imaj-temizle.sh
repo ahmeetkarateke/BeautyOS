@@ -3,7 +3,7 @@
 # Her imaj ailesi için (beautyos-api, beautyos-web-prod, beautyos-web-staging) en yeni 3 sürüm kalır (oluşturma zamanına göre).
 # Yalnız derle.sh'ın ürettiği <sha12> biçimli etiketler yönetilir; "test" gibi diğer etiketlere dokunulmaz.
 # ASLA silinmez: herhangi bir konteynerin (çalışan ya da durmuş) kullandığı imaj, .env içindeki BEAUTYOS_VERSION ve
-# BEAUTYOS_STAGING_VERSION sürümlerinin imajları.
+# BEAUTYOS_STAGING_VERSION ve BEAUTYOS_PREVIOUS_VERSION (canlının bir önceki sürümü; geri alma güvencesi) sürümlerinin imajları.
 # Silinen etiketler BEAUTYOS_DIR/imaj-temizle.log dosyasına yazılır. Kurucu kuralı onaylamadan otomatik çağrılmamalıdır.
 # Ortam (yalnız test için): BEAUTYOS_DIR.
 set -euo pipefail
@@ -32,17 +32,24 @@ done
 surum_oku() {
   local anahtar="$1" satir
   [ -f "$BASE/.env" ] || return 0
-  satir="$(sed -n "s/^${anahtar}=//p" "$BASE/.env" | head -n 1)"
+  satir="$(awk -F= -v k="$anahtar" '$1 == k { print substr($0, length(k) + 2); exit }' "$BASE/.env")"
   satir="${satir%\"}"; satir="${satir#\"}"; satir="${satir%\'}"; satir="${satir#\'}"
   printf '%s' "$satir"
 }
+if [ ! -f "$BASE/.env" ]; then
+  echo "UYARI: $BASE/.env yok; .env sürüm korumaları uygulanamıyor (yalnız konteyner kullanımı ve son $TUT sürüm korur)." >&2
+fi
 SURUM_CANLI="$(surum_oku BEAUTYOS_VERSION)"
 SURUM_STAGING="$(surum_oku BEAUTYOS_STAGING_VERSION)"
+# Geri alma güvencesi: canlının bir önceki sürümü (yayın yapılırken BEAUTYOS_VERSION'ın eski değeri buraya taşınır).
+SURUM_ONCEKI="$(surum_oku BEAUTYOS_PREVIOUS_VERSION)"
 
 declare -A KORUMALI=()
 korumali_ekle() { [ -z "$1" ] || KORUMALI["$1"]=1; }
 korumali_ekle "${SURUM_CANLI:+beautyos-api:$SURUM_CANLI}"
 korumali_ekle "${SURUM_CANLI:+beautyos-web:$SURUM_CANLI-prod}"
+korumali_ekle "${SURUM_ONCEKI:+beautyos-api:$SURUM_ONCEKI}"
+korumali_ekle "${SURUM_ONCEKI:+beautyos-web:$SURUM_ONCEKI-prod}"
 korumali_ekle "${SURUM_STAGING:+beautyos-api:$SURUM_STAGING}"
 korumali_ekle "${SURUM_STAGING:+beautyos-web:$SURUM_STAGING-staging}"
 
@@ -133,4 +140,15 @@ if [ -d "$BASE/kaynak" ]; then
       echo "$zaman silindi kaynak/$ad" >>"$LOG"
     fi
   done < <(ls -dt "$BASE"/kaynak/*/ 2>/dev/null | sed 's#/$##')
+fi
+
+# ─── Derleme önbelleği (ADR-0018): 7 günden eski önbellek temizlenir; aksi halde disk yavaşça dolar ─────────────────────
+# Sınırlı builder'ın önbelleği ve varsayılan builder'ın önbelleği ayrı ayrı budanır. Dry-run'da yalnız boyut gösterilir.
+if [ "$DRY" -eq 1 ]; then
+  echo "── Derleme önbelleği boyutu (dry-run, silinmez) ──"
+  docker buildx du --builder beautyos-derle 2>/dev/null | tail -n 1 | sed 's/^/  beautyos-derle: /' || true
+  docker builder du 2>/dev/null | tail -n 1 | sed 's/^/  varsayılan:     /' || true
+else
+  docker buildx prune --builder beautyos-derle --filter until=168h -f 2>/dev/null | tail -n 1 | sed 's/^/Önbellek (beautyos-derle) /' || true
+  docker builder prune --filter until=168h -f 2>/dev/null | tail -n 1 | sed 's/^/Önbellek (varsayılan) /' || true
 fi
