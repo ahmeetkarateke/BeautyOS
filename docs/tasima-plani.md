@@ -322,7 +322,7 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 
 Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
 
-1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. Önce §5 `kaynak` adımı bitmiş olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
+1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. Önce §5 `kaynak` adımı bitmiş **ve kurucunun yerel çalışması (depoda olmayan 2 migration, G13-K7) GitHub'a girmiş** olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
 2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.
 3. Railway (prod + staging; `api.beautyossapp.com` özel alan adı kaydı dahil), Vercel (dağıtımlar ve alan adı kayıtları dahil) ve Upstash projeleri silinir.
 4. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).
@@ -351,7 +351,8 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 **Yanıtlananlar:** Cloudflare (K2), SMS, Telegram, hesaplar, geçiş zamanı, **S6 (veri demo; taşınmayacak)**, test artıklarının silinmesi.
 
 **Hâlâ açık:**
-1. **Zaman sınırlı:** `beautyos-dev` 7 gün içinde yeniden duraklar. Bu süre içinde `.env.supabase` yazılıp §5.1 komutu çalıştırılmalı.
+0. **Yeni (şema karşılaştırmasından):** Supabase'te depoda olmayan iki migration uygulanmış: `20260624000000_whatsapp_phone_number_id` ve `20260624010000_subscription_billing` (iyzico abonelik alanları). Bu çalışma bilgisayarınızda mı? Orijinal migration dosyaları ve koduyla ayrı bir dal olarak GitHub'a push eder misiniz (G13-K7)? Bu olmadan Supabase silinmez. Ödeme entegrasyonu (iyzico) yeni bir veri işleyen olduğu için hukuk-uyum'a da gidecek.
+1. ~~Şema dökümü~~ alındı (10-28).
 2. ~~`/debug`~~ kapandı (10-28).
 3. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? Başka alt alan adı var mı?
 4. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?

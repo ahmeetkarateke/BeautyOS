@@ -421,7 +421,7 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `kaynak-bilgi.txt` boş liste (bilgi amaçlı; veri taşınmadığı için engel değil) | G13 | — |
 | D11 | ~~Yedek dosyası ara konteynerde yüklenir~~ | — | — | Geçersiz: veri taşınmıyor (ADR-0017) |
 | D12 | `schema.prisma` ile migration'lar uyumlu (`prisma migrate diff --exit-code` boş) | CI adımı yeşil | G1-K6 | — |
-| D13 | Canlı Supabase `public` şeması = migration'larla kurulan şema | `sema-fark.txt` boş ya da yalnız gürültü | G13 | — |
+| D13 | Canlı Supabase `public` şeması = migration'larla kurulan şema | `sema-fark.txt` boş ya da yalnız gürültü | G13 | **Kısmen (10-28):** tek şema farkı, depoda olmayan 2 migration (kurucunun yerel çalışması; düzeltici migration yazılmadı, `mevcut-durum.md`). Ayrıca 5 migration'da yalnız CRLF kaynaklı checksum farkı var. Başka fark yok |
 | D9 | NetGSM API'de IP kısıtı yok ya da sunucu IP'si eklendi | — | — | Geçersiz: SMS kapalı (kurucu, 2026-10-27). SMS açılırken yeniden sorulur |
 | D10 | Aynı Postgres örneğinde `app_user` staging veritabanına, `stg_user` canlı veritabanına bağlanamaz | Bağlantı reddi | G11-K3 | — |
 

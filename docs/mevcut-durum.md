@@ -93,6 +93,17 @@ Panelde doğrulanması gerekenler (VARSAYIM; 2026-10-28'den beri veri taşınmı
 - Railway servisi "watch paths" ile yalnız `apps/api/**` değişikliğinde dağıtım yapıyor. Kök dosya değişikliği (`Dockerfile`, `railway.json`) SKIPPED olur ve **elle Redeploy** ister.
 - Canlı Supabase projesi `beautyos-dev` (eu-west-1); staging `beautyos-staging`.
 
+**2026-10-28 şema karşılaştırması sonucu (G13-K3; kaynak Supabase `beautyos-dev`, PostgreSQL 17.6):**
+- **Depoda olmayan 2 migration Supabase'te uygulanmış:** `20260624000000_whatsapp_phone_number_id` ve `20260624010000_subscription_billing`. Git geçmişinin hiçbir dalında yoklar; kurucunun bilgisayarındaki push edilmemiş çalışmadan uygulanmış olmalılar.
+  - Şemaya etkileri (başka şema farkı yok): `tenants.whatsappPhoneNumberId`, `subscriptionStatus` (enum `SubscriptionStatus`: trialing/active/past_due/canceled, varsayılan trialing, NOT NULL), `graceEndsAt`, `currentPeriodEnd`, `iyzicoCustomerRef`, `iyzicoSubscriptionRef`, ayrıca `UNIQUE(whatsappPhoneNumberId)` ve `UNIQUE(iyzicoSubscriptionRef)`.
+  - `master` kodu bu sütunları kullanmıyor.
+- **Karar (mimar, plan §5 tablosu):** düzeltici migration **yazılmaz**. Yeni sunucu depodaki 19 migration'la kurulur. İki migration, kurucunun yerel çalışması depoya girince kendi dosyalarıyla normal `migrate deploy` akışında uygulanır. Gerekçeler:
+  - Aynı adla türetilmiş bir migration, gerçek dosya gelince checksum çakışması yaratır.
+  - Farklı adla türetilmiş bir migration ise aynı sütunları ikinci kez eklemeye çalışır.
+  - Kod bu sütunları kullanmıyor.
+- **5 migration'da checksum farkı (bilinçli fark):** `big_update`, `anamnesis_business_type`, `current_accounts`, `purchase_invoices`, `financial_accounts`. Kaynaktaki checksum'lar dosyaların **CRLF** sürümüyle birebir tutuyor; içerik aynı. Migration'lar Supabase'e Windows'tan CRLF satır sonlarıyla uygulanmış. Supabase silineceği için işlem yok. Yeni sunucu LF dosyalarla kurulur.
+- `pgcrypto`/`uuid-ossp` gereksiz (`gen_random_uuid` çekirdek fonksiyon). RLS, politika ve dış şema bağımlılığı yok.
+
 ## 8. Riskler ve teknik borç (kısa)
 
 > **Kurucu yanıtlarından sonra (2026-10-27):**
