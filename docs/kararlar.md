@@ -448,6 +448,8 @@ Staging aynı `beautyos` compose projesinde `web-staging` (256M) ve `api-staging
 - **Olumsuz:** Postgres ve Redis bakım ya da yeniden başlatmaları iki ortamı birlikte etkiler. Staging'deki ağır bir sorgu canlıyı yavaşlatabilir.
 - **Riskler:**
   - Yanlış yapılandırmayla staging'in canlı veritabanına bağlanması. Önlem: rol bazlı `CONNECT` kısıtı + D10 testi + ayrı JWT.
+  - **Redis'te sınır yok** (denetim bulgusu, `raporlar/denetim/beautyos-tasima-1.md`). Staging, canlıyla aynı Redis parolasını kullanıyor ve aynı sunucuda; canlının DB 0'ına (BullMQ `reminders` kuyruğu) erişebiliyor. DB numarası güvenlik sınırı değildir. Önlem G19: Redis ACL ile ortam başına ayrı kullanıcı, staging kullanıcısına yalnız kendi anahtar önekine izin (`~stg:*`), BullMQ `prefix` ayarı. İlk gerçek müşteriden önce tamamlanır. O zamana kadar kabul edilen risk: gerçek kullanıcı yok ve SMS kapalı.
+  - Staging sürüm etiketi `BEAUTYOS_STAGING_VERSION` zorunlu ve canlıdan ayrıdır; boşsa compose durur, canlı sürüme düşmez.
   - **İlk gerçek müşteriden önce** staging'in canlı Postgres'inden ayrılması (ayrı örnek ya da büyütülmüş droplet) yeniden değerlendirilir; bellek > %85 olursa staging durdurulur.
 
 ---

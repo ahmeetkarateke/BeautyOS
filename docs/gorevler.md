@@ -37,7 +37,7 @@
 | G8 | Ortak Caddy | devops | — | devam ediyor |
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
-| G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` bf124e4) |
+| G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` 62d9ca7; ilk inceleme RED, düzeltildi) |
 | G12 | Veri aktarım ve doğrulama betikleri | gelistirici | G11 | bekliyor |
 | G13 | Veri betiğinin ön denemesi (geçici, ağsız konteyner) | kurucu + devops | G12 | bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
@@ -45,6 +45,7 @@
 | G16 | Canlı duman testi + 48 saat gözlem | test-muhendisi + devops | G15 | bekliyor |
 | G17 | Eski servislerin kapatılması (+3 gün) | kurucu + devops | G16 | bekliyor |
 | G18 | Taşıma sonrası temizlik ve yükseltmeler | gelistirici | G17 | bekliyor |
+| G19 | Redis'te ortam ayrımı: ACL kullanıcıları + BullMQ öneki | gelistirici + devops | G11 | bekliyor (ilk gerçek müşteriden önce) |
 
 ---
 
@@ -145,7 +146,8 @@
     - **`app_user` `beautyos_staging`'e, `stg_user` `beautyos`'a bağlanamaz** (iki ayrı negatif deneme).
   - K4: `migrate`/`migrate-staging` `profiles: [migrate]` altında. Sahip rolünün URL'si yalnız kendi env dosyasından gelir. `api` ortamında `MIGRATION_DATABASE_URL` adı geçmez.
   - K5: Redis `noeviction`, `appendonly`, parolalı. Staging `REDIS_URL`'i DB 1'i gösterir.
-  - K6: `beautyos.caddy` plan §1 ile aynı: `/debug*` 404, `header_up X-Forwarded-For {client_ip}`, basic auth yalnız `yeni` hostunda.
+  - K6: `beautyos.caddy` plan §1 ile aynı: `/debug*` 404, `header_up X-Forwarded-For {client_ip}`, basic auth yalnız `yeni` hostunda. Kullanıcı adı ve hash Caddy ortam değişkenlerinden (`{$BEAUTYOS_STAGING_BASIC_USER}`, `{$BEAUTYOS_STAGING_BASIC_HASH}`) gelir. Değerleri devops `/srv/caddy/.env`'e yazar; depoda gerçek hash yok.
+  - K8: Staging servisleri `${BEAUTYOS_STAGING_VERSION:?}` ile zorunlu ve ayrı sürüm etiketi kullanır. Değişken boşken `docker compose config` hata verir; canlı etikete düşmez.
   - K7: Staging `.env.staging` ile açılır. SMS'in kapalı olduğu açılış log'undan görünür. Not: "SMS provider: Mock" satırı bugün yalnız ilk SMS denemesinde yazılıyor (`lib/sms/index.ts` tembel başlatma); açılışta yazılması G5-K2'ye bağlı. G5 birleşmeden önce bu kriter kurucunun `.env.staging`'de `NETGSM_*` boş teyidiyle karşılanır. `JWT_SECRET`'i canlıdan farklıdır (kurucu teyidi). Staging token'ıyla canlı API'ye istek atılınca 401 döner.
 
 ### G12 — Veri aktarım ve doğrulama betikleri
@@ -223,6 +225,15 @@
 - c) Next.js güncel sürüm.
 - d) `Sentry.setupExpressErrorHandler` sırası; `tsconfig.tsbuildinfo` depodan çıkarılır.
 - e) `master` → `main` (kurucu kararı).
+### G19 — Redis'te ortam ayrımı (denetim bulgusu, `raporlar/denetim/beautyos-tasima-1.md`)
+- **Dosyalar:** `apps/api/src/lib/queue.ts` (gelistirici), `deploy/compose.yml` + Redis ACL dosyası ya da başlatma betiği (gelistirici), `.env.redis` adları (mimar `.env.example`'a yazar)
+- **Kabul kriterleri:**
+  - K1: Redis'te `default` kullanıcı kapalı. Canlı ve staging için ayrı ACL kullanıcıları ve ayrı parolalar var. `REDIS_URL` kullanıcı adı içerir.
+  - K2: BullMQ kuyrukları ortam önekiyle açılır (ör. `prefix: 'bull:prod'` / `'bull:stg'`). Önek ortam değişkeninden gelir; tek kod yolu.
+  - K3: Staging kullanıcısı yalnız kendi önekindeki anahtarlara erişir. Staging kimliğiyle canlı önekine `GET`/`KEYS`/`FLUSHDB` → yetki hatası (negatif test, her biri tek kuralı bozar). Tehlikeli komutlar (`FLUSHALL`, `CONFIG`, `KEYS`) staging kullanıcısında kapalı.
+  - K4: Canlı kullanıcının kendi kuyruğunda iş ekleme ve işleme testi yeşil (mutlu yol).
+  - K5: ACL parolaları yalnız `.env.redis`/`.env`/`.env.staging`'de; depoda yok.
+
 - **İlk gerçek müşteriden önce** (KVKK değerlendirmesi §6.2):
   - RLS projesi (T-B1).
   - Müşteri silme/anonimleştirme uç noktası ve gece imha işi.

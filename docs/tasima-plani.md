@@ -78,7 +78,7 @@ api.beautyossapp.com {
 }
 yeni.beautyossapp.com {
   import cf_dns
-  basic_auth { <kullanıcı> <bcrypt hash> }      # hash gizli değildir ama parola kurucuda
+  basic_auth { {$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH} }   # değerler /srv/caddy/.env'den (devops); parola kurucuda
   reverse_proxy beautyos-web-staging:3000 { header_up X-Forwarded-For {client_ip} }
 }
 yeni-api.beautyossapp.com {
@@ -97,7 +97,7 @@ yeni-api.beautyossapp.com {
 /srv/beautyos/   compose.yml, postgres/init/01-roller.sh, postgres/postgresql.conf, betikler/veri-aktar.sh, betikler/veri-dogrula.sh
                  .env .env.staging .env.db .env.migrate .env.migrate-staging .env.redis .env.supabase   (kurucu yazar, 600; ajanlar okumaz)
                  tasima/ (700)  döküm ve sayım çıktıları; kapatmada silinir [ONAY]
-/srv/caddy/      ortak Caddy (.env: CLOUDFLARE_API_TOKEN), siteler/beautyos.caddy
+/srv/caddy/      ortak Caddy (.env: CLOUDFLARE_API_TOKEN, BEAUTYOS_STAGING_BASIC_USER, BEAUTYOS_STAGING_BASIC_HASH), siteler/beautyos.caddy
 ```
 
 ## 2. Bellek bütçesi (4 GB RAM + 2 GB swap, 2 vCPU)
