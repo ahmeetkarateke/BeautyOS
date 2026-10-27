@@ -1,7 +1,11 @@
 node_modules/
 dist/
+# Gizli bilgiler: .env ve .env.<ortam> (.env.db, .env.migrate, .env.redis, .env.supabase ...) asla git'e girmez
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
 *.log
 .DS_Store
 .next/
@@ -12,7 +16,7 @@ ilerleme.md
 Proje_Tamamı.md
 PRD_BeautySaaS.md
 agents/
-docs/
+# docs/ artık izleniyor: taşıma ve mimari belgeleri (mevcut-durum, tasima-plani, kararlar, gorevler) burada.
 todo/
 generate_pdfs.py
 generate_pptx.py
