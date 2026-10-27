@@ -217,26 +217,32 @@ PGSSLMODE=require
 - Port 5432 olmalı (Session pooler). 6543 (Transaction pooler) kullanılmaz.
 - **Veritabanı parolasını panelden sıfırlamayın.** Sıfırlanırsa Railway canlı API'sinin bağlantısı kopar ve `/debug` hotfix'inin dağıtımı yeniden bozulur. Parola bilinmiyorsa önce müdüre haber verin; Railway'deki `DATABASE_URL` aynı anda güncellenmelidir.
 
-**2. Komut** (önerilen). G12 betiği denetçi ONAY'ı alıp sunucuya yüklendiyse:
+**2. Betiğin sunucuya konması** (devops, kurucu beklemez). Betik `deploy/betikler/sema-karsilastir.sh` (`tasima/docker` `e3b89f2`), denetçinin kısa incelemesinde.
+- ONAY gelince devops betiği **onaylı commit'ten** sunucu-altyapi yöntemiyle yükler (PowerShell 5.1'de doğrudan pipe yok):
+  `cmd /c "git -C <tasima/docker worktree> archive <onaylı commit> deploy/betikler/sema-karsilastir.sh | ssh karateke@209.38.237.171 'tar -x -C /srv/beautyos --strip-components=1'"`
+- Ardından sunucuda `bash -n /srv/beautyos/betikler/sema-karsilastir.sh` ve `grep -c $'\r'` (0 olmalı) çalıştırılır.
+- Commit kimliği `sirket/sunucu.md` işlem günlüğüne yazılır. Devops "yüklendi" bildirimini müdüre yapar.
 
-```
-ssh karateke@209.38.237.171 'bash /srv/beautyos/betikler/sema-karsilastir.sh kaynak'
-```
+**3. Kurucunun adımları** (devops "yüklendi" dedikten sonra):
+1. Supabase panelinde `beautyos-dev` → **Connect** → **Session pooler**. Host, port (5432), kullanıcı (`postgres.<proje-ref>`) ve veritabanı (`postgres`) değerlerini not edin. Parola projenin veritabanı parolasıdır; **sıfırlamayın**.
+2. `ssh karateke@209.38.237.171`, sonra `nano /srv/beautyos/.env.supabase` ile yukarıdaki altı satırı yazın. Ardından `chmod 600 /srv/beautyos/.env.supabase`.
+3. Çalıştırın: `bash /srv/beautyos/betikler/sema-karsilastir.sh kaynak`
+4. Beklenen:
+   - Betik kaynak sürümünü yazar.
+   - Salt okunur oturumu önce `SELECT 1` ile dener. Pooler `PGOPTIONS`'u reddederse bir **uyarı** basar ve ayarsız devam eder; bu kabul edilebilir, `pg_dump` zaten salt okunur işlemle çalışır.
+   - `/srv/beautyos/tasima/` altında `sema-kaynak.sql` ve `migrations-kaynak.txt` (ve sürüm/bilgi dosyası) oluşur. Dosyalar karateke'ye ait ve 600 izinlidir.
+5. Müdüre bildirin: "kaynak tamam" ve varsa uyarı metni. **`.env.supabase` içeriğini, parolayı ya da bağlantı satırını hiçbir yere yapıştırmayın.**
+6. Hata olursa: bağlantı hatasında betik parola ya da host yazmadan açık bir mesaj verir. Host, port (5432) ve kullanıcı biçimini (`postgres.<ref>`) kontrol edin. Kaynak sürümü 17'den büyükse betik durur, müdüre bildirin.
 
-**2b. Betik henüz hazır değilse yedek komut.** Sunucuya `ssh` ile girildikten sonra çalıştırılır:
+Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migration ve bir işaret satırı kullanıldı.
+- `--user` ile izin hatası çıkmadı; çıktılar karateke'ye ait, 600 izinli.
+- Dökümde `INSERT`/`COPY` sayısı 0; işaret satırı hiçbir çıktıda görünmüyor.
+- Salt okunur oturum `CREATE TABLE`'ı reddetti.
+- `PGOPTIONS` reddi benzetimle denendi, uyarı ve yedek yol çalıştı. **Gerçek Supabase pooler'ında henüz doğrulanmadı** (D7).
 
-```
-install -d -m 700 /srv/beautyos/tasima
-docker run --rm --user "$(id -u):$(id -g)" --env-file /srv/beautyos/.env.supabase \
-  -e PGOPTIONS='-c default_transaction_read_only=on' -v /srv/beautyos/tasima:/out <compose'taki postgres:17.x imajı> \
-  sh -c 'psql -X -At -c "SELECT version()" > /out/kaynak-surum.txt &&
-         pg_dump --schema-only --schema=public --no-owner --no-privileges --no-publications --no-subscriptions -f /out/sema-kaynak.sql &&
-         psql -X -At -c "SELECT migration_name, checksum, finished_at IS NOT NULL, rolled_back_at IS NOT NULL FROM _prisma_migrations ORDER BY migration_name" > /out/migrations-kaynak.txt'
-```
+İmaj `postgres:17.11-bookworm` (compose ile aynı).
 
-Bu komutu gelistirici, sahte bir kaynağa karşı sunucuda dener; tam metin müdüre denenmiş haliyle iletilir.
-
-**3. Başarı ölçütü ve sonrası:**
+**4. Başarı ölçütü ve sonrası:**
 - Üç dosya oluşur. `sema-kaynak.sql` içinde `CREATE TABLE` satırları vardır ve `INSERT`/`COPY` satırı **yoktur**. `migrations-kaynak.txt` 19 civarı satır içerir.
 - Kurucu "tamam" der; dosyalar kişisel veri içermez, ekip okuyabilir.
 - `hedef` ve `karsilastir` adımlarını gelistirici ya da devops çalıştırır (G13-K3). Supabase'in tekrar duraklaması bundan sonra sorun değildir.

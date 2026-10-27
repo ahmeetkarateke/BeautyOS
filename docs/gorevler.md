@@ -41,7 +41,7 @@
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
 | G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` 62d9ca7; ilk inceleme RED, düzeltildi) |
-| G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | devam ediyor (eski kapsam `d3d6df0`'da yazıldı, sadeleştirilecek) |
+| G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | incelemede (`tasima/docker` `e3b89f2`; K1–K7 sunucuda denendi; `kaynak` öncelikli kısa inceleme) |
 | G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
 | G15 | Geçiş (Railway durdurma + DNS) | kurucu + devops | G1–G5, G7–G14 | bekliyor |
