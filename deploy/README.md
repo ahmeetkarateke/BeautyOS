@@ -1,60 +1,58 @@
 # BeautyOS dağıtım notları
 
-İmajlar **sunucuda** derlenir (ADR-0018); GHCR ve `docker login` yoktur. Derleme kaynağı sunucudaki
-`/srv/beautyos/kaynak` deposudur ve GitHub'a **salt okunur deploy key** ile bağlanır.
+İmajlar **sunucuda** derlenir (ADR-0018). Sunucu GitHub'dan **çekmez** (ADR-0019): deploy key yoktur ve taşıma dalları
+GitHub'a gönderilmez. Kaynak, müdürün onayladığı commit'in Windows'ta paketlenip sunucuya aktarılmasıyla gelir.
 
-## Deploy key kurulumu (bir kez, kurucu sunucuda)
+## Kaynak paketini hazırlama ve aktarma (müdür, Windows)
 
-1. Sunucuda `karateke` olarak anahtar üret (parolasız; yalnız bu depoyu okur):
-
-   ```
-   ssh-keygen -t ed25519 -N '' -C 'beautyos-deploy (salt okunur)' -f ~/.ssh/beautyos_deploy
-   cat ~/.ssh/beautyos_deploy.pub
-   ```
-
-2. GitHub'da `beautyos` deposu > Settings > Deploy keys > Add deploy key: başlık `sirket-sunucu-1`, açık anahtarı yapıştır.
-   **"Allow write access" işaretlenmez.**
-3. `~/.ssh/config` dosyasına takma ad ekle (bu anahtar dışında anahtar denenmesin diye `IdentitiesOnly yes`):
-
-   ```
-   Host github-beautyos
-       HostName github.com
-       User git
-       IdentityFile ~/.ssh/beautyos_deploy
-       IdentitiesOnly yes
-   ```
-
-4. Salt okunur erişimi doğrula. `ssh -T` depoyu tanımalı; yazma denemesi reddedilmeli:
-
-   ```
-   ssh -T git@github-beautyos        # "Hi ahmeetkarateke/beautyos! You've successfully authenticated, but GitHub does not provide shell access."
-   ```
-
-5. Depoyu klonla (anahtar yolu hiçbir betikte yazmaz; yalnız takma ad kullanılır):
-
-   ```
-   git clone git@github-beautyos:ahmeetkarateke/beautyos.git /srv/beautyos/kaynak
-   ```
-
-## Derleme
+Depo klasöründe, `<tam-sha>` onaylı commit'in 40 haneli kimliği, `<sha12>` ilk 12 hanesidir:
 
 ```
-bash /srv/beautyos/betikler/derle.sh <commit-sha>      # en az 12 haneli onaltılık kimlik; dal/etiket/HEAD kabul edilmez
+git -c core.autocrlf=false archive --format=tar -o beautyos-<sha12>.tar <tam-sha>
 ```
+
+`-c core.autocrlf=false` şarttır: aksi halde Windows'ta dosyalar CRLF'ye çevrilir, kabuk betikleri ve Dockerfile'lar bozulur,
+Prisma migration checksum'ları değişir. (Depodaki `.gitattributes` kritik dosyaları zaten LF'ye zorlar; bu bayrak ek güvencedir.)
+
+Özet dosyasını `sha256sum -c` biçiminde yaz (`certutil` çıktısı bu biçimde DEĞİLDİR; Git Bash'te `sha256sum` kullan):
+
+```
+sha256sum beautyos-<sha12>.tar | sed 's/beautyos-<sha12>.tar/kaynak.tar/' > kaynak.tar.sha256
+printf '%s\n' <tam-sha> > commit.txt
+```
+
+Sunucuya aktar (hedef dizin yoksa önce oluştur):
+
+```
+ssh karateke@209.38.237.171 "mkdir -p /srv/beautyos/kaynak/<sha12>"
+scp beautyos-<sha12>.tar karateke@209.38.237.171:/srv/beautyos/kaynak/<sha12>/kaynak.tar
+scp kaynak.tar.sha256 commit.txt karateke@209.38.237.171:/srv/beautyos/kaynak/<sha12>/
+```
+
+## Derleme (sunucuda)
+
+```
+bash /srv/beautyos/betikler/derle.sh <tam-sha>      # 40 haneli kimlik; kısa sha, dal, etiket, HEAD kabul edilmez
+```
+
+Betik önce paketi doğrular: üç dosya var mı, `sha256sum -c`, tar içindeki commit kimliği (`git get-tar-commit-id`) = `commit.txt` = argüman;
+sonra boş `agac/` altına açar ve derler. Bir doğrulama başarısız olursa `docker build` hiç çalışmaz.
+Sunucuda `git` kurulu olmalıdır (yalnız commit kimliğini okumak için; ağa bağlanmaz).
 
 Üretilen imajlar: `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`.
-Web değerleri commit'teki `deploy/derleme.conf` dosyasından gelir. Derleme sırasında tepe bellek, swap ve canlı api sağlığı raporlanır.
+Web değerleri paketteki `deploy/derleme.conf` dosyasından gelir. Derleme sırasında tepe bellek, swap ve canlı api sağlığı raporlanır.
 Yayın için `.env` içinde `BEAUTYOS_VERSION` / `BEAUTYOS_STAGING_VERSION` güncellenir (önce staging).
+Aynı sürümü yeniden derlemek için o paketin `agac/` dizininin önce temizlenmesi gerekir (betik dolu `agac/` üzerine yazmaz).
 
-## Eski imajları temizleme
+## Eski imajları ve kaynak paketlerini temizleme
 
 ```
 bash /srv/beautyos/betikler/imaj-temizle.sh --dry-run   # önce ne silineceğini göster
 bash /srv/beautyos/betikler/imaj-temizle.sh             # kurucu kuralı onayladıktan sonra
 ```
 
-Her imaj ailesinde en yeni 3 sürüm kalır; bir konteynerin kullandığı ya da `.env`'de adı geçen sürüm asla silinmez.
-Otomatik (zamanlanmış) çağrı yoktur.
+Her imaj ailesinde ve `kaynak/<sha12>/` dizinlerinde en yeni 3 sürüm kalır; bir konteynerin kullandığı ya da `.env`'de adı geçen
+sürüm asla silinmez; hâlâ imajı bulunan paketin kaynağı da silinmez. Otomatik (zamanlanmış) çağrı yoktur.
 
 ## Şema uyum kontrolü
 

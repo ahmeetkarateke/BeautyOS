@@ -58,7 +58,7 @@ liste="$(docker images --format '{{.Repository}}:{{.Tag}}' \
 
 silinecek=()
 declare -A SAYAC=()
-while IFS='|' read -r olusturma etiket; do
+while IFS='|' read -r _ etiket; do
   [ -n "$etiket" ] || continue
   repo="${etiket%%:*}"; tag="${etiket#*:}"
   case "$tag" in
@@ -86,12 +86,10 @@ done < <(
   done <<<"$liste" | sort -r
 )
 
+zaman="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [ "${#silinecek[@]}" -eq 0 ]; then
   echo "Silinecek imaj yok."
-  exit 0
 fi
-
-zaman="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 for etiket in "${silinecek[@]}"; do
   if [ "$DRY" -eq 1 ]; then
     echo "SİLİNECEK (dry-run)     $etiket"
@@ -102,3 +100,37 @@ for etiket in "${silinecek[@]}"; do
     echo "ATLANDI (rmi reddetti)  $etiket" >&2
   fi
 done
+
+# ─── K10: kaynak paketleri (kaynak/<sha12>/) ────────────────────────────────────────
+# En yeni $TUT paket (değişiklik zamanına göre) kalır; daha eskilerden, sha12'si hâlâ var olan bir imajın etiketinde
+# geçenler de kalır (imajın kaynağı silinmez). Dry-run'da imajlar silinmediği için silinecekler çıkarılarak hesaplanır.
+if [ -d "$BASE/kaynak" ]; then
+  declare -A SILINECEK_ETIKET=()
+  if [ "$DRY" -eq 1 ]; then
+    for e in "${silinecek[@]}"; do SILINECEK_ETIKET["$e"]=1; done
+  fi
+  var_olan="$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^beautyos-(api|web):[0-9a-f]{12}(-prod|-staging)?$' || true)"
+  sira=0
+  # shellcheck disable=SC2012
+  while read -r dizin; do
+    [ -n "$dizin" ] || continue
+    ad="$(basename "$dizin")"
+    [[ "$ad" =~ ^[0-9a-f]{12}$ ]] || continue
+    sira=$((sira + 1))
+    if [ "$sira" -le "$TUT" ]; then continue; fi
+    kullanimda=0
+    while read -r e; do
+      [ -n "$e" ] || continue
+      if [[ "$e" == *":$ad"* ]] && [ -z "${SILINECEK_ETIKET[$e]:-}" ]; then kullanimda=1; fi
+    done <<<"$var_olan"
+    if [ "$kullanimda" -eq 1 ]; then
+      echo "KORUNDU (imajı var)     kaynak/$ad"
+    elif [ "$DRY" -eq 1 ]; then
+      echo "SİLİNECEK (dry-run)     kaynak/$ad"
+    else
+      rm -r -- "$dizin"
+      echo "SİLİNDİ                 kaynak/$ad"
+      echo "$zaman silindi kaynak/$ad" >>"$LOG"
+    fi
+  done < <(ls -dt "$BASE"/kaynak/*/ 2>/dev/null | sed 's#/$##')
+fi

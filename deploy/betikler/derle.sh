@@ -1,32 +1,35 @@
 #!/usr/bin/env bash
-# BeautyOS imajlarını SUNUCUDA derler (ADR-0018). Kullanım:  derle.sh <commit-sha>
-#   <commit-sha>: en az 12 haneli küçük harfli onaltılık commit kimliği. Dal adı, etiket ya da HEAD kabul edilmez (çıkış 2).
-# Kaynak /srv/beautyos/kaynak deposundan gelir; bağlantı salt okunur deploy key takma adıyla yapılır (anahtar yolu burada yok).
+# BeautyOS imajlarını SUNUCUDA derler (ADR-0018, ADR-0019). Kullanım:  derle.sh <tam-commit-sha>
+#   <tam-commit-sha>: 40 haneli küçük harfli onaltılık commit kimliği. Kısa sha, dal adı, etiket ya da HEAD kabul edilmez (çıkış 2).
+# Sunucu GitHub'dan ÇEKMEZ (deploy key yok). Müdür onaylı commit'i kendi bilgisayarında paketleyip aktarır:
+#   /srv/beautyos/kaynak/<sha12>/{kaynak.tar, commit.txt, kaynak.tar.sha256}
+# Bu betik paketi doğrular (sha256, tar içindeki commit kimliği, commit.txt, argüman), boş agac/ altına açar ve derler.
 # Üretilenler (hepsi org.opencontainers.image.revision=<tam sha> etiketli, latest yok):
 #   beautyos-api:<sha12>   beautyos-web:<sha12>-prod   beautyos-web:<sha12>-staging
-# Web değerleri yalnız derlenen commit'teki deploy/derleme.conf dosyasından gelir; .env* okunmaz.
+# Web değerleri yalnız paketteki deploy/derleme.conf dosyasından gelir; .env* okunmaz.
 # Yük: derlemeler sırayla çalışır, flock ile aynı anda tek derleme; bellek/CPU sınırlı buildx builder denenir.
-# Ortam (yalnız test için): BEAUTYOS_DIR, BEAUTYOS_KAYNAK, BEAUTYOS_SAGLIK_KAP.
+# Ortam (yalnız test için): BEAUTYOS_DIR, BEAUTYOS_SAGLIK_KAP.
 set -euo pipefail
+export LC_ALL=C
 
 BASE="${BEAUTYOS_DIR:-/srv/beautyos}"
-KAYNAK="${BEAUTYOS_KAYNAK:-$BASE/kaynak}"
 SAGLIK_KAP="${BEAUTYOS_SAGLIK_KAP:-beautyos-api-1}"
 BUILDER="beautyos-derle"
 WEB_HEAP_MB=1536
 
 kullanim() {
-  echo "Kullanım: derle.sh <commit-sha>   (≥ 12 haneli onaltılık commit kimliği; dal, etiket ya da HEAD olmaz)" >&2
+  echo "Kullanım: derle.sh <tam-commit-sha>   (40 haneli küçük harfli onaltılık kimlik; kısa sha, dal, etiket ya da HEAD olmaz)" >&2
 }
 
 hata() { echo "HATA: $*" >&2; }
 
 # ─── K1: girdi ───────────────────────────────────────────────────────────────────
-if [ $# -ne 1 ] || ! [[ "$1" =~ ^[0-9a-f]{12,40}$ ]]; then
+if [ $# -ne 1 ] || ! [[ "$1" =~ ^[0-9a-f]{40}$ ]]; then
   kullanim
   exit 2
 fi
-SHA_GIRDI="$1"
+SHA_TAM="$1"
+SHA12="${SHA_TAM:0:12}"
 
 # ─── Tek derleme ─────────────────────────────────────────────────────────────────
 exec 9>"$BASE/derle.lock"
@@ -35,26 +38,39 @@ if ! flock -n 9; then
   exit 1
 fi
 
-# ─── K2: kaynak ──────────────────────────────────────────────────────────────────
-[ -d "$KAYNAK/.git" ] || { hata "kaynak deposu yok: $KAYNAK"; exit 1; }
-git -C "$KAYNAK" fetch --quiet origin || { hata "git fetch başarısız (deploy key ve ağ erişimini kontrol edin)"; exit 1; }
-if [ -n "$(git -C "$KAYNAK" status --porcelain)" ]; then
-  hata "kaynak deposunun çalışma ağacı temiz değil; derleme durdu"
+# ─── K2: paket doğrulaması (derleme başlamadan önce; hiçbir hatada docker build çalışmaz) ──
+command -v git >/dev/null 2>&1 || { hata "git kurulu değil (paketin commit kimliğini okumak için gerekli): apt install git"; exit 1; }
+PAKET="$BASE/kaynak/$SHA12"
+for dosya in kaynak.tar commit.txt kaynak.tar.sha256; do
+  [ -f "$PAKET/$dosya" ] || { hata "paket eksik: $PAKET/$dosya"; exit 1; }
+done
+if ! (cd "$PAKET" && sha256sum -c kaynak.tar.sha256 >/dev/null 2>&1); then
+  hata "kaynak.tar sha256 doğrulaması başarısız (bozuk ya da değişmiş paket)"
   exit 1
 fi
-if ! git -C "$KAYNAK" cat-file -e "${SHA_GIRDI}^{commit}" 2>/dev/null; then
-  hata "commit bulunamadı: $SHA_GIRDI (fetch sonrası da yok; yanlış sha ya da push edilmemiş)"
+TAR_SHA="$(git get-tar-commit-id <"$PAKET/kaynak.tar" 2>/dev/null || true)"
+COMMIT_TXT="$(tr -d '[:space:]' <"$PAKET/commit.txt")"
+if [ "$TAR_SHA" != "$SHA_TAM" ]; then
+  hata "tar içindeki commit kimliği argümanla eşleşmiyor (tar: ${TAR_SHA:-okunamadı}, istenen: $SHA_TAM)"
   exit 1
 fi
-SHA_TAM="$(git -C "$KAYNAK" rev-parse "${SHA_GIRDI}^{commit}")"
-SHA12="${SHA_TAM:0:12}"
-git -C "$KAYNAK" checkout --quiet --detach "$SHA_TAM"
-echo "Kaynak: $SHA_TAM"
+if [ "$COMMIT_TXT" != "$SHA_TAM" ]; then
+  hata "commit.txt argümanla eşleşmiyor"
+  exit 1
+fi
+AGAC="$PAKET/agac"
+if [ -d "$AGAC" ] && [ -n "$(ls -A "$AGAC")" ]; then
+  hata "$AGAC dolu; önceki açılım temizlenmeden derleme yapılmaz"
+  exit 1
+fi
+mkdir -p "$AGAC"
+tar -xf "$PAKET/kaynak.tar" -C "$AGAC" || { hata "tar açılamadı"; exit 1; }
+echo "Kaynak: $SHA_TAM (paket doğrulandı, $AGAC)"
 
 # ─── K5: değerler yalnız deploy/derleme.conf'tan (source edilmez; yalnız ANAHTAR=değer okunur) ──
 declare -A DEGER=()
-if [ ! -f "$KAYNAK/deploy/derleme.conf" ]; then
-  hata "deploy/derleme.conf bu commit'te yok"
+if [ ! -f "$AGAC/deploy/derleme.conf" ]; then
+  hata "deploy/derleme.conf pakette yok"
   exit 1
 fi
 while IFS='=' read -r anahtar deger; do
@@ -64,7 +80,7 @@ while IFS='=' read -r anahtar deger; do
       DEGER[$anahtar]="$deger" ;;
     *) hata "derleme.conf içinde bilinmeyen anahtar: $anahtar"; exit 1 ;;
   esac
-done <"$KAYNAK/deploy/derleme.conf"
+done <"$AGAC/deploy/derleme.conf"
 for zorunlu in NEXT_PUBLIC_API_URL_PROD NEXT_PUBLIC_API_URL_STAGING; do
   [ -n "${DEGER[$zorunlu]:-}" ] || { hata "derleme.conf: $zorunlu boş"; exit 1; }
 done
@@ -113,7 +129,7 @@ insa() { # ad etiket dockerfile [ek argümanlar...]
   local ad="$1" etiket="$2" dockerfile="$3" t0=$SECONDS
   shift 3
   echo "── Derleniyor: $etiket"
-  (cd "$KAYNAK" && "${KOMUT_INSA[@]}" -f "$dockerfile" -t "$etiket" \
+  (cd "$AGAC" && "${KOMUT_INSA[@]}" -f "$dockerfile" -t "$etiket" \
     --label "org.opencontainers.image.revision=$SHA_TAM" "$@" .) >/dev/null
   SURELER+=("$ad $((SECONDS - t0)) sn")
 }
@@ -144,7 +160,7 @@ done
 echo "── Derleme tamam: $SHA12 ──"
 printf '  süre: %s\n' "${SURELER[@]}"
 awk '
-  { n++; if ($2 > mem) mem = $2; if ($3 > swp) swp = $3; if ($4 != "healthy") kotu++; durum[$4]++ }
+  { n++; if ($2 > mem) mem = $2; if ($3 > swp) swp = $3; durum[$4]++ }
   END {
     printf "  tepe bellek (sistem): %d MB · tepe swap: %d MB · örnek: %d\n", mem, swp, n
     if (n > 0) { printf "  api sağlığı:"; for (d in durum) printf " %s=%d", d, durum[d]; printf "\n" }
