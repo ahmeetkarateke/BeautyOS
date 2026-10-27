@@ -33,6 +33,7 @@
 | 10-28 | **D4:** GitHub planı Free; GHCR kotası yetersiz → imajlar sunucuda derlenir (müdür kararı) | ADR-0018 (ADR-0012'nin yerini aldı), §6, G7 |
 | 10-28 | Supabase'te bulunan, depoda olmayan iki migration (WhatsApp numara alanı, iyzico abonelik) **terk edildi**: "önemli değil, en baştan birlikte düzelteceğiz, proje burada ayakta olsun" | Depodaki 19 migration esas. Bu özellikler ileride gelirse yeni migration'larla yazılır. G13-K7 iptal; Supabase silme koşulu kalktı |
 | 10-28 | Kalıcı izin: plandaki denetçi ONAY'lı teknik adımlar kurucuya sorulmadan yürütülür (DNS ve eski servis kapatma hariç) | Başlık notu, §9 |
+| 10-28 | Müdür kararı: taşıma dalları push edilmez (kalıcı izin dışı; Vercel her dal push'unda preview açıyor). Kaynak sunucuya `git archive` paketiyle aktarılır | ADR-0019 (ADR-0018'in kaynak bölümünün yerini aldı), §6, G7. Deploy key ve push maddeleri kaldırıldı |
 
 ---
 
@@ -110,7 +111,7 @@ yeni-api.beautyossapp.com {
 
 ```
 /srv/beautyos/   compose.yml, postgres/init/01-roller.sh, postgres/postgresql.conf, betikler/{sema-karsilastir,derle,imaj-temizle}.sh, derleme.conf
-                 kaynak/  depo klonu (salt okunur deploy key ile; yalnız derleme için, .env* burada tutulmaz)
+                 kaynak/<sha12>/  kaynak.tar + commit.txt + kaynak.tar.sha256 + agac/ (müdürün aktardığı onaylı commit paketi; ADR-0019; .env* yok)
                  .env .env.staging .env.db .env.migrate .env.migrate-staging .env.redis .env.supabase   (kurucu yazar, 600; ajanlar okumaz)
                  tasima/ (700)  şema dökümleri ve fark raporu (kişisel veri YOK); kapatmada silinir
 /srv/caddy/      ortak Caddy (.env: CLOUDFLARE_API_TOKEN, BEAUTYOS_STAGING_BASIC_USER, BEAUTYOS_STAGING_BASIC_HASH), siteler/beautyos.caddy
@@ -267,9 +268,17 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 ## 6. Derleme ve yayın (ADR-0018; GHCR'lı ADR-0012'nin yerini aldı)
 
 - **Neden değişti:** GitHub Free planında özel paket kotası 500 MB depolama / 1 GB aylık aktarım; bir sürümün imajları bunu bir iki sürümde dolduruyor (D4).
-- **Kaynak:** sunucu depoyu `/srv/beautyos/kaynak`'a **salt okunur deploy key** ile çeker. Anahtarı kurucu sunucuda üretir ve GitHub'da "Allow write access" işaretsiz ekler `[ONAY]`. Kayıt defteri ve `docker login` yok.
-- **Derleme:** `derle.sh <commit-sha>` (devops çalıştırır): `git fetch`, ardından belirli commit'e geçilir, ardından sırayla `docker build` çalışır. Etiketler `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`. Web derleme değerleri depodaki `deploy/derleme.conf`'tan gelir (`-prod` → `https://api.beautyossapp.com`, `-staging` → `https://yeni-api.beautyossapp.com`).
-- Canlıya giden imaj yalnız GitHub'a push edilmiş, denetçi ONAY'lı commit'ten derlenir.
+- **Kaynak (ADR-0019, müdür kararı):** sunucu GitHub'dan **çekmez**; deploy key yok, taşıma dalları push edilmez. Akış:
+  1. Müdür, denetçi ONAY raporundaki commit'i bu bilgisayarda paketler: `git archive --format=tar -o beautyos-<sha12>.tar <tam-sha>` ve `certutil -hashfile … SHA256`.
+  2. Paketi `scp` ile `/srv/beautyos/kaynak/<sha12>/kaynak.tar` olarak taşır. Yanına `commit.txt` (tam sha) ve `kaynak.tar.sha256` koyar.
+  3. Boru hattı kullanılmaz (PowerShell 5.1 ikili veriyi bozar).
+- **Derleme:** `derle.sh <tam-sha>` (devops çalıştırır):
+  1. SHA-256 doğrulanır.
+  2. `git get-tar-commit-id` çıktısı, `commit.txt` ve argüman üçü birden eşit olmalı. Tutmazsa derleme yapılmaz.
+  3. Paket boş bir `agac/` dizinine açılır, ardından sırayla `docker build` çalışır.
+  4. Etiketler `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`. Web derleme değerleri `deploy/derleme.conf`'tan gelir (`-prod` → `https://api.beautyossapp.com`, `-staging` → `https://yeni-api.beautyossapp.com`).
+- Canlıya giden imaj yalnız **denetçi ONAY'lı ve müdürün aktardığı** commit'ten derlenir. Kimlik ve ONAY raporu yolu `sirket/sunucu.md`'ye yazılır.
+- **CI notu:** Taşıma dalları push edilmediği için GitHub Actions (G1 testleri, `imaj.yml` derleme kontrolü) G18 birleştirmesine kadar çalışmaz. Eşdeğer test ve derleme kontrolleri sunucuda ya da test ortamında elle koşulur, sonuçlar `[İNCELEME HAZIR]` mesajına eklenir.
 - **Temizlik:** `imaj-temizle.sh` her imaj adı için son 3 sürümü tutar. Kullanımdaki ve `.env`'de yazılı sürümleri silmez. Kural kurucu onayıyla bir kez kabul edilir.
 - **Yayın:** devops elle yapar. Önce staging, test GEÇTİ sonrası canlı: `.env`'de `BEAUTYOS_STAGING_VERSION`/`BEAUTYOS_VERSION` değiştirilir, ardından `docker compose up -d <servisler>` çalışır. **Geri alma:** önceki etikete dönülür, imaj yerelde durur.
 - **CI derleme kontrolü:** `imaj.yml` (`c82bab8`) GHCR'a itmez. PR ve `workflow_dispatch`'te Dockerfile'ların derlendiğini doğrular; yetki yalnız `contents: read`.
@@ -303,7 +312,7 @@ Sütunlar: **Kalıcı izinle (müdür)** = denetçi ONAY'ı şartıyla kurucuya 
 | Aşama | İçerik | Görevler | Kalıcı izinle (müdür) | Kurucuya sorulur |
 |---|---|---|---|---|
 | 0. Hemen | `/debug` (G4a, **kapandı 10-28**), DNS dışa aktarımı, staging hostları | G4a | — | `yeni` ve `yeni-api` DNS kayıtları |
-| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, derleme betikleri, CI + depo içi şema uyumu | G1–G5, G7 | Onaylı düzeltme commit'lerinin push'u | Taşıma dallarının GitHub'a push'u (yeni özellik/taşıma dalı; izin metni yalnız düzeltme push'unu ve master'a birleştirmeyi anıyor, bu yüzden kurucuya sorulur). Deploy key'i kurucu kendisi ekler (GitHub hesabı) |
+| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, derleme betikleri, CI + depo içi şema uyumu | G1–G5, G7 | Onaylı düzeltme commit'lerinin push'u; onaylı commit'in `git archive` paketiyle sunucuya aktarılması (ADR-0019) | — (taşıma dalları push edilmez; deploy key yok) |
 | 2. Altyapı | Caddy, yedek, izleme | G8–G10 | Caddy kurulumu ve yeniden oluşturma, site dosyası, sertifika, yedek ve izleme betikleri | B2 ve Healthchecks hesapları (hesap ve ücret kurucuda) |
 | 3. Yığın | Compose, roller, staging; canlı yığın boş veritabanıyla; kabul testi staging'de | G11, G13, G14 | Canlı ve staging `migrate` (boş veritabanı), yığının açılması, sunucuda derleme, son 3 sürüm dışındaki imajların ve test kaynaklarının temizliği | — |
 | 4. Geçiş | §10 | G15–G16 | Adım 4 sonrası `api` yeniden oluşturma, izleme, kayıt | **DNS değişikliği** (§10 adım 3) ve Railway'in durdurulması (adım 1–2); tek onayda toplanır |
@@ -366,11 +375,11 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 **Hâlâ açık:**
 0. ~~Depoda olmayan iki migration~~ kurucu kararıyla terk edildi (10-28).
 1. ~~Şema dökümü~~ alındı (10-28).
-1b. Taşıma dallarının (`tasima/sunucu`, `tasima/docker`) GitHub'a push'u. Sunucu canlıya derlenecek commit'i GitHub'dan çekiyor. Kalıcı izin metni yalnız düzeltme push'unu anıyor, bu yüzden bu push kurucuya sorulur (müdür yorumu farklıysa onun kararı).
 2. ~~`/debug`~~ kapandı (10-28).
 3. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? Başka alt alan adı var mı?
 4. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?
 5. **S5:** `JWT_SECRET` ve dış servis anahtarları yenilensin mi (öneri: evet)?
 6. **S7:** Sentry geçişte kapalı mı kalsın, yoksa G5-K5 + AB bölgesiyle mi açılsın?
 7. B2 ve Healthchecks hesapları açılınca devops'a bildirim; hesaplarda 2FA.
-8. **Deploy key (ADR-0018):** sunucuda `ssh-keygen -t ed25519` ile anahtar üretilir, açık anahtar GitHub'da depo ayarlarından "Deploy keys" bölümüne **yazma izni olmadan** eklenir. Ayrıca imaj temizleme kuralı onaylanır: son 3 sürüm tutulur, kullanımdakiler hiç silinmez.
+8. ~~Deploy key~~: gerek kalmadı (ADR-0019). İmaj ve kaynak temizliği (son 3 sürüm) kalıcı iznin "sunucu temizliği" maddesine giriyor.
+9. Taşıma dallarının `master`'a birleştirilmesi (G18): ileride kurucu onayıyla.

@@ -32,7 +32,12 @@
 - Test: `npm test` (API, Vitest). **Gerçek PostgreSQL + Redis ister.** Supabase/canlı veritabanına bağlanmayı test yardımcısı reddeder; yerelde ya da CI'da geçici `postgres:17` kullanılır.
 - Tip ve lint: `npm run type-check`, `npm run lint`
 - Migration (yerel): `cd apps/api && npx prisma migrate deploy`. Sunucuda yalnız `docker compose --profile migrate run --rm migrate` ve `[ONAY]` ile.
-- İmaj: sunucuda `deploy/betikler/derle.sh <commit-sha>` (ADR-0018). Sunucu depoyu salt okunur deploy key ile çeker; yalnız push edilmiş, denetçi ONAY'lı commit canlıya derlenir. Etiket commit'in ilk 12 hanesi; son 3 sürüm yerelde tutulur. Kayıt defteri (GHCR) yok. CI'daki `imaj.yml` yalnız derleme kontrolüdür.
+- İmaj: sunucuda `deploy/betikler/derle.sh <tam-sha>` (ADR-0018, ADR-0019).
+  - Sunucu GitHub'dan çekmez. Müdür, denetçi ONAY'lı commit'i `git archive` paketiyle `/srv/beautyos/kaynak/<sha12>/` dizinine aktarır.
+  - Betik paketin SHA-256 özetini ve içindeki commit kimliğini doğrulamadan derlemez.
+  - Taşıma dalları GitHub'a push edilmez. Vercel her dal push'unda preview açar.
+  - Etiket commit'in ilk 12 hanesidir; son 3 sürüm yerelde tutulur. Kayıt defteri (GHCR) yok.
+  - CI'daki `imaj.yml` yalnız derleme kontrolüdür; G18 birleştirmesine kadar çalışmaz.
 - Yayın: devops yapar. Önce staging: `docker compose up -d api-staging web-staging`. Test GEÇTİ sonrası canlı: `docker compose up -d api web`. Her seferinde imaj etiketi compose'da güncellenir (`docker-yayinlama` skill'i).
 
 ## Projeye özel kurallar

@@ -43,7 +43,7 @@
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
-| G7 | Sunucuda derleme (`derle.sh`) + imaj temizliği + CI derleme kontrolü (ADR-0018) | gelistirici | G2, G3; deploy key (kurucu) | bekliyor (`c82bab8` GHCR iş akışı yeniden tanımlandı) |
+| G7 | Sunucuda derleme (`derle.sh`, kaynak `git archive` paketinden) + imaj/kaynak temizliği + CI derleme kontrolü (ADR-0018, ADR-0019) | gelistirici | G2, G3 | devam ediyor (`c82bab8` GHCR iş akışı yeniden tanımlandı) |
 | G8 | Ortak Caddy | devops | — | devam ediyor |
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
@@ -115,16 +115,23 @@
   - K4: Log'larda telefon yok (`queue.ts` uyarısı yalnız `appointmentId` yazar).
   - K5 (KVKK G-1): Sentry `beforeSend` istek gövdesini, sorgu dizgisini ve çerezleri tümden siler; testte sahte bir olayla doğrulanır. Bu birleşmeden canlıda `SENTRY_DSN` boş kalır (S7).
 
-### G7 — Sunucuda derleme ve imaj temizliği (ADR-0018; GHCR yolu D4 kararıyla bırakıldı)
+### G7 — Sunucuda derleme ve imaj temizliği (ADR-0018 + ADR-0019; GHCR yolu D4 kararıyla bırakıldı, deploy key ADR-0019 ile kalktı)
 - **Dosyalar:**
   - `deploy/betikler/derle.sh`
   - `deploy/betikler/imaj-temizle.sh`
   - `deploy/derleme.conf` (gizli olmayan web derleme değerleri)
   - `.github/workflows/imaj.yml` (`c82bab8`, derleme kontrolüne dönüşür)
-  - `deploy/README.md` ya da `deploy/` altında kurulum notu (deploy key adımları)
+  - `deploy/README.md` ya da `deploy/` altında kurulum notu (müdürün paketleme ve aktarım adımları)
 - **Kabul kriterleri:**
-  - K1 (girdi): `derle.sh` yalnız onaltılık commit kimliği kabul eder (≥ 12 hane). Dal adı, etiket ya da `HEAD` → kullanım hatası, çıkış 2. Her durum ayrı negatif deneme.
-  - K2 (kaynak): `/srv/beautyos/kaynak`'ta `git fetch origin`, ardından `git cat-file -e <sha>^{commit}`, ardından `git checkout --detach <sha>`. Çalışma ağacı temiz değilse durur. Bulunamayan commit → anlaşılır hata, sıfır dışı çıkış. Bağlantı deploy key takma adıyla yapılır; betikte anahtar yolu yazmaz.
+  - K1 (girdi): `derle.sh` yalnız **40 haneli** onaltılık commit kimliği kabul eder. Dal adı, etiket, `HEAD`, kısa kimlik ya da büyük harf/boşluk içeren kimlik → kullanım hatası, çıkış 2. Her durum ayrı negatif deneme. Karşılaştırma `LC_ALL=C` ile yapılır.
+  - K2 (kaynak, ADR-0019): Kaynak `/srv/beautyos/kaynak/<sha12>/` dizinidir, GitHub'a erişilmez. Betik `git fetch`/`clone` içermez. Sırasıyla:
+    - (a) `kaynak.tar`, `commit.txt` ve `kaynak.tar.sha256` dosyaları var.
+    - (b) `sha256sum -c` geçer.
+    - (c) `git get-tar-commit-id < kaynak.tar` = `commit.txt` = argüman.
+    - (d) `agac/` yoksa ya da boşsa paket oraya açılır; doluysa durur, üzerine yazmaz.
+
+    Negatif denemeler, her biri tek kuralı bozar: değiştirilmiş tar (özet tutmaz), başka commit'in tar'ı (kimlik tutmaz), `commit.txt` farklı, `commit.txt` eksik, dolu `agac/`. Her biri sıfır dışı çıkış verir ve hiçbir `docker build` çalışmaz.
+  - K2b: Sunucuda `git` yoksa (D15) betik anlaşılır bir hatayla durur.
   - K3 (etiket): Üretilen imajlar `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod` ve `beautyos-web:<sha12>-staging`. Hepsi `org.opencontainers.image.revision=<tam sha>` etiketi taşır. `latest` yok.
   - K4 (yük, D14): Derlemeler sırayla çalışır; `flock` ile aynı anda tek derleme. Web aşamasında `NODE_OPTIONS=--max-old-space-size=1536`. Bellek ve CPU sınırlı buildx builder (`--driver-opt memory=…`) denenir. Ölçüm raporu her imaj için tepe bellek, süre ve swap kullanımını verir; derleme boyunca canlı `/health` 200 kalır. Sonuç mimara iletilir, ADR-0018'e işlenir. Sınırlı builder çalışmazsa gerekçesiyle bildirilir.
   - K5 (değerler): `NEXT_PUBLIC_*` yalnız `deploy/derleme.conf`'tan gelir. Betik `.env*` okumaz, `set -x` kullanmaz.
@@ -135,7 +142,8 @@
 
     Silinen etiketler log'a yazılır. Kuralın kurucu onayı müdür üzerinden alınmadan betik otomatik çağrılmaz.
   - K7 (CI): `imaj.yml` GHCR'a itmez (`push: false`), yetkisi yalnız `contents: read`, giriş adımı yok. PR ve `workflow_dispatch`'te iki Dockerfile'ın derlendiğini doğrular. `packages: write` kaldırılır.
-  - K8 (belge): Deploy key kurulum adımları yazılı: anahtarı kurucu üretir; "Allow write access" işaretsiz; `~/.ssh/config` takma adı `IdentitiesOnly yes` ile. `ssh -T` ile yalnız okuma erişimi doğrulanır.
+  - K8 (belge): Müdürün aktarım adımları yazılı. Windows'ta `git archive --format=tar -o …`, ardından `certutil -hashfile … SHA256`, ardından `scp` (paket dosyası, boru hattı yok). Sunucuda dizin 700, dosyalar 600. `commit.txt` ve `.sha256` dosyalarının biçimi (`sha256sum -c` uyumlu) ve ONAY raporu yolunun `sirket/sunucu.md`'ye yazılması da belgede.
+  - K10 (temizlik): `kaynak/<sha12>/` dizinleri imajlarla aynı kuralla tutulur: son 3 sürüm, ayrıca kullanımdaki ve `.env`'deki sürümler asla silinmez (K6 testleriyle aynı yapıda).
   - K9: `bash -n` ve `shellcheck` temiz, LF satır sonu; `pipefail` tuzağına dikkat (sunucu-altyapi CLAUDE.md).
 
 ## Aşama 2 — Altyapı (devops, sunucu-altyapi)

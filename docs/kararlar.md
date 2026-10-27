@@ -28,7 +28,8 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0015 | Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır | önerildi (hukuk-uyum onayı: 7/4/6, şartlı) | 2026-10-27 |
 | ADR-0016 | Kalıcı staging aynı compose projesinde, ortak Postgres/Redis örneğinde ayrı veritabanı ve rollerle | önerildi | 2026-10-27 |
 | ADR-0017 | Veri taşınmaz; canlı veritabanı migration'larla boş kurulur, Supabase şeması yalnız uyum kontrolü için dökülür | kabul edildi (kurucu kararı) | 2026-10-28 |
-| ADR-0018 | İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok | kabul edildi (müdür kararı D4; otomatik imaj silme kuralı kurucu onayına bağlı) | 2026-10-28 |
+| ADR-0018 | İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok | kabul edildi (müdür kararı D4). **Kaynak bölümünün (deploy key + `git fetch`) yerini aldı: ADR-0019**; derleme, yük, temizlik ve geri alma bölümleri geçerli | 2026-10-28 |
+| ADR-0019 | Sunucu GitHub'dan çekmez: müdür onaylı commit'i `git archive` paketiyle aktarır | kabul edildi (müdür kararı) | 2026-10-28 |
 
 ---
 
@@ -414,6 +415,7 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D2 | Prisma 5.22 PostgreSQL 17'de sorunsuz (migrate deploy + testler) | CI yeşil | G1 | — |
 | D3 | Prisma Client çalışma anında `DIRECT_URL` ister | Yoksa açılış hatası; bu yüzden `.env`'de `DATABASE_URL` ile aynı değer | G2 | — |
 | D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | **Olumsuz (2026-10-28):** GitHub Free, özel paket 500 MB / 1 GB aylık aktarım; bir sürümün üç imajı birkaç yüz MB. ADR-0018'e geçildi |
+| D15 | Sunucuda `git` yüklü (`git get-tar-commit-id` için; ADR-0019) | `git --version` çıktı verir | G7 | — |
 | D14 | Sunucuda web (`next build`) derlemesi bellek sınırıyla canlı servisleri etkilemeden biter | Tepe bellek ve süre ölçülür; canlı `/health` derleme boyunca 200 | G7-K4 | gelistirici t3'te derlemeyi başardı; tepe değerleri bekleniyor |
 | D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
 | D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu staging'de geçer | G14 | — |
@@ -489,7 +491,7 @@ Fark varsa referans `schema.prisma`'dır. Eksik migration için düzeltici migra
 ## ADR-0018: İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok
 
 - **Tarih:** 2026-10-28
-- **Durum:** kabul edildi (müdür kararı D4). Otomatik imaj silme kuralı (son 3'ü tut) kurucu onayına bağlıdır, müdür alır.
+- **Durum:** kabul edildi (müdür kararı D4). Otomatik imaj silme kuralı (son 3'ü tut) kurucu onayına bağlıdır, müdür alır. **"Kaynak" bölümünün ve derleme adımı 2–3'ün yerini ADR-0019 aldı (2026-10-28):** deploy key yok, `git fetch` yok; kaynak müdürün aktardığı pakettir. Bu ADR'nin geri kalanı geçerli.
 - **Karar verenler:** müdür; mimar (tasarım)
 
 ### Bağlam
@@ -549,6 +551,65 @@ GitHub Free planında özel paketlere 500 MB depolama ve aylık 1 GB aktarım d�
   - Derleme sırasında OOM ya da canlı yavaşlama. Önlem: sınırlı builder, sıralı derleme, düşük trafik saati, D14 ölçümü, gerekirse geçici swap ADR'si.
   - Deploy key sızarsa depo kaynak kodu okunur (yazılamaz). Önlem: anahtar yalnız sunucuda, 600 izinli, tek depoya bağlı; sızıntıda GitHub'dan kaldırılıp yenilenir.
   - Sunucu tek kopya yerdir. İmajlar yedeklenmez, ama her an commit'ten yeniden derlenebilir.
+
+---
+
+## ADR-0019: Sunucu GitHub'dan çekmez: müdür onaylı commit'i `git archive` paketiyle aktarır
+
+- **Tarih:** 2026-10-28
+- **Durum:** kabul edildi (müdür kararı). ADR-0018'in "Kaynak" bölümünün yerini alır.
+- **Karar verenler:** müdür; mimar (tasarım)
+
+### Bağlam
+ADR-0018'de sunucunun derlenecek commit'i GitHub'dan salt okunur deploy key ile çekmesi öngörülmüştü. Bunun için taşıma dallarının GitHub'a push edilmesi gerekiyordu. Ancak:
+- Kalıcı izin yalnız onaylı düzeltme push'unu kapsıyor; taşıma dallarının push'u her seferinde kurucu onayı istiyor.
+- Vercel her dal push'unda preview derlemesi açıyor.
+- Deploy key, kurucunun yapması gereken ek bir adım.
+
+### Alternatifler
+- **ADR-0018 yolu (push + deploy key):** izlenebilir, ama her sürümde kurucu onayı gerekir, Vercel preview'ları açılır ve sunucuda depo erişimi olur.
+- **Kaynağı `git archive | ssh` boru hattıyla aktarmak:** tek adım, ama PowerShell 5.1 boru hattı ikili veriyi bozar (sunucu-altyapi CLAUDE.md). Bu yüzden dosyaya yazılıp `scp` ile taşınır.
+
+### Karar
+**Paketleme** (müdür, bu bilgisayarda; commit yerel depoda bulunur, push gerekmez):
+```
+git -C <depo/worktree> archive --format=tar -o beautyos-<sha12>.tar <tam-sha>
+certutil -hashfile beautyos-<sha12>.tar SHA256      (özet not edilir)
+```
+- `git archive`, commit verildiğinde tam commit kimliğini tar paketinin pax başlığına yazar; `git get-tar-commit-id` bu kimliği okur.
+- Paket bir boru hattından geçmez, dosyaya yazılır.
+
+**Aktarım:**
+- Paket `scp` ile `/srv/beautyos/kaynak/<sha12>/kaynak.tar` olarak taşınır.
+- Aynı dizine iki küçük metin dosyası yazılır: `commit.txt` (tam commit kimliği) ve `kaynak.tar.sha256` (SHA-256 özeti).
+- Dizin 700, dosyalar 600 izinli, sahibi karateke.
+
+**Doğrulama ve derleme** (`derle.sh <tam-sha>`):
+1. Argüman 40 haneli onaltılık değilse çıkış 2.
+2. `/srv/beautyos/kaynak/<sha12>/` altında üç dosya da bulunmalı.
+3. `sha256sum -c` geçmeli.
+4. `git get-tar-commit-id < kaynak.tar` çıktısı, `commit.txt` ve argüman **üçü birden eşit** olmalı. Biri tutmazsa betik durur, hiçbir şey derlenmez.
+5. Paket boş bir `agac/` dizinine açılır. Dizin önceden doluysa betik durur ve üzerine yazmaz.
+6. Derleme bu ağaçtan yapılır. Etiketler, yük sınırları, temizlik ve geri alma ADR-0018'deki gibidir. Etikette `org.opencontainers.image.revision=<tam sha>` bulunur.
+
+**Onay kuralı:**
+- Müdür yalnız denetçi ONAY raporunda adı geçen commit kimliğini paketler. Derleme log'u ve `sirket/sunucu.md` işlem günlüğü bu kimliği ONAY raporu yoluyla birlikte kaydeder.
+- Sunucuya deploy key konmaz, GitHub'a erişmez. Taşıma dalları GitHub'a push edilmez; `master`'a birleştirme G18'de kurucu onayıyla yapılır.
+
+**Temizlik:** `kaynak/` altındaki dizinler imajlarla aynı kuralla tutulur: son 3 sürüm, ayrıca kullanımdaki sürümler silinmez. Bu silme kalıcı iznin "geçici klasör" kapsamındadır.
+
+### Sonuçlar
+- **Olumlu:**
+  - Push yok, Vercel preview'u yok, kurucunun deploy key adımı yok.
+  - Sunucuda GitHub kimliği yok.
+  - Paketin hangi commit'ten geldiği hem kimlikle hem özetle iki kez doğrulanır.
+- **Olumsuz:**
+  - Aktarım elle yapılır (iki komut + `scp`).
+  - GitHub Actions (CI testleri G1, derleme kontrolü `imaj.yml`) taşıma dallarında çalışmaz; ilk koşuları G18 birleştirmesinde olur. Bu arada eşdeğer test ve derleme kontrolü sunucuda ya da test ortamında elle koşulur, sonuç `[İNCELEME HAZIR]` mesajına eklenir.
+- **Riskler:**
+  - Yanlış commit'in paketlenmesi. Önlem: üçlü kimlik eşleşmesi + ONAY raporu kaydı.
+  - Sunucuda `git` bulunmaması (`get-tar-commit-id` için gerekir). Ubuntu 24.04 sunucu kurulumunda git normalde yüklüdür (VARSAYIM, D15). Yoksa devops sunucu-altyapi'ye ekler.
+  - `.gitattributes`'ta `export-ignore` işaretli dosyalar pakete girmez. Derlemenin bu dosyalara ihtiyacı olmamalı.
 
 ---
 
