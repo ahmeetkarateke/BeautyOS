@@ -9,9 +9,9 @@
 
 ## UYARI: `master` / `staging` push'u = CANLIYA ALMA
 
-- Taşıma tamamlanıp kurucu Railway ve Vercel'in GitHub bağlantısını kesene kadar (tasima-plani §12 adım 0): **`master`'a push prod'u, `staging`'e push staging'i otomatik dağıtır.**
+- Taşıma tamamlanıp kurucu Railway ve Vercel'in GitHub bağlantısını kesene kadar (tasima-plani §10 adım 1): **`master`'a push prod'u, `staging`'e push staging'i otomatik dağıtır.**
 - Bu iki dala birleştirme ve her türlü `git push` yalnız kurucu onayıyla, müdür tarafından yapılır. Ajanlar yalnız yerel commit atar.
-- Taşıma dalları (`tasima/*`) Aşama 4 adım 0'dan önce `master`'a ya da `staging`'e birleştirilmez.
+- Taşıma dalları (`tasima/*`) o adımdan önce `master`'a ya da `staging`'e birleştirilmez. Tek istisna canlıdaki açığı kapatan hotfix'lerdir (ör. G4a `/debug`); bunlar bilerek `master` üzerinden Railway'e çıkar.
 - Kök `Dockerfile`, `railway.json`, `nixpacks.toml` ve `apps/web/vercel.json` eski sisteme geri dönüş yoludur. G18'e kadar değiştirilmez.
 
 ## Teknoloji
@@ -20,7 +20,8 @@
 - **API (`apps/api`):** Node 20, Express 4, TypeScript, Prisma 5.22 (PostgreSQL), BullMQ 5 + ioredis, zod, pino, bcryptjs + JWT (erişim 15 dk, yenileme 30 gün, httpOnly çerez), Telegram/WhatsApp kanalları, Gemini, NetGSM SMS, Resend e-posta, Sentry, Cloudflare Turnstile.
 - **Web (`apps/web`):** Next.js 14 App Router, React 18, Tailwind, React Query, Zustand. API'ye tarayıcıdan `NEXT_PUBLIC_API_URL` ile gider (derlemede gömülür).
 - **Veri:** PostgreSQL 17 (hedef), Redis 7.4 (yalnız BullMQ `reminders` kuyruğu).
-- **Hedef barındırma:** `sirket-sunucu-1` (DO FRA1), compose projesi `beautyos` (`/srv/beautyos`), ortak Caddy (`sirket-proxy` ağı), Cloudflare proxy + Full (strict). Hostlar: `beautyossapp.com`, `app.`, `www.` (web), `api.` (API).
+- **Hedef barındırma:** `sirket-sunucu-1` (DO FRA1), compose projesi `beautyos` (`/srv/beautyos`), ortak Caddy (`sirket-proxy` ağı), Cloudflare proxy + Full (strict). Canlı hostlar `beautyossapp.com`, `app.`, `www.` (web) ve `api.` (API). Kalıcı staging `yeni.` (web, basic auth) ve `yeni-api.` (ADR-0016); aynı Postgres/Redis örneğinde ayrı veritabanı, rol ve Redis DB 1 kullanır.
+- **Dış servis durumu (2026-10-27):** NetGSM SMS kapalı. Telegram yalnız staging'de. WhatsApp kullanılmıyor.
 - **Çok kiracılık:** paylaşımlı şema, `tenantId` sütunu, filtre **yalnız uygulama katmanında** (RLS yok, teknik borç T-B1). Kiracı URL yolundan seçilir (`/tenant/[slug]`).
 
 ## Komutlar
@@ -31,15 +32,15 @@
 - Tip ve lint: `npm run type-check`, `npm run lint`
 - Migration (yerel): `cd apps/api && npx prisma migrate deploy`. Sunucuda yalnız `docker compose --profile migrate run --rm migrate` ve `[ONAY]` ile.
 - İmaj: GitHub Actions `imaj.yml` (elle ya da `v*` etiketiyle) → GHCR. Sunucuda derleme yapılmaz.
-- Yayın: devops, sunucuda compose imaj etiketini değiştirip `docker compose pull && docker compose up -d` (`docker-yayinlama` skill'i).
+- Yayın: devops yapar. Önce staging: `docker compose up -d api-staging web-staging`. Test GEÇTİ sonrası canlı: `docker compose up -d api web`. Her seferinde imaj etiketi compose'da güncellenir (`docker-yayinlama` skill'i).
 
 ## Projeye özel kurallar
 
 1. **Kiracı filtresi:** Kiracıya ait her Prisma sorgusunda `tenantId` koşulu zorunlu ve `req.tenantId`'den gelir (asla gövde/sorgu parametresinden değil). RLS olmadığı için tek savunma budur; denetçi eksik filtreyi Kritik sayar. Her yeni rota için kiracı izolasyonu testi yazılır (`src/__tests__/tenant-isolation.test.ts` örneği).
 2. **Tek API kopyası:** BullMQ işçisi API sürecinde; hız sınırları bellekte. `api` servisi ölçeklenmez (ADR-0006).
 3. **Saat dilimi:** API konteyneri `TZ=UTC`. Kullanıcıya gösterilen saatler kodda `timeZone: 'Europe/Istanbul'` ile biçimlenir. Cron ve "bugün" hesapları UTC'ye göredir; değiştirmek ADR ister.
-4. **Hatırlatma işleri** belirlenimci jobId kullanır (`reminder-24h-<id>`, `reminder-2h-<id>`). Yeni gecikmeli iş eklerken de belirlenimci jobId kullan, yeniden kuyruklama betiği (`scripts/requeue-reminders.ts`) güncellenir.
-5. **Güvenli kip:** Kuru prova ve test ortamlarında `TELEGRAM_BOT_TOKEN`, `NETGSM_*`, `RESEND_API_KEY`, `WHATSAPP_360DIALOG_API_KEY` ve `GEMINI_API_KEY` boş olur. Aksi halde API açılışta canlı Telegram webhook'unu çalar ve gerçek SMS ya da e-posta gider.
+4. **Hatırlatma işleri** belirlenimci jobId kullanır (`reminder-24h-<id>`, `reminder-2h-<id>`). Yeni gecikmeli iş eklerken de belirlenimci jobId kullan; çift iş oluşmaz.
+5. **Ortam ayrımı:** Bir Telegram bot token'ı yalnız tek ortamda kullanılır. API açılışta webhook'u kendi `PUBLIC_URL`'ine kaydeder; aynı token iki ortamda olursa webhook'u birbirinden çalarlar. Staging ve canlının `JWT_SECRET`'i farklıdır. Staging veritabanına canlı veri kopyalanmaz. SMS açılacaksa (`NETGSM_*`) önce kurucu onayı alınır; staging'de hiçbir zaman açılmaz.
 6. **Ortam değişkenleri:** Sunucu düzeni ve tüm adlar kök `.env.example`'da. `MIGRATION_DATABASE_URL` yalnız `.env.migrate`'te; uygulama `app_user` ile bağlanır. Yeni değişken = kök `.env.example`'a açıklamalı satır + (zorunluysa) açılış kontrolüne ekleme.
 7. **Log:** pino JSON. Log'a ad, telefon, e-posta, mesaj içeriği yazılmaz; `tenantId` ve kayıt ID'si yazılır. Anamnez (sağlık) verisi özel nitelikli kişisel veridir.
 8. **Docker:** Caddy dışında hiçbir servis port yayınlamaz (sunucu-altyapi ADR-0004). Postgres ve Redis `sirket-proxy` ağına girmez.

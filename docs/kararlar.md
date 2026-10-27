@@ -15,17 +15,18 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0002 | Tüm yığın şirket sunucusunda Docker Compose ile çalışır | kabul edildi (kurucu kararı) | 2026-10-27 |
 | ADR-0003 | PostgreSQL 17 kendi konteynerimizde; `app_owner`/`app_user` rol ayrımı; taşımada RLS eklenmez | önerildi | 2026-10-27 |
 | ADR-0004 | Veri taşıma: bakım penceresinde `pg_dump`/`pg_restore`, betiği kurucu çalıştırır | önerildi | 2026-10-27 |
-| ADR-0005 | Redis kendi konteynerimizde; Upstash verisi taşınmaz, hatırlatmalar yeniden kuyruklanır | önerildi | 2026-10-27 |
+| ADR-0005 | Redis kendi konteynerimizde; Upstash verisi taşınmaz | önerildi | 2026-10-27 |
 | ADR-0006 | BullMQ işçisi API sürecinde kalır; tek kopya; konteyner saati UTC | önerildi | 2026-10-27 |
 | ADR-0007 | Alan adları: yol tabanlı kiracı, joker sertifika yok; API `api.beautyossapp.com` | önerildi | 2026-10-27 |
-| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | önerildi | 2026-10-27 |
+| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | önerildi (hukuk-uyum şartlı onay verdi) | 2026-10-27 |
 | ADR-0009 | Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token | önerildi | 2026-10-27 |
 | ADR-0010 | Gerçek istemci IP'si: Caddy CF-Connecting-IP'yi yalnız Cloudflare aralıklarından kabul eder | önerildi | 2026-10-27 |
 | ADR-0011 | 80/443 güvenlik duvarında Cloudflare IP'lerine kısıtlanmaz | önerildi | 2026-10-27 |
 | ADR-0012 | İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir | önerildi | 2026-10-27 |
-| ADR-0013 | Kalıcı staging yok; gerekirse aynı sunucuda isteğe bağlı staging yığını | önerildi | 2026-10-27 |
+| ADR-0013 | Kalıcı staging yok; gerekirse aynı sunucuda isteğe bağlı staging yığını | yerini aldı: ADR-0016 | 2026-10-27 |
 | ADR-0014 | Taşıma Node 20 + Debian bookworm ile; Node yükseltmesi taşımadan sonra | önerildi | 2026-10-27 |
-| ADR-0015 | Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır | önerildi | 2026-10-27 |
+| ADR-0015 | Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır | önerildi (hukuk-uyum onayı: 7/4/6, şartlı) | 2026-10-27 |
+| ADR-0016 | Kalıcı staging aynı compose projesinde, ortak Postgres/Redis örneğinde ayrı veritabanı ve rollerle | önerildi | 2026-10-27 |
 
 ---
 
@@ -128,7 +129,7 @@ Yazma durdurulur (Railway API durdurulur). `pg_dump -Fc --schema=public --no-own
 
 ---
 
-## ADR-0005: Redis kendi konteynerimizde; Upstash verisi taşınmaz, hatırlatmalar yeniden kuyruklanır
+## ADR-0005: Redis kendi konteynerimizde; Upstash verisi taşınmaz
 
 - **Tarih:** 2026-10-27
 - **Durum:** önerildi
@@ -139,14 +140,14 @@ Redis'te yalnız BullMQ `reminders` kuyruğu var. İçinde randevu başına iki 
 
 ### Alternatifler
 - **Upstash'ten RDB/`MIGRATE` ile kopya:** TLS ve Upstash kısıtları yüzünden zahmetli. Kopyalanan işler provada çift tetiklenme riski taşır.
-- **Hiçbir şey yapmamak:** gelecekteki randevuların hatırlatmaları sessizce kaybolur.
+- **Yeniden kuyruklama betiği:** gelecekteki randevuların hatırlatmalarını korur. Kurucu yanıtına göre NetGSM SMS kapalı ve geçişte de kapalı kalıyor; hatırlatmalar zaten gönderilmeyecek. Gereksiz (G6 iptal).
 
 ### Karar
-Redis 7.4 kendi konteynerimizde çalışır: `appendonly yes`, `maxmemory 128mb`, `maxmemory-policy noeviction`, parola zorunlu, port yayını yok. Upstash verisi taşınmaz. Geçişte `requeue-reminders` betiği (G6) gelecekteki aktif randevular için işleri aynı jobId'lerle yeniden ekler.
+Redis 7.4 kendi konteynerimizde çalışır: `appendonly yes`, `maxmemory 128mb`, `maxmemory-policy noeviction`, parola zorunlu, port yayını yok. Canlı DB 0, staging DB 1 (ADR-0016). Upstash verisi taşınmaz; yeniden kuyruklama yapılmaz. Gece no-show işi API açılışında kendiliğinden kaydolur.
 
 ### Sonuçlar
-- **Olumlu:** Taşınacak durum yok; betik iki kez çalışsa da çift iş oluşmaz.
-- **Olumsuz:** Küçük bir betik yazmak gerekiyor.
+- **Olumlu:** Taşınacak durum yok, ek betik yok.
+- **Olumsuz:** Geçişten önce oluşturulmuş randevuların hatırlatma işleri kaybolur (SMS kapalıyken etkisi yok). SMS açılırsa yalnız geçiş sonrası oluşturulan randevuların işleri vardır.
 - **Riskler:** `noeviction` ile bellek dolarsa yazmalar hata verir. Önlem: tamamlanan işler zaten siliniyor (`removeOnComplete`); bellek izlenir.
 
 ---
@@ -188,7 +189,7 @@ Kiracılar URL yolunda ayrılıyor (`/tenant/[slug]`, `/book/[slug]`); alt alan 
 - **Joker sertifika `*.beautyossapp.com`:** gelecekteki kiracı alt alan adlarına hazır olur, ama bugün ihtiyaç yok. DNS-01 ile sonradan tek satırla eklenir.
 
 ### Karar
-Hostlar şunlar: `beautyossapp.com`, `www.beautyossapp.com`, `app.beautyossapp.com` → web; `api.beautyossapp.com` → API; prova için geçici `yeni.beautyossapp.com`. Her host için ayrı sertifika alınır. `NEXT_PUBLIC_API_URL=https://api.beautyossapp.com`, `ALLOWED_ORIGINS` apex + `app` + `www`.
+Hostlar şunlar: `beautyossapp.com`, `www.beautyossapp.com`, `app.beautyossapp.com` → web; `api.beautyossapp.com` → API; kalıcı staging `yeni.beautyossapp.com` (web) ve `yeni-api.beautyossapp.com` (API) (ADR-0016). İki seviyeli alt alan adı (`api.yeni.…`) kullanılmaz: Cloudflare'in ücretsiz kenar sertifikası yalnız tek seviyeyi kapsar. Her host için ayrı sertifika alınır. `NEXT_PUBLIC_API_URL=https://api.beautyossapp.com`, `ALLOWED_ORIGINS` apex + `app` + `www`.
 
 ### Sonuçlar
 - **Olumlu:** API adresi bizim alan adımızda; platform değişse de web yeniden derlenmez. `refreshToken` çerezi artık aynı site içinde.
@@ -200,8 +201,8 @@ Hostlar şunlar: `beautyossapp.com`, `www.beautyossapp.com`, `app.beautyossapp.c
 ## ADR-0008: Cloudflare proxy açık (turuncu), SSL modu Full (strict)
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi (koşul: hukuk-uyum onayı)
-- **Karar verenler:** mimar; kurucu (alan adı ve DNS Cloudflare'de)
+- **Durum:** önerildi (hukuk-uyum ŞARTLI ONAY verdi, `docs/kvkk-tasima-degerlendirmesi.md` §4)
+- **Karar verenler:** mimar; hukuk-uyum; kurucu (alan adı ve DNS Cloudflare'de)
 
 ### Bağlam
 DNS Cloudflare'de. Sunucu ortak ve IP'si sabit. Proxy açıkken TLS Cloudflare'de sonlanır ve yeniden şifrelenir; yani kişisel veri Cloudflare'in (ABD şirketi) kenar sunucularından açık halde geçer. Bot Fight Mode ücretsiz planda kuralla atlanamaz.
@@ -211,7 +212,13 @@ DNS Cloudflare'de. Sunucu ortak ve IP'si sabit. Proxy açıkken TLS Cloudflare'd
 - **SSL Flexible / Full (strict olmayan):** Cloudflare ile sunucu arası şifresiz ya da doğrulamasız olur. Reddedildi.
 
 ### Karar
-`beautyossapp.com` hostları turuncu bulutla kullanılır, zone SSL modu **Full (strict)**, "Always Use HTTPS" açık. Bot Fight Mode ve "Under Attack" kapalı kalır (Telegram/NetGSM çağrıları engellenmesin). HSTS, geçiş oturduktan sonra ayrı adımda açılır. Hukuk-uyum TLS sonlandırmayı uygun bulmazsa gri buluta geçilir; Caddy yapılandırması (ADR-0009, 0010) iki durumda da değişmeden çalışır.
+`beautyossapp.com` hostları turuncu bulutla kullanılır, zone SSL modu **Full (strict)**, "Always Use HTTPS" açık. Bot Fight Mode ve "Under Attack" kapalı kalır (Telegram/NetGSM çağrıları engellenmesin). HSTS, geçiş oturduktan sonra ayrı adımda açılır. Hukuk-uyum şartları:
+- Minimum TLS 1.2.
+- `api` ve `yeni-api` için "Bypass cache" kuralı; API ya da `/tenant/*`, `/book/*` yollarına "Cache Everything" uygulanmaz.
+- Web Analytics/RUM, Zaraz, Logpush ve Workers kapalı.
+- Cloudflare hesabında 2FA.
+- Cloudflare, DPA alt işleyen listesine yazılır.
+- İlk gerçek müşteriden önce KVKK m.9 mekanizması kurulur. Kurulamazsa yalnız `api` gri buluta alınır; Caddy yapılandırması (ADR-0009, 0010) değişmeden çalışır.
 
 ### Sonuçlar
 - **Olumlu:** DDoS koruması, origin gizliliği, DNS değişikliğinin anında yayılması.
@@ -303,7 +310,7 @@ Güvenlik duvarında kısıt yok. İsteğe bağlı sonraki adım: Caddy'de yaln�
 - **Actions'tan SSH ile otomatik dağıtım:** hızlı, ama GitHub'a sunucu anahtarı verilir ve onaysız canlıya alma geri gelir.
 
 ### Karar
-`.github/workflows/imaj.yml` (`workflow_dispatch` + `v*` etiketi) API ve web imajlarını derleyip özel `ghcr.io/ahmeetkarateke/beautyos-{api,web}:<sha-12>` olarak iter. `NEXT_PUBLIC_*` derleme değerleri repository variables'tan gelir. Yayını devops sunucuda yapar: imaj etiketini compose'da günceller, ardından `pull` + `up -d`. Sunucu GHCR'a yalnız `read:packages` token'ıyla bağlanır.
+`.github/workflows/imaj.yml` (`workflow_dispatch` + `v*` etiketi) özel GHCR'a üç imaj iter: tek API imajı `beautyos-api:<sha-12>` ve ortam başına iki web imajı, `beautyos-web:<sha-12>-prod` ile `-staging`. Web'in iki imajı olmasının nedeni `NEXT_PUBLIC_API_URL`'in derlemede gömülmesi. `NEXT_PUBLIC_*` derleme değerleri repository variables'tan gelir. Önce staging'e, test GEÇTİ sonrası canlıya çıkılır. Yayını devops sunucuda yapar: imaj etiketini compose'da günceller, ardından `pull` + `up -d`. Sunucu GHCR'a yalnız `read:packages` token'ıyla bağlanır.
 
 ### Sonuçlar
 - **Olumlu:** Sunucuda derleme yükü yok; her sürüm sabit etiketli; geri alma tek satır.
@@ -315,7 +322,7 @@ Güvenlik duvarında kısıt yok. İsteğe bağlı sonraki adım: Caddy'de yaln�
 ## ADR-0013: Kalıcı staging yok; gerekirse aynı sunucuda isteğe bağlı staging yığını
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi
+- **Durum:** yerini aldı: ADR-0016 (kurucu kalıcı staging istedi)
 - **Karar verenler:** mimar
 
 ### Bağlam
@@ -361,18 +368,26 @@ Taşıma imajları `node:20.x-bookworm-slim` (sabit küçük sürüm) ile derlen
 ## ADR-0015: Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi (koşul: hukuk-uyum onayı)
-- **Karar verenler:** mimar, devops
+- **Durum:** önerildi (hukuk-uyum ONAY: 7/4/6, B2 sürüm ayarı ve imha kaydı şartıyla)
+- **Karar verenler:** mimar, devops, hukuk-uyum
 
 ### Bağlam
 Veritabanı artık bizde ve özel nitelikli kişisel veri (anamnez) içeriyor. Sunucuda henüz yedek yok. Şirket kuralı: yedek sunucu dışında ve şifreli tutulur, geri yükleme denenerek doğrulanır, yurt dışı depolama `hukuk-uyum` onayı ister.
 
 ### Alternatifler
-- **Yalnız DO droplet yedeği:** kolay, ama haftalık, tüm diski kapsar ve aynı sağlayıcıda durur. Tek başına yeterli değil; ek olarak açılabilir (Soru S8).
+- **Yalnız DO droplet yedeği:** kolay, ama tüm diski kapsar ve aynı sağlayıcıda durur. Tek başına yeterli değil. Kurucu günlük droplet yedeğini (7 gün) zaten açtı; ikinci katman olarak kalır.
 - **Yalnız yerel döküm:** sunucu kaybında yedek de gider.
 
 ### Karar
-Her gece 03:30 (TR) `pg_dump -Fc` (+ rol dökümü) çıktısı restic ile B2 AB bölgesine gider. Şifreleme istemci tarafında yapılır; restic parolası sunucu-altyapi'nin yedek ortam dosyasında ve kurucunun parola yöneticisinde durur. Saklama 7 günlük / 4 haftalık / 6 aylık (hukuk-uyum teyidi). Başarısız iş Telegram'a uyarı yollar. **Geçiş, en az bir başarılı yedek ve belgeli bir geri yükleme denemesi olmadan yapılmaz.** Uygulama ortak altyapıdadır (sunucu-altyapi, devops).
+Her gece 03:30 (TR) `pg_dump -Fc` (canlı + staging veritabanları + rol dökümü) çıktısı restic ile B2 AB bölgesine gider. Şifreleme istemci tarafında yapılır; restic parolası sunucu-altyapi'nin yedek ortam dosyasında ve kurucunun parola yöneticisinde durur. Saklama 7 günlük / 4 haftalık / 6 aylık.
+
+Hukuk-uyum şartları:
+- B2 kovasında yaşam döngüsü "yalnız son sürüm" olmalı; yoksa `forget --prune` veriyi silmez.
+- Gece `forget`, haftalık `prune`.
+- `--keep-tag arsiv` kullanılmaz; taşıma arşivi en fazla 30 gün tutulur.
+- Her imha işlemi için kayıt tutulur.
+
+Başarısız iş Healthchecks üzerinden Telegram'a uyarı yollar. **Geçiş, en az bir başarılı yedek ve belgeli bir geri yükleme denemesi olmadan yapılmaz.** Uygulama ortak altyapıdadır (sunucu-altyapi, devops).
 
 ### Sonuçlar
 - **Olumlu:** Sunucu dışında, şifreli, test edilmiş yedek.
@@ -392,10 +407,41 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D3 | Prisma Client çalışma anında `DIRECT_URL` ister | Yoksa açılış hatası; bu yüzden `.env`'de `DATABASE_URL` ile aynı değer | G2 | — |
 | D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | — |
 | D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
-| D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu provada geçer | G13 | — |
+| D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu staging'de geçer | G14 | — |
 | D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump` yapılabilir | `on-kontrol` bağlanır | G13 | — |
 | D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `on-kontrol` boş liste | G13 | — |
-| D9 | NetGSM API'de IP kısıtı yok ya da sunucu IP'si eklendi | Geçişte test SMS'i gider | Soru S6 / G16 | — |
+| D9 | NetGSM API'de IP kısıtı yok ya da sunucu IP'si eklendi | — | — | Geçersiz: SMS kapalı (kurucu, 2026-10-27). SMS açılırken yeniden sorulur |
+| D10 | Aynı Postgres örneğinde `app_user` staging veritabanına, `stg_user` canlı veritabanına bağlanamaz | Bağlantı reddi | G11-K3 | — |
+
+---
+
+## ADR-0016: Kalıcı staging aynı compose projesinde, ortak Postgres/Redis örneğinde ayrı veritabanı ve rollerle
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar; kurucu (kalıcı staging talebi)
+
+### Bağlam
+Kurucu, taşımadan sonra geliştirmenin bu sunucuda süreceğini ve `yeni.beautyossapp.com`'da kalıcı bir staging istediğini bildirdi. Bellek bütçesi aşılmamalı. Ayrı bir tam yığın (web + api + postgres + redis) ~1,6 GB sınır ister ve toplamı ~3,6 GB'a çıkarır. Gerçek kullanıcı yok, SMS kapalı.
+
+### Alternatifler
+- **Ayrı compose projesi, kendi Postgres ve Redis'iyle:** en iyi yalıtım, ama bellek bütçesini aşar.
+- **Staging'in canlı yığının ağına dışarıdan bağlanması:** skill kuralına aykırı (proje ağları birbirine bağlanmaz).
+- **İsteğe bağlı staging (ADR-0013):** kurucu kalıcı istedi.
+
+### Karar
+Staging aynı `beautyos` compose projesinde `web-staging` (256M) ve `api-staging` (384M) servisleri olarak çalışır. Aynı Postgres örneğinde ayrı `beautyos_staging` veritabanı ve ayrı `stg_owner`/`stg_user` rolleri kullanılır. İki veritabanında `REVOKE CONNECT … FROM PUBLIC` yapılır; her rol yalnız kendi veritabanına bağlanır. Redis aynı örnekte DB 1'i kullanır. Diğer kurallar:
+- `.env.staging` içinde ayrı `JWT_SECRET` ve SMS kapalı.
+- Hostlar `yeni.beautyossapp.com` (basic auth) ve `yeni-api.beautyossapp.com`.
+- Canlı veri staging'e kopyalanmaz.
+- Yayınlar servis adıyla ayrılır.
+
+### Sonuçlar
+- **Olumlu:** +640 MB sınırla kalıcı staging; toplam sınır ~2,6 GB.
+- **Olumsuz:** Postgres ve Redis bakım ya da yeniden başlatmaları iki ortamı birlikte etkiler. Staging'deki ağır bir sorgu canlıyı yavaşlatabilir.
+- **Riskler:**
+  - Yanlış yapılandırmayla staging'in canlı veritabanına bağlanması. Önlem: rol bazlı `CONNECT` kısıtı + D10 testi + ayrı JWT.
+  - **İlk gerçek müşteriden önce** staging'in canlı Postgres'inden ayrılması (ayrı örnek ya da büyütülmüş droplet) yeniden değerlendirilir; bellek > %85 olursa staging durdurulur.
 
 ---
 

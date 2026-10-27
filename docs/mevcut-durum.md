@@ -90,6 +90,13 @@ Panelde doğrulanması gerekenler (VARSAYIM, kontrol `veri-aktar.sh` ön kontrol
 
 ## 8. Riskler ve teknik borç (kısa)
 
+> **Kurucu yanıtlarından sonra (2026-10-27):**
+> - NetGSM SMS kapalı, Telegram yalnız testte. R2 "Düşük"e indi.
+> - R3 (`/debug`) ayrı hotfix ile canlıda kapatılıyor (G4a).
+> - R10 (log'da telefon) KVKK değerlendirmesine göre geçişten önce düzeltilmesi önerilen madde.
+> - Ek bulgu (hukuk-uyum): Sentry `beforeSend` istek gövdesini tümden temizlemiyor; sağlık verisi Sentry'ye gidebilir. G5-K5 ile düzeltilir; o zamana kadar `SENTRY_DSN` boş.
+> - Ayrıntı: `docs/kvkk-tasima-degerlendirmesi.md`.
+
 | No | Önem | Bulgu | Ne zaman ele alınır |
 |---|---|---|---|
 | R1 | Kritik | `master`/`staging` push'u Vercel ve Railway'de otomatik dağıtım yapıyor. Geçişten sonra eski API yeniden açılırsa Telegram webhook'unu geri alır, gece no-show işini ve SMS hatırlatmalarını eski veriyle **ikinci kez** çalıştırır | Geçişten önce: kurucu Railway/Vercel Git bağlantısını keser (Aşama 4 adım 0) |
