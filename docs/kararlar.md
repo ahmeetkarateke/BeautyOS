@@ -417,7 +417,7 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D14 | Sunucuda web (`next build`) derlemesi bellek sınırıyla canlı servisleri etkilemeden biter | Tepe bellek ve süre ölçülür; canlı `/health` derleme boyunca 200 | G7-K4 | gelistirici t3'te derlemeyi başardı; tepe değerleri bekleniyor |
 | D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
 | D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu staging'de geçer | G14 | — |
-| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump --schema-only` yapılabilir | `kaynak` bağlanır | G13 | 2026-10-28: iki proje (`beautyos-dev`, `beautyos-staging`, eu-west-1) duraklatılmış; kurucu `beautyos-dev`'i açıyor |
+| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump --schema-only` yapılabilir | `kaynak` bağlanır | G13 | 2026-10-28: canlı proje `beautyos-dev` kesinleşti ve açıldı (canlı `/health` `db: ok`); 7 gün içinde yeniden duraklar. Pooler bağlantısı kurucu komutuyla denenecek (plan §5.1) |
 | D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `kaynak-bilgi.txt` boş liste (bilgi amaçlı; veri taşınmadığı için engel değil) | G13 | — |
 | D11 | ~~Yedek dosyası ara konteynerde yüklenir~~ | — | — | Geçersiz: veri taşınmıyor (ADR-0017) |
 | D12 | `schema.prisma` ile migration'lar uyumlu (`prisma migrate diff --exit-code` boş) | CI adımı yeşil | G1-K6 | — |

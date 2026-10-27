@@ -19,7 +19,8 @@
 | 10-28 | Cloudflare turuncu bulut ve ayarları; token doğrulandı, Caddy çalışıyor | ADR-0008, ADR-0009 kabul edildi |
 | 10-28 | Geçiş zamanı serbest; ürün canlıya çıkmadı | §10 |
 | 10-28 | **Supabase verisi demo; yalnız tablolar önemli → veri taşınmaz** | ADR-0017 (ADR-0004'ün yerini aldı), §5 |
-| 10-28 | Supabase'te iki proje var: `beautyos-dev` ve `beautyos-staging` (ikisi de duraklatılmış, eu-west-1). Kurucu `beautyos-dev`'i açıyor | §5 kaynak seçimi, §11 ikisi de imha edilir |
+| 10-28 | Supabase'te iki proje var: `beautyos-dev` ve `beautyos-staging` (eu-west-1). **Canlı proje `beautyos-dev`, kesinleşti:** açılınca canlı `/health` `db: ok`, test API'si `db: error` döndü (`beautyos-staging` kapalı). **7 gün içinde yeniden duraklar.** | §5.1 kurucu komutu; §11 ikisi de imha edilir |
+| 10-28 | `e68459f` kurucu onayıyla `master`'a push edildi; Railway derliyor | `/debug` sonucu bekleniyor; ara önleme gerek kalmadı |
 | 10-28 | Test artıklarının silinmesi onaylandı (gelistirici siliyor) | — |
 | 10-28 | **D4:** GitHub planı Free; GHCR kotası yetersiz → imajlar sunucuda derlenir (müdür kararı) | ADR-0018 (ADR-0012'nin yerini aldı), §6, G7 |
 
@@ -196,7 +197,50 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `le
 | Migration listesi ya da checksum farkı | Rapor mimara; elle düzenlenmiş migration olabilir. Değerlendirilir |
 | Supabase'e özgü gürültü (panelden açılmış RLS, `COMMENT ON SCHEMA public`) | Listelenir. RLS varsa not edilir (RLS projesi T-B1 için girdi), taşınmaz |
 
-**Hangi Supabase projesi:** Railway canlısına bağlı olan (müdür `/health` ile tespit ediyor). İpucu: depodaki test yardımcısı (`apps/api/src/__tests__/helpers/setup.ts`) proje referanslarını yazıyor: canlı `kpoqwdamkmdjntbgjbxy`, staging `lnrobattysyfoljalndu`. Referans panelde proje adresinde görünür; kurucu adla eşleştirebilir. Karşılaştırma yalnız canlı projeyle yapılır.
+**Hangi Supabase projesi:** `beautyos-dev` (2026-10-28'de kesinleşti). Karşılaştırma yalnız bu projeyle yapılır. Proje **7 gün içinde yeniden duraklar**; şema dökümü bu süre içinde alınmalı (§5.1).
+
+### 5.1 Kurucunun çalıştıracağı şema dökümü (zaman sınırlı)
+
+Bu adım yalnız şemayı okur, hiçbir tablodan satır okumaz. Bağlantı salt okunur oturumla açılır.
+
+**1. `.env.supabase` dosyası** (kurucu, sunucuda `/srv/beautyos/.env.supabase`, `chmod 600`). Değerler Supabase panelinde `beautyos-dev` → **Connect** → **Session pooler** bölümünden alınır:
+
+```
+PGHOST=<paneldeki pooler adresi, ör. aws-0-eu-west-1.pooler.supabase.com>
+PGPORT=5432
+PGUSER=<paneldeki kullanıcı, biçim: postgres.<proje-ref>>
+PGPASSWORD=<veritabanı parolası>
+PGDATABASE=postgres
+PGSSLMODE=require
+```
+
+- Port 5432 olmalı (Session pooler). 6543 (Transaction pooler) kullanılmaz.
+- **Veritabanı parolasını panelden sıfırlamayın.** Sıfırlanırsa Railway canlı API'sinin bağlantısı kopar ve `/debug` hotfix'inin dağıtımı yeniden bozulur. Parola bilinmiyorsa önce müdüre haber verin; Railway'deki `DATABASE_URL` aynı anda güncellenmelidir.
+
+**2. Komut** (önerilen). G12 betiği denetçi ONAY'ı alıp sunucuya yüklendiyse:
+
+```
+ssh karateke@209.38.237.171 'bash /srv/beautyos/betikler/sema-karsilastir.sh kaynak'
+```
+
+**2b. Betik henüz hazır değilse yedek komut.** Sunucuya `ssh` ile girildikten sonra çalıştırılır:
+
+```
+install -d -m 700 /srv/beautyos/tasima
+docker run --rm --user "$(id -u):$(id -g)" --env-file /srv/beautyos/.env.supabase \
+  -e PGOPTIONS='-c default_transaction_read_only=on' -v /srv/beautyos/tasima:/out <compose'taki postgres:17.x imajı> \
+  sh -c 'psql -X -At -c "SELECT version()" > /out/kaynak-surum.txt &&
+         pg_dump --schema-only --schema=public --no-owner --no-privileges --no-publications --no-subscriptions -f /out/sema-kaynak.sql &&
+         psql -X -At -c "SELECT migration_name, checksum, finished_at IS NOT NULL, rolled_back_at IS NOT NULL FROM _prisma_migrations ORDER BY migration_name" > /out/migrations-kaynak.txt'
+```
+
+Bu komutu gelistirici, sahte bir kaynağa karşı sunucuda dener; tam metin müdüre denenmiş haliyle iletilir.
+
+**3. Başarı ölçütü ve sonrası:**
+- Üç dosya oluşur. `sema-kaynak.sql` içinde `CREATE TABLE` satırları vardır ve `INSERT`/`COPY` satırı **yoktur**. `migrations-kaynak.txt` 19 civarı satır içerir.
+- Kurucu "tamam" der; dosyalar kişisel veri içermez, ekip okuyabilir.
+- `hedef` ve `karsilastir` adımlarını gelistirici ya da devops çalıştırır (G13-K3). Supabase'in tekrar duraklaması bundan sonra sorun değildir.
+- `.env.supabase` dosyası G17'de silinir.
 
 **Supabase açılamazsa:** kaynak karşılaştırması atlanır, yalnız 4. adım (depo içi uyum) yapılır. Kabul edilen risk: Supabase'te migration'a girmemiş elle değişiklik varsa kaybolur. Kod `schema.prisma`'ya göre çalıştığı için etkisi düşük.
 
@@ -269,7 +313,7 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `le
 
 Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
 
-1. **Supabase `beautyos-dev`** (canlıya bağlı olduğu varsayılıyor) silinir. Önce §5 `kaynak` adımı bitmiş olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
+1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. Önce §5 `kaynak` adımı bitmiş olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
 2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.
 3. Railway (prod + staging), Vercel (dağıtımlar ve alan adı kayıtları dahil) ve Upstash projeleri silinir.
 4. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).

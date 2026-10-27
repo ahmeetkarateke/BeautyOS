@@ -32,7 +32,7 @@
 | G1 | CI testleri geçici Postgres 17'de | gelistirici | — | bekliyor |
 | G2 | API imajı | gelistirici | — | devam ediyor (`tasima/docker`) |
 | G3 | Web imajı (standalone) + zorunlu API adresi | gelistirici | — | devam ediyor (Dockerfile + standalone); API adresi kısmı bekliyor |
-| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık.** Derleme hatası (bullseye apt) `e68459f` ile giderildi (denetçi ONAY'lı). Dağıtımın sağlıklı açılması için Supabase'in de açık olması gerekiyor (plan §12) |
+| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık.** Derleme hatası (bullseye apt) `e68459f` ile giderildi (denetçi ONAY'lı). 10-28: `beautyos-dev` açıldı, `e68459f` kurucu onayıyla push edildi, Railway derliyor; sonuç müdürde |
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
@@ -190,7 +190,7 @@
   - K8: Çıktılar `/srv/beautyos/tasima/` (700) altında 600 izinli. Kişisel veri içermez; ekip okuyabilir.
 
 ### G13 — Canlı yığını boş DB ile kurma + şema karşılaştırması — kurucu + devops + gelistirici
-- **Ön koşul:** G11 ve G12 denetçi ONAY'lı. Canlı Supabase projesi açık ve tespit edildi (müdür). `.env.supabase` kurucu tarafından yazıldı.
+- **Ön koşul:** G11 ve G12 denetçi ONAY'lı (yalnız `kaynak` adımı için G12 beklenmez: plan §5.1 yedek komutu). Canlı Supabase projesi `beautyos-dev` (kesinleşti; **7 gün içinde yeniden duraklar**, kaynak dökümü öncelikli). `.env.supabase` kurucu tarafından yazıldı.
 - **Kabul kriterleri:**
   - K1: Canlı `beautyos` veritabanı boş kurulur: `01-roller.sh` + `docker compose --profile migrate run --rm migrate` `[ONAY]`. `prisma migrate status` "up to date". `app_user` için `rolsuper`/`rolbypassrls` `false`.
   - K2: `api` ve `web` (canlı) ayağa kalkar. `https://api.beautyossapp.com/health` Cloudflare üzerinden 200 döner. `@`/`app`/`www` DNS'i henüz değişmez.
