@@ -34,11 +34,18 @@ yeni.beautyossapp.com {
 	import cf_dns
 	import ortak
 
-	basic_auth {
-		{$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH}
-	}
-	reverse_proxy beautyos-web-staging:3000 {
-		header_up X-Forwarded-For {client_ip}
+	# route: yönerge sırası Caddy'nin varsayılan sırasına bırakılmaz. Özet tanımsız/boşsa şifresiz açılmasın
+	# diye (caddy validate bunu yakalamaz) basic_auth'tan ÖNCE 503 döner.
+	route {
+		@bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == ""
+		respond @bos 503
+
+		basic_auth {
+			{$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH}
+		}
+		reverse_proxy beautyos-web-staging:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 }
 
