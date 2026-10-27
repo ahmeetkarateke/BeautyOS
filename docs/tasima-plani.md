@@ -5,6 +5,13 @@
 - **Kurucu kararı:** Her şey şirket sunucusunda (`sirket-sunucu-1`, DO FRA1, 209.38.237.171) çalışır. Eski Supabase, Railway, Vercel ve Upstash kapatılır.
 - **Girdiler:** `docs/mevcut-durum.md` (bulgular R1–R14), `docs/kvkk-tasima-degerlendirmesi.md` (hukuk-uyum). **Kararlar:** `docs/kararlar.md`. **Görevler:** `docs/gorevler.md`.
 - **İşaretler:** `[ONAY]` = kurucu onayı olmadan yapılmaz (müdür toplar). **VARSAYIM** = doğrulanmamış.
+- **Kalıcı izin (kurucu, 2026-10-28; şirket `CLAUDE.md` "Kalıcı izinler"):** Bu plandaki, **denetçi ONAY'ı almış teknik adımlar** (sunucuda kurulum, derleme, migrate, Caddy site dosyası, sertifika, test/deneme kaynaklarının ve eski imajların temizliği) kurucuya ayrıca sorulmadan yürütülür. İzni **yalnız müdür** kullanır; ekip üyeleri bu adımları müdürün talimatıyla yapar. Bu tarihten sonra plandaki `[ONAY]` işaretlerinden yalnız şunlar kurucuya gider (§9):
+  - DNS değişiklikleri.
+  - Eski servislerin (Railway, Vercel, Supabase, Upstash) kapatılması ya da silinmesi.
+  - Taşıma dallarının `master`'a birleştirilmesi.
+  - Gerçek veri silme.
+  - Para gerektiren işler.
+  - İzin metninde açıkça yer almayan her şey.
 
 ### Kurucu kararları (özet)
 
@@ -24,6 +31,8 @@
 | 10-28 | Öğrenilen: Railway servisi yalnız `apps/api/**` değişikliğini izliyor; `api.beautyossapp.com` Railway'in özel alan adı | Kök dosya değişikliği (Dockerfile, railway.json) Railway'de **elle Redeploy** ister. `api` DNS kaydı geçişe kadar Railway'de kalır (§3, §10) |
 | 10-28 | Test artıklarının silinmesi onaylandı (gelistirici siliyor) | — |
 | 10-28 | **D4:** GitHub planı Free; GHCR kotası yetersiz → imajlar sunucuda derlenir (müdür kararı) | ADR-0018 (ADR-0012'nin yerini aldı), §6, G7 |
+| 10-28 | Supabase'te bulunan, depoda olmayan iki migration (WhatsApp numara alanı, iyzico abonelik) **terk edildi**: "önemli değil, en baştan birlikte düzelteceğiz, proje burada ayakta olsun" | Depodaki 19 migration esas. Bu özellikler ileride gelirse yeni migration'larla yazılır. G13-K7 iptal; Supabase silme koşulu kalktı |
+| 10-28 | Kalıcı izin: plandaki denetçi ONAY'lı teknik adımlar kurucuya sorulmadan yürütülür (DNS ve eski servis kapatma hariç) | Başlık notu, §9 |
 
 ---
 
@@ -289,15 +298,19 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 
 ## 9. Aşamalar ve onay noktaları
 
-| Aşama | İçerik | Görevler | `[ONAY]` noktaları |
-|---|---|---|---|
-| 0. Hemen | `/debug` (G4a, **kapandı 10-28**), DNS dışa aktarımı ve yeni staging hostları (`yeni`, `yeni-api`) | G4a | DNS kayıtları |
-| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, imaj iş akışı, CI + depo içi şema uyumu | G1–G5, G7 | Taşıma dallarının GitHub'a push'u (sunucu commit'i oradan çeker); salt okunur deploy key; imaj temizleme kuralı |
-| 2. Altyapı | Caddy, yedek, izleme | G8–G10 | B2 ve Healthchecks hesapları; Caddy yeniden oluşturma saati |
-| 3. Yığın | Compose, roller, staging ayakta; şema karşılaştırması (+ gerekirse düzeltici migration); **canlı yığın boş veritabanıyla ayakta** (`api.beautyossapp.com`); kabul testi staging'de | G11–G14 | Canlı ve staging `migrate`; `kaynak` adımı (Supabase'ten şema okuma) |
-| 4. Geçiş | §10 (DNS) | G15–G16 | Runbook'un tamamı (tek onay) |
-| 5. Kapatma | G16 geçince | G17 | Her silme ayrı; imha tutanağı |
-| 6. Sonrası | Node/Next yükseltmesi, temizlik, G19, RLS ve KVKK "ilk müşteriden önce" maddeleri | G18, G19, T-B1 | Ayrı planlama |
+Sütunlar: **Kalıcı izinle (müdür)** = denetçi ONAY'ı şartıyla kurucuya sorulmadan yapılır. **Kurucuya sorulur** = kalıcı izin dışında kalan işler.
+
+| Aşama | İçerik | Görevler | Kalıcı izinle (müdür) | Kurucuya sorulur |
+|---|---|---|---|---|
+| 0. Hemen | `/debug` (G4a, **kapandı 10-28**), DNS dışa aktarımı, staging hostları | G4a | — | `yeni` ve `yeni-api` DNS kayıtları |
+| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, derleme betikleri, CI + depo içi şema uyumu | G1–G5, G7 | Onaylı düzeltme commit'lerinin push'u | Taşıma dallarının GitHub'a push'u (yeni özellik/taşıma dalı; izin metni yalnız düzeltme push'unu ve master'a birleştirmeyi anıyor, bu yüzden kurucuya sorulur). Deploy key'i kurucu kendisi ekler (GitHub hesabı) |
+| 2. Altyapı | Caddy, yedek, izleme | G8–G10 | Caddy kurulumu ve yeniden oluşturma, site dosyası, sertifika, yedek ve izleme betikleri | B2 ve Healthchecks hesapları (hesap ve ücret kurucuda) |
+| 3. Yığın | Compose, roller, staging; canlı yığın boş veritabanıyla; kabul testi staging'de | G11, G13, G14 | Canlı ve staging `migrate` (boş veritabanı), yığının açılması, sunucuda derleme, son 3 sürüm dışındaki imajların ve test kaynaklarının temizliği | — |
+| 4. Geçiş | §10 | G15–G16 | Adım 4 sonrası `api` yeniden oluşturma, izleme, kayıt | **DNS değişikliği** (§10 adım 3) ve Railway'in durdurulması (adım 1–2); tek onayda toplanır |
+| 5. Kapatma | G16 geçince | G17 | `tasima/` ve geçici dosyaların temizliği | **Her eski servis silme ayrı** (Supabase ×2, Railway, Vercel, Upstash); GitHub sırrı; anahtar yenileme (S5) |
+| 6. Sonrası | Node/Next yükseltmesi, temizlik, G19, RLS ve KVKK "ilk müşteriden önce" maddeleri | G18, G19, T-B1 | Onaylı düzeltmeler | Taşıma dallarının `master`'a birleştirilmesi; yeni özellikler |
+
+G12 ve G13'ün şema karşılaştırması tamamlandı (10-28); bu adımlar artık tabloda yok.
 
 ## 10. Geçiş (tek oturum, ~30 dk, gün ve saat serbest; 03:00–04:30 hariç)
 
@@ -322,7 +335,7 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 
 Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
 
-1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. Önce §5 `kaynak` adımı bitmiş **ve kurucunun yerel çalışması (depoda olmayan 2 migration, G13-K7) GitHub'a girmiş** olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
+1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. §5 `kaynak` adımı tamamlandı (10-28). Silme her durumda kurucu onayına bağlıdır. Depoda olmayan iki migration kurucu kararıyla terk edildi; bekleme koşulu yok. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
 2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.
 3. Railway (prod + staging; `api.beautyossapp.com` özel alan adı kaydı dahil), Vercel (dağıtımlar ve alan adı kayıtları dahil) ve Upstash projeleri silinir.
 4. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).
@@ -351,8 +364,9 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 **Yanıtlananlar:** Cloudflare (K2), SMS, Telegram, hesaplar, geçiş zamanı, **S6 (veri demo; taşınmayacak)**, test artıklarının silinmesi.
 
 **Hâlâ açık:**
-0. **Yeni (şema karşılaştırmasından):** Supabase'te depoda olmayan iki migration uygulanmış: `20260624000000_whatsapp_phone_number_id` ve `20260624010000_subscription_billing` (iyzico abonelik alanları). Bu çalışma bilgisayarınızda mı? Orijinal migration dosyaları ve koduyla ayrı bir dal olarak GitHub'a push eder misiniz (G13-K7)? Bu olmadan Supabase silinmez. Ödeme entegrasyonu (iyzico) yeni bir veri işleyen olduğu için hukuk-uyum'a da gidecek.
+0. ~~Depoda olmayan iki migration~~ kurucu kararıyla terk edildi (10-28).
 1. ~~Şema dökümü~~ alındı (10-28).
+1b. Taşıma dallarının (`tasima/sunucu`, `tasima/docker`) GitHub'a push'u. Sunucu canlıya derlenecek commit'i GitHub'dan çekiyor. Kalıcı izin metni yalnız düzeltme push'unu anıyor, bu yüzden bu push kurucuya sorulur (müdür yorumu farklıysa onun kararı).
 2. ~~`/debug`~~ kapandı (10-28).
 3. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? Başka alt alan adı var mı?
 4. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?

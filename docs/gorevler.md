@@ -5,6 +5,13 @@
 - **Durum değerleri:** `bekliyor` | `devam ediyor` | `incelemede` | `tamamlandı` | `iptal`. Bu dosya mimarındır. Görev sahibi durum değişikliğini mesajla bildirir, mimar işler.
 - **Kod görevleri** `kod-standartlari`'na göre test önce yazılır. `[İNCELEME HAZIR]` mesajında kabul kriteri → test adı eşlemesi verilir (ör. `G4b-K3: rejects origin evil-beautyossapp.com`). Denetçi ONAY'ı olmadan hiçbir görev "tamamlandı" sayılmaz.
 - `[ONAY]` = kurucu onayı (müdür toplar).
+- **Kalıcı izin (kurucu, 2026-10-28; şirket `CLAUDE.md` "Kalıcı izinler"):** Bu listedeki denetçi ONAY'lı teknik adımları (kurulum, derleme, migrate, Caddy, sertifika, sunucu temizliği) müdür kurucuya sormadan yürütür ya da yürütür. Kurucuya hâlâ sorulanlar:
+  - DNS değişiklikleri.
+  - Eski servislerin kapatılması/silinmesi.
+  - Taşıma dallarının `master`'a birleştirilmesi.
+  - Gerçek veri silme ve para gerektiren işler.
+
+  Ekip üyesi bu izne dayanarak kendisi push ya da silme yapmaz; müdürden ister. Ayrıntı: plan §9.
 
 ## Dallar ve dosya sahipliği
 
@@ -42,7 +49,7 @@
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
 | G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` 62d9ca7; ilk inceleme RED, düzeltildi) |
 | G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | **ONAY** (`e3b89f2`, `raporlar/denetim/beautyos-tasima-4.md`). Denetçi önerileri sonraki turda (yeniden incelemeye girer): bağlantı hatasında psql iletisinin ilk satırının gösterilmesi. `verify-full` önerisi mimar kararıyla reddedildi (`require` yeterli, plan §5.1) |
-| G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | **K3 tamam (10-28)**, K4 kararı verildi: düzeltici migration yok, kayıt `mevcut-durum.md`'de. Açık: kurucunun yerel çalışması (2 migration) depoya alınmalı (G13-K7). K1/K2 (canlı yığın) bekliyor |
+| G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | **K3 tamam (10-28)**, K4 kararı verildi: düzeltici migration yok; iki migration kurucu kararıyla terk edildi (K7 iptal). K8 (LF) açık. K1/K2 (canlı yığın) bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
 | G15 | Geçiş (Railway durdurma + DNS) | kurucu + devops | G1–G5, G7–G14 | bekliyor |
 | G16 | Canlı duman testi + 48 saat gözlem | test-muhendisi + devops | G15 | bekliyor |
@@ -201,10 +208,7 @@
     - `karsilastir` yeniden 0 döner. Bilinçli olarak taşınmayan farklar mimarın kaydıyla `docs/mevcut-durum.md`'de durur.
   - K5: Supabase açılamazsa K3 atlanır, bu durum müdüre bildirilir. Yalnız G1-K6 (depo içi uyum) yeşil olmalıdır; risk planda kayıtlı.
   - K6: İş bitince `.env.supabase` silinmek üzere G17'ye bırakılır; `tasima/` yalnız şema dosyalarını içerir.
-  - K7 (10-28 bulgusu): Kurucunun bilgisayarındaki push edilmemiş çalışma, yani `whatsapp_phone_number_id` ve `subscription_billing` migration'ları ile ilgili kod, **orijinal migration dosyalarıyla** GitHub'a ayrı bir dal olarak push edilir `[ONAY]`, kurucu yapar. Dosyalar türetilmez, yeniden yazılmaz.
-    - Mimar dalı inceler ve çok kiracılık/ödeme açısından görev açar. Ödeme (iyzico) yeni bir veri işleyendir; hukuk-uyum'a gider.
-    - Bu çalışma birleşmeden canlıya çıkmaz.
-    - Supabase projeleri (G17) bu dal GitHub'a girmeden silinmez: Supabase, bu migration'ların uygulanmış hallerinin tek tanığı.
+  - ~~K7~~ **İptal (10-28, kurucu kararı):** Depoda olmayan iki migration (`20260624000000_whatsapp_phone_number_id`, `20260624010000_subscription_billing`) terk edildi; push edilecek dal yok. Esas olan depodaki 19 migration. Bu özellikler (WhatsApp numara alanı, iyzico abonelik) ileride gelirse **yeni migration'larla** yazılır. iyzico geldiğinde hukuk-uyum değerlendirmesi gerekir. Eski adlar yeniden kullanılmaz.
   - K8: `.gitattributes`'a `apps/api/prisma/migrations/** text eol=lf` eklenir (gelistirici, `tasima/docker`). Windows'ta yapılan çıkışlar da LF olur, böylece checksum farkı (CRLF) bir daha oluşmaz. Mevcut dosyalarda içerik değişmez. `git add --renormalize` sonrası diff boş olmalı.
 
 ### G14 — Kabul test planı + staging'de kabul testi — test-muhendisi
@@ -241,7 +245,7 @@
 ## Aşama 5 — Kapatma
 
 ### G17 — Eski servislerin kapatılması ve imha tutanakları (kurucu onayıyla)
-- **Sıra:** Supabase projeleri G13 (şema karşılaştırması) bitince **ve G13-K7 (kurucunun yerel çalışması GitHub'da) tamamlanınca** silinebilir. Railway, Vercel ve Upstash G16 geçince silinir; DNS geri dönüşü için Vercel o zamana kadar durur. Taşıma arşivi **yok** (veri taşınmadı).
+- **Sıra:** Supabase projeleri G13 (şema karşılaştırması, 10-28'de tamamlandı) sonrası silinebilir. Her silme kurucu onayına bağlıdır; kalıcı izin eski servisleri kapsamaz. Railway, Vercel ve Upstash G16 geçince silinir; DNS geri dönüşü için Vercel o zamana kadar durur. Taşıma arşivi **yok** (veri taşınmadı).
 - K1: Supabase `beautyos-dev` ve `beautyos-staging` projeleri silindi. Silinmeden önce, panelin kendi otomatik yedeklerinin de projeyle birlikte gittiği tutanağa yazıldı.
 - K2: Railway (prod + staging), Vercel ve Upstash projeleri silindi.
 - K3: **Her silme için `sirket/` altında imha tutanağı var** (demo veri de olsa, KVKK): tarih, hizmet/proje adı, bölge (Supabase eu-west-1), veri türü ("demo/deneme"), yöntem, onaylayan kurucu. İçerik yazılmaz.

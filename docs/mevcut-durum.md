@@ -97,7 +97,8 @@ Panelde doğrulanması gerekenler (VARSAYIM; 2026-10-28'den beri veri taşınmı
 - **Depoda olmayan 2 migration Supabase'te uygulanmış:** `20260624000000_whatsapp_phone_number_id` ve `20260624010000_subscription_billing`. Git geçmişinin hiçbir dalında yoklar; kurucunun bilgisayarındaki push edilmemiş çalışmadan uygulanmış olmalılar.
   - Şemaya etkileri (başka şema farkı yok): `tenants.whatsappPhoneNumberId`, `subscriptionStatus` (enum `SubscriptionStatus`: trialing/active/past_due/canceled, varsayılan trialing, NOT NULL), `graceEndsAt`, `currentPeriodEnd`, `iyzicoCustomerRef`, `iyzicoSubscriptionRef`, ayrıca `UNIQUE(whatsappPhoneNumberId)` ve `UNIQUE(iyzicoSubscriptionRef)`.
   - `master` kodu bu sütunları kullanmıyor.
-- **Karar (mimar, plan §5 tablosu):** düzeltici migration **yazılmaz**. Yeni sunucu depodaki 19 migration'la kurulur. İki migration, kurucunun yerel çalışması depoya girince kendi dosyalarıyla normal `migrate deploy` akışında uygulanır. Gerekçeler:
+- **Kurucu kararı (10-28): iki migration terk edildi** ("önemli değil, en baştan birlikte düzelteceğiz, proje burada ayakta olsun"). Push edilecek dal yok. Esas olan depodaki 19 migration. WhatsApp numara alanı ve iyzico abonelik ileride gerekirse yeni migration'larla, yeni adlarla yazılır.
+- **Karar (mimar, plan §5 tablosu):** düzeltici migration **yazılmaz**. Yeni sunucu depodaki 19 migration'la kurulur. (İlk karar metni: "İki migration, kurucunun yerel çalışması depoya girince normal akışla uygulanır". Bu, kurucu kararıyla geçersiz.) Gerekçeler:
   - Aynı adla türetilmiş bir migration, gerçek dosya gelince checksum çakışması yaratır.
   - Farklı adla türetilmiş bir migration ise aynı sütunları ikinci kez eklemeye çalışır.
   - Kod bu sütunları kullanmıyor.
