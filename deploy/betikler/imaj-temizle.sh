@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Eski BeautyOS imajlarını temizler (ADR-0018). Kullanım:  imaj-temizle.sh [--dry-run] [--tut <sayı>]
+# YALNIZ kurucu/müdür çalıştırır (silme yapar); otomatik çağrılmaz. Testler gerçek Docker deposunda değil izole ortamda yapılır.
 # Her imaj ailesi için (beautyos-api, beautyos-web-prod, beautyos-web-staging) en yeni 3 sürüm kalır (oluşturma zamanına göre).
 # Yalnız derle.sh'ın ürettiği <sha12> biçimli etiketler yönetilir; "test" gibi diğer etiketlere dokunulmaz.
 # ASLA silinmez: herhangi bir konteynerin (çalışan ya da durmuş) kullandığı imaj, .env içindeki BEAUTYOS_VERSION ve
@@ -149,6 +150,18 @@ if [ "$DRY" -eq 1 ]; then
   docker buildx du --builder beautyos-derle 2>/dev/null | tail -n 1 | sed 's/^/  beautyos-derle: /' || true
   docker builder du 2>/dev/null | tail -n 1 | sed 's/^/  varsayılan:     /' || true
 else
-  docker buildx prune --builder beautyos-derle --filter until=168h -f 2>/dev/null | tail -n 1 | sed 's/^/Önbellek (beautyos-derle) /' || true
-  docker builder prune --filter until=168h -f 2>/dev/null | tail -n 1 | sed 's/^/Önbellek (varsayılan) /' || true
+  # Hata gizlenmez: prune başarısızsa uyarı yazılır (imaj temizliği yine de tamamlanmıştır).
+  if ! docker buildx prune --builder beautyos-derle --filter until=168h -f >/tmp/prune-builder.$$ 2>&1; then
+    echo "UYARI: beautyos-derle önbelleği budanamadı: $(tail -n 1 /tmp/prune-builder.$$)" >&2
+  else
+    tail -n 1 /tmp/prune-builder.$$ | sed 's/^/Önbellek (beautyos-derle) /'
+  fi
+  if ! docker builder prune --filter until=168h -f >/tmp/prune-varsayilan.$$ 2>&1; then
+    echo "UYARI: varsayılan önbellek budanamadı: $(tail -n 1 /tmp/prune-varsayilan.$$)" >&2
+  else
+    tail -n 1 /tmp/prune-varsayilan.$$ | sed 's/^/Önbellek (varsayılan) /'
+  fi
+  rm -f /tmp/prune-builder.$$ /tmp/prune-varsayilan.$$
+  # Budama sırasında başlamış olabilecek builder'ı boşa bellek tutmasın diye durdur.
+  docker buildx stop beautyos-derle >/dev/null 2>&1 || true
 fi
