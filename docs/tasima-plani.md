@@ -88,6 +88,12 @@ yeni-api.beautyossapp.com {
 }
 ```
 
+- **Staging basic auth kurulum sırası** (devops, sunucu-altyapi `c6316d8`). `caddy validate` boş `{$DEĞİŞKEN}` ile de geçtiği için koruma ona bırakılmaz.
+  1. Kurucu `/srv/caddy/.env`'e kullanıcı adını ve `caddy hash-password` özetini yazar (özet tek tırnak içinde).
+  2. Caddy `docker compose up -d` ile yeniden oluşturulur; `reload` yeni ortamı almaz. Kısa kesinti olur, onaylı saatte yapılır.
+  3. `betikler/caddy-dogrula.sh` çalışır; boş değişken ya da bcrypt olmayan özet varsa hata verir.
+  4. Ancak bundan sonra `beautyos.caddy` kopyalanır, doğrulanır ve Caddy reload edilir. **Özet girilmeden `beautyos.caddy` kopyalanmaz.**
+- İkinci emniyet (gelistirici, `beautyos.caddy`): `yeni` bloğunda `route` içinde, `basic_auth`'tan önce `@bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == ""` + `respond @bos 503`. Değişken boşsa staging şifresiz açılmaz, 503 döner.
 - `yeni-api`'de basic auth **yok**. Tarayıcı `Authorization: Bearer` gönderir, basic auth bununla çakışır. Telegram webhook'u da erişebilmelidir. API zaten JWT ister.
 - `www` yönlendirmesi kurucu yanıtına bağlı (S1).
 
@@ -275,7 +281,7 @@ Geçişten sonra yeni sunucuda yazılan veri geri taşınmaz. Gerçek kullanıc�
 ## 11. Eski servislerin kapatılması (geçiş + 3 gün, kurucu onayıyla)
 
 Her silme ayrı `[ONAY]`; her biri için `sirket/` altında **imha tutanağı** tutulur (tarih, ne silindi, kim onayladı; içerik yok).
-1. Supabase canlı son dökümü restic'e `arsiv` etiketiyle. **En fazla 30 gün** saklanır (demo veri; S6). `--keep-tag arsiv` kullanılmaz.
+1. Supabase canlı son dökümü restic'e `arsiv` etiketiyle alınır: `yedek-geri-yukle.sh arsivle <dosya>` (devops). **En fazla 30 gün** saklanır (demo veri; S6). Gece işi bunu `forget --tag arsiv --keep-within 30d` ile uygular; `--keep-tag arsiv` kullanılmaz.
 2. Railway (prod + staging), Vercel, Upstash, Supabase (prod + staging) projeleri silinir.
 3. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).
 4. `/srv/beautyos/.env.supabase` ve `/srv/beautyos/tasima/` silinir.
