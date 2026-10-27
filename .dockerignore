@@ -1,4 +1,20 @@
 **/node_modules
 **/dist
-**/.env
+**/.next
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.agents
+docs
+todo
+deploy
+**/__tests__
+**/*.log
+*.md
+skills-lock.json
 apps/api/src/generated
+# Gizli değerler imaja asla girmez (örnek dosyalar hariç)
+**/.env
+**/.env.*
+!**/.env.example
