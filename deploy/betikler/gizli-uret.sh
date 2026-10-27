@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # BeautyOS sunucu gizli dosyalarını TEK komutla üretir. Kullanım:
+# YALNIZ kurucu çalıştırır (karateke kullanıcısı, sunucuda); başka bir ekip üyesi gerçek sunucuda çalıştırmaz.
 #   gizli-uret.sh <BEAUTYOS_VERSION> <BEAUTYOS_STAGING_VERSION>      (ikisi de 12 haneli commit kimliği, ör. 5c3d8b316e8f)
 # /srv/beautyos altında .env.db .env.redis .env.migrate .env.migrate-staging .env .env.staging dosyalarını yazar
 # (parolalar `openssl rand -hex 32`, yalnız hex; bağlantı adresleri aynı parolalarla tutarlı) ve staging basic auth için
@@ -38,6 +39,16 @@ for f in "${DOSYALAR[@]}"; do
     exit 1
   fi
 done
+# Postgres roller yalnız BOŞ veri dizininde ilk açılışta oluşturulur. Dolu bir pgdata volume'u varsa yeni parolalar rollere
+# işlenmez ve uygulama bağlanamaz; bu yüzden durulur (volume silmek müdür/kurucu onayı ister).
+if [ -z "$PREFIX" ] && docker volume inspect beautyos_pgdata >/dev/null 2>&1; then
+  hata "beautyos_pgdata volume'u zaten var: yeni parolalar rollere işlenmez. Önce volume'un durumu müdürle netleştirilmeli; hiçbir dosya yazılmadı"
+  exit 1
+fi
+if [ -n "${GIZLI_VOLUME_KOMUT:-}" ] && $GIZLI_VOLUME_KOMUT >/dev/null 2>&1; then
+  hata "beautyos_pgdata volume'u zaten var; hiçbir dosya yazılmadı"
+  exit 1
+fi
 [ -f "$CADDY_ENV" ] || { hata "$CADDY_ENV yok (ortak Caddy kurulu olmalı); hiçbir dosya yazılmadı"; exit 1; }
 if grep -qE '^(BEAUTYOS_STAGING_BASIC_USER|BEAUTYOS_STAGING_BASIC_HASH)=' "$CADDY_ENV"; then
   hata "$CADDY_ENV içinde BEAUTYOS_STAGING_BASIC_* zaten var; hiçbir dosya yazılmadı"
@@ -60,10 +71,12 @@ if ! [[ "$HASH" =~ ^\$2[aby]\$[0-9]+\$.{53}$ ]]; then
   exit 1
 fi
 
-# ─── Yazma: noclobber ile (var olan dosyanın üzerine asla yazılmaz), umask 077 ───────
+# ─── Yazma: önce gizli geçici dizine, sonra tek tek yerine (yarıda kalırsa yarım dosya kalmaz), umask 077 ───────
 umask 077
+TMP="$(mktemp -d "$BASE/.gizli-uret.XXXXXX")"
+trap 'rm -r -- "$TMP"' EXIT
 yaz() { # dosya  (içerik stdin'den)
-  ( set -C; cat >"$BASE/$1" )
+  cat >"$TMP/$1"
 }
 yaz .env.db <<EOF
 POSTGRES_USER=postgres
@@ -139,6 +152,15 @@ WHATSAPP_SANDBOX=
 WHATSAPP_APP_SECRET=
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 EOF
+
+# Hepsi geçici dizinde hazır: şimdi yerine taşınır. mv -n var olan dosyanın üzerine yazmaz; taşınamayan olursa durulur.
+for f in "${DOSYALAR[@]}"; do
+  mv -n -- "$TMP/$f" "$BASE/$f"
+  if [ -e "$TMP/$f" ]; then
+    hata "$BASE/$f yerine konamadı (araya dosya girmiş olabilir)"
+    exit 1
+  fi
+done
 
 # Caddy: dosya satır sonuyla bitmiyorsa önce yeni satır; değerler tek tırnakta ($ karakterleri için).
 if [ -s "$CADDY_ENV" ] && [ "$(tail -c 1 "$CADDY_ENV" | od -An -tx1 | tr -d ' ')" != "0a" ]; then
