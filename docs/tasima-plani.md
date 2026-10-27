@@ -340,8 +340,8 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 **Yanıtlananlar:** Cloudflare (K2), SMS, Telegram, hesaplar, geçiş zamanı, **S6 (veri demo; taşınmayacak)**, test artıklarının silinmesi.
 
 **Hâlâ açık:**
-1. `beautyos-dev` açıldığında: canlıya bağlı proje bu mu (müdür `/health` ile tespit ediyor)? Ardından `.env.supabase` yazılıp `sema-karsilastir.sh kaynak` çalıştırılır.
-2. Railway'deki `/debug` için: Supabase açılınca "Redeploy" mı, yoksa ara önlem mi?
+1. **Zaman sınırlı:** `beautyos-dev` 7 gün içinde yeniden duraklar. Bu süre içinde `.env.supabase` yazılıp §5.1 komutu çalıştırılmalı.
+2. `/debug`: `e68459f` push edildi, Railway derliyor; sonuç müdürde.
 3. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? Başka alt alan adı var mı?
 4. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?
 5. **S5:** `JWT_SECRET` ve dış servis anahtarları yenilensin mi (öneri: evet)?
