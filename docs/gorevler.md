@@ -1,6 +1,6 @@
 # BeautyOS Taşıma — Görev Listesi
 
-- **Tarih:** 2026-10-27 · **Hazırlayan:** mimar · **Sürüm:** 2 (kurucu yanıtlarıyla sadeleştirildi)
+- **Tarih:** 2026-10-27 · **Hazırlayan:** mimar · **Sürüm:** 4 (2026-10-28: veri taşınmıyor; G12/G13 şema uyum kontrolüne dönüştü, geçiş DNS'e indi)
 - **Bağlı belgeler:** `docs/tasima-plani.md` (plan), `docs/kararlar.md` (kararlar), `docs/mevcut-durum.md` (bulgular), `docs/kvkk-tasima-degerlendirmesi.md` (hukuk-uyum)
 - **Durum değerleri:** `bekliyor` | `devam ediyor` | `incelemede` | `tamamlandı` | `iptal`. Bu dosya mimarındır. Görev sahibi durum değişikliğini mesajla bildirir, mimar işler.
 - **Kod görevleri** `kod-standartlari`'na göre test önce yazılır. `[İNCELEME HAZIR]` mesajında kabul kriteri → test adı eşlemesi verilir (ör. `G4b-K3: rejects origin evil-beautyossapp.com`). Denetçi ONAY'ı olmadan hiçbir görev "tamamlandı" sayılmaz.
@@ -29,7 +29,7 @@
 | G1 | CI testleri geçici Postgres 17'de | gelistirici | — | bekliyor |
 | G2 | API imajı | gelistirici | — | devam ediyor (`tasima/docker`) |
 | G3 | Web imajı (standalone) + zorunlu API adresi | gelistirici | — | devam ediyor (Dockerfile + standalone); API adresi kısmı bekliyor |
-| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık** (müdür takipte; plan §5.1, §12) |
+| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık** (müdür takipte; plan §12) |
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
@@ -38,12 +38,12 @@
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
 | G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` 62d9ca7; ilk inceleme RED, düzeltildi) |
-| G12 | Veri aktarım ve doğrulama betikleri | gelistirici | G11 | bekliyor |
-| G13 | Veri betiğinin ön denemesi (geçici, ağsız konteyner) | kurucu + devops | G12 | bekliyor |
+| G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | devam ediyor (eski kapsam `d3d6df0`'da yazıldı, sadeleştirilecek) |
+| G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
-| G15 | Geçiş | kurucu + devops | G1–G5, G7–G14 | bekliyor |
+| G15 | Geçiş (Railway durdurma + DNS) | kurucu + devops | G1–G5, G7–G14 | bekliyor |
 | G16 | Canlı duman testi + 48 saat gözlem | test-muhendisi + devops | G15 | bekliyor |
-| G17 | Eski servislerin kapatılması (+3 gün) | kurucu + devops | G16 | bekliyor |
+| G17 | Eski servislerin kapatılması ve imha tutanakları | kurucu + devops | G16 (Supabase için G13) | bekliyor |
 | G18 | Taşıma sonrası temizlik ve yükseltmeler | gelistirici | G17 | bekliyor |
 | G19 | Redis'te ortam ayrımı: ACL kullanıcıları + BullMQ öneki | gelistirici + devops | G11 | bekliyor (ilk gerçek müşteriden önce) |
 
@@ -58,6 +58,7 @@
   - K2: Testlerden önce `prisma migrate deploy` 19 migration'ın tamamını uygular.
   - K3: Test takımı PG 17'de yeşil. Kalan test bulgu olarak raporlanır; testi silmek ya da atlamak yok.
   - K4: `quality` işi sır olmadan çalışır (`prisma generate` sahte URL ile).
+  - K6 (depo içi şema uyumu, plan §5 adım 4): `prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url <servis konteyneri> --exit-code` CI adımı olarak çalışır ve boş döner. Fark varsa adım kırmızıdır; düzeltme G13'teki düzeltici migration kuralıyla yapılır.
   - K5: D2 sonucu mimara bildirilir.
 
 ### G2 — API imajı — *devam ediyor*
@@ -126,7 +127,7 @@
 - K1: 03:30 TR: `beautyos` + `beautyos_staging` + rol dökümü → restic → B2 eu-central. `projeler.conf` satırı compose ile teyit edilir.
 - K2: B2 kova yaşam döngüsü "yalnız son sürüm". Gece `forget` (7/4/6), haftalık `prune`. `--keep-tag arsiv` yok.
 - K3: Başarısız iş Healthchecks üzerinden Telegram'a uyarı yollar; bilerek bozulan bir çalıştırmayla denenir.
-- K4: `yedek-geri-yukle.sh dene beautyos` başarılı: geçici, ağsız konteyner; satır sayıları eşleşir; deneme bitince konteyner ve volume silinir. Sonuç `deneme-gunlugu.txt` ve `sirket/sunucu.md`'ye yazılır.
+- K4: `yedek-geri-yukle.sh dene beautyos` başarılı: geçici, ağsız konteyner. Tablo listesi, `_prisma_migrations` kayıtları ve (varsa) satır sayıları eşleşir. Canlı DB boşken de denenir; amaç zincirin ilk gerçek veriden önce çalıştığını görmek. Deneme bitince konteyner ve volume silinir. Sonuç `deneme-gunlugu.txt` ve `sirket/sunucu.md`'ye yazılır.
 
 ### G10 — İzleme — *devam ediyor*
 - K1: Yoklamalar: `api/health` (anahtar kelime `"status":"ok"`), `app/login`, apex (son ikisi geçişte açılır). Uyarılar Telegram'a.
@@ -150,32 +151,39 @@
   - K8: Staging servisleri `${BEAUTYOS_STAGING_VERSION:?}` ile zorunlu ve ayrı sürüm etiketi kullanır. Değişken boşken `docker compose config` hata verir; canlı etikete düşmez.
   - K7: Staging `.env.staging` ile açılır. SMS'in kapalı olduğu açılış log'undan görünür. Not: "SMS provider: Mock" satırı bugün yalnız ilk SMS denemesinde yazılıyor (`lib/sms/index.ts` tembel başlatma); açılışta yazılması G5-K2'ye bağlı. G5 birleşmeden önce bu kriter kurucunun `.env.staging`'de `NETGSM_*` boş teyidiyle karşılanır. `JWT_SECRET`'i canlıdan farklıdır (kurucu teyidi). Staging token'ıyla canlı API'ye istek atılınca 401 döner.
 
-### G12 — Veri aktarım ve doğrulama betikleri
-- **Dosyalar:** `deploy/betikler/veri-aktar.sh`, `deploy/betikler/veri-dogrula.sh`
+### G12 — Şema uyum kontrolü betiği (ADR-0017, plan §5)
+- **Dosyalar:** `deploy/betikler/sema-karsilastir.sh`. Önceki `veri-aktar.sh` ve `veri-dogrula.sh` (`d3d6df0`) **kaldırılır**; libpq env-file bağlantısı, RLS/politika/bağımlılık denetimi ve kapanış `trap`'i yeniden kullanılır. Veri döküm/yükleme kodu kalmaz.
 - **Kabul kriterleri:**
   - K1: `set -euo pipefail`; `bash -n` ve `shellcheck` temiz; LF satır sonu. `pipefail` + `grep -q` tuzağından kaçınır (sunucu-altyapi CLAUDE.md).
-  - K2: Kaynak bağlantısı yalnız `docker run --env-file /srv/beautyos/.env.supabase` ile gelir. Betikte, argümanlarda ve çıktıda bağlantı bilgisi yok; `set -x` yok.
-  - K3: Alt komutlar `on-kontrol`, `dok`, `yukle <hedef>`, ayrıca `veri-dogrula.sh [--bos-mu]`. `<hedef>` canlı yığın ya da G13'teki geçici konteyner olabilir. Bilinmeyen alt komut kullanım mesajıyla 2 kodunda çıkar.
-  - K4: `on-kontrol` şu durumlarda sıfır dışı kodla durur: kaynak > 17; `public`'te RLS ya da politika var; `auth.`/`storage.`/`extensions.` bağımlılığı var. Her durum yerel sahte bir kaynakla, yalnız tek koşul bozularak denenir.
-  - K5: `yukle` hedef boş değilse durur. `SCHEMA public` girdisi listeden çıkarılır. `--single-transaction --exit-on-error --no-owner --role=<sahip>` ile yükler, ardından `ANALYZE` çalıştırır.
-  - K6: `veri-dogrula.sh` satır sayısını ve 4 tablonun kimlik özetini karşılaştırır; fark varsa tabloyu adlandırarak sıfır dışı kodla çıkar. `prisma migrate status` ve rol kontrolü de yapar.
-  - K7: Dökümler `/srv/beautyos/tasima/` (700) altında 600 izinle. Çıktıda satır içeriği yok.
-  - K8: Örnek veriyle doldurulmuş yerel bir "kaynak" `postgres:17`'den uçtan uca aktarım yeşil.
-  - K9 (yol b, plan §5.1): `yedekten-ac <dosya>` alt komutu:
-    - Kaynak sürümü yalnız dosya başlığından okur; > 17 ise durur.
-    - Geçici, ağsız `postgres:<kaynak ana sürüm>` ara konteynerine düz SQL'i `ON_ERROR_STOP` kapalı yükler. `public` dışı hata sayısını raporlar; `public` nesnesinde hata varsa sıfır dışı kodla durur.
-    - `on-kontrol` denetimlerini ara konteynerde çalıştırır, ardından `-Fc` `public` dökümü üretir.
-    - Ara konteyner, volume ve düz dosya iş sonunda silinir. Hata durumunda da silinir (`trap`).
-    - Gzip'li ve gzip'siz dosya kabul edilir. Denemede, Supabase benzeri `auth` şeması ve eksik uzantı içeren sahte bir küme dökümü kullanılır.
+  - K2: Alt komutlar `kaynak`, `hedef`, `karsilastir`. Bilinmeyen alt komut kullanım mesajı yazar ve 2 koduyla çıkar.
+  - K3 (`kaynak`): Bağlantı yalnız `docker run --env-file /srv/beautyos/.env.supabase` ile gelir. Betikte, argümanlarda ve çıktıda bağlantı bilgisi yok; `set -x` yok. Üretilenler:
+    - `sema-kaynak.sql`: `pg_dump --schema-only --schema=public --no-owner --no-privileges --no-publications --no-subscriptions`.
+    - `migrations-kaynak.txt`: `_prisma_migrations` tablosundan yalnız ad, checksum, bitti/geri alındı bilgisi.
+    - `kaynak-bilgi.txt`: sunucu sürümü, `pg_extension` listesi, `public`'te RLS'i açık tablolar ve politikalar, `auth.`/`storage.`/`extensions.` bağımlılıkları.
+  - K4: **Hiçbir uygulama tablosundan satır okunmaz.** Test: betik metninde `pg_dump` yalnız `--schema-only` ile geçer; `SELECT` sorguları yalnız `_prisma_migrations` ve katalog tablolarını (`pg_*`, `information_schema`) hedefler.
+  - K5 (`hedef`): Geçici `postgres:17` ve yalnız iç ağlı (`--internal`) geçici bir Docker ağında api imajıyla `prisma migrate deploy` çalışır. Parola betikte rastgele üretilir. Aynı `pg_dump` bayraklarıyla `sema-hedef.sql` ve `migrations-hedef.txt` üretilir. Konteyner, volume ve ağ `trap` ile her durumda silinir. Gizli bilgi gerekmez.
+  - K6 (`karsilastir`): İki döküm normalleştirilir: yorumlar, `SET`, `set_config`, `\restrict`/`\unrestrict`, boş satırlar ve kaynak ana sürüm farkından gelen satırlar (ör. PG 15 kaynakta olmayan varsayılan ifadeler) atılır. `diff -u` → `sema-fark.txt`. Migration listeleri ad + checksum ile karşılaştırılır. Fark yoksa çıkış 0, varsa 1. Normalleştirme kuralları betikte yorumla gerekçelendirilir.
+  - K7: Negatif denemeler, her biri tek farkı içerir; her biri fark olarak raporlanmalı:
+    - (a) kaynakta fazladan bir indeks,
+    - (b) kaynakta eksik bir sütun,
+    - (c) kaynakta fazladan bir migration kaydı,
+    - (d) aynı ad farklı checksum.
 
-### G13 — Veri betiğinin ön denemesi — kurucu + devops
-- **Ön koşul:** G12 denetçi ONAY'lı. `.env.supabase` kurucu tarafından yazıldı.
+    Olumlu deneme: migration'larla kurulmuş sahte bir kaynak (PG 15 ve PG 17 sürümlerinde) → fark 0.
+  - K8: Çıktılar `/srv/beautyos/tasima/` (700) altında 600 izinli. Kişisel veri içermez; ekip okuyabilir.
+
+### G13 — Canlı yığını boş DB ile kurma + şema karşılaştırması — kurucu + devops + gelistirici
+- **Ön koşul:** G11 ve G12 denetçi ONAY'lı. Canlı Supabase projesi açık ve tespit edildi (müdür). `.env.supabase` kurucu tarafından yazıldı.
 - **Kabul kriterleri:**
-  - K1: Kurucu, plan §5.1'deki yola göre çalıştırır: yol (a) `on-kontrol` ve `dok`; yol (b) `yedekten-ac <dosya>`. D1, D7, D8 (ve b'de D11) sonuçları mimara bildirilir.
-  - K2: `yukle`, **geçici, ağsız** bir `postgres:17` konteynerine (rolleri `01-roller.sh` ile kurulmuş) yapılır. Canlı `beautyos` veritabanına dokunulmaz.
-  - K3: `veri-dogrula.sh` geçici hedefte yeşil.
-  - K4: Deneme bitince geçici konteyner, volume'u ve döküm dosyası silinir (`ls /srv/beautyos/tasima` yalnız sayım dosyalarını gösterir).
-  - K5: Sorun çıkarsa (sürüm, RLS, bağlantı) müdüre ve mimara bildirilir; geçiş planlanmaz.
+  - K1: Canlı `beautyos` veritabanı boş kurulur: `01-roller.sh` + `docker compose --profile migrate run --rm migrate` `[ONAY]`. `prisma migrate status` "up to date". `app_user` için `rolsuper`/`rolbypassrls` `false`.
+  - K2: `api` ve `web` (canlı) ayağa kalkar. `https://api.beautyossapp.com/health` Cloudflare üzerinden 200 döner. `@`/`app`/`www` DNS'i henüz değişmez.
+  - K3: Kurucu `sema-karsilastir.sh kaynak` çalıştırır. devops ya da gelistirici `hedef` ve `karsilastir` adımlarını çalıştırır. `sema-fark.txt` ve `kaynak-bilgi.txt` mimara bildirilir (D1, D7, D8, D13).
+  - K4: Fark varsa plan §5 karar tablosu uygulanır.
+    - Gerekiyorsa gelistirici **düzeltici migration** yazar: yeni klasör, mevcut migration'lar değiştirilmez. Test önce: `karsilastir` kırmızı → migration → yeşil.
+    - Düzeltici migration denetçi ONAY'ından sonra canlı ve staging'e `migrate` ile uygulanır `[ONAY]`.
+    - `karsilastir` yeniden 0 döner. Bilinçli olarak taşınmayan farklar mimarın kaydıyla `docs/mevcut-durum.md`'de durur.
+  - K5: Supabase açılamazsa K3 atlanır, bu durum müdüre bildirilir. Yalnız G1-K6 (depo içi uyum) yeşil olmalıdır; risk planda kayıtlı.
+  - K6: İş bitince `.env.supabase` silinmek üzere G17'ye bırakılır; `tasima/` yalnız şema dosyalarını içerir.
 
 ### G14 — Kabul test planı + staging'de kabul testi — test-muhendisi
 - **Çıktı:** `raporlar/test/beautyos-tasima-1.md`. Ortam `https://yeni.beautyossapp.com` (canlıyla aynı API imajı; web staging varyantı).
@@ -193,29 +201,30 @@
 
 ## Aşama 4 — Geçiş
 
-### G15 — Geçiş — kurucu + devops
-- **Ön koşul:** plan §10 listesi tamam. Müdür runbook için tek `[ONAY]` alır.
+### G15 — Geçiş (Railway durdurma + DNS) — kurucu + devops
+- **Ön koşul:** plan §10 listesi tamam (G13 dahil: canlı yığın healthy). Müdür runbook için tek `[ONAY]` alır.
 - **Kabul kriterleri:**
   - K1: Railway/Vercel Git otomatik dağıtımı kapalı ve Railway API'leri durmuş (kurucu ekran teyidi).
-  - K2: `veri-dogrula.sh` canlı `beautyos` üzerinde yeşil.
-  - K3: Canlı `.env`'de `NETGSM_*`, `TELEGRAM_*` ve (S7'ye göre) `SENTRY_DSN` boş (kurucu teyidi). Log'da "SMS provider: Mock".
-  - K4: Üç canlı host ve `api` Cloudflare üzerinden 200 ve geçerli sertifikayla yanıt verir.
-  - K5: `sirket/sunucu.md`'de "Çalışan servisler" satırı (hostlar, port yok, yedek yöntemi) ve işlem günlüğünde geri alma adımı (plan §10) yazılı.
-  - K6: Yazma kesintisi ≤ 60 dk; aşılırsa müdüre bildirilir.
+  - K2: Canlı `.env`'de `NETGSM_*`, `TELEGRAM_*` ve (S7'ye göre) `SENTRY_DSN` boş (kurucu teyidi).
+  - K3: `@`, `app`, `www` ve `api` Cloudflare üzerinden 200 ve geçerli sertifikayla yanıt verir.
+  - K4: İlk süper yönetici `POST /api/v1/admin/seed` ile oluşturuldu. Ardından `ADMIN_SEED_SECRET` boşaltıldı ve `api` yeniden oluşturuldu. Aynı istek artık 403 döner (test mühendisi doğrular).
+  - K5: `sirket/sunucu.md`'de "Çalışan servisler" satırı (hostlar, port yok, yedek yöntemi) ve işlem günlüğünde geri alma adımı (yalnız DNS, plan §10) yazılı.
 
 ### G16 — Canlı duman testi + 48 saat — test-muhendisi + devops
 - **Çıktı:** `raporlar/test/beautyos-tasima-2.md`
-- K1: Canlıda giriş, takvim, randevu, herkese açık randevu ve şifre sıfırlama e-postası çalışır. Supabase'ten gelen 3 kiracının verisi arayüzde görünür (değerler rapora yazılmaz).
+- K1: Canlıda (boş veritabanı): yeni kiracı kaydı, giriş, takvim, randevu, herkese açık randevu (Turnstile) ve şifre sıfırlama e-postası çalışır. Test kiracısının slug'ı `tst-`/`test-` önekli olur ve test sonunda kurucu onayıyla silinir.
 - K2: İlk gece no-show işi 23:30 TR'de ve yedek işi 03:30'da çalıştı.
 - K3: 48 saatte kalıcı bellek > %85 yok, yeniden başlama döngüsü yok.
 
 ## Aşama 5 — Kapatma
 
-### G17 — Eski servislerin kapatılması (geçiş + 3 gün, kurucu onayıyla)
-- K1: Supabase son dökümü restic'te `arsiv` etiketiyle duruyor; silinme tarihi (≤ 30 gün) `sirket/sunucu.md`'de yazılı.
-- K2: Railway, Vercel, Upstash ve Supabase (prod + staging) silindi. Her silme için `sirket/` altında imha tutanağı var.
-- K3: GitHub `DATABASE_URL` sırrı silindi. S5'e göre anahtarlar yenilendi.
-- K4: `.env.supabase` ve `tasima/` silindi.
+### G17 — Eski servislerin kapatılması ve imha tutanakları (kurucu onayıyla)
+- **Sıra:** Supabase projeleri G13 (şema karşılaştırması) bitince silinebilir. Railway, Vercel ve Upstash G16 geçince silinir; DNS geri dönüşü için Vercel o zamana kadar durur. Taşıma arşivi **yok** (veri taşınmadı).
+- K1: Supabase `beautyos-dev` ve `beautyos-staging` projeleri silindi. Silinmeden önce, panelin kendi otomatik yedeklerinin de projeyle birlikte gittiği tutanağa yazıldı.
+- K2: Railway (prod + staging), Vercel ve Upstash projeleri silindi.
+- K3: **Her silme için `sirket/` altında imha tutanağı var** (demo veri de olsa, KVKK): tarih, hizmet/proje adı, bölge (Supabase eu-west-1), veri türü ("demo/deneme"), yöntem, onaylayan kurucu. İçerik yazılmaz.
+- K4: GitHub `DATABASE_URL` sırrı silindi. S5'e göre anahtarlar yenilendi.
+- K5: `/srv/beautyos/.env.supabase` ve `/srv/beautyos/tasima/` silindi.
 
 ## Aşama 6 — Sonrası
 

@@ -14,7 +14,7 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0001 | Kararlar ADR formatında kaydedilir | kabul edildi | 2026-10-27 |
 | ADR-0002 | Tüm yığın şirket sunucusunda Docker Compose ile çalışır | kabul edildi (kurucu kararı) | 2026-10-27 |
 | ADR-0003 | PostgreSQL 17 kendi konteynerimizde; `app_owner`/`app_user` rol ayrımı; taşımada RLS eklenmez | önerildi | 2026-10-27 |
-| ADR-0004 | Veri taşıma: bakım penceresinde `pg_dump`/`pg_restore`, betiği kurucu çalıştırır | önerildi | 2026-10-27 |
+| ADR-0004 | Veri taşıma: bakım penceresinde `pg_dump`/`pg_restore`, betiği kurucu çalıştırır | yerini aldı: ADR-0017 | 2026-10-27 |
 | ADR-0005 | Redis kendi konteynerimizde; Upstash verisi taşınmaz | önerildi | 2026-10-27 |
 | ADR-0006 | BullMQ işçisi API sürecinde kalır; tek kopya; konteyner saati UTC | önerildi | 2026-10-27 |
 | ADR-0007 | Alan adları: yol tabanlı kiracı, joker sertifika yok; API `api.beautyossapp.com` | önerildi | 2026-10-27 |
@@ -27,6 +27,7 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0014 | Taşıma Node 20 + Debian bookworm ile; Node yükseltmesi taşımadan sonra | önerildi | 2026-10-27 |
 | ADR-0015 | Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır | önerildi (hukuk-uyum onayı: 7/4/6, şartlı) | 2026-10-27 |
 | ADR-0016 | Kalıcı staging aynı compose projesinde, ortak Postgres/Redis örneğinde ayrı veritabanı ve rollerle | önerildi | 2026-10-27 |
+| ADR-0017 | Veri taşınmaz; canlı veritabanı migration'larla boş kurulur, Supabase şeması yalnız uyum kontrolü için dökülür | kabul edildi (kurucu kararı) | 2026-10-28 |
 
 ---
 
@@ -108,7 +109,7 @@ Taşımada RLS eklenmez; ayrı bir proje olarak (T-B1) yeni ADR ile ele alınır
 ## ADR-0004: Veri taşıma: bakım penceresinde `pg_dump`/`pg_restore`, betiği kurucu çalıştırır
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi
+- **Durum:** yerini aldı: ADR-0017 (2026-10-28; kurucu verinin demo olduğunu bildirdi)
 - **Karar verenler:** mimar
 
 ### Bağlam
@@ -390,7 +391,7 @@ Her gece 03:30 (TR) `pg_dump -Fc` (canlı + staging veritabanları + rol döküm
 Hukuk-uyum şartları:
 - B2 kovasında yaşam döngüsü "yalnız son sürüm" olmalı; yoksa `forget --prune` veriyi silmez.
 - Gece `forget`, haftalık `prune`.
-- `--keep-tag arsiv` kullanılmaz; taşıma arşivi en fazla 30 gün tutulur.
+- `--keep-tag arsiv` kullanılmaz. (2026-10-28: veri taşınmadığı için taşıma arşivi yok; 30 günlük arşiv şartı konusuz kaldı, ADR-0017.)
 - Her imha işlemi için kayıt tutulur.
 
 Başarısız iş Healthchecks üzerinden Telegram'a uyarı yollar. **Geçiş, en az bir başarılı yedek ve belgeli bir geri yükleme denemesi olmadan yapılmaz.** Uygulama ortak altyapıdadır (sunucu-altyapi, devops).
@@ -408,15 +409,17 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 
 | No | Varsayım | Beklenen | Doğrulayan | Sonuç |
 |---|---|---|---|---|
-| D1 | Supabase PostgreSQL ana sürümü ≤ 17 | `on-kontrol` sürümü yazar | G12/G13 | — |
+| D1 | Supabase PostgreSQL ana sürümü ≤ 17 (pg_dump 17 istemcisi şema dökebilsin) | `kaynak` sürümü yazar | G13 | — |
 | D2 | Prisma 5.22 PostgreSQL 17'de sorunsuz (migrate deploy + testler) | CI yeşil | G1 | — |
 | D3 | Prisma Client çalışma anında `DIRECT_URL` ister | Yoksa açılış hatası; bu yüzden `.env`'de `DATABASE_URL` ile aynı değer | G2 | — |
 | D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | — |
 | D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
 | D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu staging'de geçer | G14 | — |
-| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump` yapılabilir | `on-kontrol` bağlanır | G13 | 2026-10-28: canlı `/health` `db: error`; proje büyük olasılıkla duraklatılmış. Önce plan §5.1 yol seçimi |
-| D11 | Supabase yedek dosyası (yol b) ara konteynerde `public` şeması hatasız yüklenir | `public` hatası 0 | G12-K9 / G13 | — |
-| D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `on-kontrol` boş liste | G13 | — |
+| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump --schema-only` yapılabilir | `kaynak` bağlanır | G13 | 2026-10-28: iki proje (`beautyos-dev`, `beautyos-staging`, eu-west-1) duraklatılmış; kurucu `beautyos-dev`'i açıyor |
+| D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `kaynak-bilgi.txt` boş liste (bilgi amaçlı; veri taşınmadığı için engel değil) | G13 | — |
+| D11 | ~~Yedek dosyası ara konteynerde yüklenir~~ | — | — | Geçersiz: veri taşınmıyor (ADR-0017) |
+| D12 | `schema.prisma` ile migration'lar uyumlu (`prisma migrate diff --exit-code` boş) | CI adımı yeşil | G1-K6 | — |
+| D13 | Canlı Supabase `public` şeması = migration'larla kurulan şema | `sema-fark.txt` boş ya da yalnız gürültü | G13 | — |
 | D9 | NetGSM API'de IP kısıtı yok ya da sunucu IP'si eklendi | — | — | Geçersiz: SMS kapalı (kurucu, 2026-10-27). SMS açılırken yeniden sorulur |
 | D10 | Aynı Postgres örneğinde `app_user` staging veritabanına, `stg_user` canlı veritabanına bağlanamaz | Bağlantı reddi | G11-K3 | — |
 
@@ -451,6 +454,33 @@ Staging aynı `beautyos` compose projesinde `web-staging` (256M) ve `api-staging
   - **Redis'te sınır yok** (denetim bulgusu, `raporlar/denetim/beautyos-tasima-1.md`). Staging, canlıyla aynı Redis parolasını kullanıyor ve aynı sunucuda; canlının DB 0'ına (BullMQ `reminders` kuyruğu) erişebiliyor. DB numarası güvenlik sınırı değildir. Önlem G19: Redis ACL ile ortam başına ayrı kullanıcı, staging kullanıcısına yalnız kendi anahtar önekine izin (`~stg:*`), BullMQ `prefix` ayarı. İlk gerçek müşteriden önce tamamlanır. O zamana kadar kabul edilen risk: gerçek kullanıcı yok ve SMS kapalı.
   - Staging sürüm etiketi `BEAUTYOS_STAGING_VERSION` zorunlu ve canlıdan ayrıdır; boşsa compose durur, canlı sürüme düşmez.
   - **İlk gerçek müşteriden önce** staging'in canlı Postgres'inden ayrılması (ayrı örnek ya da büyütülmüş droplet) yeniden değerlendirilir; bellek > %85 olursa staging durdurulur.
+
+---
+
+## ADR-0017: Veri taşınmaz; canlı veritabanı migration'larla boş kurulur, Supabase şeması yalnız uyum kontrolü için dökülür
+
+- **Tarih:** 2026-10-28
+- **Durum:** kabul edildi (kurucu kararı)
+- **Karar verenler:** kurucu; mimar (uygulama)
+
+### Bağlam
+Kurucu, Supabase'teki verinin demo olduğunu, önemli olanın yalnız tablo yapısı olduğunu bildirdi. Supabase'te iki proje var (`beautyos-dev`, `beautyos-staging`, eu-west-1); ikisi de duraklatılmış. Uygulamanın şeması depoda `schema.prisma` + 19 migration olarak duruyor. Tek risk, Supabase'te migration'a girmemiş elle ya da `db push` ile yapılmış bir şema değişikliğinin kaybolması.
+
+### Alternatifler
+- **ADR-0004 (veri aktarımı, iki yollu):** demo veri için gereksiz iş. Kişisel veri kopyası, döküm dosyası ve arşiv yükü getirir.
+- **Hiç kontrol etmeden boş kurmak:** en hızlı, ama Supabase'teki şema sapması fark edilmez.
+
+### Karar
+Canlı `beautyos` ve staging `beautyos_staging` veritabanları `01-roller.sh` + `prisma migrate deploy` ile boş kurulur; Supabase'ten veri gelmez. Uyum iki adımda doğrulanır:
+1. CI'da `schema.prisma` ↔ migration'lar (`prisma migrate diff --exit-code`).
+2. Canlı Supabase projesinin `public` şemasının `--schema-only` dökümü, migration'larla geçici bir veritabanında kurulan şemanın dökümüyle karşılaştırılır (`sema-karsilastir.sh`). Döküm komutunu kurucu çalıştırır. Satır okunmaz.
+
+Fark varsa referans `schema.prisma`'dır. Eksik migration için düzeltici migration yazılır (mevcut migration'lar değiştirilmez). `schema.prisma` dışı farklar mimara gider. Supabase açılamazsa yalnız 1. adım yapılır ve risk kabul edilir.
+
+### Sonuçlar
+- **Olumlu:** Kişisel veri hiç taşınmaz (KVKK açısından en temiz yol). Döküm, arşiv ve yerel kopya yok. Geçiş, canlı yığın önceden kurulduktan sonra yalnız DNS değişikliğine iner. Geri dönüş yalnız DNS'i geri almaktır.
+- **Olumsuz:** Demo veri kaybolur (kurucu kabul etti). Kurucunun test hesapları yeniden oluşturulur. İlk süper yönetici seed uç noktasıyla açılır, ardından `ADMIN_SEED_SECRET` boşaltılır.
+- **Riskler:** Supabase'teki şema sapması karşılaştırmada yanlış normalleştirme yüzünden gözden kaçabilir. Önlem: G12-K7'deki tek farklı negatif denemeler. Supabase projeleri silinmeden önce karşılaştırmanın bitmiş olması (G17 sırası).
 
 ---
 

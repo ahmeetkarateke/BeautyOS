@@ -1,35 +1,26 @@
 # BeautyOS — Şirket Sunucusuna Taşıma Planı
 
-- **Tarih:** 2026-10-27 (sürüm 3: 2026-10-28) · **Hazırlayan:** mimar · **Sürüm:** 3 (kurucu kararları işlendi; Supabase duraklatma riski ve iki veri kaynağı seçeneği eklendi) · **Durum:** kurucu kararları alındı; veri kaynağı seçimi (§5.1) bekliyor
-- **Kurucu kararı:** Veritabanı dahil her şey şirket sunucusuna (`sirket-sunucu-1`, DO FRA1, 209.38.237.171) taşınır. Yalnız **canlı** Supabase verisi taşınır.
+- **Tarih:** 2026-10-27 · **Sürüm:** 4 (2026-10-28) · **Hazırlayan:** mimar
+- **Sürüm 4'te değişen:** Kurucu, Supabase verisinin demo olduğunu ve önemli olanın yalnız tablolar olduğunu bildirdi. **Veri taşınmıyor.** Canlı veritabanı sunucuda boş kuruluyor. Veri aktarımı yerine şema uyum kontrolü yapılıyor (§5). Geçiş DNS değişikliğine, geri dönüş DNS'i geri almaya indi.
+- **Kurucu kararı:** Her şey şirket sunucusunda (`sirket-sunucu-1`, DO FRA1, 209.38.237.171) çalışır. Eski Supabase, Railway, Vercel ve Upstash kapatılır.
 - **Girdiler:** `docs/mevcut-durum.md` (bulgular R1–R14), `docs/kvkk-tasima-degerlendirmesi.md` (hukuk-uyum). **Kararlar:** `docs/kararlar.md`. **Görevler:** `docs/gorevler.md`.
 - **İşaretler:** `[ONAY]` = kurucu onayı olmadan yapılmaz (müdür toplar). **VARSAYIM** = doğrulanmamış.
 
-### Kurucu yanıtlarının plana etkisi (2026-10-27)
+### Kurucu kararları (özet)
 
-| Yanıt | Etki |
-|---|---|
-| `/debug` canlıda hemen kapatılıyor (ayrı hotfix) | G4a ayrı hotfix dalında, `master` push'u müdür + kurucu onayıyla. Caddy'deki `/debug*` 404 ikinci katman olarak kalır |
-| Alt alan adları kullanılıyor; Cloudflare ayrıntıları ekran görüntüsüyle gelecek | Host listesi ve TTL adımı açık (S1, S2) |
-| NetGSM SMS **kapalı**, geçişte de kapalı | Çift SMS riski (R2) düşük. Hatırlatma yeniden kuyruklama betiği **gereksiz**; G6 iptal |
-| Telegram yalnız test ortamında, WhatsApp yok | Canlıda Telegram boş; mevcut bot staging'e (VARSAYIM, S4). Webhook kapışması riski düşük |
-| Yalnız canlı Supabase verisi; staging taşınmaz | Değişiklik yok (planla aynı) |
-| Başka proje yok; doğrulandıktan sonra doğrudan kapatılacak | Paralel bekleme 14 günden **3 güne** iner (kurucu onayıyla). Kapatmada "başka proje" kontrolü yok |
-| Gerçek kullanıcı yok; geçiş her an yapılabilir | Ayrı kuru prova kaldırıldı. Veri betiği atılabilir bir veritabanında önceden denenir (G13); geçiş tek oturumda yapılır |
-| Geliştirme bu sunucuda sürecek; kalıcı staging (`yeni`) | ADR-0016: aynı compose projesinde kalıcı staging, ortak Postgres/Redis örneğinde ayrı veritabanı/rol/Redis DB. Bellek bütçesi içinde |
-| DO günlük droplet yedeği açık (7 gün); Backblaze ve Healthchecks hesapları açılıyor | Yedek düzenine ikinci katman olarak eklendi (§8) |
-
-### Kurucu kararları (2026-10-28)
-
-| No | Karar | Durum ve etki |
+| Tarih | Karar | Planda karşılığı |
 |---|---|---|
-| K1 | Canlı `/debug` kapatılsın: EVET | Hotfix `master`'a push edildi (`9894212`), ama **Railway dağıtımı başarısız**; `/debug` hâlâ açık (müdür takipte). Muhtemel neden: API açılışta `SELECT 1` başarısız olursa `process.exit(1)` yapıyor (`src/index.ts`). Supabase duraklatılmışsa yeni dağıtım hiç ayağa kalkamaz, eski dağıtım çalışmaya devam eder. Bkz. §5.1 ve §12 |
-| K2 | Cloudflare turuncu bulut ve ayarları: EVET | ADR-0008 ve ADR-0009 **kabul edildi**. Token oluşturuldu ve sunucuda doğrulandı; ortak Caddy çalışıyor |
-| K3 | SMS kapalı | Plan v2 ile aynı |
-| K4 | Telegram yalnız test ortamında | Canlıda `TELEGRAM_*` boş; bot staging'e bağlanır |
-| K5 | Yalnız canlı veritabanı taşınır; kurucu uygulamayı ekiple birlikte bitirecek | Kalıcı staging (ADR-0016) doğrulandı |
-| K6 | Başka hesap yok; eski hizmetler doğrudan kapatılır | §11 aynen; "başka proje" kontrolü yok |
-| K7 | Geçiş zamanı serbest; ürün canlıya çıkmadı | §10 gün/saat serbest (03:00–04:30 hariç) |
+| 10-27 | SMS (NetGSM) kapalı, geçişte de kapalı | Canlıda `NETGSM_*` boş. Yeniden kuyruklama gereksiz (G6 iptal) |
+| 10-27 | Telegram yalnız test ortamında, WhatsApp yok | Canlıda `TELEGRAM_*` boş; test botu staging'e |
+| 10-27 | Başka hesap/proje yok; eski hizmetler doğrudan kapatılır | §11 |
+| 10-27 | Geliştirme bu sunucuda sürecek; kalıcı staging | ADR-0016, §7 |
+| 10-27 | DO günlük droplet yedeği açık; Backblaze ve Healthchecks hesapları açılıyor | §8 |
+| 10-28 | `/debug` kapatılsın | Hotfix `master`'a push edildi (`9894212`); Railway dağıtımı Supabase duraklatıldığı için başarısız (§12) |
+| 10-28 | Cloudflare turuncu bulut ve ayarları; token doğrulandı, Caddy çalışıyor | ADR-0008, ADR-0009 kabul edildi |
+| 10-28 | Geçiş zamanı serbest; ürün canlıya çıkmadı | §10 |
+| 10-28 | **Supabase verisi demo; yalnız tablolar önemli → veri taşınmaz** | ADR-0017 (ADR-0004'ün yerini aldı), §5 |
+| 10-28 | Supabase'te iki proje var: `beautyos-dev` ve `beautyos-staging` (ikisi de duraklatılmış, eu-west-1). Kurucu `beautyos-dev`'i açıyor | §5 kaynak seçimi, §11 ikisi de imha edilir |
+| 10-28 | Test artıklarının silinmesi onaylandı (gelistirici siliyor) | — |
 
 ---
 
@@ -41,30 +32,31 @@
    api.beautyossapp.com          ─▶ beautyos-api:3001          (CANLI)
    yeni.beautyossapp.com         ─▶ beautyos-web-staging:3000  (STAGING, basic auth)
    yeni-api.beautyossapp.com     ─▶ beautyos-api-staging:3001  (STAGING)
-                         ağ: beautyos icsel ─▶ postgres 17 (DB: beautyos, beautyos_staging)
-                                            └▶ redis 7.4    (DB 0: canlı, DB 1: staging)
+                         ağ: beautyos icsel (internal) ─▶ postgres 17 (DB: beautyos, beautyos_staging)
+                                                       └▶ redis 7.4    (DB 0: canlı, DB 1: staging)
 ```
 
 **Compose projesi `beautyos`** (sunucuda `/srv/beautyos/compose.yml`, kaynağı depoda `deploy/compose.yml`; yazan `gelistirici`, `tasima/docker` dalı):
 
 | Servis | İmaj | Ağlar | env dosyası | Sınır | Not |
 |---|---|---|---|---|---|
-| `web` | `ghcr.io/ahmeetkarateke/beautyos-web:<sha>-prod` | yalnız `sirket-proxy` (takma ad `beautyos-web`); veritabanı ağına erişimi yok | yok | 384M | `read_only`; `NEXT_PUBLIC_*` derlemede gömülü |
-| `api` | `ghcr.io/ahmeetkarateke/beautyos-api:<sha>` | `icsel`, `sirket-proxy` (`beautyos-api`) | `.env` | 512M | BullMQ işçisi aynı süreçte, **tek kopya**, `TZ=UTC` (ADR-0006) |
-| `web-staging` | `…/beautyos-web:<sha>-staging` | yalnız `sirket-proxy` (`beautyos-web-staging`) | yok | 256M | ADR-0016 |
-| `api-staging` | `…/beautyos-api:<sha>` | `icsel`, `sirket-proxy` (`beautyos-api-staging`) | `.env.staging` | 384M | tek kopya, `TZ=UTC` |
+| `web` | `ghcr.io/ahmeetkarateke/beautyos-web:<sürüm>-prod` | yalnız `sirket-proxy` (takma ad `beautyos-web`) | yok | 384M | `read_only`; `NEXT_PUBLIC_*` derlemede gömülü |
+| `api` | `…/beautyos-api:<sürüm>` | `icsel`, `sirket-proxy` (`beautyos-api`) | `.env` | 512M | BullMQ işçisi aynı süreçte, **tek kopya**, `TZ=UTC` (ADR-0006) |
+| `web-staging` | `…/beautyos-web:<staging sürümü>-staging` | yalnız `sirket-proxy` (`beautyos-web-staging`) | yok | 256M | ADR-0016 |
+| `api-staging` | `…/beautyos-api:<staging sürümü>` | `icsel`, `sirket-proxy` (`beautyos-api-staging`) | `.env.staging` | 384M | tek kopya, `TZ=UTC` |
 | `postgres` | `postgres:17.x` (sabit küçük sürüm) | `icsel` | `.env.db` | 768M | İki veritabanı, dört rol (§4); port yok |
 | `redis` | `redis:7.4.x-alpine` | `icsel` | `.env.redis` | 192M | `appendonly yes`, `maxmemory 128mb`, `noeviction`, parola; port yok |
 | `migrate` / `migrate-staging` | api imajı | `icsel` | `.env.migrate` / `.env.migrate-staging` | — | `profiles: [migrate]`; elle, canlı için `[ONAY]` |
 
-Kurallar (`docker-yayinlama` skill'i ve sunucu-altyapi ADR-0004):
+**Kurallar** (`docker-yayinlama` skill'i, sunucu-altyapi ADR-0004):
 - Caddy dışında hiçbir servis port yayınlamaz.
-- `icsel` ağı `internal: true` (internete çıkışı yok). Web servisleri bu ağda değil; API'ler dış servislere (Gemini, Resend, Turnstile, Telegram) `sirket-proxy` ağı üzerinden çıkar (gelistirici, `tasima/docker` bf124e4).
-- Her serviste healthcheck, `restart: unless-stopped`, `no-new-privileges`, `cap_drop`, bellek sınırı.
-- Canlı ve staging yayınları servis adıyla ayrı yapılır: `docker compose up -d api web` ya da `… api-staging web-staging`.
-- **Ayrı worker servisi yok** (ADR-0006).
+- `icsel` ağı `internal: true`. Web servisleri bu ağda değil; API'ler dış servislere `sirket-proxy` üzerinden çıkar.
+- Her serviste healthcheck, `restart: unless-stopped`, `no-new-privileges`, `cap_drop` ve bellek sınırı var.
+- Staging sürüm etiketi `BEAUTYOS_STAGING_VERSION` zorunlu ve ayrı; boşsa compose durur.
+- Canlı ve staging yayınları servis adıyla ayrılır.
+- Ayrı worker servisi yok (ADR-0006).
 
-**Caddy site parçası** `/srv/caddy/siteler/beautyos.caddy` (kaynağı `deploy/` altında, gelistirici; ortak Caddy ayarları devops'ta, sunucu-altyapi ADR-0006..0010):
+**Caddy site parçası** `/srv/caddy/siteler/beautyos.caddy` (kaynağı `deploy/caddy/`, gelistirici; ortak Caddy ayarları devops'ta, sunucu-altyapi ADR-0006..0010):
 
 ```
 beautyossapp.com, www.beautyossapp.com, app.beautyossapp.com {
@@ -78,8 +70,12 @@ api.beautyossapp.com {
 }
 yeni.beautyossapp.com {
   import cf_dns
-  basic_auth { {$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH} }   # değerler /srv/caddy/.env'den (devops); parola kurucuda
-  reverse_proxy beautyos-web-staging:3000 { header_up X-Forwarded-For {client_ip} }
+  route {
+    @bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == ""
+    respond @bos 503                                      # özet yoksa şifresiz açılmaz
+    basic_auth { {$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH} }
+    reverse_proxy beautyos-web-staging:3000 { header_up X-Forwarded-For {client_ip} }
+  }
 }
 yeni-api.beautyossapp.com {
   import cf_dns
@@ -88,21 +84,22 @@ yeni-api.beautyossapp.com {
 }
 ```
 
-- **Staging basic auth kurulum sırası** (devops, sunucu-altyapi `c6316d8`). `caddy validate` boş `{$DEĞİŞKEN}` ile de geçtiği için koruma ona bırakılmaz.
-  1. Kurucu `/srv/caddy/.env`'e kullanıcı adını ve `caddy hash-password` özetini yazar (özet tek tırnak içinde).
-  2. Caddy `docker compose up -d` ile yeniden oluşturulur; `reload` yeni ortamı almaz. Kısa kesinti olur, onaylı saatte yapılır.
-  3. `betikler/caddy-dogrula.sh` çalışır; boş değişken ya da bcrypt olmayan özet varsa hata verir.
-  4. Ancak bundan sonra `beautyos.caddy` kopyalanır, doğrulanır ve Caddy reload edilir. **Özet girilmeden `beautyos.caddy` kopyalanmaz.**
-- İkinci emniyet (gelistirici, `beautyos.caddy`): `yeni` bloğunda `route` içinde, `basic_auth`'tan önce `@bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == ""` + `respond @bos 503`. Değişken boşsa staging şifresiz açılmaz, 503 döner.
-- `yeni-api`'de basic auth **yok**. Tarayıcı `Authorization: Bearer` gönderir, basic auth bununla çakışır. Telegram webhook'u da erişebilmelidir. API zaten JWT ister.
+- **Basic auth kurulum sırası** (devops, sunucu-altyapi `c6316d8`):
+  1. Kurucu `/srv/caddy/.env`'e kullanıcıyı ve `caddy hash-password` özetini yazar.
+  2. Caddy `docker compose up -d` ile yeniden oluşturulur (kısa kesinti, onaylı saat).
+  3. `caddy-dogrula.sh` çalışır.
+  4. Ancak bundan sonra `beautyos.caddy` kopyalanıp Caddy reload edilir.
+
+  `caddy validate` boş değişkenle de geçtiği için koruma ona bırakılmaz.
+- `yeni-api`'de basic auth yok: Bearer token ile çakışır, Telegram webhook'u da erişmeli. API zaten JWT ister.
 - `www` yönlendirmesi kurucu yanıtına bağlı (S1).
 
 **Sunucudaki dosya düzeni:**
 
 ```
-/srv/beautyos/   compose.yml, postgres/init/01-roller.sh, postgres/postgresql.conf, betikler/veri-aktar.sh, betikler/veri-dogrula.sh
+/srv/beautyos/   compose.yml, postgres/init/01-roller.sh, postgres/postgresql.conf, betikler/sema-karsilastir.sh
                  .env .env.staging .env.db .env.migrate .env.migrate-staging .env.redis .env.supabase   (kurucu yazar, 600; ajanlar okumaz)
-                 tasima/ (700)  döküm ve sayım çıktıları; kapatmada silinir [ONAY]
+                 tasima/ (700)  şema dökümleri ve fark raporu (kişisel veri YOK); kapatmada silinir
 /srv/caddy/      ortak Caddy (.env: CLOUDFLARE_API_TOKEN, BEAUTYOS_STAGING_BASIC_USER, BEAUTYOS_STAGING_BASIC_HASH), siteler/beautyos.caddy
 ```
 
@@ -121,196 +118,180 @@ yeni-api.beautyossapp.com {
 | Gece yedek işi (geçici) | 256 MB | ~100 MB | — |
 | **Toplam** | **~2,6 GB sınır** | **~1,4–2,1 GB** | |
 
-**Sonuç: kalıcı staging dahil 4 GB yeter.** Geriye ~1,5 GB + swap kalır. Koşullar:
-- İmajlar sunucuda derlenmez (ADR-0012).
-- Sunucuya ikinci bir müşteri projesi gelirse ya da kalıcı bellek > %85 olursa droplet 8 GB'a büyütülür, ya da staging durdurulur (ADR-0016).
+**Kalıcı staging dahil 4 GB yeter.** Koşul: imajlar sunucuda derlenmez (ADR-0012). İkinci bir müşteri projesi gelirse ya da bellek kalıcı olarak > %85 olursa droplet büyütülür ya da staging durdurulur (ADR-0016).
 
 ## 3. Alan adı, DNS, SSL
 
-- DNS Cloudflare'de. Kiracılar URL yoluyla ayrılıyor, bu yüzden **joker sertifika gerekmez** (ADR-0007).
-- Canlı hostlar: `beautyossapp.com`, `app.`, `www.` (tam liste kurucudan bekleniyor, S1) ve yeni `api.`.
-- Staging hostları: `yeni.` ve `yeni-api.` (ADR-0016). **İki seviyeli alt alan adı (ör. `api.yeni.beautyossapp.com`) kullanılmaz:** Cloudflare'in ücretsiz kenar sertifikası yalnız tek seviyeyi (`*.beautyossapp.com`) kapsar.
-- **ADR-0008 (hukuk-uyum ŞARTLI ONAY verdi):** turuncu bulut, Full (strict), minimum TLS 1.2. Bot Fight Mode ve Under Attack kapalı. Şartlar:
-  - `api.` ve `yeni-api.` için Cache Rule "Bypass cache".
-  - Web Analytics/RUM, Zaraz, Logpush ve Workers kapalı.
+- DNS Cloudflare'de. Kiracılar URL yoluyla ayrıldığı için **joker sertifika gerekmez** (ADR-0007).
+- Canlı hostlar: `beautyossapp.com`, `app.`, `www.` (S1) ve `api.`. Staging hostları: `yeni.` ve `yeni-api.`. İki seviyeli alt alan adı kullanılmaz: Cloudflare'in ücretsiz kenar sertifikası kapsamaz.
+- **ADR-0008 (kabul edildi):** turuncu bulut, Full (strict), minimum TLS 1.2, Bot Fight Mode ve Under Attack kapalı. Hukuk-uyum şartları:
+  - `api.` ve `yeni-api.` için "Bypass cache".
+  - Web Analytics/Zaraz/Logpush/Workers kapalı.
   - Cloudflare hesabında 2FA.
-  - İlk gerçek müşteriden önce Cloudflare için KVKK m.9 mekanizması kurulur. Kurulamazsa yalnız `api.` gri buluta alınır.
-- **ADR-0009:** sertifikalar DNS-01 ile alınır. Token yalnız `beautyossapp.com` zonunda `Zone:DNS:Edit` + `Zone:Zone:Read` yetkili, `/srv/caddy/.env` içinde `CLOUDFLARE_API_TOKEN`. Sertifika DNS geçişinden önce alınır.
-- **ADR-0010:** gerçek IP. Caddy `trusted_proxies static` (Cloudflare listesi, aylık kontrol) + `client_ip_headers CF-Connecting-IP` + `header_up X-Forwarded-For {client_ip}` kullanır; Express'te `trust proxy 1` kalır.
-- **ADR-0011:** 80/443 güvenlik duvarında Cloudflare'e kısıtlanmaz.
+  - İlk gerçek müşteriden önce KVKK m.9 mekanizması kurulur (kurulamazsa `api.` gri buluta alınır).
+- **ADR-0009 (kabul edildi):** DNS-01 sertifika. Token tek zonda; `/srv/caddy/.env` içinde `CLOUDFLARE_API_TOKEN`.
+- **ADR-0010:** gerçek IP; `trusted_proxies static` + `CF-Connecting-IP` + `header_up X-Forwarded-For {client_ip}`.
+- **ADR-0011:** 80/443 güvenlik duvarında kısıtlanmaz.
 
 DNS adımları (kurucu, panelden, `[ONAY]`):
 
 | Ne zaman | İşlem |
 |---|---|
-| Hemen | Zone dışa aktarımı (DNS > Records > Export), kurucunun arşivine. Ekran görüntüleri (turuncu/gri, SSL modu, CAA) mimara (S2) |
-| Hemen | `api`, `yeni`, `yeni-api` → A 209.38.237.171, turuncu (yeni hostlar, mevcut sisteme dokunmaz) |
-| Geçişten ≥ 24 saat önce | `@`, `app`, `www` gri ise TTL 60 sn. Turuncu ise gerekmez (değişiklik anında yayılır) |
+| Hemen | Zone dışa aktarımı (DNS > Records > Export), kurucunun arşivine |
+| Hemen | `api`, `yeni`, `yeni-api` → A 209.38.237.171, turuncu (yeni hostlar, eski sisteme dokunmaz) |
+| Geçişten ≥ 24 saat önce | `@`, `app`, `www` gri ise TTL 60 sn (turuncu ise gerekmez) |
 | Geçiş | `@`, `app`, `www` → A 209.38.237.171, turuncu |
 
-Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA varsa `letsencrypt.org` izinli olmalı.
+Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `letsencrypt.org` izinli olmalı.
 
 ## 4. Veritabanı, roller, gizli dosyalar
 
-- Canlı: veritabanı `beautyos`, sahibi `app_owner` (migration), uygulama rolü `app_user` (`NOSUPERUSER NOBYPASSRLS`, yalnız DML).
-- Staging: veritabanı `beautyos_staging`, roller `stg_owner` / `stg_user`. **Çapraz erişim yok:** iki veritabanında `REVOKE CONNECT … FROM PUBLIC`; her rol yalnız kendi veritabanına `CONNECT` yetkisi alır.
-- Staging verisi boş başlar. Canlı veri staging'e **kopyalanmaz** (KVKK: kişisel veri gereksiz çoğaltılmaz). Test verisi kayıt akışıyla üretilir.
-- Redis: canlı DB 0, staging DB 1 (`REDIS_URL=…/1`); aynı parola.
+- **Canlı:** `beautyos` veritabanı, sahibi `app_owner` (migration), uygulama rolü `app_user` (`NOSUPERUSER NOBYPASSRLS`, yalnız DML). **Boş kurulur:** `01-roller.sh` + `migrate` (19 migration). Supabase'ten veri gelmez (ADR-0017).
+- **Staging:** `beautyos_staging` veritabanı, roller `stg_owner`/`stg_user`. Çapraz `CONNECT` yok. Boş başlar, test verisi kayıt akışıyla üretilir.
+- **Redis:** canlı DB 0, staging DB 1. Ortam ayrımı henüz yok (aynı parola); ilk müşteriden önce G19.
+- **İlk süper yönetici:** boş veritabanında `POST /api/v1/admin/seed` (gövdede `ADMIN_SEED_SECRET`) ile bir kez oluşturulur. Ardından kurucu `ADMIN_SEED_SECRET`'ı `.env`'den **boşaltır** ve `api` yeniden başlatılır; değer boşken uç nokta her isteğe 403 döner. Uç noktada hız sınırı yok, açık kalmamalı. Aynı işlem staging için de geçerli.
 
 | Dosya | Yükleyen | İçerik (yalnız adlar; ayrıntı kök `.env.example`) |
 |---|---|---|
-| `.env` | `api` | Canlı uygulama değişkenleri |
-| `.env.staging` | `api-staging` | Aynı adlar, staging değerleri (**ayrı `JWT_SECRET`**) |
+| `.env` | `api` (+ compose değişkenleri) | Canlı uygulama değişkenleri, `BEAUTYOS_VERSION`, `BEAUTYOS_STAGING_VERSION`, `IMAGE_PREFIX` |
+| `.env.staging` | `api-staging` | Aynı adlar, staging değerleri (ayrı `JWT_SECRET`) |
 | `.env.db` | `postgres` | `POSTGRES_*`, `APP_OWNER_PASSWORD`, `APP_USER_PASSWORD`, `STG_OWNER_PASSWORD`, `STG_USER_PASSWORD` |
-| `.env.migrate` / `.env.migrate-staging` | `migrate` / `migrate-staging` | `MIGRATION_DATABASE_URL` (sahip rolü). Uygulama dosyalarına asla yazılmaz |
+| `.env.migrate` / `.env.migrate-staging` | `migrate` / `migrate-staging` | `MIGRATION_DATABASE_URL` (sahip rolü); uygulama dosyalarına yazılmaz |
 | `.env.redis` | `redis` | `REDIS_PASSWORD` |
-| `.env.supabase` | yalnız `veri-aktar.sh` | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE`. Kapatmada silinir |
+| `.env.supabase` | yalnız `sema-karsilastir.sh kaynak` | libpq değişkenleri (`PGHOST` …). Şema karşılaştırması bitince silinir |
 
-## 5. Veri taşıma (ADR-0004)
+## 5. Veri: taşınmaz; şema uyum kontrolü (ADR-0017)
 
-- **Yöntem:** yazma durdurulur, `pg_dump -Fc --schema=public --no-owner --no-privileges`, ardından `pg_restore --role=app_owner --single-transaction --exit-on-error`. `SCHEMA public` girdisi listeden çıkarılır.
-- **Kim çalıştırır:** **kurucu**, tek komutla: `ssh karateke@209.38.237.171 'bash /srv/beautyos/betikler/veri-aktar.sh <alt-komut>'`. Bağlantı bilgisi `.env.supabase`'ten libpq değişkenleri olarak geçici `postgres:17` konteynerine girer; komut satırına ve çıktıya girmez.
-- **Alt komutlar:**
-  - `on-kontrol` (yalnız okur): kaynak sürüm ≤ 17; `public`'te RLS/politika yok; `auth.`/`storage.`/`extensions.` bağımlılığı yok; satır sayıları ve kimlik özetleri alınır. Bağlantı Supabase **Session pooler** (IPv4, 5432) üzerinden; Transaction pooler kullanılmaz.
-  - `dok`
-  - `yukle <hedef-db>`: hedef boş değilse durur.
-- **`veri-dogrula.sh`:** tablo başına satır sayısı + `tenants`/`users`/`customers`/`appointments` kimlik özeti eşit olmalı; `prisma migrate status` güncel; `app_user` süper değil.
-- **Önceden deneme (G13):** `on-kontrol` ve `dok` kaynağa yalnız okuma yaptığı için geçişten önce güvenle çalışır. `yukle`, sunucuda **geçici, ağsız** bir `postgres:17` konteynerine yapılır, doğrulanır, sonra konteyner ve volume'u silinir. Kişisel veri kalıcı kopyaya dönüşmez.
-- **Redis verisi taşınmaz** (ADR-0005). SMS kapalı olduğu için hatırlatma işlerini yeniden kuyruğa almaya gerek yok. Gece no-show işi açılışta kendiliğinden kaydolur.
+**Neden:** Supabase verisi demo; kurucu için önemli olan tablo yapısı. Uygulamanın gerçek şeması `schema.prisma` ve 19 migration'dır. Sunucuda veritabanı bunlardan kurulur. Tek soru şu: Supabase'te çalışan şema, migration'ların kurduğu şemayla aynı mı? Supabase'te elle ya da `prisma db push` ile yapılmış ve migration'a girmemiş bir değişiklik varsa kaybolur.
 
-### 5.1 Kaynak veri: Supabase duraklatılmış görünüyor (2026-10-28)
+**Kontrol** (`deploy/betikler/sema-karsilastir.sh`, gelistirici yazar; G12):
 
-Canlı API `/health` yanıtı `{"status":"degraded","db":"error"}`. Büyük olasılıkla Supabase projesi hareketsizlik yüzünden duraklatıldı (ücretsiz plan). Kurucu panelden kontrol ediyor. Veri aktarımı (G12/G13/geçiş adım 3) iki yoldan biriyle yapılır. **Öneri: (a)**; (a) mümkün değilse (b).
+1. **`kaynak`** (yalnız kurucu çalıştırır, `.env.supabase` ile):
+   - Komut: `ssh karateke@209.38.237.171 'bash /srv/beautyos/betikler/sema-karsilastir.sh kaynak'`.
+   - Geçici `postgres:17` istemci konteyneri açılır, bağlantı bilgisi libpq değişkenleriyle girer. Şunlar alınır:
+     - `pg_dump --schema-only --schema=public --no-owner --no-privileges --no-publications --no-subscriptions` → `tasima/sema-kaynak.sql`.
+     - `_prisma_migrations` tablosundan yalnız `migration_name`, `checksum`, bitti/geri alındı bilgisi → `tasima/migrations-kaynak.txt`.
+     - Sunucu sürümü, `pg_extension` listesi, `public`'te RLS'i açık tablo ve politika listesi → `tasima/kaynak-bilgi.txt`.
+   - **Hiçbir tablonun satırı okunmaz.** Çıktılar kişisel veri içermez, ekip okuyabilir.
+   - Bağlantı Supabase Session pooler (IPv4, 5432) üzerinden; Transaction pooler kullanılmaz.
+2. **`hedef`** (devops ya da gelistirici; gizli bilgi gerekmez):
+   - Geçici, yalnız iç ağlı bir `postgres:17` + api imajıyla `prisma migrate deploy` çalıştırılır. Parola betikte rastgele üretilir.
+   - Aynı `pg_dump` bayraklarıyla `tasima/sema-hedef.sql` ve `migrations-hedef.txt` üretilir.
+   - Konteyner, volume ve ağ silinir.
+3. **`karsilastir`:**
+   - İki döküm normalleştirilir: yorum, `SET`, `set_config`, `\restrict`/`\unrestrict` satırları ve boş satırlar atılır.
+   - `diff -u` → `tasima/sema-fark.txt`. Migration listeleri ad + checksum ile karşılaştırılır.
+   - Fark yoksa çıkış 0, varsa 1.
+4. **Depo içi uyum** (CI'da, Supabase gerekmez; G1-K6): `prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url … --exit-code` boş dönmeli. Kodun beklediği şema (`schema.prisma`) ile migration'lar uyuşmalı.
 
-**(a) Proje geri açılır (Restore/Resume), canlı kaynaktan `pg_dump` alınır**: ana yol.
-1. Kurucu Supabase panelinden projeyi yeniden başlatır `[ONAY]`. Yalnız Postgres açılır; Railway API'si kendiliğinden düzelir ve G4a hotfix'i yeniden dağıtılabilir hale gelir. Dağıtımı kurucu panelden "Redeploy" ile tetikler; `/debug` kapanır.
-2. Hemen ardından `veri-aktar.sh on-kontrol` ve `dok` çalıştırılır. Döküm `/srv/beautyos/tasima/` altında durur. Ücretsiz plan 7 gün hareketsizlikte yeniden duraklatır, bu yüzden döküm alınmadan beklenmez.
-3. Bu döküm G13 ön denemesinde kullanılır. Geçiş günü adım 2–3'te yazma durdurulup **taze** döküm alınır. Supabase o arada yeniden duraklatılmışsa adım 1 tekrarlanır ya da kurucu onayıyla G13'teki döküm son kopya sayılır. Ürün canlıda değil, arada yazılan veri yok.
-- Artısı: plandaki akış değişmez; `on-kontrol` kaynakta tüm denetimleri yapar; yalnız `public` şeması gelir.
-- Eksisi: projenin geri açılabilir olması gerekir. Supabase uzun süre duraklatılmış projeler için geri açmayı kapatıp yalnız yedek indirmeye izin verebilir.
+**Fark çıkarsa karar kuralı.** Referans `schema.prisma`'dır (kod onunla derleniyor).
 
-**(b) Panelden indirilen yedek dosyası kullanılır**: yedek yol.
-1. Kurucu Supabase panelinden yedeği indirir (genelde tüm kümenin düz SQL dökümü, `.backup`/`.sql`, gzip olabilir). Dosyayı `scp` ile `/srv/beautyos/tasima/` altına koyar (700/600). **Kurucunun bilgisayarındaki kopya aktarım biter bitmez silinir** (kişisel veri).
-2. Dosya `pg_restore -n public` ile seçici yüklenemez; Supabase'in `auth`, `storage`, rol ve uzantı nesnelerini de içerir. Bu yüzden **ara konteyner** kullanılır. `veri-aktar.sh` yeni alt komutu `yedekten-ac <dosya>`:
-   - Dosyanın yalnız başlık satırından (`Dumped from database version …`) kaynak sürümü okunur. Ana sürüm 17'den büyükse betik durur.
-   - Ara konteyner geçici ve **ağsız** bir `postgres:<kaynak ana sürüm>` konteyneridir. Dosya bu konteynerde `psql` ile `ON_ERROR_STOP` kapalı yüklenir. `public` dışındaki hatalar (eksik `pgsodium`, `pg_graphql`, `supabase_vault` uzantıları, Supabase rolleri) beklenir ve sayılır; `public` nesnelerinde hata varsa betik durur.
-   - `on-kontrol` denetimleri (RLS/politika, `auth.`/`extensions.` bağımlılığı, satır sayıları, kimlik özetleri) **ara konteynere karşı** çalışır.
-   - Ara konteynerden `pg_dump -Fc --schema=public --no-owner --no-privileges` alınır. Sonrası (`yukle`, `veri-dogrula.sh`) (a) ile aynı.
-   - Ara konteyner, volume'u ve düz SQL dosyası iş bitince silinir. Yalnız `-Fc` döküm ve sayım dosyaları kalır.
-3. Geçiş günü yazma durdurma adımı anlamsızdır (kaynak zaten kapalı). Adım 2'de yalnız otomatik dağıtım kapatılır ve Railway servisi durdurulur.
-- Artısı: Supabase'in geri açılmasına bağlı değil.
-- Eksisi: yedek tarihine kadar olan veri gelir. Kişisel veri kurucunun bilgisayarından geçer. Betikte ek alt komut gerekir (G12-K9).
-- **Geri dönüş (§10) bu yolda fiilen yoktur:** Supabase kapalıyken Railway API çalışmaz. Sorun çıkarsa ileriye doğru düzeltilir.
+| Fark | Ne yapılır |
+|---|---|
+| Supabase'te var, migration'da yok, `schema.prisma`'da **var** | Migration eksik. gelistirici **düzeltici migration** yazar (yeni klasör; mevcut migration'lar değiştirilmez). Denetçi ONAY'ı ile birleşir; canlı ve staging migrate `[ONAY]` |
+| Supabase'te var, `schema.prisma`'da **yok** (elle eklenmiş indeks, sütun, tablo) | Mimara bildirilir. Varsayılan: taşınmaz, `docs/mevcut-durum.md`'ye kaydedilir. Gerekiyorsa önce `schema.prisma`'ya, sonra migration'a girer |
+| Migration'da var, Supabase'te yok | Supabase geride kalmış. Hedef doğrudur, işlem yok (bilgi) |
+| Migration listesi ya da checksum farkı | Rapor mimara; elle düzenlenmiş migration olabilir. Değerlendirilir |
+| Supabase'e özgü gürültü (panelden açılmış RLS, `COMMENT ON SCHEMA public`) | Listelenir. RLS varsa not edilir (RLS projesi T-B1 için girdi), taşınmaz |
 
-**Karar sahibi:** kurucu (müdür üzerinden). Panelde "Restore project" seçeneği görünüyorsa (a), yalnız "Download backup" görünüyorsa (b).
+**Hangi Supabase projesi:** Railway canlısına bağlı olan (müdür `/health` ile tespit ediyor). İpucu: depodaki test yardımcısı (`apps/api/src/__tests__/helpers/setup.ts`) proje referanslarını yazıyor: canlı `kpoqwdamkmdjntbgjbxy`, staging `lnrobattysyfoljalndu`. Referans panelde proje adresinde görünür; kurucu adla eşleştirebilir. Karşılaştırma yalnız canlı projeyle yapılır.
+
+**Supabase açılamazsa:** kaynak karşılaştırması atlanır, yalnız 4. adım (depo içi uyum) yapılır. Kabul edilen risk: Supabase'te migration'a girmemiş elle değişiklik varsa kaybolur. Kod `schema.prisma`'ya göre çalıştığı için etkisi düşük.
+
+**Redis:** taşınmaz (ADR-0005).
 
 ## 6. CI/CD (ADR-0012)
 
-- `imaj.yml` (`workflow_dispatch` + `v*`): tek API imajı + iki web imajı (`-prod`: `NEXT_PUBLIC_API_URL=https://api.beautyossapp.com`; `-staging`: `https://yeni-api.beautyossapp.com`) → özel GHCR. Değerler repository variables'tan gelir. Sunucuya SSH yok.
-- **Yayın:** devops elle yapar; önce staging, test GEÇTİ sonrası canlı. Sunucu GHCR'a `read:packages` token'ıyla bağlanır `[ONAY]`.
-- **CI testleri (G1):** dış `secrets.DATABASE_URL` yerine `postgres:17` servis konteyneri.
-- **Geçiş öncesi geçici durum:** gelistirici'nin sunucudaki test ortamı imajları sunucuda derleyebilir. Canlı imajlar yine iş akışından gelir.
+- `imaj.yml` (`workflow_dispatch` + `v*`): tek API imajı ve iki web imajı (`-prod` → `https://api.beautyossapp.com`, `-staging` → `https://yeni-api.beautyossapp.com`) özel GHCR'a gider. Sunucuya SSH yok.
+- **Yayın:** devops elle yapar. Önce staging, test GEÇTİ sonrası canlı. Sunucu GHCR'a `read:packages` token'ıyla bağlanır `[ONAY]`.
+- **CI (G1):** `postgres:17` servis konteyneri + depo içi şema uyumu (`prisma migrate diff`).
 
 ## 7. Staging (ADR-0016)
 
-- Kalıcı. Aynı compose projesinde iki servis (`web-staging`, `api-staging`) ve aynı Postgres/Redis örneğinde ayrı veritabanı/rol/DB. Kurucu ile geliştirme burada sürer.
-- `.env.staging`: `NETGSM_*` boş. Mevcut test Telegram botu (VARSAYIM, S4) `PUBLIC_URL=https://yeni-api.beautyossapp.com` ile buraya bağlanır. Resend ve Gemini kurucunun tercihine göre. Sentry boş (S7).
-- Basic auth yalnız `yeni` web hostunda.
-- **İlk gerçek müşteriden önce** staging'in canlıyla aynı Postgres örneğinde kalması yeniden değerlendirilir (ADR-0016 riski).
+- Kalıcı. Aynı compose projesinde, aynı Postgres/Redis örneğinde ayrı veritabanı, rol ve DB. Kurucu ile geliştirme burada sürer.
+- `.env.staging`: `NETGSM_*` boş; test Telegram botu `PUBLIC_URL=https://yeni-api.beautyossapp.com` ile; Sentry boş (S7).
+- İlk gerçek müşteriden önce yeniden değerlendirilir: staging'in canlıyla aynı Postgres'te kalması ve Redis ayrımı (G19).
 
-## 8. Yedekleme ve izleme: geçişten ÖNCE hazır olmalı
+## 8. Yedekleme ve izleme: geçişten ÖNCE hazır
 
 - **Yedek (ADR-0015, devops):**
-  - Her gece 03:30 TR: `pg_dump -Fc` (canlı + staging + rol dökümü) → restic → B2 eu-central.
-  - Saklama 7/4/6 (hukuk-uyum ONAY).
-  - **B2 kovasında yaşam döngüsü "yalnız son sürüm"** olmalı; yoksa `forget --prune` veriyi silmez. Gece `forget`, haftalık `prune`.
-  - Başarısızlık Healthchecks kalp atışı ile Telegram'a bildirilir.
-  - **İkinci katman:** DO günlük droplet yedeği (7 gün, açık).
-  - **Ön koşul:** en az bir başarılı yedek + `yedek-geri-yukle.sh dene beautyos` başarılı.
-- **İzleme:**
-  - UptimeRobot (ya da Healthchecks) yoklamaları: `https://api.beautyossapp.com/health` (`"status":"ok"`), `https://app.beautyossapp.com/login`, apex. Uyarılar Telegram'a.
-  - DO uyarıları: CPU %80, bellek %85, disk %85.
+  - Her gece 03:30 TR: `beautyos` + `beautyos_staging` + rol dökümü → restic → B2 eu-central. Saklama 7/4/6.
+  - B2 yaşam döngüsü "yalnız son sürüm". Başarısızlık Healthchecks → Telegram. İkinci katman DO günlük droplet yedeği.
+  - **Ön koşul:** en az bir başarılı yedek + `yedek-geri-yukle.sh dene beautyos`. Veritabanı boş olsa da şema ve roller yedeklenir ve geri yükleme denenir. Asıl amaç, ilk gerçek veriden önce zincirin çalıştığını görmek.
+- **İzleme:** `api/health`, `app/login`, apex yoklamaları → Telegram. DO uyarıları: CPU %80, bellek %85, disk %85.
 - **KVKK geçiş öncesi şartları** (`docs/kvkk-tasima-degerlendirmesi.md` §6.1):
-  - Sentry gövde temizliği **ya da** geçişte `SENTRY_DSN` boş (S7).
+  - Sentry gövde temizliği ya da `SENTRY_DSN` boş (S7).
   - B2 yaşam döngüsü.
-  - Cloudflare ayarları (§3).
-  - DO, Cloudflare, B2, GitHub, Sentry ve Google hesaplarında 2FA.
-  - Kurucu teyidi: Supabase verisi demo/deneme, gerçek kişi verisi değil (S6).
+  - Cloudflare ayarları.
+  - Hesaplarda 2FA.
+  - Verinin demo olduğu teyidi: **verildi (10-28)**.
+- Veri taşınmadığı için taşıma arşivi yok. Hukuk-uyum'un "arşiv en fazla 30 gün" şartı konusuz kaldı.
 
 ## 9. Aşamalar ve onay noktaları
 
 | Aşama | İçerik | Görevler | `[ONAY]` noktaları |
 |---|---|---|---|
-| 0. Hemen | `/debug` hotfix'i canlıya; DNS dışa aktarımı ve yeni hostlar | G4a | Hotfix'in `master` push'u; DNS kayıtları |
-| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, imaj iş akışı, CI | G1–G5, G7 | Taşıma dallarının GitHub'a push'u; GHCR token'ı |
-| 2. Altyapı | Caddy, yedek, izleme | G8–G10 | Cloudflare token'ı, B2 ve Healthchecks hesapları |
-| 3. Yığın + staging | Compose, roller, Caddy parçası, staging ayakta; veri betiği ve ön denemesi; kabul testi staging'de | G11–G14 | Staging migrate; ön deneme (Supabase'ten okuma) |
-| 4. Geçiş | §10 | G15–G16 | Runbook'un tamamı (tek onay) |
-| 5. Kapatma | +3 gün (kurucu onayıyla) | G17 | Her silme ayrı; imha tutanağı |
-| 6. Sonrası | Node/Next yükseltmesi, temizlik, RLS ve KVKK "ilk müşteriden önce" maddeleri | G18, T-B1 | Ayrı planlama |
+| 0. Hemen | `/debug` (Railway; §12), DNS dışa aktarımı ve yeni hostlar | G4a | DNS kayıtları; Railway ara önlemi |
+| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, imaj iş akışı, CI + depo içi şema uyumu | G1–G5, G7 | Taşıma dallarının GitHub'a push'u; GHCR token'ı |
+| 2. Altyapı | Caddy, yedek, izleme | G8–G10 | B2 ve Healthchecks hesapları; Caddy yeniden oluşturma saati |
+| 3. Yığın | Compose, roller, staging ayakta; şema karşılaştırması (+ gerekirse düzeltici migration); **canlı yığın boş veritabanıyla ayakta** (`api.beautyossapp.com`); kabul testi staging'de | G11–G14 | Canlı ve staging `migrate`; `kaynak` adımı (Supabase'ten şema okuma) |
+| 4. Geçiş | §10 (DNS) | G15–G16 | Runbook'un tamamı (tek onay) |
+| 5. Kapatma | G16 geçince | G17 | Her silme ayrı; imha tutanağı |
+| 6. Sonrası | Node/Next yükseltmesi, temizlik, G19, RLS ve KVKK "ilk müşteriden önce" maddeleri | G18, G19, T-B1 | Ayrı planlama |
 
-## 10. Geçiş (tek oturum, ~1 saat, gün ve saat serbest)
-
-03:00–04:30 arası seçilmez (yedek + otomatik yeniden başlatma).
+## 10. Geçiş (tek oturum, ~30 dk, gün ve saat serbest; 03:00–04:30 hariç)
 
 **Ön koşullar:**
-- G1–G5, G7–G14 tamam: denetçi ONAY'ı + staging'de TEST GEÇTİ.
-- §8'deki yedek, izleme ve KVKK maddeleri tamam.
-- Zone dışa aktarıldı; TTL düşük (gri kayıtlar için).
-- Kurucu, `MIGRATION_DATABASE_URL`'in `.env`'de olmadığını teyit etti.
+- G1–G5, G7–G14 tamam: denetçi ONAY'ı ve staging'de TEST GEÇTİ.
+- Canlı yığın boş veritabanıyla healthy: `https://api.beautyossapp.com/health` → 200.
+- §8 tamam. Zone dışa aktarıldı.
+- Kurucu, `MIGRATION_DATABASE_URL`'in `.env`'de olmadığını ve `.env` canlı değerlerini teyit etti: `NETGSM_*` ve `TELEGRAM_*` boş, `SENTRY_DSN` S7'ye göre, Resend/Turnstile/Gemini dolu, `FRONTEND_URL=https://app.beautyossapp.com`.
 
 | # | Kim | Adım | Doğrulama |
 |---|---|---|---|
 | 1 | kurucu | Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımını kapat (R1) | Panel |
-| 2 | kurucu | Railway prod ve staging API servislerini durdur (silme) | Eski `/health` yanıt vermiyor |
-| 3 | kurucu | Yol (a): `veri-aktar.sh on-kontrol`, `dok`, `yukle beautyos`. Yol (b): `yedekten-ac <dosya>` (ön denemede yapılmışsa döküm hazırdır), `yukle beautyos` (§5.1) | Hatasız |
-| 4 | devops | `veri-dogrula.sh` | Sayılar ve özetler eşit, migrate güncel |
-| 5 | kurucu | `.env` canlı değerleri: `NETGSM_*` boş, `TELEGRAM_*` boş, `SENTRY_DSN` S7'ye göre, Resend/Turnstile/Gemini dolu, `FRONTEND_URL=https://app.beautyossapp.com` | Kurucu "tamam" der |
-| 6 | devops | `docker compose up -d api web` | healthy; log'da "SMS provider: Mock" |
-| 7 | kurucu | DNS `@`, `app`, `www` → 209.38.237.171, turuncu | `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200 |
-| 8 | test-muhendisi | Canlı duman testi (G16) | Geçti |
-| 9 | devops | `sirket/sunucu.md` kaydı, ilk 60 dk izleme | Kayıt yazıldı |
+| 2 | kurucu | Railway prod ve staging API servislerini durdur (silme) | Eski API yanıt vermiyor |
+| 3 | kurucu | DNS `@`, `app`, `www` → 209.38.237.171, turuncu | `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200 |
+| 4 | kurucu | İlk süper yönetici: `POST /api/v1/admin/seed`; ardından `ADMIN_SEED_SECRET` boşaltılır, devops `docker compose up -d api` | Seed uç noktası artık 403 |
+| 5 | test-muhendisi | Canlı duman testi (G16) | Geçti |
+| 6 | devops | `sirket/sunucu.md` kaydı, ilk 60 dk izleme | Kayıt yazıldı |
 
-**Geri dönüş (3 gün içinde, `[ONAY]`):**
-1. DNS dışa aktarımdaki Vercel değerlerine döner.
-2. `docker compose stop api web`.
-3. Railway prod servisi son dağıtımdan başlatılır.
+**Geri dönüş (`[ONAY]`):** Yalnız DNS dışa aktarımdaki Vercel değerlerine döndürülür. Taşınmış veri olmadığı için başka adım yok. Eski Railway API'si Supabase olmadan çalışmaz; geri dönüş yalnız eski tanıtım sayfasını geri getirir. Sorun yeni sunucuda, ileriye doğru düzeltilir. Yeni sunucudaki yığın durdurulmaz.
 
-Geçişten sonra yeni sunucuda yazılan veri geri taşınmaz. Gerçek kullanıcı yok ve SMS kapalı, bu yüzden kayıp kabul edilir. Yeni sunucudaki veri silinmez; neden araştırılır. **Yol (b) seçildiyse ya da Supabase yeniden duraklatıldıysa geri dönüş çalışmaz** (Railway API veritabanına bağlanamaz); bu durumda ileriye doğru düzeltilir.
+## 11. Eski servislerin kapatılması (G16 geçince, kurucu onayıyla)
 
-## 11. Eski servislerin kapatılması (geçiş + 3 gün, kurucu onayıyla)
+Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
 
-Her silme ayrı `[ONAY]`; her biri için `sirket/` altında **imha tutanağı** tutulur (tarih, ne silindi, kim onayladı; içerik yok).
-1. Supabase canlı son dökümü restic'e `arsiv` etiketiyle alınır: `yedek-geri-yukle.sh arsivle <dosya>` (devops). **En fazla 30 gün** saklanır (demo veri; S6). Gece işi bunu `forget --tag arsiv --keep-within 30d` ile uygular; `--keep-tag arsiv` kullanılmaz.
-2. Railway (prod + staging), Vercel, Upstash, Supabase (prod + staging) projeleri silinir.
-3. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).
-4. `/srv/beautyos/.env.supabase` ve `/srv/beautyos/tasima/` silinir.
-5. Depodaki Railway/Vercel kalıntıları temizlenir (G18).
+1. **Supabase `beautyos-dev`** (canlıya bağlı olduğu varsayılıyor) silinir. Önce §5 `kaynak` adımı bitmiş olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
+2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.
+3. Railway (prod + staging), Vercel (dağıtımlar ve alan adı kayıtları dahil) ve Upstash projeleri silinir.
+4. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).
+5. `/srv/beautyos/.env.supabase` ve `/srv/beautyos/tasima/` silinir.
+6. Depodaki Railway/Vercel kalıntıları temizlenir (G18).
 
 ## 12. Risk değerlendirmesi
 
-**Genel: DÜŞÜK.** Gerçek kullanıcı yok, SMS kapalı, Telegram yalnız testte, veri küçük, uygulama Supabase'i yalnız Postgres olarak kullanıyor.
+**Genel: DÜŞÜK.** Veri taşınmıyor, gerçek kullanıcı yok, SMS kapalı. Geçiş, canlı yığın önceden ayağa kalktıktan sonra yalnız DNS değişikliği.
 
 | Risk | Önlem |
 |---|---|
-| `master` push'unun eski API'yi yeniden açması (R1). Hotfix push'u bu yüzden geçişten önce bilerek yapılır; Railway hâlâ canlı olduğu için doğru davranış budur | Geçiş adım 1 |
-| **Supabase duraklatılmış (2026-10-28):** veri kaynağına erişim yok; `/debug` hotfix'i dağıtılamıyor (açılışta DB kontrolü süreci durduruyor), açık sürüyor | §5.1 yol (a) ya da (b). `/debug` için ara önlem (kurucu, `[ONAY]`): Railway servisinin herkese açık alan adını kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil ve API zaten veritabanına bağlanamıyor, yani kayıp yok. Ek olarak Gemini API anahtarı yenilenirse `/debug` ücretli çağrı yapamaz |
-| Yol (b)'de kişisel verinin kurucunun bilgisayarından geçmesi | Aktarımdan hemen sonra yerel kopya silinir; sunucuda 700/600 |
-| Panelden açılmış RLS/uzantı bağımlılığı | `on-kontrol` + ön deneme |
-| Cloudflare arkasında yanlış istemci IP'si → hız sınırı kilidi | ADR-0010 + G14-K7 |
-| Staging'in canlıyla aynı Postgres/Redis'i paylaşması (kaynak ya da yanlış yapılandırma) | Ayrı veritabanı ve roller, `REVOKE CONNECT`, bellek sınırları, ayrı `JWT_SECRET`; G11-K3 testi |
-| Yedeksiz canlı | §8 ön koşulu |
-| Kiracı izolasyonunun yalnız uygulama filtresinde olması (RLS yok) | Taşımadan bağımsız; hukuk-uyum ilk müşteriden önce RLS'i güçlü öneriyor (T-B1) |
+| **`/debug` Railway'de hâlâ açık:** hotfix (`9894212`) dağıtılamadı, çünkü API açılışta veritabanını yokluyor ve Supabase duraklatılmış | (i) `beautyos-dev` açılınca Railway'de "Redeploy" ile hotfix çıkar, ya da (ii) ara önlem `[ONAY]`: Railway servisinin herkese açık adresini kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil, kayıp yok. Gemini anahtarı yenilenirse `/debug` ücretli çağrı da yapamaz |
+| Supabase'te migration'a girmemiş şema değişikliği | §5 karşılaştırması + düzeltici migration; Supabase açılamazsa depo içi uyum + kabul edilen risk |
+| `master` push'unun eski API'yi yeniden açması (R1) | Geçiş adım 1 |
+| Seed uç noktasının açık kalması (hız sınırı yok) | Geçiş adım 4: `ADMIN_SEED_SECRET` boşaltılır |
+| Cloudflare arkasında yanlış istemci IP'si | ADR-0010 + G14-K7 |
+| Staging'in canlıyla aynı Postgres/Redis'i paylaşması | Rol ve `CONNECT` ayrımı; Redis için G19 (ilk müşteriden önce) |
+| Kiracı izolasyonunun yalnız uygulama filtresinde olması | T-B1 (ilk müşteriden önce, hukuk-uyum güçlü öneri) |
 
 ## 13. Kurucudan beklenenler
 
-**Yanıtlananlar (2026-10-28):** Cloudflare turuncu bulut + ayarlar + token (K2). Telegram yalnız test, bot staging'e (K4). Başka hesap yok (K6). Geçiş zamanı serbest (K7).
+**Yanıtlananlar:** Cloudflare (K2), SMS, Telegram, hesaplar, geçiş zamanı, **S6 (veri demo; taşınmayacak)**, test artıklarının silinmesi.
 
 **Hâlâ açık:**
-1. **Veri kaynağı (§5.1):** Supabase panelinde "Restore/Resume" mı görünüyor (yol a), yalnız "Download backup" mı (yol b)? (Müdür takipte.)
-2. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? `app` ve apex dışında başka alt alan adı var mı?
-3. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?
-4. **S5:** `JWT_SECRET` yenilensin mi (öneri: evet) ve kapatmada dış servis anahtarları yenilensin mi?
-5. **S6:** Supabase canlı verisinin demo/deneme olduğu, gerçek kişi verisi olmadığı teyidi (KVKK G-5; arşiv süresi ve yol (b)'deki yerel kopya riski buna bağlı).
-6. **S7:** Sentry geçişte kapalı mı kalsın (`SENTRY_DSN` boş), yoksa G5-K5 + AB bölgesi projesiyle mi açılsın?
-7. Backblaze B2 ve Healthchecks hesapları açıldığında devops'a bildirim; ilgili hesaplarda 2FA.
+1. `beautyos-dev` açıldığında: canlıya bağlı proje bu mu (müdür `/health` ile tespit ediyor)? Ardından `.env.supabase` yazılıp `sema-karsilastir.sh kaynak` çalıştırılır.
+2. Railway'deki `/debug` için: Supabase açılınca "Redeploy" mı, yoksa ara önlem mi?
+3. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? Başka alt alan adı var mı?
+4. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?
+5. **S5:** `JWT_SECRET` ve dış servis anahtarları yenilensin mi (öneri: evet)?
+6. **S7:** Sentry geçişte kapalı mı kalsın, yoksa G5-K5 + AB bölgesiyle mi açılsın?
+7. B2 ve Healthchecks hesapları açılınca devops'a bildirim; hesaplarda 2FA.

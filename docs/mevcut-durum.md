@@ -46,7 +46,7 @@ Koddaki kanıt:
 - Realtime yok.
 - Supabase'in tek izi: `DATABASE_URL` (pooler) + `DIRECT_URL` (doğrudan) ayrımı ve test yardımcısındaki "Supabase'e test koşma" koruması (`src/__tests__/helpers/setup.ts`).
 
-Panelde doğrulanması gerekenler (VARSAYIM, kontrol `veri-aktar.sh` ön kontrolünde otomatik):
+Panelde doğrulanması gerekenler (VARSAYIM; 2026-10-28'den beri veri taşınmıyor, ADR-0017. Kontrol `sema-karsilastir.sh kaynak` adımında bilgi amaçlı yapılıyor):
 - `public` şemasında panelden elle açılmış RLS veya politika var mı. Varsa ve politika `auth.uid()` kullanıyorsa geri yükleme bozulur ya da uygulama rolü satır göremez.
 - `public` tablolarında `extensions.` şemasına bağlı varsayılan değer, fonksiyon veya trigger var mı.
 - Supabase PostgreSQL ana sürümü (hedef sürüm kaynaktan düşük olamaz; ADR-0003).
