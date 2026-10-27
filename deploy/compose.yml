@@ -1,17 +1,22 @@
-# BeautyOS üretim yığını (şirket sunucusu, 4 GB). Proje klasörü: /srv/beautyos
+# BeautyOS yığını: canlı + kalıcı staging (ADR-0016). Sunucuda /srv/beautyos/compose.yml
 #
-# Dosyalar (hepsini kurucu doldurur, git'e girmez; adlar için deploy/.env.example):
-#   .env          api çalışma anı + compose değişkenleri (BEAUTYOS_VERSION, NEXT_PUBLIC_*)
-#   .env.db       postgres süper kullanıcısı (yalnız postgres servisi okur)
-#   .env.redis    redis parolası (yalnız redis servisi okur)
-#   .env.migrate  MIGRATION_DATABASE_URL (yalnız migrate servisi okur; api'ye GİRMEZ)
+# Dosyalar (hepsini kurucu doldurur, git'e girmez, 600; adlar için deploy/.env.example):
+#   .env                  compose değişkenleri + canlı api (yalnız api okur; compose da değişken için okur)
+#   .env.staging          api-staging
+#   .env.db               postgres (süper kullanıcı + dört rolün parolaları)
+#   .env.redis            redis parolası
+#   .env.migrate          migrate           (MIGRATION_DATABASE_URL, canlı sahip rolü)
+#   .env.migrate-staging  migrate-staging   (MIGRATION_DATABASE_URL, staging sahip rolü)
 #
-# Derleme:   docker compose build
-# Başlatma:  docker compose up -d
-# Migration: docker compose --profile migrate run --rm migrate      [ONAY gerekir]
+# Yayın (servis adıyla ayrı): docker compose up -d api web          # canlı
+#                              docker compose up -d api-staging web-staging
+# Migration (elle, canlı için [ONAY]):
+#   docker compose --profile migrate run --rm migrate
+#   docker compose --profile migrate run --rm migrate-staging
 #
-# Hiçbir servis host portu yayınlamaz. Dışarıya yalnız ortak Caddy (sirket-proxy ağı) açar.
-# api TEK kopya çalışır: BullMQ işçisi süreç içindedir ve hız sınırı bellektedir; scale verme.
+# Hiçbir servis host portu yayınlamaz; dışarıya yalnız ortak Caddy (sirket-proxy ağı) açar.
+# api ve api-staging TEK kopya çalışır: BullMQ işçisi süreç içindedir, hız sınırı bellektedir. scale verme.
+# Ayrı worker servisi yoktur (ADR-0006).
 
 name: beautyos
 
@@ -23,34 +28,68 @@ x-guvenlik: &guvenlik
     driver: json-file
     options: { max-size: "10m", max-file: "3" }
 
+x-api: &api
+  <<: *guvenlik
+  image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_VERSION:?.env içinde BEAUTYOS_VERSION tanımlı olmalı}
+  read_only: true
+  tmpfs: [/tmp]
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+
+x-web: &web
+  <<: *guvenlik
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /app/apps/web/.next/cache
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 20s
+
+x-migrate: &migrate
+  <<: *guvenlik
+  image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_VERSION:?.env içinde BEAUTYOS_VERSION tanımlı olmalı}
+  profiles: [migrate]
+  restart: "no"
+  read_only: true
+  tmpfs: [/tmp]
+  depends_on:
+    postgres: { condition: service_healthy }
+  deploy:
+    resources:
+      limits: { cpus: "1.0", memory: 384M }
+  networks: [icsel]
+
 services:
   postgres:
     <<: *guvenlik
-    image: postgres:17.2-bookworm
+    image: postgres:17.11-bookworm
     user: postgres
     env_file: .env.db
-    command:
-      - postgres
-      - -c
-      - shared_buffers=192MB
-      - -c
-      - effective_cache_size=512MB
-      - -c
-      - max_connections=50
-      - -c
-      - work_mem=4MB
-      - -c
-      - timezone=UTC
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     read_only: true
     tmpfs: [/tmp, /var/run/postgresql]
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      # Yalnız boş veri dizininde, ilk açılışta bir kez çalışır (roller ve staging veritabanı).
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 20s
+      start_period: 30s
     deploy:
       resources:
         limits: { cpus: "1.5", memory: 768M }
@@ -58,7 +97,7 @@ services:
 
   redis:
     <<: *guvenlik
-    image: redis:7.4.1-alpine
+    image: redis:7.4.12-alpine
     user: redis
     env_file: .env.redis
     # BullMQ için noeviction şart: bellek dolarsa iş silmek yerine yazmayı reddeder.
@@ -80,52 +119,15 @@ services:
         limits: { cpus: "0.5", memory: 192M }
     networks: [icsel]
 
-  migrate:
-    <<: *guvenlik
-    image: beautyos-api:${BEAUTYOS_VERSION:?deploy/.env içinde BEAUTYOS_VERSION tanımlı olmalı}
-    profiles: [migrate]
-    restart: "no"
-    env_file: .env.migrate
-    # Prisma şeması DATABASE_URL ve DIRECT_URL ister; ikisine de yalnız bu komutta migration rolü verilir.
-    command:
-      - sh
-      - -c
-      - DATABASE_URL="$$MIGRATION_DATABASE_URL" DIRECT_URL="$$MIGRATION_DATABASE_URL" exec node_modules/.bin/prisma migrate deploy
-    read_only: true
-    tmpfs: [/tmp]
-    depends_on:
-      postgres: { condition: service_healthy }
-    deploy:
-      resources:
-        limits: { cpus: "1.0", memory: 384M }
-    networks: [icsel]
-
+  # ─── Canlı ────────────────────────────────────────────────────────────────
   api:
-    <<: *guvenlik
-    image: beautyos-api:${BEAUTYOS_VERSION:?deploy/.env içinde BEAUTYOS_VERSION tanımlı olmalı}
-    build:
-      context: ..
-      dockerfile: apps/api/Dockerfile
+    <<: *api
     env_file: .env
     environment:
       NODE_ENV: production
       TZ: UTC
       PORT: "3001"
-      # Gece cron'u ve no-show sınırı UTC varsayar. Heap, 512M sınırın altında tutulur.
-      NODE_OPTIONS: --max-old-space-size=384
-      # Prisma şeması DIRECT_URL'i çalışma anında da ister; uygulama rolüyle aynıdır.
-      DIRECT_URL: ${DATABASE_URL:?deploy/.env içinde DATABASE_URL tanımlı olmalı}
-    read_only: true
-    tmpfs: [/tmp]
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      NODE_OPTIONS: --max-old-space-size=320
     deploy:
       resources:
         limits: { cpus: "1.0", memory: 512M }
@@ -135,43 +137,74 @@ services:
         aliases: [beautyos-api]
 
   web:
-    <<: *guvenlik
-    image: beautyos-web:${BEAUTYOS_VERSION:?deploy/.env içinde BEAUTYOS_VERSION tanımlı olmalı}
-    build:
-      context: ..
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?deploy/.env içinde NEXT_PUBLIC_API_URL tanımlı olmalı}
-        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
-        NEXT_PUBLIC_BOT_FEATURES_ENABLED: ${NEXT_PUBLIC_BOT_FEATURES_ENABLED:-false}
+    <<: *web
+    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION}-prod
     environment:
       NODE_ENV: production
       TZ: UTC
       NODE_OPTIONS: --max-old-space-size=256
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /app/apps/web/.next/cache
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
     deploy:
       resources:
         limits: { cpus: "1.0", memory: 384M }
-    # Web yalnız Caddy'ye konuşur; veritabanına/redis'e erişimi yoktur.
+    # Web yalnız Caddy ile konuşur; veritabanına/redis'e erişimi yoktur (iç ağda değil).
     networks:
       proxy:
         aliases: [beautyos-web]
+
+  migrate:
+    <<: *migrate
+    env_file: .env.migrate
+    # Prisma şeması DATABASE_URL ve DIRECT_URL ister; ikisine de yalnız bu komutta sahip rolü verilir.
+    command:
+      - sh
+      - -c
+      - DATABASE_URL="$$MIGRATION_DATABASE_URL" DIRECT_URL="$$MIGRATION_DATABASE_URL" exec node_modules/.bin/prisma migrate deploy
+
+  # ─── Staging (aynı Postgres/Redis örneği; ayrı veritabanı, rol ve Redis DB 1) ──
+  api-staging:
+    <<: *api
+    env_file: .env.staging
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+      PORT: "3001"
+      NODE_OPTIONS: --max-old-space-size=256
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 384M }
+    networks:
+      icsel: {}
+      proxy:
+        aliases: [beautyos-api-staging]
+
+  web-staging:
+    <<: *web
+    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION}-staging
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+      NODE_OPTIONS: --max-old-space-size=192
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+    networks:
+      proxy:
+        aliases: [beautyos-web-staging]
+
+  migrate-staging:
+    <<: *migrate
+    env_file: .env.migrate-staging
+    command:
+      - sh
+      - -c
+      - DATABASE_URL="$$MIGRATION_DATABASE_URL" DIRECT_URL="$$MIGRATION_DATABASE_URL" exec node_modules/.bin/prisma migrate deploy
 
 networks:
   # Dış dünyaya kapalı iç ağ: postgres/redis yalnız burada.
   icsel:
     internal: true
-  # Ortak Caddy ile paylaşılan ağ (devops oluşturur). api dış servislere (Telegram, Gemini, NetGSM)
-  # bu ağ üzerinden çıkar. Adı PROXY_NETWORK ile değiştirilebilir (test ortamı için).
+  # Ortak Caddy ile paylaşılan ağ (devops oluşturur). api'ler dış servislere (Telegram, Gemini, NetGSM)
+  # bu ağ üzerinden çıkar. Adı PROXY_NETWORK ile değiştirilebilir (yalnız yerel test için).
   proxy:
     external: true
     name: ${PROXY_NETWORK:-sirket-proxy}

@@ -1,10 +1,12 @@
-# BeautyOS site parçası. Sunucuda /srv/caddy/siteler/beautyos.caddy olarak ortak Caddy'ye import edilir.
-# Caddy konteyneri sirket-proxy ağındadır; beautyos-web ve beautyos-api bu ağdaki takma adlardır.
-# Kuru prova için yeni.beautyossapp.com geçici olarak ilk satıra eklenir, geçişte çıkarılır.
+# BeautyOS site parçası. Sunucuda /srv/caddy/siteler/beautyos.caddy olarak ortak Caddy'ye import edilir
+# (kopyalayan ve doğrulayan devops). Caddy sirket-proxy ağındadır; beautyos-* takma adları compose'dadır.
+# cf_dns ve ortak parçaları devops'un ortak Caddy ayarlarındandır.
 # X-Forwarded-For'u gerçek istemci IP'siyle yeniden yazmak hız sınırı için şarttır (ADR-0010).
 
+# ─── CANLI ──────────────────────────────────────────────────────────────────
 beautyossapp.com, www.beautyossapp.com, app.beautyossapp.com {
-	encode zstd gzip
+	import cf_dns
+	import ortak
 
 	reverse_proxy beautyos-web:3000 {
 		header_up X-Forwarded-For {client_ip}
@@ -12,13 +14,42 @@ beautyossapp.com, www.beautyossapp.com, app.beautyossapp.com {
 }
 
 api.beautyossapp.com {
-	encode zstd gzip
+	import cf_dns
+	import ortak
 
-	# Kimlik doğrulamasız ve her çağrıda ücretli Gemini isteği atan uç nokta (R3); kodda kaldırılana kadar kapalı.
-	@debug path /debug /debug/*
-	respond @debug 404
-
+	# Kimlik doğrulamasız ve ücretli uç nokta eskiden buradaydı (R3); kodda kaldırıldı, savunma derinliği olarak kapalı.
+	respond /debug* 404
 	reverse_proxy beautyos-api:3001 {
 		header_up X-Forwarded-For {client_ip}
+		health_uri /health
+		health_interval 30s
+	}
+}
+
+# ─── STAGING (ADR-0016) ─────────────────────────────────────────────────────
+# Web basic auth ister. Parola ÖZETİ gizli sayılır: gerçek özet repoya yazılmaz, yalnız sunucudaki
+# /srv/caddy/siteler/beautyos.caddy dosyasında doldurulur (bcrypt: caddy hash-password).
+yeni.beautyossapp.com {
+	import cf_dns
+	import ortak
+
+	basic_auth {
+		KULLANICI_ADI BCRYPT_OZETI_SUNUCUDA_YAZILIR
+	}
+	reverse_proxy beautyos-web-staging:3000 {
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
+# API'de basic auth YOK: tarayıcının Authorization: Bearer başlığıyla çakışır ve Telegram webhook'u erişebilmelidir.
+yeni-api.beautyossapp.com {
+	import cf_dns
+	import ortak
+
+	respond /debug* 404
+	reverse_proxy beautyos-api-staging:3001 {
+		header_up X-Forwarded-For {client_ip}
+		health_uri /health
+		health_interval 30s
 	}
 }

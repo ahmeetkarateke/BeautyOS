@@ -1,0 +1,25 @@
+# Yerel derleme katmanı (yalnız test/geliştirme; üretimde imajlar GHCR'dan çekilir, sunucuda derlenmez):
+#   docker compose -f compose.yml -f compose.build.yml build
+# NEXT_PUBLIC_* değerleri gizli değildir; derleme anında JS paketine gömülür.
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_PROD:-https://api.beautyossapp.com}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+        NEXT_PUBLIC_BOT_FEATURES_ENABLED: ${NEXT_PUBLIC_BOT_FEATURES_ENABLED:-false}
+  web-staging:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_STAGING:-https://yeni-api.beautyossapp.com}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+        NEXT_PUBLIC_BOT_FEATURES_ENABLED: ${NEXT_PUBLIC_BOT_FEATURES_ENABLED:-false}
