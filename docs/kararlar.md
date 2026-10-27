@@ -22,12 +22,13 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0009 | Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token | kabul edildi (kurucu 2026-10-28; token doğrulandı, Caddy çalışıyor) | 2026-10-27 |
 | ADR-0010 | Gerçek istemci IP'si: Caddy CF-Connecting-IP'yi yalnız Cloudflare aralıklarından kabul eder | önerildi | 2026-10-27 |
 | ADR-0011 | 80/443 güvenlik duvarında Cloudflare IP'lerine kısıtlanmaz | önerildi | 2026-10-27 |
-| ADR-0012 | İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir | önerildi | 2026-10-27 |
+| ADR-0012 | İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir | yerini aldı: ADR-0018 | 2026-10-27 |
 | ADR-0013 | Kalıcı staging yok; gerekirse aynı sunucuda isteğe bağlı staging yığını | yerini aldı: ADR-0016 | 2026-10-27 |
 | ADR-0014 | Taşıma Node 20 + Debian bookworm ile; Node yükseltmesi taşımadan sonra | önerildi | 2026-10-27 |
 | ADR-0015 | Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır | önerildi (hukuk-uyum onayı: 7/4/6, şartlı) | 2026-10-27 |
 | ADR-0016 | Kalıcı staging aynı compose projesinde, ortak Postgres/Redis örneğinde ayrı veritabanı ve rollerle | önerildi | 2026-10-27 |
 | ADR-0017 | Veri taşınmaz; canlı veritabanı migration'larla boş kurulur, Supabase şeması yalnız uyum kontrolü için dökülür | kabul edildi (kurucu kararı) | 2026-10-28 |
+| ADR-0018 | İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok | kabul edildi (müdür kararı D4; otomatik imaj silme kuralı kurucu onayına bağlı) | 2026-10-28 |
 
 ---
 
@@ -306,7 +307,7 @@ Güvenlik duvarında kısıt yok. İsteğe bağlı sonraki adım: Caddy'de yaln�
 ## ADR-0012: İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir
 
 - **Tarih:** 2026-10-27
-- **Durum:** önerildi
+- **Durum:** yerini aldı: ADR-0018 (2026-10-28; GitHub Free planında özel paket kotası 500 MB depolama / 1 GB aylık aktarım, yetersiz)
 - **Karar verenler:** mimar
 
 ### Bağlam
@@ -412,7 +413,8 @@ Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır v
 | D1 | Supabase PostgreSQL ana sürümü ≤ 17 (pg_dump 17 istemcisi şema dökebilsin) | `kaynak` sürümü yazar | G13 | — |
 | D2 | Prisma 5.22 PostgreSQL 17'de sorunsuz (migrate deploy + testler) | CI yeşil | G1 | — |
 | D3 | Prisma Client çalışma anında `DIRECT_URL` ister | Yoksa açılış hatası; bu yüzden `.env`'de `DATABASE_URL` ile aynı değer | G2 | — |
-| D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | — |
+| D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | **Olumsuz (2026-10-28):** GitHub Free, özel paket 500 MB / 1 GB aylık aktarım; bir sürümün üç imajı birkaç yüz MB. ADR-0018'e geçildi |
+| D14 | Sunucuda web (`next build`) derlemesi bellek sınırıyla canlı servisleri etkilemeden biter | Tepe bellek ve süre ölçülür; canlı `/health` derleme boyunca 200 | G7-K4 | gelistirici t3'te derlemeyi başardı; tepe değerleri bekleniyor |
 | D5 | Statik CF listesiyle `trusted_proxies` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
 | D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu staging'de geçer | G14 | — |
 | D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump --schema-only` yapılabilir | `kaynak` bağlanır | G13 | 2026-10-28: iki proje (`beautyos-dev`, `beautyos-staging`, eu-west-1) duraklatılmış; kurucu `beautyos-dev`'i açıyor |
@@ -481,6 +483,72 @@ Fark varsa referans `schema.prisma`'dır. Eksik migration için düzeltici migra
 - **Olumlu:** Kişisel veri hiç taşınmaz (KVKK açısından en temiz yol). Döküm, arşiv ve yerel kopya yok. Geçiş, canlı yığın önceden kurulduktan sonra yalnız DNS değişikliğine iner. Geri dönüş yalnız DNS'i geri almaktır.
 - **Olumsuz:** Demo veri kaybolur (kurucu kabul etti). Kurucunun test hesapları yeniden oluşturulur. İlk süper yönetici seed uç noktasıyla açılır, ardından `ADMIN_SEED_SECRET` boşaltılır.
 - **Riskler:** Supabase'teki şema sapması karşılaştırmada yanlış normalleştirme yüzünden gözden kaçabilir. Önlem: G12-K7'deki tek farklı negatif denemeler. Supabase projeleri silinmeden önce karşılaştırmanın bitmiş olması (G17 sırası).
+
+---
+
+## ADR-0018: İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok
+
+- **Tarih:** 2026-10-28
+- **Durum:** kabul edildi (müdür kararı D4). Otomatik imaj silme kuralı (son 3'ü tut) kurucu onayına bağlıdır, müdür alır.
+- **Karar verenler:** müdür; mimar (tasarım)
+
+### Bağlam
+GitHub Free planında özel paketlere 500 MB depolama ve aylık 1 GB aktarım düşüyor. Bir sürümün üç imajı (api, web-prod, web-staging) sıkıştırılmış halde birkaç yüz MB tuttuğu için GHCR bir iki sürümde doluyor (D4). Kurucunun makinesinde Docker yok. gelistirici sunucuda derlemeyi t3'te başarıyla denedi. Sunucu 2 vCPU / 4 GB + 2 GB swap ve canlı Postgres'le ortak; `next build` 1,5–2 GB isteyebilir.
+
+### Alternatifler
+- **GHCR (ADR-0012):** kota yetmiyor; ücretli plan maliyet getiriyor.
+- **Docker Hub / DO Container Registry ücretsiz katman:** tek özel depo ya da 500 MB; aynı kota sorunu, üstüne ikinci bir hesap ve kimlik bilgisi.
+- **Actions'ta derleyip `docker save | ssh` ile aktarma:** GitHub'a sunucu SSH anahtarı vermek gerekir; onaysız canlıya alma kapısı açılır.
+
+### Karar
+**Kaynak:**
+- Sunucu depoyu `/srv/beautyos/kaynak` dizinine, **yalnız bu depoya bağlı, salt okunur bir GitHub deploy key** ile çeker.
+- Anahtarı kurucu sunucuda üretir (`ssh-keygen -t ed25519`, `~karateke/.ssh/` altında, 600). Açık anahtarı GitHub'da depo ayarlarından "Deploy keys" bölümüne **"Allow write access" işaretsiz** ekler. `~/.ssh/config`'te yalnız bu depo için bir takma ad tanımlanır (`IdentitiesOnly yes`).
+- Ajanlar anahtar dosyasını okumaz. Kayıt defteri, kayıt defteri kimlik bilgisi ve `docker login` yok.
+
+**Derleme** (`deploy/betikler/derle.sh <commit-sha>`, gelistirici yazar, devops çalıştırır):
+1. Yalnız tam ya da en az 12 haneli onaltılık commit kimliği kabul edilir; dal adı ya da etiket kabul edilmez.
+2. Betik `git fetch origin`, ardından `git cat-file -e <sha>^{commit}` çalıştırır, sonra `git checkout --detach <sha>` ile commit'e geçer. Çalışma ağacı temiz değilse durur.
+3. Canlıya giden imaj **yalnız GitHub'a push edilmiş ve denetçi ONAY'lı commit'ten** derlenir. Test ortamı için `git archive` ile yükleme serbesttir, ama o imajlar canlıya çıkmaz.
+4. Etiketler (`sha12` = commit'in ilk 12 hanesi):
+   - `beautyos-api:<sha12>`
+   - `beautyos-web:<sha12>-prod`
+   - `beautyos-web:<sha12>-staging`
+
+   `IMAGE_PREFIX` sunucuda boştur. Ayrıca `org.opencontainers.image.revision=<sha>` etiketi eklenir.
+5. Web derleme değerleri (`NEXT_PUBLIC_*`, gizli değil) depoda izlenen bir dosyadan gelir: `deploy/derleme.conf`. `.env*` dosyalarından okunmaz.
+
+**Sunucu yükü:**
+- Derlemeler **sırayla** yapılır (api, web-prod, web-staging), aynı anda tek derleme çalışır (`flock` kilidi). Canlı Postgres'le bellek yarışını sınırlamak için:
+  - (a) Web derleme aşamasında `NODE_OPTIONS=--max-old-space-size=1536`.
+  - (b) BuildKit, bellek ve CPU sınırlı ayrı bir builder'da çalışır: `docker buildx create --driver docker-container`, ardından `--driver-opt` ile `memory=2g`, `memory-swap=3g` ve CPU kotası yaklaşık 1,5 çekirdek; `--load` ile yerel imaja aktarılır. (b) çalışmazsa (a) + sıralı derleme + izleme yeterli sayılır. Seçim D14 ölçümüne göre yapılır, ADR'ye işlenir.
+- Derleme düşük trafik saatinde yapılır; 03:00–04:30 değil (yedek + otomatik yeniden başlatma).
+- **Ek swap varsayılan değil.** Mevcut 2 GB swap (sunucu-altyapi ADR-0005) güvenlik ağıdır. D14 ölçümünde tepe bellek kullanılabilir alanı aşarsa devops, sunucu-altyapi'de derleme süresince açılıp kapanan geçici bir swap dosyası ya da kalıcı artış için ADR önerir `[ONAY]`. Swap ayarı derleme betiğine gömülmez.
+- Derleme sırasında canlı `/health` izlenir. Derleme OOM ile düşerse canlı servisler etkilenmemiş olmalıdır; etkilenirse müdüre bildirilir.
+
+**Temizlik** (`deploy/betikler/imaj-temizle.sh`, derlemenin sonunda çağrılır):
+- Her imaj adı için **son 3 sürüm** tutulur.
+- Çalışan ya da durmuş herhangi bir konteynerin kullandığı imaj, `.env`'deki `BEAUTYOS_VERSION` ve `BEAUTYOS_STAGING_VERSION` **hiçbir koşulda silinmez**.
+- Sonra `docker builder prune --filter until=168h` çalışır. Silinen etiketler log'a yazılır.
+- Kuralın kendisi kurucu onayıyla bir kez kabul edilir; kural dışı silme ayrıca `[ONAY]` ister.
+
+**Yayın ve geri alma:** `.env`'de sürüm etiketi değiştirilir, `docker compose up -d <servisler>` çalıştırılır. Geri almak için önceki etikete dönülür; imaj yerelde durur, çekme gerekmez.
+
+**CI:** `.github/workflows/imaj.yml` (`c82bab8`), GHCR'a itmeyen bir **derleme kontrolüne** dönüşür: `push: false`, yetki yalnız `contents: read`, GHCR girişi yok. Tetikleyiciler PR ve `workflow_dispatch`. Dockerfile kırılmalarını sunucuya gelmeden yakalar.
+
+### Sonuçlar
+- **Olumlu:**
+  - Kota ve kayıt defteri hesabı yok, ücret yok.
+  - GitHub'a sunucu erişimi verilmiyor; sunucu yalnız okuyor.
+  - Geri alma tek satır ve anında.
+  - İmaj hangi commit'ten geldiğini etiketinde taşıyor.
+- **Olumsuz:**
+  - Derleme sunucuya CPU ve bellek yükü bindirir; birkaç dakika sürer.
+  - Web derleme değerleri değişirse yeniden derleme gerekir.
+- **Riskler:**
+  - Derleme sırasında OOM ya da canlı yavaşlama. Önlem: sınırlı builder, sıralı derleme, düşük trafik saati, D14 ölçümü, gerekirse geçici swap ADR'si.
+  - Deploy key sızarsa depo kaynak kodu okunur (yazılamaz). Önlem: anahtar yalnız sunucuda, 600 izinli, tek depoya bağlı; sızıntıda GitHub'dan kaldırılıp yenilenir.
+  - Sunucu tek kopya yerdir. İmajlar yedeklenmez, ama her an commit'ten yeniden derlenebilir.
 
 ---
 

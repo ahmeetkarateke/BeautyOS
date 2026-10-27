@@ -31,7 +31,7 @@
 - Test: `npm test` (API, Vitest). **Gerçek PostgreSQL + Redis ister.** Supabase/canlı veritabanına bağlanmayı test yardımcısı reddeder; yerelde ya da CI'da geçici `postgres:17` kullanılır.
 - Tip ve lint: `npm run type-check`, `npm run lint`
 - Migration (yerel): `cd apps/api && npx prisma migrate deploy`. Sunucuda yalnız `docker compose --profile migrate run --rm migrate` ve `[ONAY]` ile.
-- İmaj: GitHub Actions `imaj.yml` (elle ya da `v*` etiketiyle) → GHCR. Sunucuda derleme yapılmaz.
+- İmaj: sunucuda `deploy/betikler/derle.sh <commit-sha>` (ADR-0018). Sunucu depoyu salt okunur deploy key ile çeker; yalnız push edilmiş, denetçi ONAY'lı commit canlıya derlenir. Etiket commit'in ilk 12 hanesi; son 3 sürüm yerelde tutulur. Kayıt defteri (GHCR) yok. CI'daki `imaj.yml` yalnız derleme kontrolüdür.
 - Yayın: devops yapar. Önce staging: `docker compose up -d api-staging web-staging`. Test GEÇTİ sonrası canlı: `docker compose up -d api web`. Her seferinde imaj etiketi compose'da güncellenir (`docker-yayinlama` skill'i).
 
 ## Projeye özel kurallar

@@ -33,7 +33,7 @@
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
-| G7 | İmaj derleme iş akışı (GHCR; web canlı + staging) | gelistirici | G2, G3 | bekliyor |
+| G7 | Sunucuda derleme (`derle.sh`) + imaj temizliği + CI derleme kontrolü (ADR-0018) | gelistirici | G2, G3; deploy key (kurucu) | bekliyor (`c82bab8` GHCR iş akışı yeniden tanımlandı) |
 | G8 | Ortak Caddy | devops | — | devam ediyor |
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
@@ -105,14 +105,28 @@
   - K4: Log'larda telefon yok (`queue.ts` uyarısı yalnız `appointmentId` yazar).
   - K5 (KVKK G-1): Sentry `beforeSend` istek gövdesini, sorgu dizgisini ve çerezleri tümden siler; testte sahte bir olayla doğrulanır. Bu birleşmeden canlıda `SENTRY_DSN` boş kalır (S7).
 
-### G7 — İmaj derleme iş akışı
-- **Dosyalar:** `.github/workflows/imaj.yml`
+### G7 — Sunucuda derleme ve imaj temizliği (ADR-0018; GHCR yolu D4 kararıyla bırakıldı)
+- **Dosyalar:**
+  - `deploy/betikler/derle.sh`
+  - `deploy/betikler/imaj-temizle.sh`
+  - `deploy/derleme.conf` (gizli olmayan web derleme değerleri)
+  - `.github/workflows/imaj.yml` (`c82bab8`, derleme kontrolüne dönüşür)
+  - `deploy/README.md` ya da `deploy/` altında kurulum notu (deploy key adımları)
 - **Kabul kriterleri:**
-  - K1: Tetik `workflow_dispatch` + `v*`. `master`/`staging` push'unda çalışmaz.
-  - K2: `permissions: contents: read, packages: write`. SSH ya da dağıtım adımı yok.
-  - K3: Çıktılar `beautyos-api:<sha-12>`, `beautyos-web:<sha-12>-prod` ve `beautyos-web:<sha-12>-staging`. `latest` yok.
-  - K4: Web değerleri `vars.*`'tan gelir (canlı ve staging için ayrı değişkenler); `secrets.*` kullanılmaz.
-  - K5: D4 (GHCR kota/ücret) bildirilir.
+  - K1 (girdi): `derle.sh` yalnız onaltılık commit kimliği kabul eder (≥ 12 hane). Dal adı, etiket ya da `HEAD` → kullanım hatası, çıkış 2. Her durum ayrı negatif deneme.
+  - K2 (kaynak): `/srv/beautyos/kaynak`'ta `git fetch origin`, ardından `git cat-file -e <sha>^{commit}`, ardından `git checkout --detach <sha>`. Çalışma ağacı temiz değilse durur. Bulunamayan commit → anlaşılır hata, sıfır dışı çıkış. Bağlantı deploy key takma adıyla yapılır; betikte anahtar yolu yazmaz.
+  - K3 (etiket): Üretilen imajlar `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod` ve `beautyos-web:<sha12>-staging`. Hepsi `org.opencontainers.image.revision=<tam sha>` etiketi taşır. `latest` yok.
+  - K4 (yük, D14): Derlemeler sırayla çalışır; `flock` ile aynı anda tek derleme. Web aşamasında `NODE_OPTIONS=--max-old-space-size=1536`. Bellek ve CPU sınırlı buildx builder (`--driver-opt memory=…`) denenir. Ölçüm raporu her imaj için tepe bellek, süre ve swap kullanımını verir; derleme boyunca canlı `/health` 200 kalır. Sonuç mimara iletilir, ADR-0018'e işlenir. Sınırlı builder çalışmazsa gerekçesiyle bildirilir.
+  - K5 (değerler): `NEXT_PUBLIC_*` yalnız `deploy/derleme.conf`'tan gelir. Betik `.env*` okumaz, `set -x` kullanmaz.
+  - K6 (temizlik): `imaj-temizle.sh` her imaj adı için son 3 sürümü tutar. Şunları **asla silmez**: herhangi bir konteynerin (çalışan ya da durmuş) kullandığı imajı, `.env`'deki `BEAUTYOS_VERSION`/`BEAUTYOS_STAGING_VERSION` imajlarını. Testler:
+    - 5 sahte etiketle 3'ü kalır.
+    - Kullanımdaki en eski etiket silinmez.
+    - `--dry-run` hiçbir şey silmez.
+
+    Silinen etiketler log'a yazılır. Kuralın kurucu onayı müdür üzerinden alınmadan betik otomatik çağrılmaz.
+  - K7 (CI): `imaj.yml` GHCR'a itmez (`push: false`), yetkisi yalnız `contents: read`, giriş adımı yok. PR ve `workflow_dispatch`'te iki Dockerfile'ın derlendiğini doğrular. `packages: write` kaldırılır.
+  - K8 (belge): Deploy key kurulum adımları yazılı: anahtarı kurucu üretir; "Allow write access" işaretsiz; `~/.ssh/config` takma adı `IdentitiesOnly yes` ile. `ssh -T` ile yalnız okuma erişimi doğrulanır.
+  - K9: `bash -n` ve `shellcheck` temiz, LF satır sonu; `pipefail` tuzağına dikkat (sunucu-altyapi CLAUDE.md).
 
 ## Aşama 2 — Altyapı (devops, sunucu-altyapi)
 

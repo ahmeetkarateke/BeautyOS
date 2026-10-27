@@ -21,6 +21,7 @@
 | 10-28 | **Supabase verisi demo; yalnız tablolar önemli → veri taşınmaz** | ADR-0017 (ADR-0004'ün yerini aldı), §5 |
 | 10-28 | Supabase'te iki proje var: `beautyos-dev` ve `beautyos-staging` (ikisi de duraklatılmış, eu-west-1). Kurucu `beautyos-dev`'i açıyor | §5 kaynak seçimi, §11 ikisi de imha edilir |
 | 10-28 | Test artıklarının silinmesi onaylandı (gelistirici siliyor) | — |
+| 10-28 | **D4:** GitHub planı Free; GHCR kotası yetersiz → imajlar sunucuda derlenir (müdür kararı) | ADR-0018 (ADR-0012'nin yerini aldı), §6, G7 |
 
 ---
 
@@ -40,7 +41,7 @@
 
 | Servis | İmaj | Ağlar | env dosyası | Sınır | Not |
 |---|---|---|---|---|---|
-| `web` | `ghcr.io/ahmeetkarateke/beautyos-web:<sürüm>-prod` | yalnız `sirket-proxy` (takma ad `beautyos-web`) | yok | 384M | `read_only`; `NEXT_PUBLIC_*` derlemede gömülü |
+| `web` | `beautyos-web:<sha12>-prod` (yerel imaj, sunucuda derlenir; ADR-0018) | yalnız `sirket-proxy` (takma ad `beautyos-web`) | yok | 384M | `read_only`; `NEXT_PUBLIC_*` derlemede gömülü |
 | `api` | `…/beautyos-api:<sürüm>` | `icsel`, `sirket-proxy` (`beautyos-api`) | `.env` | 512M | BullMQ işçisi aynı süreçte, **tek kopya**, `TZ=UTC` (ADR-0006) |
 | `web-staging` | `…/beautyos-web:<staging sürümü>-staging` | yalnız `sirket-proxy` (`beautyos-web-staging`) | yok | 256M | ADR-0016 |
 | `api-staging` | `…/beautyos-api:<staging sürümü>` | `icsel`, `sirket-proxy` (`beautyos-api-staging`) | `.env.staging` | 384M | tek kopya, `TZ=UTC` |
@@ -97,7 +98,8 @@ yeni-api.beautyossapp.com {
 **Sunucudaki dosya düzeni:**
 
 ```
-/srv/beautyos/   compose.yml, postgres/init/01-roller.sh, postgres/postgresql.conf, betikler/sema-karsilastir.sh
+/srv/beautyos/   compose.yml, postgres/init/01-roller.sh, postgres/postgresql.conf, betikler/{sema-karsilastir,derle,imaj-temizle}.sh, derleme.conf
+                 kaynak/  depo klonu (salt okunur deploy key ile; yalnız derleme için, .env* burada tutulmaz)
                  .env .env.staging .env.db .env.migrate .env.migrate-staging .env.redis .env.supabase   (kurucu yazar, 600; ajanlar okumaz)
                  tasima/ (700)  şema dökümleri ve fark raporu (kişisel veri YOK); kapatmada silinir
 /srv/caddy/      ortak Caddy (.env: CLOUDFLARE_API_TOKEN, BEAUTYOS_STAGING_BASIC_USER, BEAUTYOS_STAGING_BASIC_HASH), siteler/beautyos.caddy
@@ -118,7 +120,7 @@ yeni-api.beautyossapp.com {
 | Gece yedek işi (geçici) | 256 MB | ~100 MB | — |
 | **Toplam** | **~2,6 GB sınır** | **~1,4–2,1 GB** | |
 
-**Kalıcı staging dahil 4 GB yeter.** Koşul: imajlar sunucuda derlenmez (ADR-0012). İkinci bir müşteri projesi gelirse ya da bellek kalıcı olarak > %85 olursa droplet büyütülür ya da staging durdurulur (ADR-0016).
+**Kalıcı staging dahil 4 GB yeter.** İmajlar sunucuda derlenir (ADR-0018). Derleme sırasında geçici olarak ~1,5–2 GB ek bellek gerekir. Önlemler: sıralı derleme, Node heap sınırı, bellek ve CPU sınırlı builder ve düşük trafik saati. Mevcut 2 GB swap güvenlik ağıdır. Ölçüm (D14) yetersiz çıkarsa devops geçici swap için ADR önerir `[ONAY]`. İkinci bir müşteri projesi gelirse ya da bellek kalıcı olarak > %85 olursa droplet büyütülür ya da staging durdurulur (ADR-0016).
 
 ## 3. Alan adı, DNS, SSL
 
@@ -153,7 +155,7 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `le
 
 | Dosya | Yükleyen | İçerik (yalnız adlar; ayrıntı kök `.env.example`) |
 |---|---|---|
-| `.env` | `api` (+ compose değişkenleri) | Canlı uygulama değişkenleri, `BEAUTYOS_VERSION`, `BEAUTYOS_STAGING_VERSION`, `IMAGE_PREFIX` |
+| `.env` | `api` (+ compose değişkenleri) | Canlı uygulama değişkenleri, `BEAUTYOS_VERSION`, `BEAUTYOS_STAGING_VERSION`, `IMAGE_PREFIX` (sunucuda boş) |
 | `.env.staging` | `api-staging` | Aynı adlar, staging değerleri (ayrı `JWT_SECRET`) |
 | `.env.db` | `postgres` | `POSTGRES_*`, `APP_OWNER_PASSWORD`, `APP_USER_PASSWORD`, `STG_OWNER_PASSWORD`, `STG_USER_PASSWORD` |
 | `.env.migrate` / `.env.migrate-staging` | `migrate` / `migrate-staging` | `MIGRATION_DATABASE_URL` (sahip rolü); uygulama dosyalarına yazılmaz |
@@ -200,10 +202,15 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `le
 
 **Redis:** taşınmaz (ADR-0005).
 
-## 6. CI/CD (ADR-0012)
+## 6. Derleme ve yayın (ADR-0018; GHCR'lı ADR-0012'nin yerini aldı)
 
-- `imaj.yml` (`workflow_dispatch` + `v*`): tek API imajı ve iki web imajı (`-prod` → `https://api.beautyossapp.com`, `-staging` → `https://yeni-api.beautyossapp.com`) özel GHCR'a gider. Sunucuya SSH yok.
-- **Yayın:** devops elle yapar. Önce staging, test GEÇTİ sonrası canlı. Sunucu GHCR'a `read:packages` token'ıyla bağlanır `[ONAY]`.
+- **Neden değişti:** GitHub Free planında özel paket kotası 500 MB depolama / 1 GB aylık aktarım; bir sürümün imajları bunu bir iki sürümde dolduruyor (D4).
+- **Kaynak:** sunucu depoyu `/srv/beautyos/kaynak`'a **salt okunur deploy key** ile çeker. Anahtarı kurucu sunucuda üretir ve GitHub'da "Allow write access" işaretsiz ekler `[ONAY]`. Kayıt defteri ve `docker login` yok.
+- **Derleme:** `derle.sh <commit-sha>` (devops çalıştırır): `git fetch`, ardından belirli commit'e geçilir, ardından sırayla `docker build` çalışır. Etiketler `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`. Web derleme değerleri depodaki `deploy/derleme.conf`'tan gelir (`-prod` → `https://api.beautyossapp.com`, `-staging` → `https://yeni-api.beautyossapp.com`).
+- Canlıya giden imaj yalnız GitHub'a push edilmiş, denetçi ONAY'lı commit'ten derlenir.
+- **Temizlik:** `imaj-temizle.sh` her imaj adı için son 3 sürümü tutar. Kullanımdaki ve `.env`'de yazılı sürümleri silmez. Kural kurucu onayıyla bir kez kabul edilir.
+- **Yayın:** devops elle yapar. Önce staging, test GEÇTİ sonrası canlı: `.env`'de `BEAUTYOS_STAGING_VERSION`/`BEAUTYOS_VERSION` değiştirilir, ardından `docker compose up -d <servisler>` çalışır. **Geri alma:** önceki etikete dönülür, imaj yerelde durur.
+- **CI derleme kontrolü:** `imaj.yml` (`c82bab8`) GHCR'a itmez. PR ve `workflow_dispatch`'te Dockerfile'ların derlendiğini doğrular; yetki yalnız `contents: read`.
 - **CI (G1):** `postgres:17` servis konteyneri + depo içi şema uyumu (`prisma migrate diff`).
 
 ## 7. Staging (ADR-0016)
@@ -232,7 +239,7 @@ Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `le
 | Aşama | İçerik | Görevler | `[ONAY]` noktaları |
 |---|---|---|---|
 | 0. Hemen | `/debug` (Railway; §12), DNS dışa aktarımı ve yeni hostlar | G4a | DNS kayıtları; Railway ara önlemi |
-| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, imaj iş akışı, CI + depo içi şema uyumu | G1–G5, G7 | Taşıma dallarının GitHub'a push'u; GHCR token'ı |
+| 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, imaj iş akışı, CI + depo içi şema uyumu | G1–G5, G7 | Taşıma dallarının GitHub'a push'u (sunucu commit'i oradan çeker); salt okunur deploy key; imaj temizleme kuralı |
 | 2. Altyapı | Caddy, yedek, izleme | G8–G10 | B2 ve Healthchecks hesapları; Caddy yeniden oluşturma saati |
 | 3. Yığın | Compose, roller, staging ayakta; şema karşılaştırması (+ gerekirse düzeltici migration); **canlı yığın boş veritabanıyla ayakta** (`api.beautyossapp.com`); kabul testi staging'de | G11–G14 | Canlı ve staging `migrate`; `kaynak` adımı (Supabase'ten şema okuma) |
 | 4. Geçiş | §10 (DNS) | G15–G16 | Runbook'un tamamı (tek onay) |
@@ -278,6 +285,7 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 | **`/debug` Railway'de hâlâ açık:** hotfix (`9894212`) dağıtılamadı, çünkü API açılışta veritabanını yokluyor ve Supabase duraklatılmış | (i) `beautyos-dev` açılınca Railway'de "Redeploy" ile hotfix çıkar, ya da (ii) ara önlem `[ONAY]`: Railway servisinin herkese açık adresini kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil, kayıp yok. Gemini anahtarı yenilenirse `/debug` ücretli çağrı da yapamaz |
 | Supabase'te migration'a girmemiş şema değişikliği | §5 karşılaştırması + düzeltici migration; Supabase açılamazsa depo içi uyum + kabul edilen risk |
 | `master` push'unun eski API'yi yeniden açması (R1) | Geçiş adım 1 |
+| Sunucuda derleme sırasında bellek baskısı (canlı Postgres ile ortak, 4 GB) | ADR-0018: sıralı derleme, Node heap sınırı, sınırlı builder, düşük trafik saati; D14 ölçümü; gerekirse geçici swap ADR'si |
 | Seed uç noktasının açık kalması (hız sınırı yok) | Geçiş adım 4: `ADMIN_SEED_SECRET` boşaltılır |
 | Cloudflare arkasında yanlış istemci IP'si | ADR-0010 + G14-K7 |
 | Staging'in canlıyla aynı Postgres/Redis'i paylaşması | Rol ve `CONNECT` ayrımı; Redis için G19 (ilk müşteriden önce) |
@@ -295,3 +303,4 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 5. **S5:** `JWT_SECRET` ve dış servis anahtarları yenilensin mi (öneri: evet)?
 6. **S7:** Sentry geçişte kapalı mı kalsın, yoksa G5-K5 + AB bölgesiyle mi açılsın?
 7. B2 ve Healthchecks hesapları açılınca devops'a bildirim; hesaplarda 2FA.
+8. **Deploy key (ADR-0018):** sunucuda `ssh-keygen -t ed25519` ile anahtar üretilir, açık anahtar GitHub'da depo ayarlarından "Deploy keys" bölümüne **yazma izni olmadan** eklenir. Ayrıca imaj temizleme kuralı onaylanır: son 3 sürüm tutulur, kullanımdakiler hiç silinmez.
