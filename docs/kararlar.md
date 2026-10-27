@@ -357,7 +357,7 @@ Kalıcı staging kurulmaz. Gerektiğinde `beautyos-staging` compose projesi ayn�
 - **Karar verenler:** mimar
 
 ### Bağlam
-Node 20 Nisan 2026'da destek dışı kaldı. Mevcut imaj `node:20-bullseye-slim`; Debian 11'in desteği de bitiyor. Prisma motoru işletim sisteminin OpenSSL sürümüne bağlı. Bir taşımada aynı anda birden fazla değişken değişirse arıza kaynağı ayrıştırılamaz.
+Node 20 Nisan 2026'da destek dışı kaldı. Mevcut imaj `node:20-bullseye-slim`; Debian 11'in desteği de bitiyor. (2026-10-28 notu: bullseye apt deposu kapandığı için Railway derlemesi düştü. Kök Dockerfile da aynı gerekçeyle `node:20.20.2-bookworm-slim`'e alındı (`e68459f`, denetçi ONAY'lı). Prisma `binaryTargets`'a dokunulmadı, motor hatası yok.) Prisma motoru işletim sisteminin OpenSSL sürümüne bağlı. Bir taşımada aynı anda birden fazla değişken değişirse arıza kaynağı ayrıştırılamaz.
 
 ### Alternatifler
 - **Taşımayla birlikte Node 22/24:** tek seferde biter, ama hata kaynağı belirsizleşir.

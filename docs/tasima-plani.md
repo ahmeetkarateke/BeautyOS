@@ -15,7 +15,7 @@
 | 10-27 | Başka hesap/proje yok; eski hizmetler doğrudan kapatılır | §11 |
 | 10-27 | Geliştirme bu sunucuda sürecek; kalıcı staging | ADR-0016, §7 |
 | 10-27 | DO günlük droplet yedeği açık; Backblaze ve Healthchecks hesapları açılıyor | §8 |
-| 10-28 | `/debug` kapatılsın | Hotfix `master`'a push edildi (`9894212`); Railway dağıtımı Supabase duraklatıldığı için başarısız (§12) |
+| 10-28 | `/debug` kapatılsın | Hotfix `master`'a push edildi (`9894212`), Railway dağıtımı başarısız oldu. Asıl neden derleme: `node:20-bullseye-slim` apt deposu kapandı. Kök Dockerfile'ı bookworm'a alan `e68459f` (denetçi ONAY'lı, kayıtlı istisna) bunu düzeltti. Kalan engel: Supabase duraklatılmış (§12) |
 | 10-28 | Cloudflare turuncu bulut ve ayarları; token doğrulandı, Caddy çalışıyor | ADR-0008, ADR-0009 kabul edildi |
 | 10-28 | Geçiş zamanı serbest; ürün canlıya çıkmadı | §10 |
 | 10-28 | **Supabase verisi demo; yalnız tablolar önemli → veri taşınmaz** | ADR-0017 (ADR-0004'ün yerini aldı), §5 |
@@ -282,7 +282,7 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 
 | Risk | Önlem |
 |---|---|
-| **`/debug` Railway'de hâlâ açık:** hotfix (`9894212`) dağıtılamadı, çünkü API açılışta veritabanını yokluyor ve Supabase duraklatılmış | (i) `beautyos-dev` açılınca Railway'de "Redeploy" ile hotfix çıkar, ya da (ii) ara önlem `[ONAY]`: Railway servisinin herkese açık adresini kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil, kayıp yok. Gemini anahtarı yenilenirse `/debug` ücretli çağrı da yapamaz |
+| **`/debug` Railway'de hâlâ açık:** hotfix (`9894212`) önce derleme hatası (bullseye apt deposu kapandı) yüzünden dağıtılamadı; `e68459f` bunu düzeltti. Ama API açılışta veritabanını yokluyor ve Supabase duraklatılmışsa süreç kapanıyor; yeni dağıtım sağlık kontrolünden geçemez | (i) `beautyos-dev` açılınca Railway'de "Redeploy" ile hotfix çıkar, ya da (ii) ara önlem `[ONAY]`: Railway servisinin herkese açık adresini kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil, kayıp yok. Gemini anahtarı yenilenirse `/debug` ücretli çağrı da yapamaz |
 | Supabase'te migration'a girmemiş şema değişikliği | §5 karşılaştırması + düzeltici migration; Supabase açılamazsa depo içi uyum + kabul edilen risk |
 | `master` push'unun eski API'yi yeniden açması (R1) | Geçiş adım 1 |
 | Sunucuda derleme sırasında bellek baskısı (canlı Postgres ile ortak, 4 GB) | ADR-0018: sıralı derleme, Node heap sınırı, sınırlı builder, düşük trafik saati; D14 ölçümü; gerekirse geçici swap ADR'si |

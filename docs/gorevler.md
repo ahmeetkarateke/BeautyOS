@@ -21,6 +21,9 @@
 - Tek istisna G4a hotfix'idir. Bilerek `master` üzerinden Railway'e çıkar; push'u müdür kurucu onayıyla yapar. Hotfix birleşince `tasima/docker` dalı `master`'dan güncellenir.
 - Kök `.env.example` yalnız bu dalda düzenlenir. gelistirici yeni bir değişken adı eklerse adını ve açıklamasını mimara bildirir.
 - Kök `Dockerfile`, `railway.json`, `nixpacks.toml` ve `apps/web/vercel.json` G18'e kadar değiştirilmez (geri dönüş yolu).
+  - **Kayıtlı istisna:** `e68459f` (dal `duzeltme/debug-uc-noktasi`, denetçi ONAY'ı `raporlar/denetim/beautyos-debug-2.md`). Kök Dockerfile'da tek satır değişti: `FROM node:20.20.2-bookworm-slim`.
+  - Neden zorunluydu: `node:20-bullseye-slim`'in apt deposu kapandığı için Railway derlemesi 404 / exit 100 ile düşüyor, `/debug` hotfix'i dağıtılamıyordu.
+  - Bu commit yalnız `master` tarafında. `tasima/docker` dalında kök Dockerfile eski haliyle duruyor. Birleştirmede kök Dockerfile'da `master`'daki satır alınır. G18'de dosya zaten silineceği için çakışma önemsiz.
 
 ## Özet tablo
 
@@ -29,7 +32,7 @@
 | G1 | CI testleri geçici Postgres 17'de | gelistirici | — | bekliyor |
 | G2 | API imajı | gelistirici | — | devam ediyor (`tasima/docker`) |
 | G3 | Web imajı (standalone) + zorunlu API adresi | gelistirici | — | devam ediyor (Dockerfile + standalone); API adresi kısmı bekliyor |
-| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık** (müdür takipte; plan §12) |
+| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık.** Derleme hatası (bullseye apt) `e68459f` ile giderildi (denetçi ONAY'lı). Dağıtımın sağlıklı açılması için Supabase'in de açık olması gerekiyor (plan §12) |
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
