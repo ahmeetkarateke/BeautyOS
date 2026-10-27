@@ -2,7 +2,7 @@
 #   docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.beautyossapp.com -t beautyos-web:<surum> .
 # NEXT_PUBLIC_* değerleri derleme anında JS paketine gömülür; gizli değer DEĞİLDİR.
 
-FROM node:20.18.1-bookworm-slim AS base
+FROM node:20.20.2-bookworm-slim AS base
 WORKDIR /app
 
 FROM base AS build
