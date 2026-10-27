@@ -35,6 +35,7 @@ echo "MIGRATION_DATABASE_URL=postgresql://stg_owner:${stg_owner_pw}@postgres:543
 
 cat > .env <<EOF
 BEAUTYOS_VERSION=test
+BEAUTYOS_STAGING_VERSION=test
 NEXT_PUBLIC_API_URL_PROD=https://api.test.invalid
 NEXT_PUBLIC_API_URL_STAGING=https://yeni-api.test.invalid
 PROXY_NETWORK=beautyos-test-proxy

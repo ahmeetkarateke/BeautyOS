@@ -2,6 +2,8 @@
 #
 # Dosyalar (hepsini kurucu doldurur, git'e girmez, 600; adlar için deploy/.env.example):
 #   .env                  compose değişkenleri + canlı api (yalnız api okur; compose da değişken için okur)
+#                         BEAUTYOS_VERSION (canlı) ve BEAUTYOS_STAGING_VERSION (staging) AYRIDIR ve ikisi de zorunludur
+#                         (eksikse compose başlamaz). Staging sürümü değişince canlı etiketi etkilenmez.
 #   .env.staging          api-staging
 #   .env.db               postgres (süper kullanıcı + dört rolün parolaları)
 #   .env.redis            redis parolası
@@ -138,7 +140,7 @@ services:
 
   web:
     <<: *web
-    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION}-prod
+    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION:?BEAUTYOS_VERSION tanımlı olmalı}-prod
     environment:
       NODE_ENV: production
       TZ: UTC
@@ -163,6 +165,8 @@ services:
   # ─── Staging (aynı Postgres/Redis örneği; ayrı veritabanı, rol ve Redis DB 1) ──
   api-staging:
     <<: *api
+    # Staging sürümü canlıdan BAĞIMSIZDIR: servis adı verilmeyen bir "up -d" canlıyı değiştirmez.
+    image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION tanımlı olmalı}
     env_file: .env.staging
     environment:
       NODE_ENV: production
@@ -179,7 +183,7 @@ services:
 
   web-staging:
     <<: *web
-    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION}-staging
+    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION tanımlı olmalı}-staging
     environment:
       NODE_ENV: production
       TZ: UTC
@@ -193,6 +197,7 @@ services:
 
   migrate-staging:
     <<: *migrate
+    image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION tanımlı olmalı}
     env_file: .env.migrate-staging
     command:
       - sh
