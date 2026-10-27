@@ -90,7 +90,7 @@ services:
     command:
       - sh
       - -c
-      - DATABASE_URL="$$MIGRATION_DATABASE_URL" DIRECT_URL="$$MIGRATION_DATABASE_URL" exec /app/node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma
+      - DATABASE_URL="$$MIGRATION_DATABASE_URL" DIRECT_URL="$$MIGRATION_DATABASE_URL" exec node_modules/.bin/prisma migrate deploy
     read_only: true
     tmpfs: [/tmp]
     depends_on:

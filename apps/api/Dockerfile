@@ -28,7 +28,8 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN npm ci --workspace=apps/api --omit=dev
 COPY apps/api/prisma apps/api/prisma
-RUN node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma
+WORKDIR /app/apps/api
+RUN node_modules/.bin/prisma generate
 
 # Çalışma aşaması
 FROM base AS runtime
@@ -39,6 +40,7 @@ ENV NODE_ENV=production \
     PORT=3001
 WORKDIR /app/apps/api
 COPY --from=prod-deps --chown=node:node /app/node_modules /app/node_modules
+COPY --from=prod-deps --chown=node:node /app/apps/api/node_modules ./node_modules
 COPY --chown=node:node apps/api/package.json ./package.json
 COPY --from=build --chown=node:node /app/apps/api/dist ./dist
 COPY --chown=node:node apps/api/prisma ./prisma
