@@ -132,7 +132,7 @@ yeni-api.beautyossapp.com {
 | Gece yedek işi (geçici) | 256 MB | ~100 MB | — |
 | **Toplam** | **~2,6 GB sınır** | **~1,4–2,1 GB** | |
 
-**Kalıcı staging dahil 4 GB yeter.** İmajlar sunucuda derlenir (ADR-0018). Derleme sırasında geçici olarak ~1,5–2 GB ek bellek gerekir. Önlemler: sıralı derleme, Node heap sınırı, bellek ve CPU sınırlı builder ve düşük trafik saati. Mevcut 2 GB swap güvenlik ağıdır. Ölçüm (D14) yetersiz çıkarsa devops geçici swap için ADR önerir `[ONAY]`. İkinci bir müşteri projesi gelirse ya da bellek kalıcı olarak > %85 olursa droplet büyütülür ya da staging durdurulur (ADR-0016).
+**Kalıcı staging dahil 4 GB yeter.** İmajlar sunucuda derlenir (ADR-0018). Ölçüm (D14, 10-28): canlı yığın açıkken sistem tepe belleği 1715 MB, tepe swap 37 MB, derleme süresi toplam ~8 dk; ek swap gerekmiyor. Önlemler: sıralı derleme, Node heap sınırı, bellek ve CPU sınırlı builder ve düşük trafik saati. Mevcut 2 GB swap güvenlik ağıdır. Ölçüm (D14) yetersiz çıkarsa devops geçici swap için ADR önerir `[ONAY]`. İkinci bir müşteri projesi gelirse ya da bellek kalıcı olarak > %85 olursa droplet büyütülür ya da staging durdurulur (ADR-0016).
 
 ## 3. Alan adı, DNS, SSL
 
@@ -269,7 +269,7 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 
 - **Neden değişti:** GitHub Free planında özel paket kotası 500 MB depolama / 1 GB aylık aktarım; bir sürümün imajları bunu bir iki sürümde dolduruyor (D4).
 - **Kaynak (ADR-0019, müdür kararı):** sunucu GitHub'dan **çekmez**; deploy key yok, taşıma dalları push edilmez. Akış:
-  1. Müdür, denetçi ONAY raporundaki commit'i bu bilgisayarda paketler: `git archive --format=tar -o beautyos-<sha12>.tar <tam-sha>` ve `certutil -hashfile … SHA256`.
+  1. Müdür, denetçi ONAY raporundaki commit'i bu bilgisayarda paketler: `git -c core.autocrlf=false archive --format=tar -o beautyos-<sha12>.tar <tam-sha>` ve `certutil -hashfile … SHA256`. **`-c core.autocrlf=false` zorunlu:** Windows'ta `autocrlf=true` iken paket CRLF'ye çevrilir ve kabuk betikleri ile Dockerfile bozulur (D16).
   2. Paketi `scp` ile `/srv/beautyos/kaynak/<sha12>/kaynak.tar` olarak taşır. Yanına `commit.txt` (tam sha) ve `kaynak.tar.sha256` koyar.
   3. Boru hattı kullanılmaz (PowerShell 5.1 ikili veriyi bozar).
 - **Derleme:** `derle.sh <tam-sha>` (devops çalıştırır):

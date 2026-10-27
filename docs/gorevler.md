@@ -43,13 +43,13 @@
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
-| G7 | Sunucuda derleme (`derle.sh`, kaynak `git archive` paketinden) + imaj/kaynak temizliği + CI derleme kontrolü (ADR-0018, ADR-0019) | gelistirici | G2, G3 | devam ediyor (`c82bab8` GHCR iş akışı yeniden tanımlandı) |
+| G7 | Sunucuda derleme (`derle.sh`, kaynak `git archive` paketinden) + imaj/kaynak temizliği + CI derleme kontrolü (ADR-0018, ADR-0019) | gelistirici | G2, G3 | incelemede (`tasima/docker` `5c3d8b3`; D14 ve D15 olumlu; paketleme `git -c core.autocrlf=false archive`, D16) |
 | G8 | Ortak Caddy | devops | — | devam ediyor |
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
 | G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` 62d9ca7; ilk inceleme RED, düzeltildi) |
 | G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | **ONAY** (`e3b89f2`, `raporlar/denetim/beautyos-tasima-4.md`). Denetçi önerileri sonraki turda (yeniden incelemeye girer): bağlantı hatasında psql iletisinin ilk satırının gösterilmesi. `verify-full` önerisi mimar kararıyla reddedildi (`require` yeterli, plan §5.1) |
-| G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | **K3 tamam (10-28)**, K4 kararı verildi: düzeltici migration yok; iki migration kurucu kararıyla terk edildi (K7 iptal). K8 (LF) açık. K1/K2 (canlı yığın) bekliyor |
+| G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | **K3 tamam (10-28)**, K4 kararı verildi: düzeltici migration yok; iki migration kurucu kararıyla terk edildi (K7 iptal). K8 (LF) incelemede (`5c3d8b3`; renormalize sonrası diff boş). `sema-karsilastir.sh`'deki `COLLATE "C"` düzeltmesi aynı turda; ONAY sonrası sunucudaki betik onaylı paketten güncellenir. K1/K2 (canlı yığın) bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
 | G15 | Geçiş (Railway durdurma + DNS) | kurucu + devops | G1–G5, G7–G14 | bekliyor |
 | G16 | Canlı duman testi + 48 saat gözlem | test-muhendisi + devops | G15 | bekliyor |
