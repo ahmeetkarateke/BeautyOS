@@ -54,6 +54,9 @@ kaynak_docker_kur() {
     echo "       Betik yalnız SELECT ve pg_dump --schema-only çalıştırır; yazma yapmaz." >&2
   else
     hata "kaynağa bağlanılamadı (.env.supabase değerleri, Session pooler 5432 ve ağ erişimini kontrol edin)"
+    # psql iletisinin yalnız ilk satırı (ör. "could not translate host name", "password authentication failed");
+    # iletide parola bulunmaz.
+    "${KAYNAK_DOCKER[@]}" "$PG_IMAGE" psql -X -At -c 'SELECT 1' 2>&1 >/dev/null | head -n 1 | sed 's/^/       psql: /' >&2 || true
     exit 1
   fi
 }
