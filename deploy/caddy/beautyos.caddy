@@ -37,7 +37,7 @@ yeni.beautyossapp.com {
 	# route: yönerge sırası Caddy'nin varsayılan sırasına bırakılmaz. Özet tanımsız/boşsa şifresiz açılmasın
 	# diye (caddy validate bunu yakalamaz) basic_auth'tan ÖNCE 503 döner.
 	route {
-		@bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == ""
+		@bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == "" || "{$BEAUTYOS_STAGING_BASIC_USER}" == ""
 		respond @bos 503
 
 		basic_auth {
