@@ -78,3 +78,55 @@ describe('scrubEvent (KVKK: Sentry olaylarından kişisel veri silme)', () => {
     expect(() => scrubEvent({ type: undefined, message: 'x' } as ErrorEvent)).not.toThrow()
   })
 })
+
+describe('scrubEvent: Telegram bot token in the url path', () => {
+  const TOKEN = '123456789:AAFakeToken_abc-DEF'
+  const TELEGRAM_URL = `https://api.telegram.org/bot${TOKEN}/sendMessage`
+
+  it('masks the token in the request url', () => {
+    const event = baseEvent({ request: { method: 'POST', url: TELEGRAM_URL } })
+    expect(scrubEvent(event).request?.url).toBe('https://api.telegram.org/bot[redacted]/sendMessage')
+  })
+
+  it('masks the token in breadcrumb urls', () => {
+    const event = baseEvent({ breadcrumbs: [{ category: 'http', data: { url: TELEGRAM_URL, method: 'POST' } }] })
+    expect(scrubEvent(event).breadcrumbs?.[0].data?.url).toBe('https://api.telegram.org/bot[redacted]/sendMessage')
+  })
+
+  it('masks the token in the breadcrumb message', () => {
+    const event = baseEvent({ breadcrumbs: [{ category: 'console', message: `POST ${TELEGRAM_URL}` }] })
+    expect(JSON.stringify(scrubEvent(event).breadcrumbs)).not.toContain(TOKEN)
+  })
+
+  it('masks the token in span descriptions and drops their query string', () => {
+    const event = baseEvent({
+      spans: [{ span_id: 'a', trace_id: 'b', start_timestamp: 1, description: `POST ${TELEGRAM_URL}?chat_id=42` }],
+    } as Partial<ErrorEvent>)
+    expect(scrubEvent(event).spans?.[0].description).toBe('POST https://api.telegram.org/bot[redacted]/sendMessage')
+  })
+
+  it('masks the token in span data urls and drops other span data keys', () => {
+    const event = baseEvent({
+      spans: [
+        { span_id: 'a', trace_id: 'b', start_timestamp: 1, data: { 'http.url': TELEGRAM_URL, 'http.method': 'POST', body: 'x' } },
+      ],
+    } as Partial<ErrorEvent>)
+    expect(scrubEvent(event).spans?.[0].data).toEqual({
+      'http.url': 'https://api.telegram.org/bot[redacted]/sendMessage',
+      'http.method': 'POST',
+    })
+  })
+
+  it('masks the token in exception messages and the event message', () => {
+    const event = baseEvent({
+      message: `failed ${TELEGRAM_URL}`,
+      exception: { values: [{ type: 'AxiosError', value: `Request failed for ${TELEGRAM_URL}` }] },
+    })
+    expect(JSON.stringify(scrubEvent(event))).not.toContain(TOKEN)
+  })
+
+  it('leaves urls without a bot token untouched', () => {
+    const event = baseEvent({ request: { method: 'GET', url: 'https://api.beautyossapp.com/api/v1/bottles/1' } })
+    expect(scrubEvent(event).request?.url).toBe('https://api.beautyossapp.com/api/v1/bottles/1')
+  })
+})
