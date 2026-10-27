@@ -20,7 +20,8 @@
 | 10-28 | Geçiş zamanı serbest; ürün canlıya çıkmadı | §10 |
 | 10-28 | **Supabase verisi demo; yalnız tablolar önemli → veri taşınmaz** | ADR-0017 (ADR-0004'ün yerini aldı), §5 |
 | 10-28 | Supabase'te iki proje var: `beautyos-dev` ve `beautyos-staging` (eu-west-1). **Canlı proje `beautyos-dev`, kesinleşti:** açılınca canlı `/health` `db: ok`, test API'si `db: error` döndü (`beautyos-staging` kapalı). **7 gün içinde yeniden duraklar.** | §5.1 kurucu komutu; §11 ikisi de imha edilir |
-| 10-28 | `e68459f` kurucu onayıyla `master`'a push edildi; Railway derliyor | `/debug` sonucu bekleniyor; ara önleme gerek kalmadı |
+| 10-28 | `e68459f` kurucu onayıyla `master`'a push edildi | Railway bu commit'i "watch paths" yüzünden **SKIPPED** saydı, kurucu elle Redeploy yaptı. **G4a kapandı:** `api.beautyossapp.com/debug` 404, `/health` `{"status":"ok","db":"ok"}`, GitHub durumu "Success - api.beautyossapp.com" |
+| 10-28 | Öğrenilen: Railway servisi yalnız `apps/api/**` değişikliğini izliyor; `api.beautyossapp.com` Railway'in özel alan adı | Kök dosya değişikliği (Dockerfile, railway.json) Railway'de **elle Redeploy** ister. `api` DNS kaydı geçişe kadar Railway'de kalır (§3, §10) |
 | 10-28 | Test artıklarının silinmesi onaylandı (gelistirici siliyor) | — |
 | 10-28 | **D4:** GitHub planı Free; GHCR kotası yetersiz → imajlar sunucuda derlenir (müdür kararı) | ADR-0018 (ADR-0012'nin yerini aldı), §6, G7 |
 
@@ -141,9 +142,9 @@ DNS adımları (kurucu, panelden, `[ONAY]`):
 | Ne zaman | İşlem |
 |---|---|
 | Hemen | Zone dışa aktarımı (DNS > Records > Export), kurucunun arşivine |
-| Hemen | `api`, `yeni`, `yeni-api` → A 209.38.237.171, turuncu (yeni hostlar, eski sisteme dokunmaz) |
+| Hemen | `yeni`, `yeni-api` → A 209.38.237.171, turuncu (yeni hostlar, eski sisteme dokunmaz). **`api` buna dahil DEĞİL:** `api.beautyossapp.com` şu an Railway canlısının özel alan adı (10-28'de görüldü); geçişe kadar Railway'i gösterir |
 | Geçişten ≥ 24 saat önce | `@`, `app`, `www` gri ise TTL 60 sn (turuncu ise gerekmez) |
-| Geçiş | `@`, `app`, `www` → A 209.38.237.171, turuncu |
+| Geçiş | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, turuncu (dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır) |
 
 Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `letsencrypt.org` izinli olmalı.
 
@@ -214,7 +215,9 @@ PGDATABASE=postgres
 PGSSLMODE=require
 ```
 
+- **Değerler TIRNAKSIZ yazılır** (`PGPASSWORD=abc`, `PGPASSWORD='abc'` değil). `docker --env-file` tırnak karakterini değerin parçası sayar. Bu, Caddy'nin `/srv/caddy/.env` dosyasındaki "özet tek tırnak içinde" kuralının tersidir; ikisini karıştırmayın.
 - Port 5432 olmalı (Session pooler). 6543 (Transaction pooler) kullanılmaz.
+- `PGSSLMODE=require` kabul edildi; `verify-full` seçilmedi. Gerekçe: tek seferlik, yalnız şema okuyan bir bağlantı ve proje G17'de silinecek; `verify-full` Supabase CA dosyasının sunucuya konmasını gerektirir. Bu adım tekrarlanırsa `verify-full` yeniden değerlendirilir.
 - **Veritabanı parolasını panelden sıfırlamayın.** Sıfırlanırsa Railway canlı API'sinin bağlantısı kopar ve `/debug` hotfix'inin dağıtımı yeniden bozulur. Parola bilinmiyorsa önce müdüre haber verin; Railway'deki `DATABASE_URL` aynı anda güncellenmelidir.
 
 **2. Betiğin sunucuya konması** (devops, kurucu beklemez). Betik `deploy/betikler/sema-karsilastir.sh` (`tasima/docker` `e3b89f2`), denetçinin kısa incelemesinde.
@@ -225,7 +228,7 @@ PGSSLMODE=require
 
 **3. Kurucunun adımları** (devops "yüklendi" dedikten sonra):
 1. Supabase panelinde `beautyos-dev` → **Connect** → **Session pooler**. Host, port (5432), kullanıcı (`postgres.<proje-ref>`) ve veritabanı (`postgres`) değerlerini not edin. Parola projenin veritabanı parolasıdır; **sıfırlamayın**.
-2. `ssh karateke@209.38.237.171`, sonra `nano /srv/beautyos/.env.supabase` ile yukarıdaki altı satırı yazın. Ardından `chmod 600 /srv/beautyos/.env.supabase`.
+2. `ssh karateke@209.38.237.171`, sonra `nano /srv/beautyos/.env.supabase` ile yukarıdaki altı satırı **tırnaksız** yazın. Ardından `chmod 600 /srv/beautyos/.env.supabase`.
 3. Çalıştırın: `bash /srv/beautyos/betikler/sema-karsilastir.sh kaynak`
 4. Beklenen:
    - Betik kaynak sürümünü yazar.
@@ -288,7 +291,7 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 
 | Aşama | İçerik | Görevler | `[ONAY]` noktaları |
 |---|---|---|---|
-| 0. Hemen | `/debug` (Railway; §12), DNS dışa aktarımı ve yeni hostlar | G4a | DNS kayıtları; Railway ara önlemi |
+| 0. Hemen | `/debug` (G4a, **kapandı 10-28**), DNS dışa aktarımı ve yeni staging hostları (`yeni`, `yeni-api`) | G4a | DNS kayıtları |
 | 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, imaj iş akışı, CI + depo içi şema uyumu | G1–G5, G7 | Taşıma dallarının GitHub'a push'u (sunucu commit'i oradan çeker); salt okunur deploy key; imaj temizleme kuralı |
 | 2. Altyapı | Caddy, yedek, izleme | G8–G10 | B2 ve Healthchecks hesapları; Caddy yeniden oluşturma saati |
 | 3. Yığın | Compose, roller, staging ayakta; şema karşılaştırması (+ gerekirse düzeltici migration); **canlı yığın boş veritabanıyla ayakta** (`api.beautyossapp.com`); kabul testi staging'de | G11–G14 | Canlı ve staging `migrate`; `kaynak` adımı (Supabase'ten şema okuma) |
@@ -300,7 +303,7 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 
 **Ön koşullar:**
 - G1–G5, G7–G14 tamam: denetçi ONAY'ı ve staging'de TEST GEÇTİ.
-- Canlı yığın boş veritabanıyla healthy: `https://api.beautyossapp.com/health` → 200.
+- Canlı yığın boş veritabanıyla healthy. DNS henüz Railway'i gösterdiği için doğrudan sunucuya sorulur: `curl --resolve api.beautyossapp.com:443:209.38.237.171 https://api.beautyossapp.com/health` → 200. Aynısı `app.beautyossapp.com` için `/login` ile yapılır. Sertifika DNS-01 ile önceden alındığından TLS geçerlidir.
 - §8 tamam. Zone dışa aktarıldı.
 - Kurucu, `MIGRATION_DATABASE_URL`'in `.env`'de olmadığını ve `.env` canlı değerlerini teyit etti: `NETGSM_*` ve `TELEGRAM_*` boş, `SENTRY_DSN` S7'ye göre, Resend/Turnstile/Gemini dolu, `FRONTEND_URL=https://app.beautyossapp.com`.
 
@@ -308,7 +311,7 @@ Denenen durum (gelistirici, sunucuda): Kaynak olarak PG 15 üzerinde 19 migratio
 |---|---|---|---|
 | 1 | kurucu | Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımını kapat (R1) | Panel |
 | 2 | kurucu | Railway prod ve staging API servislerini durdur (silme) | Eski API yanıt vermiyor |
-| 3 | kurucu | DNS `@`, `app`, `www` → 209.38.237.171, turuncu | `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200 |
+| 3 | kurucu | DNS `@`, `app`, `www`, `api` → 209.38.237.171, turuncu (`api` şu an Railway'de) | `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200; `https://api.beautyossapp.com/health` boş veritabanıyla 200 (Railway değil: yanıtta `db: ok` ve sunucu log'unda istek görünür) |
 | 4 | kurucu | İlk süper yönetici: `POST /api/v1/admin/seed`; ardından `ADMIN_SEED_SECRET` boşaltılır, devops `docker compose up -d api` | Seed uç noktası artık 403 |
 | 5 | test-muhendisi | Canlı duman testi (G16) | Geçti |
 | 6 | devops | `sirket/sunucu.md` kaydı, ilk 60 dk izleme | Kayıt yazıldı |
@@ -321,7 +324,7 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 
 1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. Önce §5 `kaynak` adımı bitmiş olmalı. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
 2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.
-3. Railway (prod + staging), Vercel (dağıtımlar ve alan adı kayıtları dahil) ve Upstash projeleri silinir.
+3. Railway (prod + staging; `api.beautyossapp.com` özel alan adı kaydı dahil), Vercel (dağıtımlar ve alan adı kayıtları dahil) ve Upstash projeleri silinir.
 4. GitHub `DATABASE_URL` sırrı silinir. Dış platformlarda saklanmış anahtarlar yenilenir (S5).
 5. `/srv/beautyos/.env.supabase` ve `/srv/beautyos/tasima/` silinir.
 6. Depodaki Railway/Vercel kalıntıları temizlenir (G18).
@@ -332,7 +335,9 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 
 | Risk | Önlem |
 |---|---|
-| **`/debug` Railway'de hâlâ açık:** hotfix (`9894212`) önce derleme hatası (bullseye apt deposu kapandı) yüzünden dağıtılamadı; `e68459f` bunu düzeltti. Ama API açılışta veritabanını yokluyor ve Supabase duraklatılmışsa süreç kapanıyor; yeni dağıtım sağlık kontrolünden geçemez | (i) `beautyos-dev` açılınca Railway'de "Redeploy" ile hotfix çıkar, ya da (ii) ara önlem `[ONAY]`: Railway servisinin herkese açık adresini kaldırmak ya da servisi şimdi durdurmak. Ürün canlıda değil, kayıp yok. Gemini anahtarı yenilenirse `/debug` ücretli çağrı da yapamaz |
+| ~~`/debug` Railway'de açık~~ **Kapandı (10-28):** `e68459f` + elle Redeploy; `/debug` 404 | — |
+| Railway "watch paths" yalnız `apps/api/**`: kök dosya değişikliği sessizce SKIPPED olur, canlıya çıkmadığı fark edilmeyebilir | Geçişe kadar Railway'e giden her kök dosya değişikliğinden sonra GitHub dağıtım durumu kontrol edilir; gerekirse elle Redeploy (kurucu). Tersi de geçerli: `apps/api/**` değişikliği `master` push'unda Railway'e **otomatik** çıkar (R1) |
+| `api.beautyossapp.com` Railway'de; geçişte DNS'i dört kayıtla birlikte değişir | §3 ve §10 adım 3. Geçiş öncesi doğrulama `curl --resolve` ile doğrudan sunucuya yapılır |
 | Supabase'te migration'a girmemiş şema değişikliği | §5 karşılaştırması + düzeltici migration; Supabase açılamazsa depo içi uyum + kabul edilen risk |
 | `master` push'unun eski API'yi yeniden açması (R1) | Geçiş adım 1 |
 | Sunucuda derleme sırasında bellek baskısı (canlı Postgres ile ortak, 4 GB) | ADR-0018: sıralı derleme, Node heap sınırı, sınırlı builder, düşük trafik saati; D14 ölçümü; gerekirse geçici swap ADR'si |
@@ -347,7 +352,7 @@ Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** 
 
 **Hâlâ açık:**
 1. **Zaman sınırlı:** `beautyos-dev` 7 gün içinde yeniden duraklar. Bu süre içinde `.env.supabase` yazılıp §5.1 komutu çalıştırılmalı.
-2. `/debug`: `e68459f` push edildi, Railway derliyor; sonuç müdürde.
+2. ~~`/debug`~~ kapandı (10-28).
 3. **S1:** `www` kullanılıyor mu, apex'e yönlensin mi? Başka alt alan adı var mı?
 4. **S3:** GitHub'daki `DATABASE_URL` sırrı hangi veritabanını gösteriyor (CI)?
 5. **S5:** `JWT_SECRET` ve dış servis anahtarları yenilensin mi (öneri: evet)?

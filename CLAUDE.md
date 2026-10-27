@@ -11,6 +11,7 @@
 
 - Taşıma tamamlanıp kurucu Railway ve Vercel'in GitHub bağlantısını kesene kadar (tasima-plani §10 adım 1): **`master`'a push prod'u, `staging`'e push staging'i otomatik dağıtır.**
 - Bu iki dala birleştirme ve her türlü `git push` yalnız kurucu onayıyla, müdür tarafından yapılır. Ajanlar yalnız yerel commit atar.
+- Railway yalnız `apps/api/**` değişikliğini izler ("watch paths"). Kök dosya değişikliği (`Dockerfile`, `railway.json`) push'ta SKIPPED olur ve kurucunun elle Redeploy etmesini gerektirir. Push sonrası GitHub dağıtım durumunu kontrol et. Railway canlısının adresi `api.beautyossapp.com`'dur.
 - Taşıma dalları (`tasima/*`) o adımdan önce `master`'a ya da `staging`'e birleştirilmez. Tek istisna canlıdaki açığı kapatan hotfix'lerdir (ör. G4a `/debug`); bunlar bilerek `master` üzerinden Railway'e çıkar.
 - Kök `Dockerfile`, `railway.json`, `nixpacks.toml` ve `apps/web/vercel.json` eski sisteme geri dönüş yoludur. G18'e kadar değiştirilmez.
 

@@ -88,6 +88,11 @@ Panelde doğrulanması gerekenler (VARSAYIM; 2026-10-28'den beri veri taşınmı
 | Supabase | pooler (`DATABASE_URL`) + doğrudan (`DIRECT_URL`) ayrımı, `pgbouncer=true` parametresi (VARSAYIM) | Kendi Postgres'imizde pooler yok; ikisi aynı sunucuya, farklı rollerle |
 | Upstash | `rediss://` TLS | İç ağda `redis://` + parola |
 
+**2026-10-28 ek bulgular (canlı gözlem):**
+- Railway canlı API'sinin özel alan adı **`api.beautyossapp.com`**. README'deki `*.up.railway.app` adresi de çalışıyor olabilir, ama web büyük olasılıkla bu özel adı kullanıyor (Vercel `NEXT_PUBLIC_API_URL`, VARSAYIM).
+- Railway servisi "watch paths" ile yalnız `apps/api/**` değişikliğinde dağıtım yapıyor. Kök dosya değişikliği (`Dockerfile`, `railway.json`) SKIPPED olur ve **elle Redeploy** ister.
+- Canlı Supabase projesi `beautyos-dev` (eu-west-1); staging `beautyos-staging`.
+
 ## 8. Riskler ve teknik borç (kısa)
 
 > **Kurucu yanıtlarından sonra (2026-10-27):**

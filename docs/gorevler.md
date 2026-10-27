@@ -32,7 +32,7 @@
 | G1 | CI testleri geçici Postgres 17'de | gelistirici | — | bekliyor |
 | G2 | API imajı | gelistirici | — | devam ediyor (`tasima/docker`) |
 | G3 | Web imajı (standalone) + zorunlu API adresi | gelistirici | — | devam ediyor (Dockerfile + standalone); API adresi kısmı bekliyor |
-| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık.** Derleme hatası (bullseye apt) `e68459f` ile giderildi (denetçi ONAY'lı). 10-28: `beautyos-dev` açıldı, `e68459f` kurucu onayıyla push edildi, Railway derliyor; sonuç müdürde |
+| G4a | `/debug` uç noktasını canlıda kapat | gelistirici | Supabase'in açılması | **push edildi (`9894212`), Railway dağıtımı başarısız; `/debug` açık.** Derleme hatası (bullseye apt) `e68459f` ile giderildi (denetçi ONAY'lı). **tamamlandı (10-28):** `e68459f` push edildi, Railway "watch paths" yüzünden SKIPPED saydı, kurucu elle Redeploy yaptı. `api.beautyossapp.com/debug` 404, `/health` `db: ok` |
 | G4b | Tek CORS modülü | gelistirici | — | bekliyor |
 | G5 | Açılış kontrolü, düzgün kapanış, log ve Sentry temizliği | gelistirici | — | bekliyor |
 | G6 | Hatırlatmaları yeniden kuyruğa alma betiği | — | — | **iptal** (SMS kapalı; kurucu yanıtı 3) |
@@ -41,7 +41,7 @@
 | G9 | Yedekleme + geri yükleme denemesi | devops | G11 | devam ediyor |
 | G10 | İzleme ve uyarılar | devops | G8 | devam ediyor |
 | G11 | `deploy/` yığını (canlı + kalıcı staging), roller, Caddy parçası | gelistirici | G2, G3, G8 | incelemede (`tasima/docker` 62d9ca7; ilk inceleme RED, düzeltildi) |
-| G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | incelemede (`tasima/docker` `e3b89f2`; K1–K7 sunucuda denendi; `kaynak` öncelikli kısa inceleme) |
+| G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | **ONAY** (`e3b89f2`, `raporlar/denetim/beautyos-tasima-4.md`). Denetçi önerileri sonraki turda (yeniden incelemeye girer): bağlantı hatasında psql iletisinin ilk satırının gösterilmesi. `verify-full` önerisi mimar kararıyla reddedildi (`require` yeterli, plan §5.1) |
 | G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
 | G15 | Geçiş (Railway durdurma + DNS) | kurucu + devops | G1–G5, G7–G14 | bekliyor |
@@ -193,7 +193,7 @@
 - **Ön koşul:** G11 ve G12 denetçi ONAY'lı (yalnız `kaynak` adımı için G12 beklenmez: plan §5.1 yedek komutu). Canlı Supabase projesi `beautyos-dev` (kesinleşti; **7 gün içinde yeniden duraklar**, kaynak dökümü öncelikli). `.env.supabase` kurucu tarafından yazıldı.
 - **Kabul kriterleri:**
   - K1: Canlı `beautyos` veritabanı boş kurulur: `01-roller.sh` + `docker compose --profile migrate run --rm migrate` `[ONAY]`. `prisma migrate status` "up to date". `app_user` için `rolsuper`/`rolbypassrls` `false`.
-  - K2: `api` ve `web` (canlı) ayağa kalkar. `https://api.beautyossapp.com/health` Cloudflare üzerinden 200 döner. `@`/`app`/`www` DNS'i henüz değişmez.
+  - K2: `api` ve `web` (canlı) ayağa kalkar. `api.beautyossapp.com` DNS'i geçişe kadar Railway'i gösterdiği için doğrulama doğrudan sunucuya yapılır: `curl --resolve api.beautyossapp.com:443:209.38.237.171 https://api.beautyossapp.com/health` → 200 ve geçerli sertifika; `app` için `/login` aynı yolla. `@`/`app`/`www`/`api` DNS'i henüz değişmez.
   - K3: Kurucu `sema-karsilastir.sh kaynak` çalıştırır. devops ya da gelistirici `hedef` ve `karsilastir` adımlarını çalıştırır. `sema-fark.txt` ve `kaynak-bilgi.txt` mimara bildirilir (D1, D7, D8, D13).
   - K4: Fark varsa plan §5 karar tablosu uygulanır.
     - Gerekiyorsa gelistirici **düzeltici migration** yazar: yeni klasör, mevcut migration'lar değiştirilmez. Test önce: `karsilastir` kırmızı → migration → yeşil.
@@ -223,7 +223,7 @@
 - **Kabul kriterleri:**
   - K1: Railway/Vercel Git otomatik dağıtımı kapalı ve Railway API'leri durmuş (kurucu ekran teyidi).
   - K2: Canlı `.env`'de `NETGSM_*`, `TELEGRAM_*` ve (S7'ye göre) `SENTRY_DSN` boş (kurucu teyidi).
-  - K3: `@`, `app`, `www` ve `api` Cloudflare üzerinden 200 ve geçerli sertifikayla yanıt verir.
+  - K3: `@`, `app`, `www` ve `api` (dördü birlikte sunucuya; `api` öncesinde Railway'deydi) Cloudflare üzerinden 200 ve geçerli sertifikayla yanıt verir. `api` yanıtının sunucudan geldiği Caddy/API log'undan doğrulanır.
   - K4: İlk süper yönetici `POST /api/v1/admin/seed` ile oluşturuldu. Ardından `ADMIN_SEED_SECRET` boşaltıldı ve `api` yeniden oluşturuldu. Aynı istek artık 403 döner (test mühendisi doğrular).
   - K5: `sirket/sunucu.md`'de "Çalışan servisler" satırı (hostlar, port yok, yedek yöntemi) ve işlem günlüğünde geri alma adımı (yalnız DNS, plan §10) yazılı.
 

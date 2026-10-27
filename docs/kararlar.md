@@ -190,7 +190,7 @@ API ve işçi tek konteynerde, tek kopya çalışır (`replicas` ya da `scale` y
 - **Karar verenler:** mimar
 
 ### Bağlam
-Kiracılar URL yolunda ayrılıyor (`/tenant/[slug]`, `/book/[slug]`); alt alan adı kullanılmıyor. Web `beautyossapp.com` (tanıtım) ve `app.beautyossapp.com` (uygulama) üzerinden çalışıyor. API şimdiye kadar `*.up.railway.app` adresindeydi; bu adres web'e derleme anında gömülü.
+Kiracılar URL yolunda ayrılıyor (`/tenant/[slug]`, `/book/[slug]`); alt alan adı kullanılmıyor. Web `beautyossapp.com` (tanıtım) ve `app.beautyossapp.com` (uygulama) üzerinden çalışıyor. API şimdiye kadar `*.up.railway.app` adresindeydi; bu adres web'e derleme anında gömülü. (2026-10-28 düzeltmesi: Railway canlısı zaten `api.beautyossapp.com` özel alan adını kullanıyor. Bu yüzden `api` kaydı "yeni host" değil; geçişte `@`/`app`/`www` ile birlikte sunucuya çevrilir.)
 
 ### Alternatifler
 - **API'yi aynı host altında `/api` yolundan sunmak:** CORS biter, ama tüm API yollarının (`/api/v1`, `/webhook`, `/health`) yeniden eşlenmesi ve web'de ters vekil gerekir.
