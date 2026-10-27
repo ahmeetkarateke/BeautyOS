@@ -1,0 +1,424 @@
+# Teknik Kararlar (ADR) — beautyos
+
+Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok kiracılık, ödeme, barındırma, yedekleme) numaralı bir ADR olarak bu dosyanın sonuna eklenir. İsimlendirme gibi küçük kararlar yazılmaz.
+
+- Durum: önerildi | kabul edildi | kullanımdan kalktı | yerini aldı: ADR-NNNN
+- Kabul edilmiş ADR değiştirilmez. Karar değişirse yeni ADR yazılır, eskisinin durumu "yerini aldı: ADR-NNNN" yapılır.
+- Kısa tut: bir ADR iki dakikada okunmalı; bağlam en fazla 10 satır.
+- Geçmiş bir karar sonradan yazılıyorsa asıl tarihi belirt.
+
+## Dizin
+
+| No | Başlık | Durum | Tarih |
+|---|---|---|---|
+| ADR-0001 | Kararlar ADR formatında kaydedilir | kabul edildi | 2026-10-27 |
+| ADR-0002 | Tüm yığın şirket sunucusunda Docker Compose ile çalışır | kabul edildi (kurucu kararı) | 2026-10-27 |
+| ADR-0003 | PostgreSQL 17 kendi konteynerimizde; `app_owner`/`app_user` rol ayrımı; taşımada RLS eklenmez | önerildi | 2026-10-27 |
+| ADR-0004 | Veri taşıma: bakım penceresinde `pg_dump`/`pg_restore`, betiği kurucu çalıştırır | önerildi | 2026-10-27 |
+| ADR-0005 | Redis kendi konteynerimizde; Upstash verisi taşınmaz, hatırlatmalar yeniden kuyruklanır | önerildi | 2026-10-27 |
+| ADR-0006 | BullMQ işçisi API sürecinde kalır; tek kopya; konteyner saati UTC | önerildi | 2026-10-27 |
+| ADR-0007 | Alan adları: yol tabanlı kiracı, joker sertifika yok; API `api.beautyossapp.com` | önerildi | 2026-10-27 |
+| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | önerildi | 2026-10-27 |
+| ADR-0009 | Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token | önerildi | 2026-10-27 |
+| ADR-0010 | Gerçek istemci IP'si: Caddy CF-Connecting-IP'yi yalnız Cloudflare aralıklarından kabul eder | önerildi | 2026-10-27 |
+| ADR-0011 | 80/443 güvenlik duvarında Cloudflare IP'lerine kısıtlanmaz | önerildi | 2026-10-27 |
+| ADR-0012 | İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir | önerildi | 2026-10-27 |
+| ADR-0013 | Kalıcı staging yok; gerekirse aynı sunucuda isteğe bağlı staging yığını | önerildi | 2026-10-27 |
+| ADR-0014 | Taşıma Node 20 + Debian bookworm ile; Node yükseltmesi taşımadan sonra | önerildi | 2026-10-27 |
+| ADR-0015 | Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır | önerildi | 2026-10-27 |
+
+---
+
+## ADR-0001: Kararlar ADR formatında kaydedilir
+
+- **Tarih:** 2026-10-27
+- **Durum:** kabul edildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Proje tek kişi ve ajan ekibiyle yürüyor; oturumlar arası hafıza yalnızca dosyalardır. Bir seçimin neden yapıldığı kaydedilmezse sonraki oturumda aynı tartışma tekrarlanır. BeautyOS şirket dışında başladı ve bu dosya taşıma sırasında açıldı; önceki kararlar (Supabase, Vercel, Railway, Upstash, Prisma) yalnız `docs/mevcut-durum.md`'de özetli.
+
+### Alternatifler
+- **Tek tablo (tarih/karar/gerekçe):** kısa ama reddedilen seçenekler ve sonuçlar kayboluyor.
+- **Ayrı dosyalar (docs/adr/NNNN-*.md):** büyük ekipler için uygun; bu ölçekte dosya kalabalığı.
+
+### Karar
+Tüm kararlar bu dosyada, numaralı ADR bölümleri olarak tutulur.
+
+### Sonuçlar
+- **Olumlu:** Gerekçe ve reddedilen seçenekler kalıcı; denetçi mimari değişikliği ADR'siz yakalayabilir.
+- **Olumsuz:** Dosya zamanla uzar; dizin tablosu güncel tutulmalı.
+- **Riskler:** ADR yazılmadan karar uygulanabilir. Önlem: mimari görevlerde kabul kriteri olarak "ilgili ADR yazıldı" bulunur.
+
+---
+
+## ADR-0002: Tüm yığın şirket sunucusunda Docker Compose ile çalışır
+
+- **Tarih:** 2026-10-27
+- **Durum:** kabul edildi (kurucu kararı)
+- **Karar verenler:** kurucu; mimar (uygulama planı)
+
+### Bağlam
+BeautyOS dört ayrı platformda çalışıyor: web Vercel'de, API Railway'de, PostgreSQL Supabase'te, Redis Upstash'te. Şirketin artık kendi sunucusu var (`sirket-sunucu-1`, DO FRA1, 2 vCPU / 4 GB). Dört platform dört fatura, dört panel, dört yurt dışı veri işleyen demek. Gerçek kullanıcı henüz yok.
+
+### Alternatifler
+- **Olduğu gibi kalmak:** sıfır iş, ama maliyet ve dağınıklık sürer; şirket standardına (ortak sunucu, compose) uymaz.
+- **Yalnız uygulamayı taşımak, Supabase'i tutmak:** veritabanı yönetimi kalkar, ama gecikme ve yurt dışı işleyen sürer. Kurucu reddetti.
+
+### Karar
+Web, API (+ işçi), PostgreSQL ve Redis şirket sunucusunda `beautyos` adlı tek compose projesi olarak çalışır; önünde ortak Caddy vardır. Eski platformlar 14 gün durdurulmuş halde bekler, sonra silinir.
+
+### Sonuçlar
+- **Olumlu:** Tek yer, tek fatura, daha az veri işleyen; şirketin diğer projeleriyle aynı işletim modeli.
+- **Olumsuz:** Veritabanı yedeği, güncellemesi ve izlemesi artık bizde.
+- **Riskler:** Tek sunucu tek arıza noktasıdır. Önlem: yedek sunucu dışında (ADR-0015), dış izleme, belgeli geri yükleme.
+
+---
+
+## ADR-0003: PostgreSQL 17 kendi konteynerimizde; `app_owner`/`app_user` rol ayrımı; taşımada RLS eklenmez
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+`pg_restore` yalnız aynı ya da daha yeni bir ana sürüme güvenle yüklenir. Supabase'in sürümü bilinmiyor; yeni projeler 15 ya da 17. Şirket standardı (`coklu-kiraci-veritabani`) uygulamanın süper kullanıcıyla bağlanmamasını ve RLS'yi şart koşuyor. Mevcut kodda RLS yok; kiracı ayrımı Prisma sorgularındaki `tenantId` filtresiyle sağlanıyor.
+
+### Alternatifler
+- **PostgreSQL 16:** Prisma 5'in resmî listesinde daha kesin, ama kaynak 17 ise geri yükleme riskli.
+- **PostgreSQL 18:** en yeni; Prisma 5 ile denenmemiş, kazancı yok.
+- **Taşımayla birlikte RLS eklemek:** standarda uyar, ama Prisma'da her isteği işlem + `set_config` ile sarmak büyük bir kod değişikliği. Taşımayla aynı anda yapılırsa hata kaynağı ayrıştırılamaz.
+
+### Karar
+`postgres:17` (sabit küçük sürüm) kullanıyoruz. Roller:
+- Süper kullanıcı (`POSTGRES_USER`) yalnız ilk kurulumda kullanılır.
+- `app_owner` tabloların sahibidir ve migration'ları çalıştırır. Bağlantısı yalnız `.env.migrate`'te durur.
+- `app_user` (`NOSUPERUSER NOBYPASSRLS`, yalnız DML) uygulamanın bağlandığı roldür. `ALTER DEFAULT PRIVILEGES` ile yetki alır.
+
+Taşımada RLS eklenmez; ayrı bir proje olarak (T-B1) yeni ADR ile ele alınır.
+
+### Sonuçlar
+- **Olumlu:** Uygulama DDL ya da rol yetkisi taşımaz; RLS projesi için zemin hazır.
+- **Olumsuz:** Kiracı izolasyonu hâlâ tek katmanlı (uygulama filtresi).
+- **Riskler:** Prisma 5.22 + PG 17 uyumsuzluğu. Önlem: G1 testleri PG 17'de koşar. Kalırsa PG 16'ya inilir, ama yalnız kaynak ≤ 16 ise (doğrulama kaydı D1, D2).
+
+---
+
+## ADR-0004: Veri taşıma: bakım penceresinde `pg_dump`/`pg_restore`, betiği kurucu çalıştırır
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Veri korunmalı ama gerçek kullanıcı yok; kısa bir yazma kesintisi kabul edilebilir. Supabase bağlantı bilgisi gizlidir; ajanlar `.env*` okuyamaz. Supabase veritabanında `auth`, `storage`, `realtime`, `extensions` gibi bizim taşımayacağımız şemalar var.
+
+### Alternatifler
+- **Mantıksal replikasyon (publication/subscription):** kesintisiz, ama kurulum ve Supabase yetkileri karmaşık; bu ölçekte gereksiz.
+- **Tam veritabanı dökümü:** Supabase'e özgü şemalar, roller ve yetkiler gelir; geri yükleme kirlenir ve hata verir.
+- **Ajanın bağlantı bilgisini görmesi:** şirket kuralına aykırı.
+
+### Karar
+Yazma durdurulur (Railway API durdurulur). `pg_dump -Fc --schema=public --no-owner --no-privileges` ile döküm alınır, `pg_restore --role=app_owner --single-transaction --exit-on-error` ile yüklenir. Hedefte zaten var olan `SCHEMA public` girdisi listeden çıkarılır. İşi `deploy/betikler/veri-aktar.sh` yapar ve **kurucu çalıştırır**. Bağlantı bilgisi libpq değişkenleri olarak `.env.supabase`'ten konteynere girer, komut satırına girmez. Doğrulama satır sayısı + kimlik özeti + `prisma migrate status` ile yapılır.
+
+### Sonuçlar
+- **Olumlu:** Basit, tekrarlanabilir. Önce provada aynı betikle denenir.
+- **Olumsuz:** 15–30 dk yazma kesintisi.
+- **Riskler:** Supabase'de panelden açılmış RLS/politika ya da `extensions.` bağımlılığı geri yüklemeyi bozar. Önlem: `on-kontrol` adımı bunları arar ve durur.
+
+---
+
+## ADR-0005: Redis kendi konteynerimizde; Upstash verisi taşınmaz, hatırlatmalar yeniden kuyruklanır
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Redis'te yalnız BullMQ `reminders` kuyruğu var. İçinde randevu başına iki gecikmeli hatırlatma (belirlenimci jobId) ve bir tekrarlı gece işi bulunuyor. Rate limit Redis kullanmıyor.
+
+### Alternatifler
+- **Upstash'ten RDB/`MIGRATE` ile kopya:** TLS ve Upstash kısıtları yüzünden zahmetli. Kopyalanan işler provada çift tetiklenme riski taşır.
+- **Hiçbir şey yapmamak:** gelecekteki randevuların hatırlatmaları sessizce kaybolur.
+
+### Karar
+Redis 7.4 kendi konteynerimizde çalışır: `appendonly yes`, `maxmemory 128mb`, `maxmemory-policy noeviction`, parola zorunlu, port yayını yok. Upstash verisi taşınmaz. Geçişte `requeue-reminders` betiği (G6) gelecekteki aktif randevular için işleri aynı jobId'lerle yeniden ekler.
+
+### Sonuçlar
+- **Olumlu:** Taşınacak durum yok; betik iki kez çalışsa da çift iş oluşmaz.
+- **Olumsuz:** Küçük bir betik yazmak gerekiyor.
+- **Riskler:** `noeviction` ile bellek dolarsa yazmalar hata verir. Önlem: tamamlanan işler zaten siliniyor (`removeOnComplete`); bellek izlenir.
+
+---
+
+## ADR-0006: BullMQ işçisi API sürecinde kalır; tek kopya; konteyner saati UTC
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+`startReminderWorker()` API açılışında çağrılıyor; ayrı bir giriş noktası yok. Gece no-show işi cron `30 20 * * *` ile süreç saatine göre çalışıyor. "Bugün" sınırı da `setHours(0,0,0,0)` ile hesaplanıyor; Railway'de bu UTC idi. Sunucunun kendi saat dilimi `Europe/Istanbul`. `express-rate-limit` bellek içi depo kullanıyor.
+
+### Alternatifler
+- **Ayrı worker konteyneri:** API ölçeklemesi bağımsız olur, ama kod değişikliği ve ek ~150 MB bellek ister; bugünkü yükte gereksiz.
+- **`TZ=Europe/Istanbul`:** daha "doğal", ama cron 23:30'dan 20:30 TR'ye kayar ve no-show tarih penceresi değişir. Taşımada davranış değiştirmek istemiyoruz.
+
+### Karar
+API ve işçi tek konteynerde, tek kopya çalışır (`replicas` ya da `scale` yok). Konteyner ortamında `TZ=UTC` açıkça yazılır. İşçi ayrımı ya da saat dilimi değişikliği gerekirse yeni ADR yazılır.
+
+### Sonuçlar
+- **Olumlu:** Davranış Railway ile birebir aynı.
+- **Olumsuz:** API yeniden başlarken işçi de durur. Gecikmeli işler Redis'te kalıcı olduğu için kaybolmaz.
+- **Riskler:** Biri ölçekleme için kopya artırırsa hız sınırları kopya başına ayrı sayılır. Önlem: bu ADR ve proje CLAUDE.md'deki kural.
+
+---
+
+## ADR-0007: Alan adları: yol tabanlı kiracı, joker sertifika yok; API `api.beautyossapp.com`
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Kiracılar URL yolunda ayrılıyor (`/tenant/[slug]`, `/book/[slug]`); alt alan adı kullanılmıyor. Web `beautyossapp.com` (tanıtım) ve `app.beautyossapp.com` (uygulama) üzerinden çalışıyor. API şimdiye kadar `*.up.railway.app` adresindeydi; bu adres web'e derleme anında gömülü.
+
+### Alternatifler
+- **API'yi aynı host altında `/api` yolundan sunmak:** CORS biter, ama tüm API yollarının (`/api/v1`, `/webhook`, `/health`) yeniden eşlenmesi ve web'de ters vekil gerekir.
+- **Joker sertifika `*.beautyossapp.com`:** gelecekteki kiracı alt alan adlarına hazır olur, ama bugün ihtiyaç yok. DNS-01 ile sonradan tek satırla eklenir.
+
+### Karar
+Hostlar şunlar: `beautyossapp.com`, `www.beautyossapp.com`, `app.beautyossapp.com` → web; `api.beautyossapp.com` → API; prova için geçici `yeni.beautyossapp.com`. Her host için ayrı sertifika alınır. `NEXT_PUBLIC_API_URL=https://api.beautyossapp.com`, `ALLOWED_ORIGINS` apex + `app` + `www`.
+
+### Sonuçlar
+- **Olumlu:** API adresi bizim alan adımızda; platform değişse de web yeniden derlenmez. `refreshToken` çerezi artık aynı site içinde.
+- **Olumsuz:** CORS hâlâ gerekli.
+- **Riskler:** `www`'nun kullanılıp kullanılmadığı bilinmiyor (Soru S1).
+
+---
+
+## ADR-0008: Cloudflare proxy açık (turuncu), SSL modu Full (strict)
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi (koşul: hukuk-uyum onayı)
+- **Karar verenler:** mimar; kurucu (alan adı ve DNS Cloudflare'de)
+
+### Bağlam
+DNS Cloudflare'de. Sunucu ortak ve IP'si sabit. Proxy açıkken TLS Cloudflare'de sonlanır ve yeniden şifrelenir; yani kişisel veri Cloudflare'in (ABD şirketi) kenar sunucularından açık halde geçer. Bot Fight Mode ücretsiz planda kuralla atlanamaz.
+
+### Alternatifler
+- **Gri bulut (yalnız DNS):** Cloudflare veri yolunda değil, IP doğrudan gelir. Ama origin IP açıkta kalır, DDoS koruması ve statik önbellek olmaz.
+- **SSL Flexible / Full (strict olmayan):** Cloudflare ile sunucu arası şifresiz ya da doğrulamasız olur. Reddedildi.
+
+### Karar
+`beautyossapp.com` hostları turuncu bulutla kullanılır, zone SSL modu **Full (strict)**, "Always Use HTTPS" açık. Bot Fight Mode ve "Under Attack" kapalı kalır (Telegram/NetGSM çağrıları engellenmesin). HSTS, geçiş oturduktan sonra ayrı adımda açılır. Hukuk-uyum TLS sonlandırmayı uygun bulmazsa gri buluta geçilir; Caddy yapılandırması (ADR-0009, 0010) iki durumda da değişmeden çalışır.
+
+### Sonuçlar
+- **Olumlu:** DDoS koruması, origin gizliliği, DNS değişikliğinin anında yayılması.
+- **Olumsuz:** Cloudflare veri yolunda; 100 sn istek zaman aşımı ve 100 MB gövde sınırı var (bugünkü kullanımda sorun değil).
+- **Riskler:** Full (strict) zone geneline uygulanır. Vercel geçerli sertifika sunduğu için geçişten önce açmak güvenli.
+
+---
+
+## ADR-0009: Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar, devops
+
+### Bağlam
+Proxy açıkken HTTP-01 doğrulaması Cloudflare'den geçmek zorunda ve kırılgan. Ayrıca sertifikayı DNS geçişinden **önce** almak istiyoruz; geçiş anında bekleme olmasın. Ortak Caddy ileride Cloudflare kullanmayan müşteri alan adlarını da sunacak.
+
+### Alternatifler
+- **Cloudflare Origin CA sertifikası (15 yıl):** ACME ve token gerekmez, ama yalnız Cloudflare'e güvenilir. Gri buluta dönüş imkânını kapatır; özel anahtar dosyası elle yönetilir.
+- **HTTP-01 / TLS-ALPN-01 (Caddy varsayılanı):** eklenti gerekmez, ama sertifika ancak DNS sunucuyu gösterdikten sonra alınır; proxy ile kırılgan.
+
+### Karar
+Ortak Caddy, `caddy-dns/cloudflare` eklentili özel imajla çalışır. Cloudflare dışındaki alan adları varsayılan HTTP-01/TLS-ALPN ile devam eder. Token Cloudflare'de **yalnız `Zone:DNS:Edit` izinli ve yalnız `beautyossapp.com` zonuna sınırlı** olarak oluşturulur (kurucu). Değeri `/srv/caddy/.env.caddy` içinde `CF_API_TOKEN` olarak durur.
+
+### Sonuçlar
+- **Olumlu:** Proxy kipinden bağımsız, otomatik yenileme, geçiş öncesi sertifika.
+- **Olumsuz:** Özel Caddy imajı derlenmeli ve eklenti sürümleri takip edilmeli.
+- **Riskler:** Token sızarsa saldırgan bu zonun DNS kayıtlarını değiştirebilir. Önlem: tek zon, tek izin; token yalnız Caddy konteynerinde; kapatma aşamasında yenilenir.
+
+---
+
+## ADR-0010: Gerçek istemci IP'si: Caddy CF-Connecting-IP'yi yalnız Cloudflare aralıklarından kabul eder
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar, devops
+
+### Bağlam
+API'de `trust proxy 1` var; hız sınırları (giriş 15 dk / 10 istek, SMS doğrulama) `req.ip`'ye göre sayılıyor. Zincir Cloudflare → Caddy → API. Caddy varsayılanında `X-Forwarded-For` "istemci, cloudflare-kenarı" olur ve Express kenar IP'sini görür. Bu durumda tüm kullanıcılar birkaç IP'de toplanır ve birbirini kilitler.
+
+### Alternatifler
+- **Express `trust proxy 2`:** kod değişikliği ister; doğrudan gelen isteklerde yanlış hop sayısına güvenir.
+- **Uygulamada `CF-Connecting-IP` okumak:** herkes bu başlığı sahteleyebilir (origin açık).
+
+### Karar
+Caddy genel ayarında `trusted_proxies cloudflare` (`caddy-cloudflare-ip` eklentisi, aralıkları kendisi günceller) ve `client_ip_headers CF-Connecting-IP` kullanılır. Her `reverse_proxy` bloğunda `header_up X-Forwarded-For {client_ip}` yazılır. Express tek değer görür; `trust proxy 1` doğru IP'yi verir. Cloudflare dışından gelen bağlantıda başlık yok sayılır.
+
+### Sonuçlar
+- **Olumlu:** Kod değişmez; sahte IP enjekte edilemez.
+- **Olumsuz:** Caddy'de bir eklenti daha.
+- **Riskler:** Eklenti çalışmazsa Cloudflare kenar IP'si görünür. Önlem: G14'te iki farklı istemciden giriş denemesi ve API log'unda IP doğrulaması. Eklenti sorun çıkarırsa Cloudflare aralıkları `trusted_proxies static` ile elle yazılır.
+
+---
+
+## ADR-0011: 80/443 güvenlik duvarında Cloudflare IP'lerine kısıtlanmaz
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Sunucu ortaktır; ileride Cloudflare kullanmayan müşteri alan adları da aynı Caddy'den sunulacak. Origin IP'si zaten belgelerde ve DNS geçmişinde biliniyor. Kısıt ufw ve DO Cloud Firewall'da uygulanırsa tüm projeleri etkiler.
+
+### Alternatifler
+- **ufw/Cloud Firewall'da 80/443'ü yalnız Cloudflare'e açmak:** origin tam gizlenir, ama diğer müşterileri keser. Ayrıca Cloudflare aralıkları değiştikçe bakım gerektirir.
+- **Authenticated Origin Pulls (mTLS):** güçlü, ama Caddy'de istemci sertifikası yönetimi ekler.
+
+### Karar
+Güvenlik duvarında kısıt yok. İsteğe bağlı sonraki adım: Caddy'de yalnız BeautyOS hostları için "Cloudflare dışı kaynağa 403" kuralı. Geçişten 14 gün sonra yeni ADR ile değerlendirilir.
+
+### Sonuçlar
+- **Olumlu:** Ortak sunucu esnek kalır.
+- **Olumsuz:** Saldırgan Cloudflare'i atlayıp doğrudan IP'ye gelebilir (hız sınırları ve IP tespiti yine doğru çalışır, ADR-0010).
+- **Riskler:** Doğrudan DDoS. Önlem: DO Cloud Firewall + izleme; gerekirse yeni ADR.
+
+---
+
+## ADR-0012: İmajlar GitHub Actions'ta derlenip GHCR'a gider; yayın sunucuda elle çekilir
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+`next build` 1,5–2 GB bellek ister; sunucu 4 GB ve canlı Postgres'le ortak. Kurucunun makinesinde Docker ve Node kurulu değil. Şirket kuralı: canlıya alma denetçi ONAY'ı ve test GEÇTİ sonrası yapılır. Bugünkü "`master` push = canlı" akışı bu kurala aykırı.
+
+### Alternatifler
+- **Sunucuda `git pull` + `docker compose build`:** kayıt defteri gerekmez, ama derleme canlı servislerle bellek yarışına girer ve sunucuya depo erişim anahtarı gerekir.
+- **Actions'tan SSH ile otomatik dağıtım:** hızlı, ama GitHub'a sunucu anahtarı verilir ve onaysız canlıya alma geri gelir.
+
+### Karar
+`.github/workflows/imaj.yml` (`workflow_dispatch` + `v*` etiketi) API ve web imajlarını derleyip özel `ghcr.io/ahmeetkarateke/beautyos-{api,web}:<sha-12>` olarak iter. `NEXT_PUBLIC_*` derleme değerleri repository variables'tan gelir. Yayını devops sunucuda yapar: imaj etiketini compose'da günceller, ardından `pull` + `up -d`. Sunucu GHCR'a yalnız `read:packages` token'ıyla bağlanır.
+
+### Sonuçlar
+- **Olumlu:** Sunucuda derleme yükü yok; her sürüm sabit etiketli; geri alma tek satır.
+- **Olumsuz:** Yayın elle yapılır (bilinçli tercih).
+- **Riskler:** GHCR özel paket kotası ya da ücreti (doğrulama D4). Sorun çıkarsa yedek yol: geceleyin, bellek sınırıyla sunucuda derleme. Prova sırasında test ortamı sunucuda derlenebilir; canlı imaj yine bu iş akışından gelir.
+
+---
+
+## ADR-0013: Kalıcı staging yok; gerekirse aynı sunucuda isteğe bağlı staging yığını
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Bugün Railway staging + Vercel preview + ayrı Supabase staging projesi var. Sunucuya kalıcı staging eklemek bellek bütçesini (ADR-0002, plan §2) ikiye katlar. Gerçek kullanıcı yok; doğrulama zinciri CI testleri + denetçi + test mühendisinden oluşuyor.
+
+### Alternatifler
+- **Kalıcı staging (ikinci compose projesi):** canlıya en yakın ortam, ama sürekli ~1 GB bellek.
+- **Staging'i dış platformda bırakmak:** "her şey taşınacak" kurucu kararına aykırı.
+
+### Karar
+Kalıcı staging kurulmaz. Gerektiğinde `beautyos-staging` compose projesi aynı sunucuda ayrı volume'larla, `staging.beautyossapp.com` + Caddy basic auth arkasında açılır; iş bitince durdurulur. Eski staging ortamları kapatılır; staging verisi taşınmaz (VARSAYIM, Soru S3).
+
+### Sonuçlar
+- **Olumlu:** Bellek ve bakım tasarrufu.
+- **Olumsuz:** Kabul testi için ortam her seferinde açılır.
+- **Riskler:** Canlıya yakın test eksikliği. Önlem: CI'da gerçek Postgres/Redis; taşımada kuru prova.
+
+---
+
+## ADR-0014: Taşıma Node 20 + Debian bookworm ile; Node yükseltmesi taşımadan sonra
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi
+- **Karar verenler:** mimar
+
+### Bağlam
+Node 20 Nisan 2026'da destek dışı kaldı. Mevcut imaj `node:20-bullseye-slim`; Debian 11'in desteği de bitiyor. Prisma motoru işletim sisteminin OpenSSL sürümüne bağlı. Bir taşımada aynı anda birden fazla değişken değişirse arıza kaynağı ayrıştırılamaz.
+
+### Alternatifler
+- **Taşımayla birlikte Node 22/24:** tek seferde biter, ama hata kaynağı belirsizleşir.
+- **bullseye'da kalmak:** Prisma değişmez, ama destek dışı bir işletim sistemi.
+
+### Karar
+Taşıma imajları `node:20.x-bookworm-slim` (sabit küçük sürüm) ile derlenir. `prisma generate`, çalışma imajıyla aynı tabanlı aşamada çalışır; bu sayede şemaya dokunmadan `native` hedef tutar. Node 22/24 LTS yükseltmesi, taşıma oturduktan sonra ayrı görevdir (G18).
+
+### Sonuçlar
+- **Olumlu:** Davranış değişikliği en az; işletim sistemi destekli.
+- **Olumsuz:** Birkaç hafta destek dışı Node çalışır.
+- **Riskler:** Node 20 güvenlik açığı. Önlem: G18 taşıma +14 günde planlanır.
+
+---
+
+## ADR-0015: Yedekleme: gece `pg_dump` → restic → Backblaze B2 (AB), geçişten önce denenmiş olarak hazır
+
+- **Tarih:** 2026-10-27
+- **Durum:** önerildi (koşul: hukuk-uyum onayı)
+- **Karar verenler:** mimar, devops
+
+### Bağlam
+Veritabanı artık bizde ve özel nitelikli kişisel veri (anamnez) içeriyor. Sunucuda henüz yedek yok. Şirket kuralı: yedek sunucu dışında ve şifreli tutulur, geri yükleme denenerek doğrulanır, yurt dışı depolama `hukuk-uyum` onayı ister.
+
+### Alternatifler
+- **Yalnız DO droplet yedeği:** kolay, ama haftalık, tüm diski kapsar ve aynı sağlayıcıda durur. Tek başına yeterli değil; ek olarak açılabilir (Soru S8).
+- **Yalnız yerel döküm:** sunucu kaybında yedek de gider.
+
+### Karar
+Her gece 03:15 (TR) `pg_dump -Fc` çıktısı restic ile B2 AB bölgesine gider. Şifreleme istemci tarafında yapılır; restic parolası `.env.yedek` dosyasında ve kurucunun parola yöneticisinde durur. Saklama 7 günlük / 4 haftalık / 6 aylık (hukuk-uyum teyidi). Başarısız iş Telegram'a uyarı yollar. **Geçiş, en az bir başarılı yedek ve belgeli bir geri yükleme denemesi olmadan yapılmaz.** Uygulama ortak altyapıdadır (sunucu-altyapi, devops).
+
+### Sonuçlar
+- **Olumlu:** Sunucu dışında, şifreli, test edilmiş yedek.
+- **Olumsuz:** B2 hesabı ve küçük bir aylık ücret.
+- **Riskler:** restic parolası kaybolursa yedek açılamaz. Önlem: parola kurucunun parola yöneticisinde ikinci kopya olarak durur.
+
+---
+
+## Doğrulama kaydı
+
+Mimar deney yapamıyor; aşağıdaki varsayımlar ilgili görevde doğrulanır ve sonuç buraya yazılır.
+
+| No | Varsayım | Beklenen | Doğrulayan | Sonuç |
+|---|---|---|---|---|
+| D1 | Supabase PostgreSQL ana sürümü ≤ 17 | `on-kontrol` sürümü yazar | G12/G13 | — |
+| D2 | Prisma 5.22 PostgreSQL 17'de sorunsuz (migrate deploy + testler) | CI yeşil | G1 | — |
+| D3 | Prisma Client çalışma anında `DIRECT_URL` ister | Yoksa açılış hatası; bu yüzden `.env`'de `DATABASE_URL` ile aynı değer | G2 | — |
+| D4 | GHCR özel paket depolama/indirme bu ölçekte ücretsiz ya da kota içinde | Fatura/kota uyarısı yok | G7 | — |
+| D5 | `caddy-cloudflare-ip` + `header_up X-Forwarded-For {client_ip}` ile Express gerçek IP'yi görür | API log'unda istemci IP'si | G8/G14 | — |
+| D6 | Turnstile widget'ı `yeni.beautyossapp.com`'da çalışır (alt alan adı otomatik ya da eklenince) | Herkese açık randevu provada geçer | G13 | — |
+| D7 | Supabase'e sunucudan Session pooler (IPv4) ile `pg_dump` yapılabilir | `on-kontrol` bağlanır | G13 | — |
+| D8 | Supabase `public` şemasında RLS/politika/`extensions.` bağımlılığı yok | `on-kontrol` boş liste | G13 | — |
+| D9 | NetGSM API'de IP kısıtı yok ya da sunucu IP'si eklendi | Geçişte test SMS'i gider | Soru S6 / G16 | — |
+
+---
+
+<!-- Yeni ADR şablonu: aşağıdaki bloğu dosyanın sonuna kopyala, numarayı artır, dizine satır ekle.
+
+## ADR-NNNN: <karar başlığı>
+
+- **Tarih:** YYYY-AA-GG
+- **Durum:** önerildi
+- **Karar verenler:** <roller>
+
+### Bağlam
+<sorun, kısıtlar, etkenler; 2-5 cümle>
+
+### Alternatifler
+- **<seçenek 1>:** artıları / eksileri / neden seçilmedi
+- **<seçenek 2>:** artıları / eksileri / neden seçilmedi
+
+### Karar
+<1-3 cümle, şimdiki zamanla: "X kullanıyoruz">
+
+### Sonuçlar
+- **Olumlu:** ...
+- **Olumsuz:** ...
+- **Riskler:** <risk ve önlem>
+-->
