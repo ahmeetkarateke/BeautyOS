@@ -27,14 +27,15 @@ api.beautyossapp.com {
 }
 
 # ─── STAGING (ADR-0016) ─────────────────────────────────────────────────────
-# Web basic auth ister. Parola ÖZETİ gizli sayılır: gerçek özet repoya yazılmaz, yalnız sunucudaki
-# /srv/caddy/siteler/beautyos.caddy dosyasında doldurulur (bcrypt: caddy hash-password).
+# Web basic auth ister. Kullanıcı adı ve bcrypt parola ÖZETİ gizli sayılır, depoda yazılmaz: Caddy'nin
+# ortam değişkenlerinden okunur ({$...}); değerleri /srv/caddy/.env dosyasına devops/kurucu yazar
+# (özet: caddy hash-password). Böylece sunucudaki site dosyası depodakiyle birebir aynı kalır.
 yeni.beautyossapp.com {
 	import cf_dns
 	import ortak
 
 	basic_auth {
-		KULLANICI_ADI BCRYPT_OZETI_SUNUCUDA_YAZILIR
+		{$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH}
 	}
 	reverse_proxy beautyos-web-staging:3000 {
 		header_up X-Forwarded-For {client_ip}
