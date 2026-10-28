@@ -40,7 +40,8 @@ sonra boş `agac/` altına açar ve derler. Bir doğrulama başarısız olursa `
 Sunucuda `git` kurulu olmalıdır (yalnız commit kimliğini okumak için; ağa bağlanmaz).
 
 Üretilen imajlar: `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`.
-Web değerleri paketteki `deploy/derleme.conf` dosyasından gelir. Derleme sırasında tepe bellek, swap ve canlı api sağlığı raporlanır.
+Web değerleri paketteki `deploy/derleme.conf` dosyasından gelir. Yeni arayüz yüzey bayrağı `NEXT_PUBLIC_UI_V2_PROD` / `_STAGING` ilgili
+web imajına `NEXT_PUBLIC_UI_V2` olarak geçer; boş ya da tanımsız = v2 kapalı, değer yalnız `[a-z,]` olabilir (aksi halde derleme başlamadan durur). Derleme sırasında tepe bellek, swap ve canlı api sağlığı raporlanır.
 Yayın için `.env` içinde `BEAUTYOS_VERSION` / `BEAUTYOS_STAGING_VERSION` güncellenir (önce staging). Canlı sürümü değiştirirken
 eski `BEAUTYOS_VERSION` değeri `BEAUTYOS_PREVIOUS_VERSION` satırına taşınır: geri alma için o imaj ve kaynak paketi korunur.
 Aynı sürümü yeniden derlemek için o paketin `agac/` dizininin önce temizlenmesi gerekir (betik dolu `agac/` üzerine yazmaz).

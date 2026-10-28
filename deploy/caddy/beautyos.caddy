@@ -34,6 +34,9 @@ yeni.beautyossapp.com {
 	import cf_dns
 	import ortak
 
+	# Staging arama motorlarına kapalı (D3): site düzeyi header, basic_auth 401 ve statik yanıtlar dahil tüm yanıtlara girer.
+	header X-Robots-Tag "noindex, nofollow"
+
 	# route: yönerge sırası Caddy'nin varsayılan sırasına bırakılmaz. Özet tanımsız/boşsa şifresiz açılmasın
 	# diye (caddy validate bunu yakalamaz) basic_auth'tan ÖNCE 503 döner.
 	route {
@@ -63,6 +66,9 @@ yeni.beautyossapp.com {
 yeni-api.beautyossapp.com {
 	import cf_dns
 	import ortak
+
+	# Staging arama motorlarına kapalı (D3).
+	header X-Robots-Tag "noindex, nofollow"
 
 	respond /debug* 404
 	reverse_proxy beautyos-api-staging:3001 {
