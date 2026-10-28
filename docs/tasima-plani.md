@@ -34,6 +34,7 @@
 | 10-28 | Supabase'te bulunan, depoda olmayan iki migration (WhatsApp numara alanı, iyzico abonelik) **terk edildi**: "önemli değil, en baştan birlikte düzelteceğiz, proje burada ayakta olsun" | Depodaki 19 migration esas. Bu özellikler ileride gelirse yeni migration'larla yazılır. G13-K7 iptal; Supabase silme koşulu kalktı |
 | 10-28 | Kalıcı izin: plandaki denetçi ONAY'lı teknik adımlar kurucuya sorulmadan yürütülür (DNS ve eski servis kapatma hariç) | Başlık notu, §9 |
 | 10-28 | Müdür kararı: taşıma dalları push edilmez (kalıcı izin dışı; Vercel her dal push'unda preview açıyor). Kaynak sunucuya `git archive` paketiyle aktarılır | ADR-0019 (ADR-0018'in kaynak bölümünün yerini aldı), §6, G7. Deploy key ve push maddeleri kaldırıldı |
+| 10-28 | **Kurucunun koşullu geçiş onayı** (müdür aktardı): "testler geçerse çevir". Koşullar G13 + denetçi son sunucu doğrulaması ONAY, G14 TEST GEÇTİ, G15 doğrulamaları. Eski servislerin kapatılması onayın dışında | §9, §10 baştan yazıldı. DNS'i müdür Cloudflare API ile çevirir (ADR-0020); Railway/Vercel Git kesme geçiş sonrasına alındı |
 
 ---
 
@@ -154,7 +155,7 @@ DNS adımları (kurucu, panelden, `[ONAY]`):
 | Hemen | Zone dışa aktarımı (DNS > Records > Export), kurucunun arşivine |
 | Hemen | `yeni`, `yeni-api` → A 209.38.237.171, turuncu (yeni hostlar, eski sisteme dokunmaz). **`api` buna dahil DEĞİL:** `api.beautyossapp.com` şu an Railway canlısının özel alan adı (10-28'de görüldü); geçişe kadar Railway'i gösterir |
 | Geçişten ≥ 24 saat önce | `@`, `app`, `www` gri ise TTL 60 sn (turuncu ise gerekmez) |
-| Geçiş | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, turuncu (dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır) |
+| Geçiş | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, turuncu (dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır). **Müdür yürütür, kurucunun koşullu onayıyla, `dns-cevir.sh` ve Cloudflare API ile** (ADR-0020, §10) |
 
 Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `letsencrypt.org` izinli olmalı.
 
@@ -315,34 +316,65 @@ Sütunlar: **Kalıcı izinle (müdür)** = denetçi ONAY'ı şartıyla kurucuya 
 | 1. Uygulama | Dockerfile'lar, standalone, CORS, açılış kontrolü + Sentry temizliği, derleme betikleri, CI + depo içi şema uyumu | G1–G5, G7 | Onaylı düzeltme commit'lerinin push'u; onaylı commit'in `git archive` paketiyle sunucuya aktarılması (ADR-0019) | — (taşıma dalları push edilmez; deploy key yok) |
 | 2. Altyapı | Caddy, yedek, izleme | G8–G10 | Caddy kurulumu ve yeniden oluşturma, site dosyası, sertifika, yedek ve izleme betikleri | B2 ve Healthchecks hesapları (hesap ve ücret kurucuda) |
 | 3. Yığın | Compose, roller, staging; canlı yığın boş veritabanıyla; kabul testi staging'de | G11, G13, G14 | Canlı ve staging `migrate` (boş veritabanı), yığının açılması, sunucuda derleme, son 3 sürüm dışındaki imajların ve test kaynaklarının temizliği | — |
-| 4. Geçiş | §10 | G15–G16 | Adım 4 sonrası `api` yeniden oluşturma, izleme, kayıt | **DNS değişikliği** (§10 adım 3) ve Railway'in durdurulması (adım 1–2); tek onayda toplanır |
-| 5. Kapatma | G16 geçince | G17 | `tasima/` ve geçici dosyaların temizliği | **Her eski servis silme ayrı** (Supabase ×2, Railway, Vercel, Upstash); GitHub sırrı; anahtar yenileme (S5) |
+| 4. Geçiş | §10 | G15, G15a, G16 | **Kurucunun koşullu onayıyla (2026-10-28, "testler geçerse çevir"):** müdür §10'u yürütür, DNS değişikliği ve gerekirse DNS geri alma dahil. §10 ön koşulları eksiksiz olmalı | Ön koşullardan biri bile kalırsa geçiş durur, kurucuya sorulur. Railway/Vercel Git bağlantısının kesilmesi ve Railway'in durdurulması geçişten **sonraya** alındı (§10.3) |
+| 5. Kapatma | G16 geçince | G17 | `tasima/` ve geçici dosyaların temizliği | **Koşullu onayın DIŞINDA:** her eski servisin kapatılması/silinmesi ayrı (Supabase ×2, Railway, Vercel, Upstash); Railway/Vercel GitHub otomatik dağıtımının kapatılması; GitHub sırrı; anahtar yenileme (S5) |
 | 6. Sonrası | Node/Next yükseltmesi, temizlik, G19, RLS ve KVKK "ilk müşteriden önce" maddeleri | G18, G19, T-B1 | Onaylı düzeltmeler | Taşıma dallarının `master`'a birleştirilmesi; yeni özellikler |
 
 G12 ve G13'ün şema karşılaştırması tamamlandı (10-28); bu adımlar artık tabloda yok.
 
-## 10. Geçiş (tek oturum, ~30 dk, gün ve saat serbest; 03:00–04:30 hariç)
+## 10. Geçiş: müdür yürütür, kurucu gerekmez (~30 dk, gün serbest; 03:00–04:30 hariç)
 
-**Ön koşullar:**
-- G1–G5, G7–G14 tamam: denetçi ONAY'ı ve staging'de TEST GEÇTİ.
-- Canlı yığın boş veritabanıyla healthy. DNS henüz Railway'i gösterdiği için doğrudan sunucuya sorulur: `curl --resolve api.beautyossapp.com:443:209.38.237.171 https://api.beautyossapp.com/health` → 200. Aynısı `app.beautyossapp.com` için `/login` ile yapılır. Sertifika DNS-01 ile önceden alındığından TLS geçerlidir.
-- §8 tamam. Zone dışa aktarıldı.
-- Kurucu, `MIGRATION_DATABASE_URL`'in `.env`'de olmadığını ve `.env` canlı değerlerini teyit etti: `NETGSM_*` ve `TELEGRAM_*` boş, `SENTRY_DSN` S7'ye göre, Resend/Turnstile/Gemini dolu, `FRONTEND_URL=https://app.beautyossapp.com`.
+**Yetki:** Kurucunun koşullu onayı (2026-10-28, müdür aktardı: "testler geçerse çevir"). Müdür geçişi, aşağıdaki **üç koşulun tamamı** sağlandığında yürütür. Biri bile eksikse geçiş durur ve kurucuya sorulur. Eski servislerin kapatılması bu onayın dışındadır (§11).
+
+### 10.1 Ön koşullar (hepsi ✔, kanıtları geçiş kaydına yazılır)
+
+| # | Koşul | Kanıt |
+|---|---|---|
+| K-A | **G13 kurulumu tamam ve denetçinin son sunucu doğrulaması ONAY.** Canlı yığın boş veritabanıyla healthy. Kontrol listesine şunlar da girer: §8 yedek (en az bir başarılı yedek + geri yükleme denemesi), izleme (UptimeRobot `api` yoklaması aktif) ve aşağıdaki ortam kontrolü | Denetim raporu yolu |
+| K-B | **G14 kabul testi: TEST GEÇTİ** (staging'de, canlıyla aynı API imajı) | Test raporu yolu |
+| K-C | **G15 doğrulamaları geçti.** DNS'e dokunmadan, doğrudan sunucuya: `curl --resolve api.beautyossapp.com:443:209.38.237.171 https://api.beautyossapp.com/health` → 200 ve geçerli sertifika. Aynı yolla `app.beautyossapp.com/login`, `beautyossapp.com/` ve `www.beautyossapp.com/` → 200, sertifikalar geçerli. `dns-cevir.sh plan` çıktısı beklenen dört kaydı gösteriyor | Komut çıktıları (gizli değer içermez) |
+
+**Ortam kontrolü (kurucu teyidinin yerine; değer okumadan):** `ortam-kontrol` adımı (G15a, devops) her değişken için yalnız **var/yok** bilgisini çıkış koduyla verir; değer yazdırmaz. Örnek: `docker compose exec -T api node -e "process.exit(process.env.X ? 1 : 0)"`. Beklenen:
+- `NETGSM_USERCODE`, `TELEGRAM_BOT_TOKEN`, `SENTRY_DSN` (G5-K5 birleşmediyse), `ADMIN_SEED_SECRET` ve `MIGRATION_DATABASE_URL` **yok**.
+- `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `ALLOWED_ORIGINS`, `PUBLIC_URL`, `FRONTEND_URL`, `TURNSTILE_SECRET_KEY` ve `RESEND_API_KEY` **var**.
+
+Bu `.env`'leri kurucu G13'te doldurur. `ADMIN_SEED_SECRET` canlıda baştan boş kalır; seed uç noktası 403 döner, açık kapı kalmaz. İlk süper yönetici geçişten sonra kurucunun uygun zamanında açılır (10.4).
+
+### 10.2 Adımlar
 
 | # | Kim | Adım | Doğrulama |
 |---|---|---|---|
-| 1 | kurucu | Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımını kapat (R1) | Panel |
-| 2 | kurucu | Railway prod ve staging API servislerini durdur (silme) | Eski API yanıt vermiyor |
-| 3 | kurucu | DNS `@`, `app`, `www`, `api` → 209.38.237.171, turuncu (`api` şu an Railway'de) | `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200; `https://api.beautyossapp.com/health` boş veritabanıyla 200 (Railway değil: yanıtta `db: ok` ve sunucu log'unda istek görünür) |
-| 4 | kurucu | İlk süper yönetici: `POST /api/v1/admin/seed`; ardından `ADMIN_SEED_SECRET` boşaltılır, devops `docker compose up -d api` | Seed uç noktası artık 403 |
-| 5 | test-muhendisi | Canlı duman testi (G16) | Geçti |
-| 6 | devops | `sirket/sunucu.md` kaydı, ilk 60 dk izleme | Kayıt yazıldı |
+| 1 | müdür (devops yürütür) | `dns-cevir.sh plan`: dört kaydın (`@`, `app`, `www`, `api`) mevcut halini ve tüm zonu `tasima/dns-oncesi.json` ve `tasima/zone-oncesi.txt` olarak saklar | Dosyalar var. Gri kayıtta TTL > 300 ise önce `ttl-dusur` çalışır, eski TTL kadar beklenir |
+| 2 | müdür (devops yürütür) | `dns-cevir.sh uygula`: dört kayıt → A 209.38.237.171, turuncu (proxied), TTL Auto | Betik her kaydı API'den geri okuyarak doğrular |
+| 3 | devops | Dıştan doğrulama: `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200. `https://api.beautyossapp.com/health` → 200; isteğin sunucuya ulaştığı Caddy/API log'unda görünür (Railway değil) | Geçti |
+| 4 | test-muhendisi | Canlı duman testi (G16-K1). Bir telefon doğrulama isteğiyle log'da "SMS provider: Mock" görülür | TEST GEÇTİ |
+| 5 | devops | UptimeRobot `app` ve apex yoklamaları açılır; `sirket/sunucu.md` "Çalışan servisler" satırı ve işlem günlüğü (K-A/K-B/K-C kanıt yollarıyla); ilk 60 dk izleme | Kayıt yazıldı |
+| 6 | müdür | Kurucuya rapor: geçiş tamam + §10.3 ve §11 için bekleyen kurucu işleri | — |
 
-**Geri dönüş (`[ONAY]`):** Yalnız DNS dışa aktarımdaki Vercel değerlerine döndürülür. Taşınmış veri olmadığı için başka adım yok. Eski Railway API'si Supabase olmadan çalışmaz; geri dönüş yalnız eski tanıtım sayfasını geri getirir. Sorun yeni sunucuda, ileriye doğru düzeltilir. Yeni sunucudaki yığın durdurulmaz.
+### 10.3 Geçişten sonraya alınanlar (kurucu paneli gerektirir)
+
+Railway ve Vercel'in GitHub otomatik dağıtımının kapatılması ve Railway servislerinin durdurulması **kurucu paneli** gerektirir. Geçişten sonraya alınabilir, çünkü DNS çevrildikten sonra eski sistemin trafiği yoktur:
+- `api.beautyossapp.com` artık sunucuyu gösterir.
+- Railway yalnız kendi `*.up.railway.app` adresinden ve demo Supabase verisiyle çalışır. SMS kapalıdır.
+
+**Bu süre boyunca kural:** kurucu Git bağlantılarını kesene kadar **`master`'a hiçbir push yapılmaz**; kalıcı izindeki onaylı düzeltme push'u da dahil. Aksi halde Railway eski API'yi yeniden dağıtır (`apps/api/**` değişikliği kendiliğinden çıkar). Bu kural müdürde. Telegram notu: Railway canlısında `TELEGRAM_BOT_TOKEN` tanımlıysa ve staging'deki test botuyla aynıysa, Railway her yeniden başlatmada webhook'u geri alır. Kurucuya kesme talebi bununla birlikte iletilir (S4).
+
+### 10.4 İlk süper yönetici (geçiş sonrası, kurucuyla)
+
+Kurucu uygun olduğunda `.env`'e geçici bir `ADMIN_SEED_SECRET` yazar. Devops `api`'yi yeniden oluşturur, kurucu `POST /api/v1/admin/seed` çağırır. Ardından değer boşaltılır, `api` yeniden oluşturulur ve uç noktanın 403 döndüğü doğrulanır. Geçişi engellemez.
+
+### 10.5 Geri dönüş (müdür yürütür, kurucuya hemen rapor)
+
+- **Ölçüt:** §10.2 adım 3 ya da 4 başarısız ve 60 dakika içinde düzeltilemiyor, veya sunucuda kalıcı arıza var.
+- **Adım:** `dns-cevir.sh geri-al`. Dört kaydı `tasima/dns-oncesi.json`'daki haline (tür, değer, proxy, TTL) döndürür ve geri okuyarak doğrular. Taşınmış veri olmadığı için başka adım yok; yeni sunucudaki yığın durdurulmaz, sorun ileriye doğru düzeltilir.
+- **Gerekçe:** Geri dönüş kurucunun onayladığı önceki duruma döndürmektir ve koşullu onayın parçası sayılır. Müdür bunu yapar ve kurucuya hemen bildirir. İkinci deneme yeniden §10.1 koşullarına bağlıdır.
+- **Uyarı:** Eski sistem ancak `beautyos-dev` açıkken çalışır. Proje 10-28'de açıldı ve ~7 gün içinde yeniden duraklar. Duraklamışsa geri dönüş yalnız tanıtım sayfasını (Vercel) geri getirir.
 
 ## 11. Eski servislerin kapatılması (G16 geçince, kurucu onayıyla)
 
-Her silme ayrı `[ONAY]`. Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
+Her silme ayrı `[ONAY]` (kurucunun koşullu geçiş onayının dışında). Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
+
+0. **İlk iş (kurucu paneli, geçişten hemen sonra):** Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımının kapatılması ve Railway servislerinin durdurulması (§10.3). O zamana kadar `master`'a push yasağı sürer.
 
 1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. §5 `kaynak` adımı tamamlandı (10-28). Silme her durumda kurucu onayına bağlıdır. Depoda olmayan iki migration kurucu kararıyla terk edildi; bekleme koşulu yok. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
 2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.

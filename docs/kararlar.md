@@ -30,6 +30,7 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0017 | Veri taşınmaz; canlı veritabanı migration'larla boş kurulur, Supabase şeması yalnız uyum kontrolü için dökülür | kabul edildi (kurucu kararı) | 2026-10-28 |
 | ADR-0018 | İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok | kabul edildi (müdür kararı D4). **Kaynak bölümünün (deploy key + `git fetch`) yerini aldı: ADR-0019**; derleme, yük, temizlik ve geri alma bölümleri geçerli | 2026-10-28 |
 | ADR-0019 | Sunucu GitHub'dan çekmez: müdür onaylı commit'i `git archive` paketiyle aktarır | kabul edildi (müdür kararı) | 2026-10-28 |
+| ADR-0020 | Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan | önerildi | 2026-10-28 |
 
 ---
 
@@ -611,6 +612,39 @@ certutil -hashfile beautyos-<sha12>.tar SHA256      (özet not edilir)
   - Yanlış commit'in paketlenmesi. Önlem: üçlü kimlik eşleşmesi + ONAY raporu kaydı.
   - Sunucuda `git` bulunmaması (`get-tar-commit-id` için gerekir). Ubuntu 24.04 sunucu kurulumunda git normalde yüklüdür (VARSAYIM, D15). Yoksa devops sunucu-altyapi'ye ekler.
   - `.gitattributes`'ta `export-ignore` işaretli dosyalar pakete girmez. Derlemenin bu dosyalara ihtiyacı olmamalı.
+
+---
+
+## ADR-0020: Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan
+
+- **Tarih:** 2026-10-28
+- **Durum:** önerildi (müdür kabulü bekliyor). Dayanak: kurucunun koşullu geçiş onayı ("testler geçerse çevir", müdür aktardı).
+- **Karar verenler:** mimar; müdür
+
+### Bağlam
+Kurucu geçişi koşullu onayladı ve müdürün kurucuya ihtiyaç duymadan yürütmesini istedi. DNS Cloudflare'de, ama ajanların panel erişimi yok. Sunucuda zaten Caddy için oluşturulmuş bir token var (`/srv/caddy/.env`, `CLOUDFLARE_API_TOKEN`). Yetkisi `Zone:DNS:Edit` + `Zone:Zone:Read` ve yalnız `beautyossapp.com` zonu. Değişecek dört kayıt var (`@`, `app`, `www`, `api`); `api` şu an Railway'i gösteriyor. Ajanlar `.env` okuyamaz.
+
+### Alternatifler
+- **Kurucu panelden değiştirir:** en az yetki, ama "kurucu gerekmeden" isteğine aykırı ve geri alma da kurucuya bağlı kalır.
+- **Ayrı, geçişe özel bir token:** en temiz ayrım, ama kurucunun panelde yeni bir token oluşturmasını gerektirir. Kapsam Caddy token'ıyla aynı olacağı için güvenlik kazancı yok.
+- **Ajanın token'ı görüp elle `curl` atması:** şirket kuralına aykırı (gizli değer ajan bağlamına girer).
+
+### Karar
+`dns-cevir.sh` (devops yazar, `projeler/sunucu-altyapi/betikler/`, denetçi inceler) sunucuda çalışır. Token'ı geçici bir konteynere `--env-file /srv/caddy/.env` ile alır. Token komut satırına, log'a ya da çıktıya girmez: `curl` başlığı bir dosyadan ya da standart girdiden okunur, `set -x` yoktur. Alt komutlar:
+- **`plan`:** Adı verilen kayıtların mevcut halini (tür, değer, proxy, TTL, kimlik) `dns-oncesi.json`'a, tüm zon dışa aktarımını `zone-oncesi.txt`'e yazar. Aynı ada birden fazla kayıt varsa durur. Hiçbir şey değiştirmez.
+- **`ttl-dusur`:** Yalnız gri (proxy kapalı) kayıtlarda TTL'i 60'a indirir. Turuncu kayıtta hiçbir şey yapmaz.
+- **`uygula <ip>`:** Her kaydı A + proxied + TTL Auto yapar. Tür değişiyorsa (ör. CNAME → A) önce yeni kaydı oluşturmaya çalışır; API buna izin vermezse silip oluşturur. Kesinti saniyelerle sınırlıdır. Her kayıt API'den geri okunarak doğrulanır.
+- **`geri-al`:** `dns-oncesi.json`'daki tür, değer, proxy ve TTL'e döner ve geri okuyarak doğrular.
+
+Betik yalnız `@`, `app`, `www`, `api` adlarını kabul eder (sabit liste). MX/TXT ve diğer kayıtlara dokunmaz; liste dışı ad → çıkış 2. Müdür, kurucunun koşullu onayı ve §10.1 koşulları sağlandığında `uygula`'yı, §10.5 ölçütünde `geri-al`'ı çalıştırır (devops yürütür).
+
+### Sonuçlar
+- **Olumlu:** Kurucu gerekmeden, tekrarlanabilir ve geri alınabilir geçiş. Önceki durumun makine okunur kaydı var. Kapsam dört kayıtla sınırlı.
+- **Olumsuz:** Caddy'nin sertifika token'ı ikinci bir amaçla kullanılıyor.
+- **Riskler:**
+  - Betik hatasıyla yanlış kaydın değişmesi. Önlem: sabit ad listesi, `plan` kaydı, geri okuyarak doğrulama, denetçi incelemesi. Denetimde `plan` ve `geri-al` gerçek zonda yalnız okuyarak, `uygula` ise bir deneme kaydında (ör. `dnstest`) sınanır. Deneme kaydının oluşturulup silinmesi kalıcı izindeki teknik adım kapsamında değil, DNS değişikliğidir; müdür kurucunun koşullu onayına dayanarak karar verir.
+  - Tür değişiminde kısa çözümleme boşluğu. Kabul edildi: gerçek kullanıcı yok.
+  - Token'ın açığa çıkması. Önlem: argümanda yok, çıktıda yok; sızıntıda kurucu token'ı yeniler (Caddy de etkilenir).
 
 ---
 

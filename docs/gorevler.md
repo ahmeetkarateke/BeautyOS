@@ -51,7 +51,8 @@
 | G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | **ONAY** (`e3b89f2`, `raporlar/denetim/beautyos-tasima-4.md`). Denetçi önerileri sonraki turda (yeniden incelemeye girer): bağlantı hatasında psql iletisinin ilk satırının gösterilmesi. `verify-full` önerisi mimar kararıyla reddedildi (`require` yeterli, plan §5.1) |
 | G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | **K3 tamam (10-28)**, K4 kararı verildi: düzeltici migration yok; iki migration kurucu kararıyla terk edildi (K7 iptal). K8 (LF) incelemede (`5c3d8b3`; renormalize sonrası diff boş). `sema-karsilastir.sh`'deki `COLLATE "C"` düzeltmesi aynı turda; ONAY sonrası sunucudaki betik onaylı paketten güncellenir. K1/K2 (canlı yığın) bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
-| G15 | Geçiş (Railway durdurma + DNS) | kurucu + devops | G1–G5, G7–G14 | bekliyor |
+| G15a | DNS çevirme betiği (`dns-cevir.sh`) + ortam kontrolü (ADR-0020) | devops | G8 | bekliyor |
+| G15 | Geçiş (DNS; müdür yürütür, kurucunun koşullu onayı) | müdür (devops yürütür) | plan §10.1: G13 + denetçi son sunucu ONAY'ı, G14 TEST GEÇTİ, G15 doğrulamaları; G15a | bekliyor |
 | G16 | Canlı duman testi + 48 saat gözlem | test-muhendisi + devops | G15 | bekliyor |
 | G17 | Eski servislerin kapatılması ve imha tutanakları | kurucu + devops | G16 (Supabase için G13) | bekliyor |
 | G18 | Taşıma sonrası temizlik ve yükseltmeler | gelistirici | G17 | bekliyor |
@@ -235,14 +236,27 @@
 
 ## Aşama 4 — Geçiş
 
-### G15 — Geçiş (Railway durdurma + DNS) — kurucu + devops
-- **Ön koşul:** plan §10 listesi tamam (G13 dahil: canlı yığın healthy). Müdür runbook için tek `[ONAY]` alır.
+### G15a — DNS çevirme betiği + ortam kontrolü — devops (ADR-0020)
+- **Dosyalar:** `projeler/sunucu-altyapi/betikler/dns-cevir.sh` (+ o deponun `docs/kararlar.md`'ye kısa ADR ya da ADR-0020'ye atıf), BeautyOS için `ortam-kontrol` adımı (`deploy/betikler/` altında gelistirici ya da sunucu-altyapi'de devops; sahibini müdür belirler, iki dalda aynı dosya yazılmaz)
 - **Kabul kriterleri:**
-  - K1: Railway/Vercel Git otomatik dağıtımı kapalı ve Railway API'leri durmuş (kurucu ekran teyidi).
-  - K2: Canlı `.env`'de `NETGSM_*`, `TELEGRAM_*` ve (S7'ye göre) `SENTRY_DSN` boş (kurucu teyidi).
-  - K3: `@`, `app`, `www` ve `api` (dördü birlikte sunucuya; `api` öncesinde Railway'deydi) Cloudflare üzerinden 200 ve geçerli sertifikayla yanıt verir. `api` yanıtının sunucudan geldiği Caddy/API log'undan doğrulanır.
-  - K4: İlk süper yönetici `POST /api/v1/admin/seed` ile oluşturuldu. Ardından `ADMIN_SEED_SECRET` boşaltıldı ve `api` yeniden oluşturuldu. Aynı istek artık 403 döner (test mühendisi doğrular).
-  - K5: `sirket/sunucu.md`'de "Çalışan servisler" satırı (hostlar, port yok, yedek yöntemi) ve işlem günlüğünde geri alma adımı (yalnız DNS, plan §10) yazılı.
+  - K1: Token yalnız `docker run --env-file /srv/caddy/.env` ile konteynere girer. Komut satırı argümanlarında (`ps`), log'da ve çıktıda token yok. `curl` başlığı dosyadan ya da standart girdiden okunur; `set -x` yok.
+  - K2: Ad listesi sabittir: `@`, `app`, `www`, `api`. Liste dışı ad → çıkış 2. MX/TXT'ye dokunulmaz. Aynı ada birden fazla kayıt varsa betik durur.
+  - K3: `plan` yalnız okur ve `tasima/dns-oncesi.json` (tür, değer, proxy, TTL, kimlik) ile `tasima/zone-oncesi.txt` dosyalarını üretir. Gerçek zonda çalıştırılıp çıktısı denetçiye gösterilir.
+  - K4: `uygula <ip>` her kaydı A + proxied + TTL Auto yapar ve geri okuyarak doğrular; tür değişimini (CNAME → A) ele alır. `geri-al`, `dns-oncesi.json`'a birebir döner ve geri okuyarak doğrular. İkisi de bir deneme kaydında (ör. `dnstest`) sınanır. Deneme kaydı DNS değişikliği sayılır; müdür karar verir.
+  - K5: `ttl-dusur` yalnız gri kayıtlarda çalışır.
+  - K6 (ortam kontrolü): Değer yazdırmadan, yalnız var/yok bilgisini veren bir kontrol (plan §10.1 listesi). Çıktı yalnız değişken adı + `var`/`yok`. Beklenenden sapma varsa çıkış 1.
+  - K7: `bash -n` ve `shellcheck` temiz; LF satır sonu; `pipefail` tuzağına dikkat.
+
+### G15 — Geçiş — müdür yürütür (kurucunun koşullu onayı, plan §10)
+- **Ön koşul:** plan §10.1 K-A, K-B ve K-C'nin üçü de ✔. Biri eksikse geçiş yapılmaz, kurucuya sorulur.
+- **Kabul kriterleri:**
+  - K1: `dns-cevir.sh plan` çıktısı (`dns-oncesi.json`, `zone-oncesi.txt`) geçişten önce alındı.
+  - K2: Ortam kontrolü (G15a-K6) geçti: `NETGSM_*`, `TELEGRAM_*`, `ADMIN_SEED_SECRET`, `MIGRATION_DATABASE_URL` ve (G5-K5 yoksa) `SENTRY_DSN` canlı `api` ortamında **yok**.
+  - K3: `uygula` sonrası `@`, `app`, `www` ve `api` Cloudflare üzerinden 200 ve geçerli sertifikayla yanıt verir. `api` yanıtının sunucudan geldiği Caddy/API log'undan doğrulanır.
+  - K4: `sirket/sunucu.md`'de "Çalışan servisler" satırı ve işlem günlüğünde geçiş kaydı var: K-A/K-B/K-C kanıt yolları, `dns-oncesi.json`, geri alma komutu (`dns-cevir.sh geri-al`).
+  - K5: Geçiş sonrası `master`'a push yasağı kayda geçti. Yasak, kurucu Railway/Vercel Git bağlantısını kesene kadar sürer (plan §10.3).
+  - K6: Kurucuya rapor gitti; G17-K0 (Git bağlantısının kesilmesi, Railway'in durdurulması) ve plan §10.4 (ilk süper yönetici) kurucu işi olarak listelendi.
+  - (Eski K4, ilk süper yönetici: geçişten ayrıldı, plan §10.4.)
 
 ### G16 — Canlı duman testi + 48 saat — test-muhendisi + devops
 - **Çıktı:** `raporlar/test/beautyos-tasima-2.md`
@@ -254,6 +268,7 @@
 
 ### G17 — Eski servislerin kapatılması ve imha tutanakları (kurucu onayıyla)
 - **Sıra:** Supabase projeleri G13 (şema karşılaştırması, 10-28'de tamamlandı) sonrası silinebilir. Her silme kurucu onayına bağlıdır; kalıcı izin eski servisleri kapsamaz. Railway, Vercel ve Upstash G16 geçince silinir; DNS geri dönüşü için Vercel o zamana kadar durur. Taşıma arşivi **yok** (veri taşınmadı).
+- K0 (geçişten hemen sonra, kurucu paneli): Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımı kapatıldı, Railway servisleri durduruldu. Müdürün `master` push yasağı ancak bundan sonra kalkar.
 - K1: Supabase `beautyos-dev` ve `beautyos-staging` projeleri silindi. Silinmeden önce, panelin kendi otomatik yedeklerinin de projeyle birlikte gittiği tutanağa yazıldı.
 - K2: Railway (prod + staging), Vercel ve Upstash projeleri silindi.
 - K3: **Her silme için `sirket/` altında imha tutanağı var** (demo veri de olsa, KVKK): tarih, hizmet/proje adı, bölge (Supabase eu-west-1), veri türü ("demo/deneme"), yöntem, onaylayan kurucu. İçerik yazılmaz.
