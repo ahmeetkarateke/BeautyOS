@@ -12,6 +12,7 @@ import { Scissors, ArrowRight, ArrowLeft, Building2, User, Eye, EyeOff, Check } 
 import { apiFetch } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { MouseOrbs } from '@/components/ui/mouse-orbs'
+import type { Role } from '@beautyos/shared'
 
 function slugify(value: string): string {
   return value
@@ -37,7 +38,7 @@ type SignupForm = z.infer<typeof signupSchema>
 
 interface RegisterResponse {
   token: string
-  user: { id: string; email: string; name: string; role: string; tenantSlug: string }
+  user: { id: string; email: string; name: string; role: Role; tenantSlug: string }
 }
 
 const CUBIC: [number, number, number, number] = [0.23, 1, 0.32, 1]

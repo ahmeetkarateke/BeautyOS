@@ -10,6 +10,7 @@ const nextConfig = {
   // Monorepo'da bağımlılıklar kökte olduğundan izleme kökü depo köküdür.
   experimental: { outputFileTracingRoot: monorepoRoot },
   transpilePackages: [
+    '@beautyos/shared',
     '@fullcalendar/core',
     '@fullcalendar/react',
     '@fullcalendar/daygrid',
