@@ -5,6 +5,9 @@ import { ucGenislikteCek } from '../yardimcilar/ekran-goruntusu'
 
 // T1-K2: eski arayüz dumanı. Giriş, panel açılışı, randevu oluşturma, /book açılışı.
 // Veri API ile kurulur; her koşu kendi `tst-` kiracısını açar (sıra bağımlılığı yok).
+// Bayrak açık derlemede /login, /book gibi yollar yeni arayüze yönlenir; bu dosya yalnız eski arayüzü sınar.
+test.skip(Boolean((process.env.E2E_UI_V2 ?? '').trim()), 'eski arayüz dumanı yalnız bayrak kapalı derlemede')
+
 let k: TestKiraci
 let veri: Awaited<ReturnType<typeof randevuVerisiKur>>
 
