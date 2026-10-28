@@ -7,7 +7,10 @@
     "build": "npm run build --workspace=@beautyos/shared && next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "npm run build --workspace=@beautyos/shared && tsc --noEmit"
+    "type-check": "npm run build --workspace=@beautyos/shared && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@beautyos/shared": "^1.0.0",

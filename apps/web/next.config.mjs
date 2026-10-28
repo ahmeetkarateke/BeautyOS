@@ -10,6 +10,8 @@ const nextConfig = {
   // Monorepo'da bağımlılıklar kökte olduğundan izleme kökü ve Turbopack kökü depo köküdür.
   outputFileTracingRoot: monorepoRoot,
   turbopack: { root: monorepoRoot },
+  // Birden çok kök düzen olduğundan eşleşmeyen yollar app/global-not-found.tsx ile çizilir.
+  experimental: { globalNotFound: true },
   transpilePackages: [
     '@fullcalendar/core',
     '@fullcalendar/react',
