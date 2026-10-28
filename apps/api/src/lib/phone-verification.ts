@@ -17,13 +17,13 @@ function generateCode(): string {
 
 export interface SendCodeResult {
   ok: true
-  // production'da return etmiyoruz; sadece dev/mock için
+  // Yalnız NODE_ENV !== 'production' ve sahte sağlayıcıyla döner; üretimde asla
   devCode?: string
 }
 
 export interface SendCodeError {
   ok: false
-  error: 'INVALID_PHONE' | 'TOO_SOON' | 'SMS_FAILED'
+  error: 'INVALID_PHONE' | 'TOO_SOON' | 'SMS_FAILED' | 'SMS_UNAVAILABLE'
   message: string
   retryAfterSec?: number
 }
@@ -36,6 +36,13 @@ export async function sendVerificationCode(args: {
   const normalized = normalizePhoneTR(args.phone)
   if (!normalized) {
     return { ok: false, error: 'INVALID_PHONE', message: 'Geçersiz telefon numarası formatı.' }
+  }
+
+  const smsConfigured = Boolean(process.env.NETGSM_USERCODE)
+  const isProduction = process.env.NODE_ENV === 'production'
+  // Üretimde gerçek SMS sağlayıcısı yoksa kod hiçbir yere iletilemez; kodu yanıtta vermek doğrulamayı anlamsız kılar.
+  if (isProduction && !smsConfigured) {
+    return { ok: false, error: 'SMS_UNAVAILABLE', message: 'Telefon doğrulama şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.' }
   }
 
   // Rate limit: son 3 dakika içinde aynı numaraya gönderim varsa engelle
@@ -95,9 +102,7 @@ export async function sendVerificationCode(args: {
     }
   }
 
-  // Dev/mock modunda kod konsola yazılır — frontend test edebilsin diye dev'de döndürebiliriz
-  const isMock = !process.env.NETGSM_USERCODE
-  return { ok: true, devCode: isMock ? code : undefined }
+  return { ok: true, devCode: !isProduction && !smsConfigured ? code : undefined }
 }
 
 export interface VerifyCodeResult {

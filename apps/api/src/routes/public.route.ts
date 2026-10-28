@@ -6,6 +6,7 @@ import { getSlots } from '../lib/slots'
 import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
 import { normalizePhoneTR } from '../lib/sms'
 import { remindersQueue } from '../lib/queue'
+import { verifyTurnstile } from '../lib/turnstile'
 
 const publicLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -216,29 +217,6 @@ export function createPublicRouter(): Router {
     captchaToken: z.string().optional(),
   })
 
-  async function verifyTurnstile(token: string | undefined, remoteIp: string | undefined): Promise<boolean> {
-    const secret = process.env.TURNSTILE_SECRET_KEY
-    if (!secret) {
-      // Production'da CAPTCHA zorunlu — secret yoksa booking reddedilir
-      if (process.env.NODE_ENV === 'production') return false
-      return true // dev/test ortamında geç
-    }
-    if (!token) return false
-    try {
-      const params = new URLSearchParams({ secret, response: token })
-      if (remoteIp) params.set('remoteip', remoteIp)
-      const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      })
-      const data = (await res.json()) as { success?: boolean }
-      return data.success === true
-    } catch {
-      return false
-    }
-  }
-
   // ─── Telefon doğrulama: Kod gönder ────────────────────────────────────────
   const verifySendLimiter = rateLimit({
     windowMs: 60 * 60 * 1000,  // 1 saat
@@ -269,7 +247,7 @@ export function createPublicRouter(): Router {
       })
 
       if (!result.ok) {
-        const status = result.error === 'TOO_SOON' ? 429 : 400
+        const status = result.error === 'TOO_SOON' ? 429 : result.error === 'SMS_UNAVAILABLE' ? 503 : 400
         return res.status(status).json({
           error: { code: result.error, message: result.message },
           retryAfterSec: 'retryAfterSec' in result ? result.retryAfterSec : undefined,
