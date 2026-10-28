@@ -29,30 +29,35 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# .env'den yalnız iki sürüm anahtarı okunur (dosya source edilmez); tırnak varsa atılır.
+# Yalnız üç sürüm anahtarı okunur (dosya source edilmez); tırnak varsa atılır. İki dosyadan: surum.conf (yayinla.sh'in
+# yönettiği, gizli olmayan dosya) ve geriye dönük uyum için ortam dosyası. İkisinde geçen sürümlerin BİRLEŞİMİ korunur:
+# eski bir satır bile imajın silinmesini engeller (hata güvenli yöndedir).
 surum_oku() {
-  local anahtar="$1" satir
-  [ -f "$BASE/.env" ] || return 0
-  satir="$(awk -F= -v k="$anahtar" '$1 == k { print substr($0, length(k) + 2); exit }' "$BASE/.env")"
+  local dosya="$1" anahtar="$2" satir
+  [ -f "$dosya" ] || return 0
+  satir="$(awk -F= -v k="$anahtar" '$1 == k { print substr($0, length(k) + 2); exit }' "$dosya")"
   satir="${satir%\"}"; satir="${satir#\"}"; satir="${satir%\'}"; satir="${satir#\'}"
   printf '%s' "$satir"
 }
-if [ ! -f "$BASE/.env" ]; then
-  echo "UYARI: $BASE/.env yok; .env sürüm korumaları uygulanamıyor (yalnız konteyner kullanımı ve son $TUT sürüm korur)." >&2
+ORTAM_DOSYASI="$BASE/.env"
+if [ ! -f "$BASE/surum.conf" ] && [ ! -f "$ORTAM_DOSYASI" ]; then
+  echo "UYARI: surum.conf ve ortam dosyası yok; sürüm korumaları uygulanamıyor (yalnız konteyner kullanımı ve son $TUT sürüm korur)." >&2
 fi
-SURUM_CANLI="$(surum_oku BEAUTYOS_VERSION)"
-SURUM_STAGING="$(surum_oku BEAUTYOS_STAGING_VERSION)"
-# Geri alma güvencesi: canlının bir önceki sürümü (yayın yapılırken BEAUTYOS_VERSION'ın eski değeri buraya taşınır).
-SURUM_ONCEKI="$(surum_oku BEAUTYOS_PREVIOUS_VERSION)"
 
 declare -A KORUMALI=()
 korumali_ekle() { [ -z "$1" ] || KORUMALI["$1"]=1; }
-korumali_ekle "${SURUM_CANLI:+beautyos-api:$SURUM_CANLI}"
-korumali_ekle "${SURUM_CANLI:+beautyos-web:$SURUM_CANLI-prod}"
-korumali_ekle "${SURUM_ONCEKI:+beautyos-api:$SURUM_ONCEKI}"
-korumali_ekle "${SURUM_ONCEKI:+beautyos-web:$SURUM_ONCEKI-prod}"
-korumali_ekle "${SURUM_STAGING:+beautyos-api:$SURUM_STAGING}"
-korumali_ekle "${SURUM_STAGING:+beautyos-web:$SURUM_STAGING-staging}"
+for dosya in "$BASE/surum.conf" "$ORTAM_DOSYASI"; do
+  SURUM_CANLI="$(surum_oku "$dosya" BEAUTYOS_VERSION)"
+  SURUM_STAGING="$(surum_oku "$dosya" BEAUTYOS_STAGING_VERSION)"
+  # Geri alma güvencesi: canlının bir önceki sürümü (yayinla.sh canlı yayında eski BEAUTYOS_VERSION'ı buraya taşır).
+  SURUM_ONCEKI="$(surum_oku "$dosya" BEAUTYOS_PREVIOUS_VERSION)"
+  korumali_ekle "${SURUM_CANLI:+beautyos-api:$SURUM_CANLI}"
+  korumali_ekle "${SURUM_CANLI:+beautyos-web:$SURUM_CANLI-prod}"
+  korumali_ekle "${SURUM_ONCEKI:+beautyos-api:$SURUM_ONCEKI}"
+  korumali_ekle "${SURUM_ONCEKI:+beautyos-web:$SURUM_ONCEKI-prod}"
+  korumali_ekle "${SURUM_STAGING:+beautyos-api:$SURUM_STAGING}"
+  korumali_ekle "${SURUM_STAGING:+beautyos-web:$SURUM_STAGING-staging}"
+done
 
 # Konteynerlerin (durmuş olanlar dahil) kullandığı imaj kimlikleri
 declare -A KULLANIMDA=()

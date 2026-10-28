@@ -41,9 +41,28 @@ Sunucuda `git` kurulu olmalıdır (yalnız commit kimliğini okumak için; ağa 
 
 Üretilen imajlar: `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`.
 Web değerleri paketteki `deploy/derleme.conf` dosyasından gelir. Derleme sırasında tepe bellek, swap ve canlı api sağlığı raporlanır.
-Yayın için `.env` içinde `BEAUTYOS_VERSION` / `BEAUTYOS_STAGING_VERSION` güncellenir (önce staging). Canlı sürümü değiştirirken
-eski `BEAUTYOS_VERSION` değeri `BEAUTYOS_PREVIOUS_VERSION` satırına taşınır: geri alma için o imaj ve kaynak paketi korunur.
 Aynı sürümü yeniden derlemek için o paketin `agac/` dizininin önce temizlenmesi gerekir (betik dolu `agac/` üzerine yazmaz).
+
+## Yayın (sunucuda)
+
+```
+bash /srv/beautyos/betikler/yayinla.sh --kuru staging <sha12>      # plan + şimdiki imaj satırları, hiçbir şey değişmez
+bash /srv/beautyos/betikler/yayinla.sh staging <sha12>             # staging: önce api-staging, sonra web-staging
+bash /srv/beautyos/betikler/yayinla.sh --onayli canli <sha12>      # canlı: yalnız staging'de çalışan sürüm; --onayli zorunlu
+```
+
+Sürüm değişkenleri (`BEAUTYOS_VERSION`, `BEAUTYOS_STAGING_VERSION`, `BEAUTYOS_PREVIOUS_VERSION`) gizli değildir ve ortam
+dosyasında değil `/srv/beautyos/surum.conf` dosyasındadır (üç satır, 644). Betik compose'u
+`--env-file <ortam dosyası> --env-file surum.conf` ile çalıştırır; aynı değişken iki dosyada varsa sonuncusu (surum.conf) kazanır,
+yani ortam dosyasındaki eski sürüm satırları etkisizdir ve sonra silinebilir.
+
+- Sıra her zaman api, sonra web; her adımdan sonra konteyner `healthy` ve dış adres (`/health` 200, staging web 401, canlı web 200) beklenir.
+- Hata olursa `surum.conf` eski haline döner ve api + web BİRLİKTE yeniden oluşturulur (çıkış 1). Geri alma da başarısızsa çıkış 3: elle müdahale.
+- Canlı yayında eski `BEAUTYOS_VERSION`, `BEAUTYOS_PREVIOUS_VERSION` olur (`imaj-temizle.sh` onu ve kaynak paketini korur).
+- Migration yapmaz; migration ayrı ve `[ONAY]`'lıdır. İmajlar önceden `derle.sh` ile derlenmiş olmalıdır.
+- `compose config` çıktısı gizli değer içerir; betik yalnız servis adı + `image` satırlarını gösterir. Kayıt: `/srv/beautyos/yayinla.log`.
+- İlk kurulum: `surum.conf` mevcut çalışan etiketlerle elle oluşturulur (hiçbir konteyner değişmemeli; `--kuru` ile doğrulanır).
+- Betik testi (sahte docker, ağ yok): `bash deploy/betikler/test-yayinla.sh`.
 
 ## Eski imajları ve kaynak paketlerini temizleme
 

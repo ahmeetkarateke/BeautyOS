@@ -4,6 +4,9 @@
 #   .env                  compose değişkenleri + canlı api (yalnız api okur; compose da değişken için okur)
 #                         BEAUTYOS_VERSION (canlı) ve BEAUTYOS_STAGING_VERSION (staging) AYRIDIR ve ikisi de zorunludur
 #                         (eksikse compose başlamaz). Staging sürümü değişince canlı etiketi etkilenmez.
+#   surum.conf            GİZLİ OLMAYAN sürüm dosyası (BEAUTYOS_VERSION / _STAGING_VERSION / _PREVIOUS_VERSION); yayinla.sh yönetir.
+#                         Compose bununla çalıştırılır:  docker compose -p beautyos --env-file .env --env-file surum.conf ...
+#                         (sonraki dosya kazanır; yayınlar için betikler/yayinla.sh kullanılır, elle `up` sürümü ortam dosyasından alır)
 #   .env.staging          api-staging
 #   .env.db               postgres (süper kullanıcı + dört rolün parolaları)
 #   .env.redis            redis parolası
