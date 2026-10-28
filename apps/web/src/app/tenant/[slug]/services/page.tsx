@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, PowerOff, Power, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,10 +25,11 @@ interface Service {
 }
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
-export default function ServicesPage({ params }: PageProps) {
+export default function ServicesPage(props: PageProps) {
+  const params = use(props.params)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const isStaff = user?.role === 'staff'

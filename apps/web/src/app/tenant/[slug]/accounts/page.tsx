@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, use } from 'react'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, X, Landmark, Wallet, CreditCard, ChevronRight, Banknote, ArrowLeftRight } from 'lucide-react'
@@ -15,7 +15,7 @@ import { formatCurrency, cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 type AccountType = 'cash' | 'bank' | 'pos' | 'credit_card' | 'other'
@@ -43,7 +43,8 @@ const TYPE_META: Record<AccountType, { label: string; icon: typeof Landmark; cla
   other:       { label: 'Diğer',       icon: Banknote,   className: 'bg-gray-100 text-gray-700' },
 }
 
-export default function AccountsPage({ params }: PageProps) {
+export default function AccountsPage(props: PageProps) {
+  const params = use(props.params)
   const { slug } = params
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)

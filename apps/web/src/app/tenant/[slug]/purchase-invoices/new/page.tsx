@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, type FormEvent, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -15,7 +15,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 interface Supplier { id: string; name: string; phone: string | null }
@@ -42,7 +42,8 @@ function lineTotal(line: LineItem): { afterDiscount: number; tax: number; total:
   return { afterDiscount, tax, total: afterDiscount + tax }
 }
 
-export default function NewPurchaseInvoicePage({ params }: PageProps) {
+export default function NewPurchaseInvoicePage(props: PageProps) {
+  const params = use(props.params)
   const { slug } = params
   const router = useRouter()
   const today = new Date().toISOString().slice(0, 10)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Plus, User, UserX } from 'lucide-react'
@@ -22,10 +22,11 @@ interface StaffMember {
 }
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
-export default function StaffPage({ params }: PageProps) {
+export default function StaffPage(props: PageProps) {
+  const params = use(props.params)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const router = useRouter()

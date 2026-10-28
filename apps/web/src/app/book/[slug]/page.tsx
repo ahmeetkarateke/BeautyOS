@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, use } from 'react'
 import Script from 'next/script'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Calendar, Check, Clock, User, AlertCircle, MapPin, Phone, MessageCircle } from 'lucide-react'
@@ -85,7 +85,8 @@ function formatDateTR(dateStr: string) {
 
 type Step = 'service' | 'staff' | 'date' | 'slot' | 'contact' | 'done'
 
-export default function PublicBookingPage({ params }: { params: { slug: string } }) {
+export default function PublicBookingPage(props: { params: Promise<{ slug: string }> }) {
+  const params = use(props.params)
   const { slug } = params
   const [step, setStep] = useState<Step>('service')
   const [selectedService, setSelectedService] = useState<Service | null>(null)
@@ -287,385 +288,385 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
           onError={() => setCaptchaNotice('Güvenlik doğrulaması yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin; reklam engelleyiciniz varsa kapatın.')}
         />
       )}
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white" style={cssVars}>
-      <div className="max-w-md mx-auto">
-        {/* Cover */}
-        {tenantInfo.coverUrl && (
-          <div className="w-full h-40 sm:h-48 overflow-hidden">
-            <img
-              src={tenantInfo.coverUrl}
-              alt="Kapak"
-              className="w-full h-full object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
-          </div>
-        )}
-
-        <div className="p-4 sm:p-6">
-          {/* Header — logo + name */}
-          <header className="text-center mb-4 pt-2">
-            {tenantInfo.logoUrl && (
+      <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white" style={cssVars}>
+        <div className="max-w-md mx-auto">
+          {/* Cover */}
+          {tenantInfo.coverUrl && (
+            <div className="w-full h-40 sm:h-48 overflow-hidden">
               <img
-                src={tenantInfo.logoUrl}
-                alt={tenantInfo.name}
-                className="w-20 h-20 rounded-full mx-auto mb-3 object-cover border-2 border-white shadow"
+                src={tenantInfo.coverUrl}
+                alt="Kapak"
+                className="w-full h-full object-cover"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
               />
+            </div>
+          )}
+
+          <div className="p-4 sm:p-6">
+            {/* Header — logo + name */}
+            <header className="text-center mb-4 pt-2">
+              {tenantInfo.logoUrl && (
+                <img
+                  src={tenantInfo.logoUrl}
+                  alt={tenantInfo.name}
+                  className="w-20 h-20 rounded-full mx-auto mb-3 object-cover border-2 border-white shadow"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              )}
+              <h1 className="text-2xl font-bold text-gray-900">{tenantInfo.name}</h1>
+              {tenantInfo.aboutText && (
+                <p className="text-sm text-zinc-600 mt-2 max-w-sm mx-auto leading-relaxed">{tenantInfo.aboutText}</p>
+              )}
+            </header>
+
+            {/* Contact strip */}
+            {(tenantInfo.phone || tenantInfo.whatsappNumber || tenantInfo.mapsUrl) && (
+              <div className="flex justify-center gap-2 mb-4">
+                {tenantInfo.phone && (
+                  <a
+                    href={`tel:${tenantInfo.phone}`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-gray-700 hover:bg-zinc-50"
+                  >
+                    <Phone size={12} /> Ara
+                  </a>
+                )}
+                {tenantInfo.whatsappNumber && (
+                  <a
+                    href={`https://wa.me/${tenantInfo.whatsappNumber.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-xs text-green-700 hover:bg-green-100"
+                  >
+                    <MessageCircle size={12} /> WhatsApp
+                  </a>
+                )}
+                {tenantInfo.mapsUrl && (
+                  <a
+                    href={tenantInfo.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-gray-700 hover:bg-zinc-50"
+                  >
+                    <MapPin size={12} /> Yol Tarifi
+                  </a>
+                )}
+              </div>
             )}
-            <h1 className="text-2xl font-bold text-gray-900">{tenantInfo.name}</h1>
-            {tenantInfo.aboutText && (
-              <p className="text-sm text-zinc-600 mt-2 max-w-sm mx-auto leading-relaxed">{tenantInfo.aboutText}</p>
+
+            {/* Address */}
+            {tenantInfo.address && (
+              <div className="text-center text-xs text-zinc-500 mb-5">
+                <p>{tenantInfo.address}</p>
+              </div>
             )}
-          </header>
 
-          {/* Contact strip */}
-          {(tenantInfo.phone || tenantInfo.whatsappNumber || tenantInfo.mapsUrl) && (
-            <div className="flex justify-center gap-2 mb-4">
-              {tenantInfo.phone && (
-                <a
-                  href={`tel:${tenantInfo.phone}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-gray-700 hover:bg-zinc-50"
-                >
-                  <Phone size={12} /> Ara
-                </a>
-              )}
-              {tenantInfo.whatsappNumber && (
-                <a
-                  href={`https://wa.me/${tenantInfo.whatsappNumber.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-xs text-green-700 hover:bg-green-100"
-                >
-                  <MessageCircle size={12} /> WhatsApp
-                </a>
-              )}
-              {tenantInfo.mapsUrl && (
-                <a
-                  href={tenantInfo.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-gray-700 hover:bg-zinc-50"
-                >
-                  <MapPin size={12} /> Yol Tarifi
-                </a>
-              )}
-            </div>
+          {step !== 'service' && step !== 'done' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (step === 'staff') setStep('service')
+                else if (step === 'date') setStep('staff')
+                else if (step === 'slot') setStep('date')
+                else if (step === 'contact') setStep('slot')
+              }}
+              className="flex items-center gap-1 text-sm text-zinc-500 hover:text-gray-700 mb-3"
+            >
+              <ArrowLeft size={14} /> Geri
+            </button>
           )}
 
-          {/* Address */}
-          {tenantInfo.address && (
-            <div className="text-center text-xs text-zinc-500 mb-5">
-              <p>{tenantInfo.address}</p>
-            </div>
-          )}
+          <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-4 sm:p-5">
+            {/* Step: Service */}
+            {step === 'service' && (
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Hizmet seçin</h2>
+                {services.length === 0 && (
+                  <p className="text-sm text-zinc-500">Henüz hizmet eklenmemiş.</p>
+                )}
+                {services.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setSelectedService(s)
+                      setStep('staff')
+                    }}
+                    className="w-full p-3 border border-zinc-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
+                      {s.category && <p className="text-xs text-zinc-500 mt-0.5">{s.category}</p>}
+                    </div>
+                    <span className="text-xs text-zinc-400 shrink-0">{s.durationMinutes} dk</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
-        {step !== 'service' && step !== 'done' && (
-          <button
-            type="button"
-            onClick={() => {
-              if (step === 'staff') setStep('service')
-              else if (step === 'date') setStep('staff')
-              else if (step === 'slot') setStep('date')
-              else if (step === 'contact') setStep('slot')
-            }}
-            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-gray-700 mb-3"
-          >
-            <ArrowLeft size={14} /> Geri
-          </button>
-        )}
-
-        <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-4 sm:p-5">
-          {/* Step: Service */}
-          {step === 'service' && (
-            <div className="space-y-3">
-              <h2 className="text-base font-semibold text-gray-900 mb-1">Hizmet seçin</h2>
-              {services.length === 0 && (
-                <p className="text-sm text-zinc-500">Henüz hizmet eklenmemiş.</p>
-              )}
-              {services.map((s) => (
+            {/* Step: Staff */}
+            {step === 'staff' && (
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Personel seçin</h2>
                 <button
-                  key={s.id}
                   onClick={() => {
-                    setSelectedService(s)
-                    setStep('staff')
-                  }}
-                  className="w-full p-3 border border-zinc-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
-                    {s.category && <p className="text-xs text-zinc-500 mt-0.5">{s.category}</p>}
-                  </div>
-                  <span className="text-xs text-zinc-400 shrink-0">{s.durationMinutes} dk</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Step: Staff */}
-          {step === 'staff' && (
-            <div className="space-y-3">
-              <h2 className="text-base font-semibold text-gray-900 mb-1">Personel seçin</h2>
-              <button
-                onClick={() => {
-                  setSelectedStaffId('any')
-                  setStep('date')
-                }}
-                className="w-full p-3 border border-zinc-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left flex items-center gap-3"
-              >
-                <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500">
-                  <User size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Fark etmez</p>
-                  <p className="text-xs text-zinc-500">İlk müsait personeli seç</p>
-                </div>
-              </button>
-              {staff.map((sp) => (
-                <button
-                  key={sp.id}
-                  onClick={() => {
-                    setSelectedStaffId(sp.id)
+                    setSelectedStaffId('any')
                     setStep('date')
                   }}
                   className="w-full p-3 border border-zinc-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left flex items-center gap-3"
                 >
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                    {sp.fullName.charAt(0)}
+                  <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500">
+                    <User size={18} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{sp.fullName}</p>
-                    <p className="text-xs text-zinc-500 truncate">{sp.title}</p>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Fark etmez</p>
+                    <p className="text-xs text-zinc-500">İlk müsait personeli seç</p>
                   </div>
                 </button>
-              ))}
-              {staff.length === 0 && (
-                <p className="text-sm text-zinc-500">Bu hizmeti yapan personel bulunamadı.</p>
-              )}
-            </div>
-          )}
-
-          {/* Step: Date */}
-          {step === 'date' && (
-            <div className="space-y-3">
-              {redirectNotice && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                  {redirectNotice}
-                </div>
-              )}
-              <h2 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                <Calendar size={18} /> Tarih seçin
-              </h2>
-              <input
-                type="date"
-                value={date}
-                min={formatDateInput(new Date())}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                onClick={() => setStep('slot')}
-                disabled={!date}
-                style={{ backgroundColor: brandColor }}
-                className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
-              >
-                Saatleri Gör
-              </button>
-            </div>
-          )}
-
-          {/* Step: Slot */}
-          {step === 'slot' && (
-            <div className="space-y-3">
-              {redirectNotice && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                  {redirectNotice}
-                </div>
-              )}
-              <h2 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                <Clock size={18} /> Saat seçin
-              </h2>
-              <p className="text-xs text-zinc-500 mb-2">{formatDateTR(date)}</p>
-              {slotsLoading && <p className="text-sm text-zinc-500">Yükleniyor…</p>}
-              {!slotsLoading && slots.length === 0 && (
-                <p className="text-sm text-zinc-500">Bu tarihte boş saat yok. Başka bir tarih deneyin.</p>
-              )}
-              <div className="grid grid-cols-3 gap-2">
-                {slots.filter((s) => s.available).map((s) => (
+                {staff.map((sp) => (
                   <button
-                    key={s.id}
+                    key={sp.id}
                     onClick={() => {
-                      setSelectedSlot(s)
-                      setStep('contact')
+                      setSelectedStaffId(sp.id)
+                      setStep('date')
                     }}
-                    className="py-2.5 border border-zinc-200 rounded-lg text-sm font-medium text-gray-900 hover:border-primary hover:bg-primary/5 transition-colors"
+                    className="w-full p-3 border border-zinc-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors text-left flex items-center gap-3"
                   >
-                    {s.label}
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                      {sp.fullName.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{sp.fullName}</p>
+                      <p className="text-xs text-zinc-500 truncate">{sp.title}</p>
+                    </div>
                   </button>
                 ))}
+                {staff.length === 0 && (
+                  <p className="text-sm text-zinc-500">Bu hizmeti yapan personel bulunamadı.</p>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Step: Contact */}
-          {step === 'contact' && selectedSlot && selectedService && (
-            <div className="space-y-3">
-              <h2 className="text-base font-semibold text-gray-900 mb-1">İletişim Bilgileri</h2>
-              <div className="p-3 bg-primary/5 rounded-lg text-sm space-y-1 mb-2">
-                <p className="font-medium text-gray-900">{selectedService.name}</p>
-                <p className="text-zinc-600">{formatDateTR(date)} · {selectedSlot.label}</p>
+            {/* Step: Date */}
+            {step === 'date' && (
+              <div className="space-y-3">
+                {redirectNotice && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                    {redirectNotice}
+                  </div>
+                )}
+                <h2 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <Calendar size={18} /> Tarih seçin
+                </h2>
+                <input
+                  type="date"
+                  value={date}
+                  min={formatDateInput(new Date())}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  onClick={() => setStep('slot')}
+                  disabled={!date}
+                  style={{ backgroundColor: brandColor }}
+                  className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                >
+                  Saatleri Gör
+                </button>
               </div>
-              <input
-                type="text"
-                placeholder="Ad Soyad"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="tel"
-                    placeholder="Telefon (05XX XXX XX XX)"
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value)
-                      // Telefon değişince doğrulamayı sıfırla
-                      if (phoneVerified) {
-                        setPhoneVerified(false)
-                        setVerifyCodeSent(false)
-                        setVerifyCode('')
-                        setDevCodeHint(null)
-                      }
-                    }}
-                    disabled={phoneVerified}
-                    className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-zinc-50"
-                  />
-                  {!phoneVerified && (
+            )}
+
+            {/* Step: Slot */}
+            {step === 'slot' && (
+              <div className="space-y-3">
+                {redirectNotice && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                    {redirectNotice}
+                  </div>
+                )}
+                <h2 className="text-base font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <Clock size={18} /> Saat seçin
+                </h2>
+                <p className="text-xs text-zinc-500 mb-2">{formatDateTR(date)}</p>
+                {slotsLoading && <p className="text-sm text-zinc-500">Yükleniyor…</p>}
+                {!slotsLoading && slots.length === 0 && (
+                  <p className="text-sm text-zinc-500">Bu tarihte boş saat yok. Başka bir tarih deneyin.</p>
+                )}
+                <div className="grid grid-cols-3 gap-2">
+                  {slots.filter((s) => s.available).map((s) => (
                     <button
-                      onClick={() => sendCodeMutation.mutate()}
-                      disabled={phone.trim().length < 7 || sendCodeMutation.isPending || verifyCooldown > 0}
-                      className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
+                      key={s.id}
+                      onClick={() => {
+                        setSelectedSlot(s)
+                        setStep('contact')
+                      }}
+                      className="py-2.5 border border-zinc-200 rounded-lg text-sm font-medium text-gray-900 hover:border-primary hover:bg-primary/5 transition-colors"
                     >
-                      {sendCodeMutation.isPending
-                        ? 'Gönderiliyor…'
-                        : verifyCooldown > 0
-                        ? `${verifyCooldown}sn`
-                        : verifyCodeSent
-                        ? 'Yeniden'
-                        : 'Kod Gönder'}
+                      {s.label}
                     </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step: Contact */}
+            {step === 'contact' && selectedSlot && selectedService && (
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">İletişim Bilgileri</h2>
+                <div className="p-3 bg-primary/5 rounded-lg text-sm space-y-1 mb-2">
+                  <p className="font-medium text-gray-900">{selectedService.name}</p>
+                  <p className="text-zinc-600">{formatDateTR(date)} · {selectedSlot.label}</p>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ad Soyad"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      placeholder="Telefon (05XX XXX XX XX)"
+                      value={phone}
+                      onChange={(e) => {
+                        setPhone(e.target.value)
+                        // Telefon değişince doğrulamayı sıfırla
+                        if (phoneVerified) {
+                          setPhoneVerified(false)
+                          setVerifyCodeSent(false)
+                          setVerifyCode('')
+                          setDevCodeHint(null)
+                        }
+                      }}
+                      disabled={phoneVerified}
+                      className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-zinc-50"
+                    />
+                    {!phoneVerified && (
+                      <button
+                        onClick={() => sendCodeMutation.mutate()}
+                        disabled={phone.trim().length < 7 || sendCodeMutation.isPending || verifyCooldown > 0}
+                        className="px-3 py-2 text-xs font-medium rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {sendCodeMutation.isPending
+                          ? 'Gönderiliyor…'
+                          : verifyCooldown > 0
+                          ? `${verifyCooldown}sn`
+                          : verifyCodeSent
+                          ? 'Yeniden'
+                          : 'Kod Gönder'}
+                      </button>
+                    )}
+                    {phoneVerified && (
+                      <span className="px-3 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 border border-green-200 inline-flex items-center gap-1 whitespace-nowrap">
+                        <Check size={13} strokeWidth={2.5} /> Doğrulandı
+                      </span>
+                    )}
+                  </div>
+
+                  {verifyCodeSent && !phoneVerified && (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          placeholder="6 haneli kod"
+                          value={verifyCode}
+                          onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
+                          className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono tracking-widest"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => confirmCodeMutation.mutate()}
+                          disabled={verifyCode.length !== 6 || confirmCodeMutation.isPending}
+                          className="px-4 py-2 text-xs font-medium text-white rounded-lg disabled:opacity-50 whitespace-nowrap"
+                          style={{ backgroundColor: brandColor }}
+                        >
+                          {confirmCodeMutation.isPending ? '…' : 'Doğrula'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-zinc-500">
+                        Telefonunuza gönderilen 6 haneli kodu giriniz. Kod 10 dakika geçerlidir.
+                      </p>
+                      {process.env.NODE_ENV !== 'production' && devCodeHint && (
+                        <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                          🛈 Geliştirme modu — kod: <strong>{devCodeHint}</strong>
+                        </p>
+                      )}
+                    </div>
                   )}
-                  {phoneVerified && (
-                    <span className="px-3 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 border border-green-200 inline-flex items-center gap-1 whitespace-nowrap">
-                      <Check size={13} strokeWidth={2.5} /> Doğrulandı
-                    </span>
+
+                  {verifyError && (
+                    <p className="text-xs text-red-500">{verifyError}</p>
                   )}
                 </div>
 
-                {verifyCodeSent && !phoneVerified && (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        placeholder="6 haneli kod"
-                        value={verifyCode}
-                        onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
-                        className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono tracking-widest"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => confirmCodeMutation.mutate()}
-                        disabled={verifyCode.length !== 6 || confirmCodeMutation.isPending}
-                        className="px-4 py-2 text-xs font-medium text-white rounded-lg disabled:opacity-50 whitespace-nowrap"
-                        style={{ backgroundColor: brandColor }}
-                      >
-                        {confirmCodeMutation.isPending ? '…' : 'Doğrula'}
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-zinc-500">
-                      Telefonunuza gönderilen 6 haneli kodu giriniz. Kod 10 dakika geçerlidir.
-                    </p>
-                    {process.env.NODE_ENV !== 'production' && devCodeHint && (
-                      <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                        🛈 Geliştirme modu — kod: <strong>{devCodeHint}</strong>
-                      </p>
-                    )}
-                  </div>
+                {TURNSTILE_SITE_KEY && (
+                  <div ref={turnstileRef} className="flex justify-center" />
                 )}
-
-                {verifyError && (
-                  <p className="text-xs text-red-500">{verifyError}</p>
+                {TURNSTILE_SITE_KEY && !captchaToken && (
+                  <p className="text-[11px] text-amber-600 text-center" role="status">
+                    {captchaNotice || (turnstileReady ? 'Göndermek için güvenlik doğrulamasını tamamlayın.' : 'Güvenlik doğrulaması yükleniyor…')}
+                  </p>
                 )}
-              </div>
-
-              {TURNSTILE_SITE_KEY && (
-                <div ref={turnstileRef} className="flex justify-center" />
-              )}
-              {TURNSTILE_SITE_KEY && !captchaToken && (
-                <p className="text-[11px] text-amber-600 text-center" role="status">
-                  {captchaNotice || (turnstileReady ? 'Göndermek için güvenlik doğrulamasını tamamlayın.' : 'Güvenlik doğrulaması yükleniyor…')}
+                {bookMutation.isError && (
+                  <p className="text-xs text-red-500">{(bookMutation.error as Error).message}</p>
+                )}
+                <button
+                  onClick={() => bookMutation.mutate()}
+                  disabled={
+                    name.trim().length < 2
+                    || phone.trim().length < 7
+                    || !phoneVerified
+                    || bookMutation.isPending
+                    || (!!TURNSTILE_SITE_KEY && !captchaToken)
+                  }
+                  style={{ backgroundColor: brandColor }}
+                  className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                >
+                  {bookMutation.isPending ? 'Gönderiliyor…' : 'Randevu Talebini Gönder'}
+                </button>
+                {!phoneVerified && phone.trim().length >= 7 && !verifyCodeSent && (
+                  <p className="text-[11px] text-amber-600 text-center">
+                    ⚠ Randevu için önce telefonunuzu doğrulamanız gerekir.
+                  </p>
+                )}
+                <p className="text-[11px] text-zinc-500 text-center">
+                  Randevunuz salon tarafından onaylandıktan sonra kesinleşir.
                 </p>
-              )}
-              {bookMutation.isError && (
-                <p className="text-xs text-red-500">{(bookMutation.error as Error).message}</p>
-              )}
-              <button
-                onClick={() => bookMutation.mutate()}
-                disabled={
-                  name.trim().length < 2
-                  || phone.trim().length < 7
-                  || !phoneVerified
-                  || bookMutation.isPending
-                  || (!!TURNSTILE_SITE_KEY && !captchaToken)
-                }
-                style={{ backgroundColor: brandColor }}
-                className="w-full py-2.5 text-white text-sm font-medium rounded-lg disabled:opacity-50"
-              >
-                {bookMutation.isPending ? 'Gönderiliyor…' : 'Randevu Talebini Gönder'}
-              </button>
-              {!phoneVerified && phone.trim().length >= 7 && !verifyCodeSent && (
-                <p className="text-[11px] text-amber-600 text-center">
-                  ⚠ Randevu için önce telefonunuzu doğrulamanız gerekir.
+              </div>
+            )}
+
+            {/* Step: Done */}
+            {step === 'done' && confirmedRef && (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
+                  <Check size={32} className="text-amber-600" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900">Talebiniz alındı!</h2>
+                <p className="text-sm text-zinc-500">
+                  {selectedService?.name}<br />
+                  {formatDateTR(date)} · {selectedSlot?.label}
                 </p>
-              )}
-              <p className="text-[11px] text-zinc-500 text-center">
-                Randevunuz salon tarafından onaylandıktan sonra kesinleşir.
-              </p>
-            </div>
-          )}
-
-          {/* Step: Done */}
-          {step === 'done' && confirmedRef && (
-            <div className="text-center py-6 space-y-3">
-              <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
-                <Check size={32} className="text-amber-600" />
+                <p className="text-sm text-gray-700 max-w-xs mx-auto leading-relaxed">
+                  Randevu talebiniz salonun onayına gönderildi.
+                  Onaylanınca size haber verilecek.
+                </p>
+                <div className="inline-block px-3 py-1.5 bg-zinc-100 rounded text-xs font-mono text-zinc-700">
+                  Referans: {confirmedRef}
+                </div>
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Talebiniz alındı!</h2>
-              <p className="text-sm text-zinc-500">
-                {selectedService?.name}<br />
-                {formatDateTR(date)} · {selectedSlot?.label}
-              </p>
-              <p className="text-sm text-gray-700 max-w-xs mx-auto leading-relaxed">
-                Randevu talebiniz salonun onayına gönderildi.
-                Onaylanınca size haber verilecek.
-              </p>
-              <div className="inline-block px-3 py-1.5 bg-zinc-100 rounded text-xs font-mono text-zinc-700">
-                Referans: {confirmedRef}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <p className="text-center text-xs text-zinc-400 mt-6">
-          BeautyOS ile randevu sistemi
-        </p>
+          <p className="text-center text-xs text-zinc-400 mt-6">
+            BeautyOS ile randevu sistemi
+          </p>
+          </div>
         </div>
       </div>
-    </div>
     </>
-  )
+  );
 }
 
 function CenterMessage({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {

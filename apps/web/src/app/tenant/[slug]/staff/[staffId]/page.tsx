@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -107,10 +107,11 @@ const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
 }
 
 interface PageProps {
-  params: { slug: string; staffId: string }
+  params: Promise<{ slug: string; staffId: string }>
 }
 
-export default function StaffDetailPage({ params }: PageProps) {
+export default function StaffDetailPage(props: PageProps) {
+  const params = use(props.params)
   const { slug, staffId } = params
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const user = useAuthStore((s) => s.user)

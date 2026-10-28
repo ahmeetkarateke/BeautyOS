@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -13,7 +13,7 @@ import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 interface CustomerInput {
@@ -25,7 +25,8 @@ interface CustomerInput {
 
 const INITIAL: CustomerInput = { fullName: '', phone: '', email: '', birthDate: '' }
 
-export default function NewCustomerPage({ params }: PageProps) {
+export default function NewCustomerPage(props: PageProps) {
+  const params = use(props.params)
   const router = useRouter()
   const qc = useQueryClient()
   const [form, setForm] = useState<CustomerInput>(INITIAL)

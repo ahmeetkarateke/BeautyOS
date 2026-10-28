@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, use } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Trash2, Pencil, CheckCircle2, Plus } from 'lucide-react'
@@ -39,7 +39,7 @@ interface StaffMember {
 }
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 const STATUS_OPTIONS: { value: 'all' | PayoutStatus; label: string }[] = [
@@ -71,7 +71,8 @@ function getMonthDefaults(): { from: string; to: string } {
   return { from: fmt(first), to: fmt(last) }
 }
 
-export default function StaffPayoutsPage({ params }: PageProps) {
+export default function StaffPayoutsPage(props: PageProps) {
+  const params = use(props.params)
   const slug = params.slug
   const user = useAuthStore((s) => s.user)
   const router = useRouter()

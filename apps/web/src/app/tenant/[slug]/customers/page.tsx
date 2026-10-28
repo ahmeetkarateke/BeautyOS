@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, use } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -38,10 +38,11 @@ interface CustomersResponse {
 const columnHelper = createColumnHelper<Customer>()
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
-export default function CustomersPage({ params }: PageProps) {
+export default function CustomersPage(props: PageProps) {
+  const params = use(props.params)
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const isStaff = user?.role === 'staff'

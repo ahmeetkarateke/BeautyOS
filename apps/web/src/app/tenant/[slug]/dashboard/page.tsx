@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, use } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { TrendingUp, Calendar, Users, Percent } from 'lucide-react'
@@ -29,10 +29,10 @@ interface DashboardData {
 }
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
-function DashboardContent({ params }: PageProps) {
+function DashboardContent({ params }: { params: { slug: string } }) {
   const user = useAuthStore((s) => s.user)
   const tenantId = params.slug
   const searchParams = useSearchParams()
@@ -134,7 +134,8 @@ function DashboardContent({ params }: PageProps) {
   )
 }
 
-export default function DashboardPage({ params }: PageProps) {
+export default function DashboardPage(props: PageProps) {
+  const params = use(props.params)
   return (
     <Suspense>
       <DashboardContent params={params} />

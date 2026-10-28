@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, use } from 'react'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, X, Phone, Mail, Truck, BookOpen, FileText } from 'lucide-react'
@@ -15,7 +15,7 @@ import { apiFetch } from '@/lib/api'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 interface Supplier {
@@ -27,7 +27,8 @@ interface Supplier {
   isActive: boolean
 }
 
-export default function SuppliersPage({ params }: PageProps) {
+export default function SuppliersPage(props: PageProps) {
+  const params = use(props.params)
   const { slug } = params
   const qc = useQueryClient()
   const [adding, setAdding] = useState(false)

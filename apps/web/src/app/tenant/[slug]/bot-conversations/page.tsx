@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MessageSquare, ChevronLeft, ChevronRight, Phone, Calendar, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -128,7 +128,8 @@ function TranscriptModal({
   )
 }
 
-export default function BotConversationsPage({ params }: { params: { slug: string } }) {
+export default function BotConversationsPage(props: { params: Promise<{ slug: string }> }) {
+  const params = use(props.params)
   const { slug } = params
   const token = useAuthStore((s) => s.token)
   const [page, setPage] = useState(1)

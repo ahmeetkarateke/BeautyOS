@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, use } from 'react'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -19,7 +19,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string; id: string }
+  params: Promise<{ slug: string; id: string }>
 }
 
 type AccountType = 'cash' | 'bank' | 'pos' | 'credit_card' | 'other'
@@ -75,7 +75,8 @@ const TX_TYPE_META: Record<TxType, { label: string; className: string; sign: '+'
   adjustment:      { label: 'Düzeltme',        className: 'text-salon-muted', sign: '+' },
 }
 
-export default function AccountDetailPage({ params }: PageProps) {
+export default function AccountDetailPage(props: PageProps) {
+  const params = use(props.params)
   const { slug, id } = params
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)

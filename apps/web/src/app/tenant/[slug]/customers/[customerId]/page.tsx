@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, use } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -21,7 +21,7 @@ import { toast } from '@/components/ui/toaster'
 import { useActiveModules } from '@/hooks/use-active-modules'
 
 interface PageProps {
-  params: { slug: string; customerId: string }
+  params: Promise<{ slug: string; customerId: string }>
 }
 
 interface AppointmentRow {
@@ -87,7 +87,8 @@ const PHOTO_CATEGORIES: Array<{ value: string; label: string }> = [
 
 type TabKey = 'general' | 'anamnesis' | 'photos' | 'visits'
 
-export default function CustomerDetailPage({ params }: PageProps) {
+export default function CustomerDetailPage(props: PageProps) {
+  const params = use(props.params)
   const router = useRouter()
   const qc = useQueryClient()
   const { activeModules } = useActiveModules(params.slug)
