@@ -26,6 +26,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Statik dosyalar, görseller ve Next iç yolları proxy'den geçmez.
-  matcher: ['/((?!_next/|favicon.ico|robots.txt|sitemap.xml|.*\\.[a-zA-Z0-9]+$).*)'],
+  // Yalnız Next iç yolları ve kök dosyalar proxy dışındadır. Noktalı yollar (/v2/a.b) dışarıda bırakılmaz: bayrak kapalıyken 404 olmalıdır.
+  matcher: ['/((?!_next/|favicon.ico$|robots.txt$|sitemap.xml$).*)'],
 }

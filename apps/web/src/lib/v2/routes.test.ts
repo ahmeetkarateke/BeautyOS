@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { parseSurfaces } from './flags'
 import { mapLegacyPanelPath, resolveRoute, SITE_ONLY_PATHS } from './routes'
@@ -118,5 +119,30 @@ describe('/tenant/[slug]/* -> /panel/[slug]/<karşılığı> (307)', () => {
   it('K2: eşleme tablosu yeni panel adlarını yalnız bilinen ekranlara verir', () => {
     expect(mapLegacyPanelPath([])).toBe('bugun')
     expect(mapLegacyPanelPath(['customers', 'c9', 'extra'])).toBe('musteri/c9/extra')
+  })
+})
+
+describe('denetim W0-1: sınır ve kodlama vakaları', () => {
+  it('segment sınırı: /books, book açıkken bile /book yolu sayılmaz', () => {
+    expect(resolveRoute('/books', parseSurfaces('book'))).toEqual(NEXT)
+    expect(resolveRoute('/booking/x', parseSurfaces('book'))).toEqual(NEXT)
+    expect(resolveRoute('/administrator', parseSurfaces('admin'))).toEqual(NEXT)
+  })
+
+  it('/v2/admin: admin kapalıyken (site açık olsa bile) 404', () => {
+    expect(resolveRoute('/v2/admin', parseSurfaces('site'))).toEqual(NOT_FOUND)
+    expect(resolveRoute('/v2/admin/tenants', parseSurfaces('site,auth,panel,book'))).toEqual(NOT_FOUND)
+  })
+
+  it('bayrak kapalıyken noktalı ve yüzde-kodlu iç yollar 404', () => {
+    expect(resolveRoute('/v2/a.b', NONE)).toEqual(NOT_FOUND)
+    expect(resolveRoute('/panel/x/y.z', NONE)).toEqual(NOT_FOUND)
+    expect(resolveRoute('/%76%32', NONE)).toEqual(NOT_FOUND)
+    expect(resolveRoute('/%70anel/defne', NONE)).toEqual(NOT_FOUND)
+    expect(resolveRoute('/%76%32/login', parseSurfaces('site'))).toEqual(NOT_FOUND)
+  })
+
+  it('bozuk yüzde kodlaması çökmez, olduğu gibi geçer', () => {
+    expect(resolveRoute('/%E0%A4%A', NONE)).toEqual(NEXT)
   })
 })

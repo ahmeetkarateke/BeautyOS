@@ -17,5 +17,5 @@
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
-  "exclude": ["node_modules", "src/__tests__"]
+  "exclude": ["node_modules", "src/__tests__", "src/**/*.test.ts", "src/**/*.test.tsx", "e2e", "playwright.config.ts", "vitest.config.ts", "vitest.setup.ts"]
 }

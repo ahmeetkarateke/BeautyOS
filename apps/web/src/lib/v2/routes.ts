@@ -73,8 +73,15 @@ export const SITE_ONLY_PATHS: readonly string[] = [
 
 const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password']
 
+// Yüzde-kodlu yollar (/%76%32 = /v2) Next tarafından çözülerek eşleştirilir; burada da aynı biçime çevrilir. Bozuk kodlama olduğu gibi kalır.
 function normalize(pathname: string): string {
-  return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+  let decoded = pathname
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    decoded = pathname
+  }
+  return decoded.length > 1 && decoded.endsWith('/') ? decoded.slice(0, -1) : decoded
 }
 
 function startsWithSegment(pathname: string, prefix: string): boolean {
