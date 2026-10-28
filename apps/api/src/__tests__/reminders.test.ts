@@ -14,14 +14,16 @@ import {
 
 // ─── vi.hoisted: mock'lar vi.mock factory'den önce oluşturulmalı ─────────────
 
-const { mockSendText, mockQueueAdd } = vi.hoisted(() => ({
-  mockSendText: vi.fn().mockResolvedValue(undefined),
+const { mockSendSms, mockQueueAdd } = vi.hoisted(() => ({
+  mockSendSms: vi.fn(),
   mockQueueAdd: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
 }))
 
-vi.mock('../channels/telegram.channel', () => ({
-  TelegramChannel: vi.fn(() => ({ sendText: mockSendText })),
-}))
+// Hatırlatma SMS ile gider (bbd71c6). Dış sağlayıcı sahtelenir; telefon normalleştirme gerçektir.
+vi.mock('../lib/sms', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/sms')>()
+  return { ...actual, sendSms: mockSendSms }
+})
 
 vi.mock('../lib/queue', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/queue')>()
@@ -45,12 +47,11 @@ describe('BullMQ hatırlatma sistemi', () => {
   let ownerToken: string
   let staffProfileId: string
   let customerId: string
+  let customerPhone: string
   let serviceId: string
   let appointmentId: string
 
   beforeAll(async () => {
-    process.env.TELEGRAM_BOT_TOKEN = 'test-telegram-token'
-
     const tenant = await createTestTenant(suffix)
     tenantId = tenant.id
     tenantSlug = tenant.slug
@@ -64,11 +65,14 @@ describe('BullMQ hatırlatma sistemi', () => {
     const service = await createTestService(tenantId, suffix)
     serviceId = service.id
 
-    const customer = await createTestCustomer(
-      tenantId,
-      `+905559${suffix.slice(0, 7).replace(/\D/g, '').padEnd(7, '0')}`,
-      suffix,
-    )
+    // Randevu oluşturma, personelin hizmeti yapabildiğini ister (STAFF_NOT_SKILLED, 014f1b6).
+    await db.staffServiceAssignment.create({
+      data: { staffId: staffProfileId, serviceId, tenantId, isActive: true },
+    })
+
+    // +90 5XX XXX XX XX: normalizePhoneTR'nin kabul ettiği 10 haneli ulusal numara.
+    customerPhone = `+90555${suffix.replace(/\D/g, '').slice(0, 7).padEnd(7, '0')}`
+    const customer = await createTestCustomer(tenantId, customerPhone, suffix)
     customerId = customer.id
 
     // 48 saat sonraya randevu oluştur (processReminderJob testleri için)
@@ -97,84 +101,125 @@ describe('BullMQ hatırlatma sistemi', () => {
   })
 
   beforeEach(() => {
-    mockSendText.mockClear()
+    mockSendSms.mockReset()
+    mockSendSms.mockResolvedValue({ delivery: {}, result: { success: true, providerName: 'mock' } })
     mockQueueAdd.mockClear()
   })
 
-  // ─── Test 1: Worker doğrudan çağrı — mesaj formatı ────────────────────────
+  async function randevuOlustur(startAt: Date) {
+    const res = await request(app)
+      .post(`/api/v1/tenants/${tenantSlug}/appointments`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ customerId, serviceId, staffId: staffProfileId, startAt: startAt.toISOString() })
+    expect(res.status, JSON.stringify(res.body)).toBe(201)
+    return res.body.id as string
+  }
 
-  it('reminder_24h — "Yarın saat" formatında Telegram gönderir', async () => {
+  function kuyrukCagrilari(appointment: string) {
+    return mockQueueAdd.mock.calls.filter((c) => c[1].appointmentId === appointment)
+  }
+
+  // Kuyruğa ekleme fire-and-forget: sabit bekleme yerine beklenen çağrı sayısına kadar koşul beklenir.
+  async function kuyrukCagrilariniBekle(adet: number, appointment: string) {
+    await vi.waitFor(() => expect(kuyrukCagrilari(appointment)).toHaveLength(adet))
+    return kuyrukCagrilari(appointment)
+  }
+
+  // ─── Test 1: Worker doğrudan çağrı — SMS metni ve alıcı ───────────────────
+
+  it('reminder_24h — "yarın saat" metniyle SMS gönderir', async () => {
     await processReminderJob({ type: 'reminder_24h', appointmentId })
 
-    expect(mockSendText).toHaveBeenCalledTimes(1)
-    const [_to, message] = mockSendText.mock.calls[0]
-    expect(message).toMatch(/^Merhaba .+! Yarın saat .+'de .+ randevunuz var\. İptal için 'İptal' yazın\.$/)
+    expect(mockSendSms).toHaveBeenCalledTimes(1)
+    const params = mockSendSms.mock.calls[0][0]
+    expect(params.purpose).toBe('reminder_24h')
+    expect(params.body).toMatch(/^Test Salon .+: Sayın Test Müşteri .+, yarın saat \d{2}:\d{2}'de Test Hizmet .+ randevunuz bulunmaktadır\. Bilginize\.$/)
   })
 
-  it('reminder_2h — "hatırlatmak istedik" formatında Telegram gönderir', async () => {
+  it('reminder_2h — "bugün saat" metniyle SMS gönderir', async () => {
     await processReminderJob({ type: 'reminder_2h', appointmentId })
 
-    expect(mockSendText).toHaveBeenCalledTimes(1)
-    const [_to, message] = mockSendText.mock.calls[0]
-    expect(message).toMatch(/^Merhaba .+! .+'deki .+ randevunuzu hatırlatmak istedik\. Görüşürüz!$/)
+    expect(mockSendSms).toHaveBeenCalledTimes(1)
+    const params = mockSendSms.mock.calls[0][0]
+    expect(params.purpose).toBe('reminder_2h')
+    expect(params.body).toMatch(/bugün saat \d{2}:\d{2}'de Test Hizmet .+ randevunuz vardır\. Sizi bekliyoruz\.$/)
   })
 
-  it('mesaj müşteri telefona gönderilir', async () => {
+  it('SMS müşterinin telefonuna, kendi kiracısı ve randevusu bağlamıyla gönderilir', async () => {
     await processReminderJob({ type: 'reminder_24h', appointmentId })
 
-    const [to] = mockSendText.mock.calls[0]
-    expect(typeof to).toBe('string')
-    expect(to.length).toBeGreaterThan(0)
+    const params = mockSendSms.mock.calls[0][0]
+    expect(params.to).toBe(customerPhone)
+    expect(params.tenantId).toBe(tenantId)
+    expect(params.customerId).toBe(customerId)
+    expect(params.appointmentId).toBe(appointmentId)
   })
 
-  // ─── Test 2: Geçmiş tarihli randevu → job eklenmez ────────────────────────
+  it('iptal edilmiş randevu için SMS gönderilmez', async () => {
+    await db.appointment.update({ where: { id: appointmentId }, data: { status: 'cancelled' } })
+    try {
+      await processReminderJob({ type: 'reminder_24h', appointmentId })
+      expect(mockSendSms).not.toHaveBeenCalled()
+    } finally {
+      await db.appointment.update({ where: { id: appointmentId }, data: { status: 'pending' } })
+    }
+  })
+
+  it('telefon normalleştirilemezse SMS gönderilmez, hata fırlatmaz', async () => {
+    // Yalnız telefon bozuk; randevu aktif ve diğer her şey geçerli (tek kural bozulur).
+    const bozuk = await createTestCustomer(tenantId, '12345678', `${suffix}-bozuk`)
+    const start = new Date(Date.now() + 48 * 60 * 60 * 1000)
+    const appt = await db.appointment.create({
+      data: {
+        tenantId,
+        customerId: bozuk.id,
+        serviceId,
+        staffId: staffProfileId,
+        startAt: start,
+        endAt: new Date(start.getTime() + 60 * 60 * 1000),
+        priceCharged: 150,
+        referenceCode: `APT-BOZUK-${suffix}`,
+        status: 'pending',
+        bookingChannel: 'manual',
+      },
+    })
+
+    await expect(processReminderJob({ type: 'reminder_24h', appointmentId: appt.id })).resolves.toBeUndefined()
+    expect(mockSendSms).not.toHaveBeenCalled()
+  })
+
+  // ─── Test 2: Kuyruğa ekleme ──────────────────────────────────────────────
 
   it('geçmiş tarihli randevu için hiç job eklenmez', async () => {
-    const pastStart = new Date(Date.now() - 60 * 60 * 1000) // 1 saat önce
+    const pastId = await randevuOlustur(new Date(Date.now() - 60 * 60 * 1000))
 
-    const res = await request(app)
-      .post(`/api/v1/tenants/${tenantSlug}/appointments`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ customerId, serviceId, staffId: staffProfileId, startAt: pastStart.toISOString() })
+    // Olmayan bir şeyi sabit beklemeyle ispatlamak yerine: ardından gelen geçerli randevunun işleri
+    // eklenene kadar beklenir. İki istek aynı sırayla işlendiğinden geçmiş randevu için iş eklenecek
+    // olsaydı bu noktaya kadar eklenmiş olurdu.
+    const sonrakiId = await randevuOlustur(new Date(Date.now() + 72 * 60 * 60 * 1000))
+    await kuyrukCagrilariniBekle(2, sonrakiId)
 
-    expect(res.status).toBe(201)
-    // Fire-and-forget async — kısa süre bekle
-    await new Promise((r) => setTimeout(r, 100))
-    expect(mockQueueAdd).not.toHaveBeenCalled()
+    expect(kuyrukCagrilari(pastId)).toHaveLength(0)
   })
 
-  it('72 saat sonrası randevu için 2 job eklenir (24h + 2h)', async () => {
-    const futureStart = new Date(Date.now() + 72 * 60 * 60 * 1000)
+  it('100 saat sonrası randevu için 2 job eklenir (24h + 2h, belirlenimci jobId)', async () => {
+    const futureStart = new Date(Date.now() + 100 * 60 * 60 * 1000)
     futureStart.setMinutes(0, 0, 0)
+    const id = await randevuOlustur(futureStart)
 
-    const res = await request(app)
-      .post(`/api/v1/tenants/${tenantSlug}/appointments`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ customerId, serviceId, staffId: staffProfileId, startAt: futureStart.toISOString() })
+    const cagrilar = await kuyrukCagrilariniBekle(2, id)
 
-    expect(res.status).toBe(201)
-    await new Promise((r) => setTimeout(r, 100))
-
-    expect(mockQueueAdd).toHaveBeenCalledTimes(2)
-    const jobTypes = mockQueueAdd.mock.calls.map((call) => call[1].type)
-    expect(jobTypes).toContain('reminder_24h')
-    expect(jobTypes).toContain('reminder_2h')
+    expect(cagrilar.map((c) => c[1].type).sort()).toEqual(['reminder_24h', 'reminder_2h'])
+    expect(cagrilar.map((c) => c[2].jobId).sort()).toEqual([`reminder-24h-${id}`, `reminder-2h-${id}`].sort())
   })
 
-  it('3 saat sonrası randevu için sadece 2h job eklenir', async () => {
-    const soonStart = new Date(Date.now() + 3 * 60 * 60 * 1000)
-    soonStart.setMinutes(0, 0, 0)
+  it('4 saat sonrası randevu için sadece 2h job eklenir (24h zamanı geçmiş)', async () => {
+    const soonStart = new Date(Date.now() + 4 * 60 * 60 * 1000)
+    const id = await randevuOlustur(soonStart)
 
-    const res = await request(app)
-      .post(`/api/v1/tenants/${tenantSlug}/appointments`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ customerId, serviceId, staffId: staffProfileId, startAt: soonStart.toISOString() })
+    const cagrilar = await kuyrukCagrilariniBekle(1, id)
 
-    expect(res.status).toBe(201)
-    await new Promise((r) => setTimeout(r, 100))
-
-    expect(mockQueueAdd).toHaveBeenCalledTimes(1)
-    expect(mockQueueAdd.mock.calls[0][1].type).toBe('reminder_2h')
+    expect(cagrilar[0][1].type).toBe('reminder_2h')
   })
 
   // ─── Test 3: Geçersiz appointmentId → hata fırlatmaz ─────────────────────
@@ -186,18 +231,6 @@ describe('BullMQ hatırlatma sistemi', () => {
       processReminderJob({ type: 'reminder_24h', appointmentId: fakeId }),
     ).resolves.toBeUndefined()
 
-    expect(mockSendText).not.toHaveBeenCalled()
-  })
-
-  it('TELEGRAM_BOT_TOKEN eksikse Telegram göndermez, hata fırlatmaz', async () => {
-    const savedToken = process.env.TELEGRAM_BOT_TOKEN
-    delete process.env.TELEGRAM_BOT_TOKEN
-
-    await expect(
-      processReminderJob({ type: 'reminder_24h', appointmentId }),
-    ).resolves.toBeUndefined()
-
-    expect(mockSendText).not.toHaveBeenCalled()
-    process.env.TELEGRAM_BOT_TOKEN = savedToken
+    expect(mockSendSms).not.toHaveBeenCalled()
   })
 })

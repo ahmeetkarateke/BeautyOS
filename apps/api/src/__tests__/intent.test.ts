@@ -44,7 +44,8 @@ function mockSession(): ConversationSession {
   }
 }
 
-describe('IntentService — Türkçe intent tespiti (GERÇEK Gemini API)', () => {
+// Dış servis testi: anahtar yoksa atlanır (maliyet, ağ ve rastgelelik). Deterministik sürüm aşağıda.
+describe.skipIf(!process.env.GEMINI_API_KEY)('IntentService — Türkçe intent tespiti (GERÇEK Gemini API)', () => {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
   const service = new IntentService(genAI)
 
@@ -70,4 +71,48 @@ describe('IntentService — Türkçe intent tespiti (GERÇEK Gemini API)', () =>
 
     expect(passed).toBeGreaterThanOrEqual(17)
   }, 120_000) // 20 API çağrısı için 2 dk
+})
+
+// Sahte Gemini: modelin ham metin yanıtını biz veririz; sınanan, IntentService'in yanıtı ayrıştırması.
+function fakeGenAI(rawText: string): GoogleGenerativeAI {
+  return {
+    getGenerativeModel: () => ({
+      generateContent: async () => ({ response: { text: () => rawText } }),
+    }),
+  } as unknown as GoogleGenerativeAI
+}
+
+describe('IntentService — yanıt ayrıştırma (sahte Gemini, deterministik)', () => {
+  it('geçerli JSON yanıtını niyet olarak döndürür', async () => {
+    const service = new IntentService(
+      fakeGenAI('{"intent":"book","confidence":0.95,"entities":{"service":"manikür"}}'),
+    )
+    const result = await service.detect(mockSession(), 'manikür randevusu istiyorum', TEST_SALON)
+
+    expect(result.intent).toBe('book')
+    expect(result.entities.service).toBe('manikür')
+  })
+
+  it('JSON öncesi/sonrasında metin varsa da ayrıştırır', async () => {
+    const service = new IntentService(
+      fakeGenAI('Tabii:\n{"intent":"cancel","confidence":0.9}\nUmarım yardımcı olur'),
+    )
+    const result = await service.detect(mockSession(), 'iptal etmek istiyorum', TEST_SALON)
+
+    expect(result.intent).toBe('cancel')
+  })
+
+  it('geçersiz niyet değeri şemaya uymadığı için unknown/0 güvenle döner', async () => {
+    const service = new IntentService(fakeGenAI('{"intent":"hack","confidence":0.99}'))
+    const result = await service.detect(mockSession(), 'merhaba', TEST_SALON)
+
+    expect(result).toMatchObject({ intent: 'unknown', confidence: 0 })
+  })
+
+  it('JSON içermeyen yanıt unknown/0 döner', async () => {
+    const service = new IntentService(fakeGenAI('anlayamadım'))
+    const result = await service.detect(mockSession(), 'merhaba', TEST_SALON)
+
+    expect(result).toMatchObject({ intent: 'unknown', confidence: 0 })
+  })
 })

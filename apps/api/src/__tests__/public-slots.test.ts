@@ -36,6 +36,8 @@ describe('Public Slots & Services endpointleri', () => {
     const tenant = await createTestTenant(suffix)
     tenantId = tenant.id
     tenantSlug = tenant.slug
+    // Online rezervasyon kiracı başına varsayılan KAPALI (settings.publicBookingEnabled); bu takım açık kiracıyı sınar.
+    await db.tenant.update({ where: { id: tenantId }, data: { settings: { publicBookingEnabled: true } } })
 
     const service = await createTestService(tenantId, suffix)
     serviceId = service.id
@@ -91,7 +93,8 @@ describe('Public Slots & Services endpointleri', () => {
     expect(res.body.data.length).toBeGreaterThan(0)
     expect(res.body.data[0]).toHaveProperty('id')
     expect(res.body.data[0]).toHaveProperty('durationMinutes')
-    expect(res.body.data[0]).toHaveProperty('price')
+    // Fiyat online rezervasyon yanıtında bilerek yoktur (45e7d2e); sızmadığını sabitle.
+    expect(res.body.data[0]).not.toHaveProperty('price')
   })
 
   it('GET /public/services auth header olmadan → 200 (public)', async () => {
@@ -152,22 +155,23 @@ describe('Public Slots & Services endpointleri', () => {
     expect(slot.label).toMatch(/^\d{2}:\d{2}$/)
   })
 
-  it('var olmayan serviceId → 404', async () => {
+  it('var olmayan serviceId → 200 ve boş slot listesi (kiracı kapsamlı)', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
     const res = await request(app)
       .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${fakeId}&staffId=${staffProfileId}&date=${testDate}`)
 
-    expect(res.status).toBe(404)
-    expect(res.body.error.code).toBe('NOT_FOUND')
+    // Mimar kararı bekliyor: kod şu an 404 değil boş liste döner (başka kiracı verisi sızmaz). Karar 404 olursa burası değişir.
+    expect(res.status).toBe(200)
+    expect(res.body.slots).toEqual([])
   })
 
-  it('var olmayan staffId → 404', async () => {
+  it('var olmayan staffId → 200 ve boş slot listesi (kiracı kapsamlı)', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
     const res = await request(app)
       .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${serviceId}&staffId=${fakeId}&date=${testDate}`)
 
-    expect(res.status).toBe(404)
-    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(res.status).toBe(200)
+    expect(res.body.slots).toEqual([])
   })
 
   it('personel izinli olduğunda boş slot listesi döner', async () => {
@@ -240,5 +244,29 @@ describe('Public Slots & Services endpointleri', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.slots).toHaveLength(0)
+  })
+})
+
+describe('Online rezervasyon kapalıyken', () => {
+  const suffix = uniqueSuffix()
+  let tenantId: string
+  let tenantSlug: string
+
+  beforeAll(async () => {
+    // Varsayılan kiracı: settings.publicBookingEnabled tanımsız = kapalı.
+    const tenant = await createTestTenant(suffix)
+    tenantId = tenant.id
+    tenantSlug = tenant.slug
+  })
+
+  afterAll(async () => {
+    await cleanupTenant(tenantId)
+  })
+
+  it('GET /public/services → 403 BOOKING_DISABLED', async () => {
+    const res = await request(app).get(`/api/v1/tenants/${tenantSlug}/public/services`)
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('BOOKING_DISABLED')
   })
 })
