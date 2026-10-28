@@ -34,6 +34,7 @@
 | 10-28 | Supabase'te bulunan, depoda olmayan iki migration (WhatsApp numara alanı, iyzico abonelik) **terk edildi**: "önemli değil, en baştan birlikte düzelteceğiz, proje burada ayakta olsun" | Depodaki 19 migration esas. Bu özellikler ileride gelirse yeni migration'larla yazılır. G13-K7 iptal; Supabase silme koşulu kalktı |
 | 10-28 | Kalıcı izin: plandaki denetçi ONAY'lı teknik adımlar kurucuya sorulmadan yürütülür (DNS ve eski servis kapatma hariç) | Başlık notu, §9 |
 | 10-28 | Müdür kararı: taşıma dalları push edilmez (kalıcı izin dışı; Vercel her dal push'unda preview açıyor). Kaynak sunucuya `git archive` paketiyle aktarılır | ADR-0019 (ADR-0018'in kaynak bölümünün yerini aldı), §6, G7. Deploy key ve push maddeleri kaldırıldı |
+| 10-28 | Müdür kararı: geçişte kayıtlar **gri** kalır (dört kayıt bugün gri; SSL modu teyitsiz; sertifikalar DNS-01 ile hazır; KVKK açısından daha az üçüncü taraf) | ADR-0021; turuncu bulut ayrı adım G20 (önce kurucu Full strict yapar) |
 | 10-28 | **Kurucunun koşullu geçiş onayı** (müdür aktardı): "testler geçerse çevir". Koşullar G13 + denetçi son sunucu doğrulaması ONAY, G14 TEST GEÇTİ, G15 doğrulamaları. Eski servislerin kapatılması onayın dışında | §9, §10 baştan yazıldı. DNS'i müdür Cloudflare API ile çevirir (ADR-0020); Railway/Vercel Git kesme geçiş sonrasına alındı |
 
 ---
@@ -139,7 +140,8 @@ yeni-api.beautyossapp.com {
 
 - DNS Cloudflare'de. Kiracılar URL yoluyla ayrıldığı için **joker sertifika gerekmez** (ADR-0007).
 - Canlı hostlar: `beautyossapp.com`, `app.`, `www.` (S1) ve `api.`. Staging hostları: `yeni.` ve `yeni-api.`. İki seviyeli alt alan adı kullanılmaz: Cloudflare'in ücretsiz kenar sertifikası kapsamaz.
-- **ADR-0008 (kabul edildi):** turuncu bulut, Full (strict), minimum TLS 1.2, Bot Fight Mode ve Under Attack kapalı. Hukuk-uyum şartları:
+- **ADR-0021 (müdür kararı, 10-28): geçişte kayıtlar GRİ kalır.** `uygula` yalnız hedefi değiştirir, `proxied=false` korunur. Turuncu bulut (ADR-0008) ayrı ve sonraki bir adım (G20): önce kurucu SSL/TLS modunu Full (strict) yapar, sonra kayıtlar turuncuya alınır. Bu bir DNS değişikliğidir, kurucuya sorulur. Aşağıdaki ADR-0008 maddeleri o adımda geçerli olur.
+- **ADR-0008 (kabul edildi, uygulaması ertelendi):** turuncu bulut, Full (strict), minimum TLS 1.2, Bot Fight Mode ve Under Attack kapalı. Hukuk-uyum şartları:
   - `api.` ve `yeni-api.` için "Bypass cache".
   - Web Analytics/Zaraz/Logpush/Workers kapalı.
   - Cloudflare hesabında 2FA.
@@ -153,9 +155,9 @@ DNS adımları (kurucu, panelden, `[ONAY]`):
 | Ne zaman | İşlem |
 |---|---|
 | Hemen | Zone dışa aktarımı (DNS > Records > Export), kurucunun arşivine |
-| Hemen | `yeni`, `yeni-api` → A 209.38.237.171, turuncu (yeni hostlar, eski sisteme dokunmaz). **`api` buna dahil DEĞİL:** `api.beautyossapp.com` şu an Railway canlısının özel alan adı (10-28'de görüldü); geçişe kadar Railway'i gösterir |
-| Geçişten ≥ 24 saat önce | `@`, `app`, `www` gri ise TTL 60 sn (turuncu ise gerekmez) |
-| Geçiş | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, turuncu (dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır). **Müdür yürütür, kurucunun koşullu onayıyla, `dns-cevir.sh` ve Cloudflare API ile** (ADR-0020, §10) |
+| Hemen | `yeni`, `yeni-api` → A 209.38.237.171, **gri** (ADR-0021; SSL modu teyit edilene kadar; yeni hostlar, eski sisteme dokunmaz). Zaten turuncu açıldılarsa ve SSL modu Full (strict) değilse griye alınır. **`api` buna dahil DEĞİL:** `api.beautyossapp.com` şu an Railway canlısının özel alan adı (10-28'de görüldü); geçişe kadar Railway'i gösterir |
+| Geçişten önce | Dört kayıt gri (plan çıktısı, 10-28). TTL > 300 ise `ttl-dusur` ile 60 sn yapılır ve eski TTL kadar beklenir |
+| Geçiş | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, **gri, proxied=false korunur** (ADR-0021; dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır). **Müdür yürütür, kurucunun koşullu onayıyla, `dns-cevir.sh` ve Cloudflare API ile** (ADR-0020, §10) |
 
 Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `letsencrypt.org` izinli olmalı.
 
@@ -345,8 +347,8 @@ Bu `.env`'leri kurucu G13'te doldurur. `ADMIN_SEED_SECRET` canlıda baştan boş
 | # | Kim | Adım | Doğrulama |
 |---|---|---|---|
 | 1 | müdür (devops yürütür) | `dns-cevir.sh plan`: dört kaydın (`@`, `app`, `www`, `api`) mevcut halini ve tüm zonu `tasima/dns-oncesi.json` ve `tasima/zone-oncesi.txt` olarak saklar | Dosyalar var. Gri kayıtta TTL > 300 ise önce `ttl-dusur` çalışır, eski TTL kadar beklenir |
-| 2 | müdür (devops yürütür) | `dns-cevir.sh uygula`: dört kayıt → A 209.38.237.171, turuncu (proxied), TTL Auto. Gerçek API'de ilk `uygula` çalıştırması budur; önceden yalnız sahte API'ye karşı sınanmıştır (G15a-K4b) | Betik her kaydı API'den geri okuyarak doğrular |
-| 3 | devops | Dıştan doğrulama: `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200. `https://api.beautyossapp.com/health` → 200; isteğin sunucuya ulaştığı Caddy/API log'unda görünür (Railway değil) | Geçti |
+| 2 | müdür (devops yürütür) | `dns-cevir.sh uygula`: dört kayıt → A 209.38.237.171. **`proxied` değeri `dns-oncesi.json`'daki gibi korunur (bugün `false`, gri), TTL plandaki değerinde kalır** (ADR-0021). Gerçek API'de ilk `uygula` çalıştırması budur; önceden yalnız sahte API'ye karşı sınanmıştır (G15a-K4b) | Betik her kaydı API'den geri okuyarak doğrular |
+| 3 | devops | TTL süresi kadar (en çok 300 sn) beklendikten sonra dıştan doğrulama:<br>- `dig +short app.beautyossapp.com @1.1.1.1` → 209.38.237.171 (dört ad için).<br>- `curl -sI https://app.beautyossapp.com` → 200, `server: Caddy` (gri olduğu için `cloudflare` değil), sertifika geçerli.<br>- `https://api.beautyossapp.com/health` → 200; isteğin sunucuya ulaştığı Caddy/API log'unda görünür (Railway değil). | Geçti |
 | 4 | test-muhendisi | Canlı duman testi (G16-K1). Bir telefon doğrulama isteğiyle log'da "SMS provider: Mock" görülür | TEST GEÇTİ |
 | 5 | devops | UptimeRobot `app` ve apex yoklamaları açılır; `sirket/sunucu.md` "Çalışan servisler" satırı ve işlem günlüğü (K-A/K-B/K-C kanıt yollarıyla); ilk 60 dk izleme | Kayıt yazıldı |
 | 6 | müdür | Kurucuya rapor: geçiş tamam + §10.3 ve §11 için bekleyen kurucu işleri | — |

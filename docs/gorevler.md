@@ -57,6 +57,7 @@
 | G17 | Eski servislerin kapatılması ve imha tutanakları | kurucu + devops | G16 (Supabase için G13) | bekliyor |
 | G18 | Taşıma sonrası temizlik ve yükseltmeler | gelistirici | G17 | bekliyor |
 | G19 | Redis'te ortam ayrımı: ACL kullanıcıları + BullMQ öneki | gelistirici + devops | G11 | bekliyor (ilk gerçek müşteriden önce) |
+| G20 | Cloudflare turuncu buluta geçiş (ADR-0008, ADR-0021) | kurucu (panel) + devops | G16 | bekliyor (ilk gerçek müşteriden önce; DNS değişikliği, kurucuya sorulur) |
 
 ---
 
@@ -242,7 +243,7 @@
   - K1: Token yalnız `docker run --env-file /srv/caddy/.env` ile konteynere girer. Komut satırı argümanlarında (`ps`), log'da ve çıktıda token yok. `curl` başlığı dosyadan ya da standart girdiden okunur; `set -x` yok.
   - K2: Ad listesi sabittir: `@`, `app`, `www`, `api`. Liste dışı ad → çıkış 2. MX/TXT'ye dokunulmaz. Aynı ada birden fazla kayıt varsa betik durur.
   - K3: `plan` yalnız okur ve `tasima/dns-oncesi.json` (tür, değer, proxy, TTL, kimlik) ile `tasima/zone-oncesi.txt` dosyalarını üretir. Gerçek zonda çalıştırılıp çıktısı denetçiye gösterilir.
-  - K4: `uygula <ip>` her kaydı A + proxied + TTL Auto yapar ve geri okuyarak doğrular; tür değişimini (CNAME → A) ele alır. `geri-al`, `dns-oncesi.json`'a birebir döner ve geri okuyarak doğrular.
+  - K4: `uygula <ip>` her kaydı A yapar. **`proxied` değerini ve TTL'i `dns-oncesi.json`'daki gibi korur** (ADR-0021; bugün dört kayıt `proxied=false`). Proxy açma ya da kapama bu alt komutun işi değildir. Her kaydı geri okuyarak doğrular; tür değişimini (CNAME → A) ele alır. Sahte API testine (h) eklenir: gri kayıt `uygula` sonrası gri kalır. `geri-al`, `dns-oncesi.json`'a birebir döner ve geri okuyarak doğrular.
   - K4b (müdür kararı, sınama yöntemi): **Gerçek Cloudflare API'sinde yalnız `plan` çalışır.** `uygula`, `geri-al` ve `ttl-dusur` yerel bir HTTP taklidine (sahte Cloudflare API; taban adres ortam değişkeniyle verilir, varsayılanı gerçek API) karşı sınanır; deneme kaydı (`dnstest`) açılmaz. Taklit testleri:
     - (a) A → A değer değişimi.
     - (b) CNAME → A tür değişimi, oluşturmaya izin veren ve vermeyen iki API davranışıyla.
@@ -301,6 +302,15 @@
   - K3: Staging kullanıcısı yalnız kendi önekindeki anahtarlara erişir. Staging kimliğiyle canlı önekine `GET`/`KEYS`/`FLUSHDB` → yetki hatası (negatif test, her biri tek kuralı bozar). Tehlikeli komutlar (`FLUSHALL`, `CONFIG`, `KEYS`) staging kullanıcısında kapalı.
   - K4: Canlı kullanıcının kendi kuyruğunda iş ekleme ve işleme testi yeşil (mutlu yol).
   - K5: ACL parolaları yalnız `.env.redis`/`.env`/`.env.staging`'de; depoda yok.
+
+### G20 — Cloudflare turuncu buluta geçiş (ADR-0008, ADR-0021) — kurucu + devops
+- **Ön koşul:** G16 geçti. Kurucu onayı gerekir (DNS değişikliği; geçiş onayının dışında).
+- **Kabul kriterleri:**
+  - K1 (kurucu, panel): SSL/TLS modu **Full (strict)**, minimum TLS 1.2, Always Use HTTPS açık. Bot Fight Mode ve Under Attack kapalı. Ekran görüntüsüyle teyit.
+  - K2 (kurucu, panel; hukuk-uyum şartları): `api` ve `yeni-api` için Cache Rule "Bypass cache". Web Analytics/RUM, Zaraz, Logpush ve Workers kapalı. Cloudflare hesabında 2FA.
+  - K3 (devops): Proxy durumu yalnız ayrı, açık bir komutla değişir (ör. `dns-cevir.sh proxy-ac <ad>`; G15a'ya sonradan eklenir, denetçi inceler). Önce staging (`yeni`, `yeni-api`), sonra canlı hostlar. Her adımda `server: cloudflare`, 200 ve yönlendirme döngüsü olmadığı doğrulanır.
+  - K4: Gerçek istemci IP'si (ADR-0010) turuncu bulutta da doğru: G14-K7 testi tekrarlanır.
+  - K5: Geri alma: `proxy-kapat` ile griye dönüş denenmiş.
 
 - **İlk gerçek müşteriden önce** (KVKK değerlendirmesi §6.2):
   - RLS projesi (T-B1).

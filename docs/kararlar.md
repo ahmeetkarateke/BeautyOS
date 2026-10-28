@@ -18,7 +18,7 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0005 | Redis kendi konteynerimizde; Upstash verisi taşınmaz | önerildi | 2026-10-27 |
 | ADR-0006 | BullMQ işçisi API sürecinde kalır; tek kopya; konteyner saati UTC | önerildi | 2026-10-27 |
 | ADR-0007 | Alan adları: yol tabanlı kiracı, joker sertifika yok; API `api.beautyossapp.com` | önerildi | 2026-10-27 |
-| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | kabul edildi (kurucu 2026-10-28; hukuk-uyum şartlı) | 2026-10-27 |
+| ADR-0008 | Cloudflare proxy açık (turuncu), SSL modu Full (strict) | kabul edildi (kurucu 2026-10-28; hukuk-uyum şartlı). **Uygulaması ertelendi: ADR-0021** | 2026-10-27 |
 | ADR-0009 | Sertifikalar ACME DNS-01 (caddy-dns/cloudflare), tek zona sınırlı token | kabul edildi (kurucu 2026-10-28; token doğrulandı, Caddy çalışıyor) | 2026-10-27 |
 | ADR-0010 | Gerçek istemci IP'si: Caddy CF-Connecting-IP'yi yalnız Cloudflare aralıklarından kabul eder | önerildi | 2026-10-27 |
 | ADR-0011 | 80/443 güvenlik duvarında Cloudflare IP'lerine kısıtlanmaz | önerildi | 2026-10-27 |
@@ -31,6 +31,7 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0018 | İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok | kabul edildi (müdür kararı D4). **Kaynak bölümünün (deploy key + `git fetch`) yerini aldı: ADR-0019**; derleme, yük, temizlik ve geri alma bölümleri geçerli | 2026-10-28 |
 | ADR-0019 | Sunucu GitHub'dan çekmez: müdür onaylı commit'i `git archive` paketiyle aktarır | kabul edildi (müdür kararı) | 2026-10-28 |
 | ADR-0020 | Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan | kabul edildi (müdür, 2026-10-28) | 2026-10-28 |
+| ADR-0021 | Geçişte kayıtlar gri (proxy kapalı) kalır; turuncu bulut, kurucu SSL modunu Full (strict) yaptıktan sonra ayrı adım | kabul edildi (müdür kararı) | 2026-10-28 |
 
 ---
 
@@ -211,7 +212,7 @@ Hostlar şunlar: `beautyossapp.com`, `www.beautyossapp.com`, `app.beautyossapp.c
 ## ADR-0008: Cloudflare proxy açık (turuncu), SSL modu Full (strict)
 
 - **Tarih:** 2026-10-27
-- **Durum:** kabul edildi (kurucu 2026-10-28; hukuk-uyum ŞARTLI ONAY, `docs/kvkk-tasima-degerlendirmesi.md` §4)
+- **Durum:** kabul edildi (kurucu 2026-10-28; hukuk-uyum ŞARTLI ONAY, `docs/kvkk-tasima-degerlendirmesi.md` §4). **Uygulaması ertelendi (2026-10-28, müdür kararı): ADR-0021.** Geçişte kayıtlar gri kalıyor; turuncuya geçiş ayrı ve sonraki bir adım.
 - **Karar verenler:** mimar; hukuk-uyum; kurucu (alan adı ve DNS Cloudflare'de)
 
 ### Bağlam
@@ -645,6 +646,37 @@ Betik yalnız `@`, `app`, `www`, `api` adlarını kabul eder (sabit liste). MX/T
   - Betik hatasıyla yanlış kaydın değişmesi. Önlem: sabit ad listesi, `plan` kaydı, geri okuyarak doğrulama, denetçi incelemesi. Denetimde gerçek zonda yalnız `plan` (salt okuma) çalışır. `uygula`, `geri-al` ve `ttl-dusur` yerel bir HTTP taklidiyle (sahte Cloudflare API) sınanır; deneme kaydı açılmaz (müdür kararı).
   - Tür değişiminde kısa çözümleme boşluğu. Kabul edildi: gerçek kullanıcı yok.
   - Token'ın açığa çıkması. Önlem: argümanda yok, çıktıda yok; sızıntıda kurucu token'ı yeniler (Caddy de etkilenir).
+
+---
+
+## ADR-0021: Geçişte kayıtlar gri (proxy kapalı) kalır; turuncu bulut, kurucu SSL modunu Full (strict) yaptıktan sonra ayrı adım
+
+- **Tarih:** 2026-10-28
+- **Durum:** kabul edildi (müdür kararı). ADR-0008'in uygulamasını erteler; ADR-0008 iptal edilmedi.
+- **Karar verenler:** müdür; mimar (kayıt)
+
+### Bağlam
+`dns-cevir.sh plan` çıktısına göre dört kayıt bugün gri (`proxied=false`): `@` A (Vercel), `app` ve `www` CNAME (Vercel), `api` CNAME (Railway). Zonun Cloudflare SSL/TLS modunu kurucu henüz teyit etmedi. Kayıtlar turuncuya alınırken mod "Flexible" kalmışsa Cloudflare origin'e HTTP ile gider, Caddy HTTPS'e yönlendirir ve sonsuz yönlendirme döngüsü oluşur. Sertifikalar zaten DNS-01 ile alındı, yani gri bulutta da TLS geçerli.
+
+### Alternatifler
+- **Geçişle birlikte turuncu (ADR-0008 aynen):** origin gizlenir ve DDoS koruması gelir, ama teyit edilmemiş SSL moduna bağımlı ve geçişte iki değişkeni birden değiştirir.
+- **Önce SSL modunun teyidi, sonra turuncu geçiş:** doğru sıra, ama kurucu adımı bekleyerek geçişi geciktirir.
+
+### Karar
+- **Geçişte** `uygula` yalnız hedefi değiştirir (A 209.38.237.171) ve her kaydın `proxied` değerini `dns-oncesi.json`'daki gibi korur (bugün `false`). TTL de plandaki değerinde kalır; `ttl-dusur` çalıştıysa 60'tır. Geçiş oturunca 300'e alınabilir.
+- **Turuncu bulut ayrı ve sonraki bir adımdır** (G20):
+  - Önce kurucu panelden SSL/TLS modunu **Full (strict)** ve minimum TLS'i 1.2 yapar.
+  - Sonra hukuk-uyum'un ADR-0008'deki şartları (API'de önbellek kapalı, analitik/Zaraz/Logpush kapalı, 2FA) uygulanır.
+  - Ardından kayıtlar turuncuya alınır.
+  - Bu bir DNS değişikliğidir ve kurucunun geçiş onayının dışındadır, kurucuya sorulur.
+- Staging hostları (`yeni`, `yeni-api`) da aynı gerekçeyle turuncuya geçişe kadar gri tutulur.
+
+### Sonuçlar
+- **Olumlu:** Geçiş SSL moduna bağlı değil, tek değişken değişiyor. Trafik Cloudflare'den geçmiyor (KVKK açısından daha az üçüncü taraf; hukuk-uyum'un turuncu bulut şartları bu aşamada konusuz). Gerçek istemci IP'si doğrudan geliyor; ADR-0010 düzeni değişiklik gerektirmeden doğru çalışıyor, `CF-Connecting-IP` yalnız Cloudflare aralıklarından kabul edildiği için sahtelenemiyor.
+- **Olumsuz:** Origin IP DNS'te görünüyor; DDoS koruması ve kenar önbelleği yok. Kayıt değişikliği TTL kadar gecikmeyle yayılıyor (en çok 300 sn; `ttl-dusur` sonrası 60 sn).
+- **Riskler:**
+  - Doğrudan saldırı. Önlem: DO Cloud Firewall + ufw (yalnız 22/80/443), uygulama hız sınırları, izleme. Turuncuya geçiş (G20) bu riski kapatır.
+  - Turuncu adımın unutulması. Önlem: G20 görev listesinde, ilk gerçek müşteriden önce.
 
 ---
 
