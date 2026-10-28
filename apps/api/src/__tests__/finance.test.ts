@@ -127,7 +127,7 @@ describe('Finance — dashboard period, close-day, daily range', () => {
         title: 'Test Gider',
         category: 'Malzeme',
         amount: 50,
-        expenseDate: new Date(`${todayStr}T00:00:00+03:00`),
+        expenseDate: new Date(`${todayStr}T00:00:00.000Z`),
       },
     })
     expenseTodayId = expToday.id

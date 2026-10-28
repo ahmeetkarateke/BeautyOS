@@ -9,9 +9,11 @@ import {
   cleanupTenant,
 } from './helpers/setup'
 
-const app = createApp({ rateLimitMax: 1000 })
-
+// loginLimiter (IP başına 15 dk'da 5) her createApp örneğinde ayrı kurulur; sınır ürün davranışıdır
+// ve yukarıdan ayarlanamaz. Bu yüzden her describe kendi uygulama örneğini açar, böylece
+// testler birbirinin giriş sayısını tüketmez.
 describe('POST /api/v1/auth/login', () => {
+  const app = createApp({ rateLimitMax: 1000 })
   const suffix = uniqueSuffix()
   let tenantId: string
   let userEmail: string
@@ -100,6 +102,7 @@ describe('Rate limiting', () => {
 })
 
 describe('Devre dışı kullanıcı', () => {
+  const app = createApp({ rateLimitMax: 1000 })
   const suffix = uniqueSuffix()
   let tenantId: string
 
