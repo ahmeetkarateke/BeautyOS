@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next'
+import '@/styles/app.css'
 
 // Yeni arayüzün kök düzeni (ADR-UI-02). Eski arayüzün kök düzeni app/(legacy)/layout.tsx'tedir; iki düzen CSS'i birbirine karıştırmaz.
-// Tokenlar, yazı tipi ve temel CSS W2'de eklenir.
 export const metadata: Metadata = {
   title: 'BeautyOS',
   robots: { index: false, follow: false },
