@@ -34,6 +34,7 @@
 | 10-28 | Supabase'te bulunan, depoda olmayan iki migration (WhatsApp numara alanı, iyzico abonelik) **terk edildi**: "önemli değil, en baştan birlikte düzelteceğiz, proje burada ayakta olsun" | Depodaki 19 migration esas. Bu özellikler ileride gelirse yeni migration'larla yazılır. G13-K7 iptal; Supabase silme koşulu kalktı |
 | 10-28 | Kalıcı izin: plandaki denetçi ONAY'lı teknik adımlar kurucuya sorulmadan yürütülür (DNS ve eski servis kapatma hariç) | Başlık notu, §9 |
 | 10-28 | Müdür kararı: taşıma dalları push edilmez (kalıcı izin dışı; Vercel her dal push'unda preview açıyor). Kaynak sunucuya `git archive` paketiyle aktarılır | ADR-0019 (ADR-0018'in kaynak bölümünün yerini aldı), §6, G7. Deploy key ve push maddeleri kaldırıldı |
+| 10-29 | **GEÇİŞ YAPILDI, 04:47:** `@`, `app`, `www`, `api` sunucuya çevrildi (gri). G14 ve G16 TEST GEÇTİ. G17-K0 tamam: kurucu Railway ve Vercel'in GitHub bağlantısını kesti, **`master` push yasağı kalktı**. `yeni` ve `yeni-api` A kayıtları eklendi (gri) | Kalan: G17 (eski servislerin kapatılması ve eski DNS artıklarının silinmesi), birkaç gün sonra kurucuya sorulacak (§11) |
 | 10-28 | Müdür kararı: geçişte kayıtlar **gri** kalır (dört kayıt bugün gri; SSL modu teyitsiz; sertifikalar DNS-01 ile hazır; KVKK açısından daha az üçüncü taraf) | ADR-0021; turuncu bulut ayrı adım G20 (önce kurucu Full strict yapar) |
 | 10-28 | **Kurucunun koşullu geçiş onayı** (müdür aktardı): "testler geçerse çevir". Koşullar G13 + denetçi son sunucu doğrulaması ONAY, G14 TEST GEÇTİ, G15 doğrulamaları. Eski servislerin kapatılması onayın dışında | §9, §10 baştan yazıldı. DNS'i müdür Cloudflare API ile çevirir (ADR-0020); Railway/Vercel Git kesme geçiş sonrasına alındı |
 
@@ -155,9 +156,9 @@ DNS adımları (kurucu, panelden, `[ONAY]`):
 | Ne zaman | İşlem |
 |---|---|
 | Hemen | Zone dışa aktarımı (DNS > Records > Export), kurucunun arşivine |
-| Hemen | `yeni`, `yeni-api` → A 209.38.237.171, **gri** (ADR-0021; SSL modu teyit edilene kadar; yeni hostlar, eski sisteme dokunmaz). Zaten turuncu açıldılarsa ve SSL modu Full (strict) değilse griye alınır. **`api` buna dahil DEĞİL:** `api.beautyossapp.com` şu an Railway canlısının özel alan adı (10-28'de görüldü); geçişe kadar Railway'i gösterir |
+| Hemen (**yapıldı**) | `yeni`, `yeni-api` → A 209.38.237.171, **gri** (ADR-0021; SSL modu teyit edilene kadar; yeni hostlar, eski sisteme dokunmaz). Zaten turuncu açıldılarsa ve SSL modu Full (strict) değilse griye alınır. **`api` buna dahil DEĞİL:** `api.beautyossapp.com` şu an Railway canlısının özel alan adı (10-28'de görüldü); geçişe kadar Railway'i gösterir |
 | Geçişten önce | Dört kayıt gri (plan çıktısı, 10-28). TTL > 300 ise `ttl-dusur` ile 60 sn yapılır ve eski TTL kadar beklenir |
-| Geçiş | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, **gri, proxied=false korunur** (ADR-0021; dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır). **Müdür yürütür, kurucunun koşullu onayıyla, `dns-cevir.sh` ve Cloudflare API ile** (ADR-0020, §10) |
+| Geçiş (**yapıldı, 04:47**) | `@`, `app`, `www` **ve `api`** → A 209.38.237.171, **gri, proxied=false korunur** (ADR-0021; dördü birlikte; Railway'deki özel alan adı kaydı G17'de kaldırılır). **Müdür yürütür, kurucunun koşullu onayıyla, `dns-cevir.sh` ve Cloudflare API ile** (ADR-0020, §10) |
 
 Dokunulmayacaklar: MX ve Resend SPF/DKIM/DMARC kayıtları. CAA kaydı varsa `letsencrypt.org` izinli olmalı.
 
@@ -326,6 +327,8 @@ G12 ve G13'ün şema karşılaştırması tamamlandı (10-28); bu adımlar artı
 
 ## 10. Geçiş: müdür yürütür, kurucu gerekmez (~30 dk, gün serbest; 03:00–04:30 hariç)
 
+> **Durum: TAMAMLANDI.** DNS 04:47'de çevrildi; G16 TEST GEÇTİ. §10.3'teki Git bağlantısının kesilmesi yapıldı (G17-K0), push yasağı kalktı. Geri dönüş (§10.5) kullanılmadı.
+
 **Yetki:** Kurucunun koşullu onayı (2026-10-28, müdür aktardı: "testler geçerse çevir"). Müdür geçişi, aşağıdaki **üç koşulun tamamı** sağlandığında yürütür. Biri bile eksikse geçiş durur ve kurucuya sorulur. Eski servislerin kapatılması bu onayın dışındadır (§11).
 
 ### 10.1 Ön koşullar (hepsi ✔, kanıtları geçiş kaydına yazılır)
@@ -376,7 +379,8 @@ Kurucu uygun olduğunda `.env`'e geçici bir `ADMIN_SEED_SECRET` yazar. Devops `
 
 Her silme ayrı `[ONAY]` (kurucunun koşullu geçiş onayının dışında). Her biri için `sirket/` altında **imha tutanağı** tutulur: tarih, ne silindi, kim onayladı; içerik yok. Veri demo olsa da KVKK gereği tutanak tutulur.
 
-0. **İlk iş (kurucu paneli, geçişten hemen sonra):** Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımının kapatılması ve Railway servislerinin durdurulması (§10.3). O zamana kadar `master`'a push yasağı sürer.
+0. **İlk iş (kurucu paneli, geçişten hemen sonra):** Railway (prod + staging) ve Vercel'de GitHub otomatik dağıtımının kapatılması ve Railway servislerinin durdurulması (§10.3). **GitHub bağlantısının kesilmesi tamam; push yasağı kalktı.** Railway servislerinin durdurulması kapatma adımına kaldı.
+0b. **Eski DNS artıkları** (G17 ile birlikte, kurucuya sorulur): `test`, `api-test`, `_railway-verify` ve `_vercel` TXT kayıtları silinir. Silme öncesi `dns-cevir.sh plan` çıktısı ve zon dışa aktarımı alınır. Not: `dns-cevir.sh`'in sabit ad listesi bu adları kapsamaz; panelden ya da ayrı, denetlenmiş bir komutla yapılır.
 
 1. **Supabase `beautyos-dev`** (canlı proje, 10-28'de kesinleşti) silinir. §5 `kaynak` adımı tamamlandı (10-28). Silme her durumda kurucu onayına bağlıdır. Depoda olmayan iki migration kurucu kararıyla terk edildi; bekleme koşulu yok. Panelin kendi otomatik yedekleri de projeyle birlikte gider; tutanakta yazılır.
 2. **Supabase `beautyos-staging`** silinir. Şema karşılaştırmasına girmez, bekletmeye gerek yok.
