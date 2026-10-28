@@ -43,6 +43,16 @@ yeni.beautyossapp.com {
 		basic_auth {
 			{$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH}
 		}
+
+		# Tasarım prototipi (statik). Dosyalar ortak Caddy'nin siteler/ dizin bağlaması altındadır; basic_auth'tan SONRA
+		# gelir, bu yüzden kimlik doğrulaması ister. Dizin bağlaması olduğundan yalnız `caddy reload` yeter.
+		redir /tasarim /tasarim/ 308
+		handle_path /tasarim/* {
+			root * /etc/caddy/siteler/statik/beautyos-tasarim
+			header Cache-Control "no-cache"
+			file_server
+		}
+
 		reverse_proxy beautyos-web-staging:3000 {
 			header_up X-Forwarded-For {client_ip}
 		}
