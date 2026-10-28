@@ -9,11 +9,15 @@ FROM base AS build
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
 RUN npm ci --workspace=apps/web
+COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 ARG NEXT_PUBLIC_BOT_FEATURES_ENABLED=false
+# Acik yuzeyler, virgulle ayrik (site,auth,panel,book,admin). Bos = yeni arayuz kapali.
+ARG NEXT_PUBLIC_UI_V2=
 # Derleme belleği (MB): sunucuda canlı yığınla birlikte derlendiğinden sınırlı tutulur (derle.sh 1536 verir).
 ARG NODE_HEAP_MB=2048
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
