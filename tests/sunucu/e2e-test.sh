@@ -76,7 +76,7 @@ WEBSRC="$(mktemp -d /tmp/bostest-websrc.XXXXXX)"
 tar -C "$SRC" --exclude=./apps/web/e2e --exclude=./apps/web/playwright.config.ts \
   --exclude='./apps/web/vitest.*' -cf - . | tar -C "$WEBSRC" -xf -
 docker build -q --memory 1536m --memory-swap 1536m -f "$WEBSRC/apps/web/Dockerfile" \
-  --build-arg NEXT_PUBLIC_API_URL=http://api:3001 --build-arg NODE_HEAP_MB=1280 \
+  --build-arg NEXT_PUBLIC_API_URL=http://api:3001 --build-arg NEXT_PUBLIC_UI_V2="${E2E_UI_V2:-}" --build-arg NODE_HEAP_MB=1280 \
   -t "$WEB_IMG" "$WEBSRC" >/dev/null
 rm -rf "$WEBSRC"
 docker build -q --memory 512m --memory-swap 512m -f "$SRC/tests/sunucu/Dockerfile.e2e" -t "$E2E_IMG" "$SRC" >/dev/null
@@ -103,7 +103,7 @@ docker run -d --name "${RUN}-web" --network "$NET" --network-alias web --memory 
 
 docker run --rm --name "${RUN}-e2e" --network "$NET" --memory 512m --memory-swap 512m --shm-size=256m \
   -v "$OUT:/out" -v "$SRC/tests/sunucu/bekle.cjs:/opt/bekle.cjs:ro" \
-  -e E2E_BASE_URL=http://web:3000 -e E2E_API_URL=http://api:3001 \
+  -e E2E_UI_V2="${E2E_UI_V2:-}" -e E2E_BASE_URL=http://web:3000 -e E2E_API_URL=http://api:3001 \
   -e E2E_OUT_DIR=/out/cikti -e E2E_SHOT_DIR=/out/ekran -e DEMO_SEED_PASSWORD="$(openssl rand -hex 12)" -e DEMO_SEED_GUN=1 \
   "$E2E_IMG" sh -c 'node /opt/bekle.cjs api:3001 web:3000 \
     && node e2e/seed/defne.mjs && node e2e/seed/defne.mjs \
