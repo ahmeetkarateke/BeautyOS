@@ -30,7 +30,7 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0017 | Veri taşınmaz; canlı veritabanı migration'larla boş kurulur, Supabase şeması yalnız uyum kontrolü için dökülür | kabul edildi (kurucu kararı) | 2026-10-28 |
 | ADR-0018 | İmajlar sunucuda, belirli commit'ten derlenir; son 3 sürüm yerelde tutulur; kayıt defteri yok | kabul edildi (müdür kararı D4). **Kaynak bölümünün (deploy key + `git fetch`) yerini aldı: ADR-0019**; derleme, yük, temizlik ve geri alma bölümleri geçerli | 2026-10-28 |
 | ADR-0019 | Sunucu GitHub'dan çekmez: müdür onaylı commit'i `git archive` paketiyle aktarır | kabul edildi (müdür kararı) | 2026-10-28 |
-| ADR-0020 | Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan | önerildi | 2026-10-28 |
+| ADR-0020 | Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan | kabul edildi (müdür, 2026-10-28) | 2026-10-28 |
 
 ---
 
@@ -618,7 +618,7 @@ certutil -hashfile beautyos-<sha12>.tar SHA256      (özet not edilir)
 ## ADR-0020: Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan
 
 - **Tarih:** 2026-10-28
-- **Durum:** önerildi (müdür kabulü bekliyor). Dayanak: kurucunun koşullu geçiş onayı ("testler geçerse çevir", müdür aktardı).
+- **Durum:** kabul edildi (müdür, 2026-10-28). Dayanak: kurucunun koşullu geçiş onayı ("testler geçerse çevir", müdür aktardı). Kabul sırasında karar verildi: betik ve ortam kontrolü devops'ta, sunucu-altyapi'de. Deneme kaydı (`dnstest`) açılmaz; `uygula` ve `geri-al` sahte Cloudflare API'siyle sınanır, gerçek API'de yalnız `plan` çalışır (aşağıdaki risk önlemini bu karar belirler).
 - **Karar verenler:** mimar; müdür
 
 ### Bağlam
@@ -642,7 +642,7 @@ Betik yalnız `@`, `app`, `www`, `api` adlarını kabul eder (sabit liste). MX/T
 - **Olumlu:** Kurucu gerekmeden, tekrarlanabilir ve geri alınabilir geçiş. Önceki durumun makine okunur kaydı var. Kapsam dört kayıtla sınırlı.
 - **Olumsuz:** Caddy'nin sertifika token'ı ikinci bir amaçla kullanılıyor.
 - **Riskler:**
-  - Betik hatasıyla yanlış kaydın değişmesi. Önlem: sabit ad listesi, `plan` kaydı, geri okuyarak doğrulama, denetçi incelemesi. Denetimde `plan` ve `geri-al` gerçek zonda yalnız okuyarak, `uygula` ise bir deneme kaydında (ör. `dnstest`) sınanır. Deneme kaydının oluşturulup silinmesi kalıcı izindeki teknik adım kapsamında değil, DNS değişikliğidir; müdür kurucunun koşullu onayına dayanarak karar verir.
+  - Betik hatasıyla yanlış kaydın değişmesi. Önlem: sabit ad listesi, `plan` kaydı, geri okuyarak doğrulama, denetçi incelemesi. Denetimde gerçek zonda yalnız `plan` (salt okuma) çalışır. `uygula`, `geri-al` ve `ttl-dusur` yerel bir HTTP taklidiyle (sahte Cloudflare API) sınanır; deneme kaydı açılmaz (müdür kararı).
   - Tür değişiminde kısa çözümleme boşluğu. Kabul edildi: gerçek kullanıcı yok.
   - Token'ın açığa çıkması. Önlem: argümanda yok, çıktıda yok; sızıntıda kurucu token'ı yeniler (Caddy de etkilenir).
 

@@ -334,7 +334,7 @@ G12 ve G13'ün şema karşılaştırması tamamlandı (10-28); bu adımlar artı
 | K-B | **G14 kabul testi: TEST GEÇTİ** (staging'de, canlıyla aynı API imajı) | Test raporu yolu |
 | K-C | **G15 doğrulamaları geçti.** DNS'e dokunmadan, doğrudan sunucuya: `curl --resolve api.beautyossapp.com:443:209.38.237.171 https://api.beautyossapp.com/health` → 200 ve geçerli sertifika. Aynı yolla `app.beautyossapp.com/login`, `beautyossapp.com/` ve `www.beautyossapp.com/` → 200, sertifikalar geçerli. `dns-cevir.sh plan` çıktısı beklenen dört kaydı gösteriyor | Komut çıktıları (gizli değer içermez) |
 
-**Ortam kontrolü (kurucu teyidinin yerine; değer okumadan):** `ortam-kontrol` adımı (G15a, devops) her değişken için yalnız **var/yok** bilgisini çıkış koduyla verir; değer yazdırmaz. Örnek: `docker compose exec -T api node -e "process.exit(process.env.X ? 1 : 0)"`. Beklenen:
+**Ortam kontrolü (kurucu teyidinin yerine; değer okumadan):** `ortam-kontrol` adımı (G15a, devops, sunucu-altyapi) her değişken için yalnız **var/yok** bilgisini çıkış koduyla verir; değer yazdırmaz. Örnek: `docker compose exec -T api node -e "process.exit(process.env.X ? 1 : 0)"`. Beklenen:
 - `NETGSM_USERCODE`, `TELEGRAM_BOT_TOKEN`, `SENTRY_DSN` (G5-K5 birleşmediyse), `ADMIN_SEED_SECRET` ve `MIGRATION_DATABASE_URL` **yok**.
 - `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `ALLOWED_ORIGINS`, `PUBLIC_URL`, `FRONTEND_URL`, `TURNSTILE_SECRET_KEY` ve `RESEND_API_KEY` **var**.
 
@@ -345,7 +345,7 @@ Bu `.env`'leri kurucu G13'te doldurur. `ADMIN_SEED_SECRET` canlıda baştan boş
 | # | Kim | Adım | Doğrulama |
 |---|---|---|---|
 | 1 | müdür (devops yürütür) | `dns-cevir.sh plan`: dört kaydın (`@`, `app`, `www`, `api`) mevcut halini ve tüm zonu `tasima/dns-oncesi.json` ve `tasima/zone-oncesi.txt` olarak saklar | Dosyalar var. Gri kayıtta TTL > 300 ise önce `ttl-dusur` çalışır, eski TTL kadar beklenir |
-| 2 | müdür (devops yürütür) | `dns-cevir.sh uygula`: dört kayıt → A 209.38.237.171, turuncu (proxied), TTL Auto | Betik her kaydı API'den geri okuyarak doğrular |
+| 2 | müdür (devops yürütür) | `dns-cevir.sh uygula`: dört kayıt → A 209.38.237.171, turuncu (proxied), TTL Auto. Gerçek API'de ilk `uygula` çalıştırması budur; önceden yalnız sahte API'ye karşı sınanmıştır (G15a-K4b) | Betik her kaydı API'den geri okuyarak doğrular |
 | 3 | devops | Dıştan doğrulama: `curl -sI https://app.beautyossapp.com` → `server: cloudflare`, 200. `https://api.beautyossapp.com/health` → 200; isteğin sunucuya ulaştığı Caddy/API log'unda görünür (Railway değil) | Geçti |
 | 4 | test-muhendisi | Canlı duman testi (G16-K1). Bir telefon doğrulama isteğiyle log'da "SMS provider: Mock" görülür | TEST GEÇTİ |
 | 5 | devops | UptimeRobot `app` ve apex yoklamaları açılır; `sirket/sunucu.md` "Çalışan servisler" satırı ve işlem günlüğü (K-A/K-B/K-C kanıt yollarıyla); ilk 60 dk izleme | Kayıt yazıldı |
@@ -357,7 +357,7 @@ Railway ve Vercel'in GitHub otomatik dağıtımının kapatılması ve Railway s
 - `api.beautyossapp.com` artık sunucuyu gösterir.
 - Railway yalnız kendi `*.up.railway.app` adresinden ve demo Supabase verisiyle çalışır. SMS kapalıdır.
 
-**Bu süre boyunca kural:** kurucu Git bağlantılarını kesene kadar **`master`'a hiçbir push yapılmaz**; kalıcı izindeki onaylı düzeltme push'u da dahil. Aksi halde Railway eski API'yi yeniden dağıtır (`apps/api/**` değişikliği kendiliğinden çıkar). Bu kural müdürde. Telegram notu: Railway canlısında `TELEGRAM_BOT_TOKEN` tanımlıysa ve staging'deki test botuyla aynıysa, Railway her yeniden başlatmada webhook'u geri alır. Kurucuya kesme talebi bununla birlikte iletilir (S4).
+**Bu süre boyunca kural (müdür kayda aldı, 10-28):** kurucu Git bağlantılarını kesene kadar **`master`'a hiçbir push yapılmaz**; kalıcı izindeki onaylı düzeltme push'u da dahil. Aksi halde Railway eski API'yi yeniden dağıtır (`apps/api/**` değişikliği kendiliğinden çıkar). Bu kural müdürde. Telegram notu: Railway canlısında `TELEGRAM_BOT_TOKEN` tanımlıysa ve staging'deki test botuyla aynıysa, Railway her yeniden başlatmada webhook'u geri alır. Kurucuya kesme talebi bununla birlikte iletilir (S4).
 
 ### 10.4 İlk süper yönetici (geçiş sonrası, kurucuyla)
 

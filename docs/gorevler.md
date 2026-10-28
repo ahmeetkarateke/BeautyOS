@@ -51,7 +51,7 @@
 | G12 | Şema uyum kontrolü betiği (`sema-karsilastir.sh`) | gelistirici | G11 | **ONAY** (`e3b89f2`, `raporlar/denetim/beautyos-tasima-4.md`). Denetçi önerileri sonraki turda (yeniden incelemeye girer): bağlantı hatasında psql iletisinin ilk satırının gösterilmesi. `verify-full` önerisi mimar kararıyla reddedildi (`require` yeterli, plan §5.1) |
 | G13 | Canlı yığını boş DB ile kurma + şema karşılaştırmasını çalıştırma (+ gerekirse düzeltici migration) | kurucu + devops + gelistirici | G12 | **K3 tamam (10-28)**, K4 kararı verildi: düzeltici migration yok; iki migration kurucu kararıyla terk edildi (K7 iptal). K8 (LF) incelemede (`5c3d8b3`; renormalize sonrası diff boş). `sema-karsilastir.sh`'deki `COLLATE "C"` düzeltmesi aynı turda; ONAY sonrası sunucudaki betik onaylı paketten güncellenir. K1/K2 (canlı yığın) bekliyor |
 | G14 | Kabul test planı + staging'de kabul testi | test-muhendisi | G11 (plan hemen başlayabilir) | bekliyor |
-| G15a | DNS çevirme betiği (`dns-cevir.sh`) + ortam kontrolü (ADR-0020) | devops | G8 | bekliyor |
+| G15a | DNS çevirme betiği (`dns-cevir.sh`) + ortam kontrolü (ADR-0020, sunucu-altyapi) | devops (müdür atadı) | G8 | atandı (10-28) |
 | G15 | Geçiş (DNS; müdür yürütür, kurucunun koşullu onayı) | müdür (devops yürütür) | plan §10.1: G13 + denetçi son sunucu ONAY'ı, G14 TEST GEÇTİ, G15 doğrulamaları; G15a | bekliyor |
 | G16 | Canlı duman testi + 48 saat gözlem | test-muhendisi + devops | G15 | bekliyor |
 | G17 | Eski servislerin kapatılması ve imha tutanakları | kurucu + devops | G16 (Supabase için G13) | bekliyor |
@@ -237,12 +237,22 @@
 ## Aşama 4 — Geçiş
 
 ### G15a — DNS çevirme betiği + ortam kontrolü — devops (ADR-0020)
-- **Dosyalar:** `projeler/sunucu-altyapi/betikler/dns-cevir.sh` (+ o deponun `docs/kararlar.md`'ye kısa ADR ya da ADR-0020'ye atıf), BeautyOS için `ortam-kontrol` adımı (`deploy/betikler/` altında gelistirici ya da sunucu-altyapi'de devops; sahibini müdür belirler, iki dalda aynı dosya yazılmaz)
+- **Atama (müdür, 2026-10-28):** devops. **Dosyalar** sunucu-altyapi'de: `betikler/dns-cevir.sh` ve BeautyOS ortam kontrolü (ör. `betikler/ortam-kontrol.sh`). O deponun `docs/kararlar.md`'sine ADR-0020'ye atıfla kısa bir kayıt düşülür. BeautyOS deposunda dosya yazılmaz.
 - **Kabul kriterleri:**
   - K1: Token yalnız `docker run --env-file /srv/caddy/.env` ile konteynere girer. Komut satırı argümanlarında (`ps`), log'da ve çıktıda token yok. `curl` başlığı dosyadan ya da standart girdiden okunur; `set -x` yok.
   - K2: Ad listesi sabittir: `@`, `app`, `www`, `api`. Liste dışı ad → çıkış 2. MX/TXT'ye dokunulmaz. Aynı ada birden fazla kayıt varsa betik durur.
   - K3: `plan` yalnız okur ve `tasima/dns-oncesi.json` (tür, değer, proxy, TTL, kimlik) ile `tasima/zone-oncesi.txt` dosyalarını üretir. Gerçek zonda çalıştırılıp çıktısı denetçiye gösterilir.
-  - K4: `uygula <ip>` her kaydı A + proxied + TTL Auto yapar ve geri okuyarak doğrular; tür değişimini (CNAME → A) ele alır. `geri-al`, `dns-oncesi.json`'a birebir döner ve geri okuyarak doğrular. İkisi de bir deneme kaydında (ör. `dnstest`) sınanır. Deneme kaydı DNS değişikliği sayılır; müdür karar verir.
+  - K4: `uygula <ip>` her kaydı A + proxied + TTL Auto yapar ve geri okuyarak doğrular; tür değişimini (CNAME → A) ele alır. `geri-al`, `dns-oncesi.json`'a birebir döner ve geri okuyarak doğrular.
+  - K4b (müdür kararı, sınama yöntemi): **Gerçek Cloudflare API'sinde yalnız `plan` çalışır.** `uygula`, `geri-al` ve `ttl-dusur` yerel bir HTTP taklidine (sahte Cloudflare API; taban adres ortam değişkeniyle verilir, varsayılanı gerçek API) karşı sınanır; deneme kaydı (`dnstest`) açılmaz. Taklit testleri:
+    - (a) A → A değer değişimi.
+    - (b) CNAME → A tür değişimi, oluşturmaya izin veren ve vermeyen iki API davranışıyla.
+    - (c) Geri okumada farklı değer dönmesi → betik hata verir.
+    - (d) `geri-al` sonrası durum `dns-oncesi.json`'la birebir.
+    - (e) Aynı ada iki kayıt → durur.
+    - (f) API 4xx/5xx → token ya da başlık yazmadan hata.
+    - (g) Gri kayıtta `ttl-dusur` çalışır, turuncuda değişiklik yapmaz.
+
+    Her negatif test tek kuralı bozar. Taklidin taban adresi yalnız test için değişir; canlı çalıştırmada adresin gerçek API olduğu çıktıda yazılır.
   - K5: `ttl-dusur` yalnız gri kayıtlarda çalışır.
   - K6 (ortam kontrolü): Değer yazdırmadan, yalnız var/yok bilgisini veren bir kontrol (plan §10.1 listesi). Çıktı yalnız değişken adı + `var`/`yok`. Beklenenden sapma varsa çıkış 1.
   - K7: `bash -n` ve `shellcheck` temiz; LF satır sonu; `pipefail` tuzağına dikkat.
