@@ -10,8 +10,17 @@ const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 declare global {
   interface Window {
     turnstile?: {
-      render: (el: HTMLElement, options: { sitekey: string; callback: (token: string) => void; 'expired-callback'?: () => void }) => string
+      render: (
+        el: HTMLElement,
+        options: {
+          sitekey: string
+          callback: (token: string) => void
+          'expired-callback'?: () => void
+          'error-callback'?: () => void
+        },
+      ) => string
       reset: (widgetId?: string) => void
+      remove: (widgetId?: string) => void
     }
   }
 }
@@ -98,6 +107,8 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   const [devCodeHint, setDevCodeHint] = useState<string | null>(null)
   const turnstileRef = useRef<HTMLDivElement>(null)
   const turnstileWidgetId = useRef<string | null>(null)
+  const [turnstileReady, setTurnstileReady] = useState(false)
+  const [captchaNotice, setCaptchaNotice] = useState('')
 
   const { data: tenantInfo, isLoading: tenantLoading, error: tenantError } = useQuery({
     queryKey: ['public-tenant', slug],
@@ -135,7 +146,8 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
     onSuccess: (data) => {
       setVerifyCodeSent(true)
       setVerifyError('')
-      setDevCodeHint(data.devCode ?? null)
+      // Geliştirme kodu üretimde hiçbir koşulda gösterilmez (API de üretimde döndürmez)
+      setDevCodeHint(process.env.NODE_ENV !== 'production' ? (data.devCode ?? null) : null)
       // 60 sn cooldown başlat (frontend tarafı; backend zaten 3dk koruyor)
       setVerifyCooldown(60)
       const iv = setInterval(() => {
@@ -201,17 +213,32 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
     },
   })
 
-  // Turnstile widget'ı contact step'inde mount et
+  // Turnstile widget'ı yalnız iletişim adımındayken ve betik yüklenmişken çizilir; adımdan çıkınca kaldırılır,
+  // böylece geri dönüşte yeni <div>'e yeniden çizilir ve eski token kalmaz.
   useEffect(() => {
-    if (step !== 'contact' || !TURNSTILE_SITE_KEY) return
+    if (step !== 'contact' || !TURNSTILE_SITE_KEY || !turnstileReady) return
     if (!turnstileRef.current || !window.turnstile) return
-    if (turnstileWidgetId.current) return
     turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
       sitekey: TURNSTILE_SITE_KEY,
-      callback: (token: string) => setCaptchaToken(token),
-      'expired-callback': () => setCaptchaToken(''),
+      callback: (token: string) => {
+        setCaptchaToken(token)
+        setCaptchaNotice('')
+      },
+      'expired-callback': () => {
+        setCaptchaToken('')
+        setCaptchaNotice('Güvenlik doğrulamasının süresi doldu. Lütfen kutuyu yeniden onaylayın.')
+      },
+      'error-callback': () => {
+        setCaptchaToken('')
+        setCaptchaNotice('Güvenlik doğrulaması çalışmadı. Sayfayı yenileyip tekrar deneyin; reklam engelleyiciniz varsa kapatın.')
+      },
     })
-  }, [step])
+    return () => {
+      if (turnstileWidgetId.current && window.turnstile) window.turnstile.remove(turnstileWidgetId.current)
+      turnstileWidgetId.current = null
+      setCaptchaToken('')
+    }
+  }, [step, turnstileReady])
 
   useEffect(() => {
     setSelectedSlot(null)
@@ -252,7 +279,13 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
   return (
     <>
       {TURNSTILE_SITE_KEY && (
-        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" async defer />
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+          onLoad={() => setTurnstileReady(true)}
+          onReady={() => setTurnstileReady(true)}
+          onError={() => setCaptchaNotice('Güvenlik doğrulaması yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin; reklam engelleyiciniz varsa kapatın.')}
+        />
       )}
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white" style={cssVars}>
       <div className="max-w-md mx-auto">
@@ -554,7 +587,7 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
                     <p className="text-[11px] text-zinc-500">
                       Telefonunuza gönderilen 6 haneli kodu giriniz. Kod 10 dakika geçerlidir.
                     </p>
-                    {devCodeHint && (
+                    {process.env.NODE_ENV !== 'production' && devCodeHint && (
                       <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded">
                         🛈 Geliştirme modu — kod: <strong>{devCodeHint}</strong>
                       </p>
@@ -569,6 +602,11 @@ export default function PublicBookingPage({ params }: { params: { slug: string }
 
               {TURNSTILE_SITE_KEY && (
                 <div ref={turnstileRef} className="flex justify-center" />
+              )}
+              {TURNSTILE_SITE_KEY && !captchaToken && (
+                <p className="text-[11px] text-amber-600 text-center" role="status">
+                  {captchaNotice || (turnstileReady ? 'Göndermek için güvenlik doğrulamasını tamamlayın.' : 'Güvenlik doğrulaması yükleniyor…')}
+                </p>
               )}
               {bookMutation.isError && (
                 <p className="text-xs text-red-500">{(bookMutation.error as Error).message}</p>
