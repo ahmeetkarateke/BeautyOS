@@ -24,7 +24,7 @@ async function girisYap(page: import('@playwright/test').Page) {
 test('K2: giriş yapınca panel açılır', async ({ page }) => {
   await girisYap(page)
   await expect(page).toHaveURL(new RegExp(`/tenant/${k.slug}/dashboard`))
-  await expect(page.locator('main, [role="main"], body')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Randevular' }).first()).toBeVisible()
 })
 
 test('K2: hatalı şifre girişi reddeder, panele geçmez', async ({ page }) => {
@@ -46,6 +46,8 @@ test('K2: randevu oluşturma katmanından randevu eklenir', async ({ page }) => 
   await katman.locator('#customerId').selectOption(veri.musteri.id)
   await katman.locator('#serviceId').selectOption(veri.hizmet.id)
   await katman.locator('#staffId').selectOption(veri.uzman.id)
+  // Gelecekteki bir pazartesi: mesai günü, geçmiş saat sorunu yok.
+  await katman.locator('#appt-date').fill(sonrakiPazartesi())
   // Saat seçimi: ilk müsait saat (ilk seçenek yer tutucu).
   const saat = katman.locator('select').last()
   await expect(saat.locator('option')).not.toHaveCount(1)
@@ -53,9 +55,9 @@ test('K2: randevu oluşturma katmanından randevu eklenir', async ({ page }) => 
   await katman.getByRole('button', { name: 'Randevu Oluştur' }).click()
   await expect(katman).toBeHidden()
 
-  const liste = await k.api.get(k.yol('/appointments?limit=50'))
+  const liste = await k.api.get(k.yol(`/appointments?date=${sonrakiPazartesi()}`))
   expect(liste.status()).toBe(200)
-  expect(JSON.stringify(await liste.json())).toContain(veri.musteri.id)
+  expect(JSON.stringify(await liste.json())).toContain(veri.musteri.fullName)
 })
 
 test('K2: /book sayfası oturumsuz açılır', async ({ page }) => {
@@ -73,3 +75,10 @@ test('K3: giriş sayfası axe ve üç genişlikte ekran görüntüsü', async ({
     test.info().annotations.push({ type: 'axe-ihlal', description: String(e.message).slice(0, 500) })
   })
 })
+
+function sonrakiPazartesi(): string {
+  const d = new Date()
+  d.setUTCHours(0, 0, 0, 0)
+  d.setUTCDate(d.getUTCDate() + ((8 - d.getUTCDay()) % 7 || 7))
+  return d.toISOString().slice(0, 10)
+}

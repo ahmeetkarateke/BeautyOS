@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# E2E testlerini sunucuda, geçici ve AĞSIZ bir yığında çalıştırır.
+#   Kullanım: e2e-test.sh <açılmış-kaynak-dizini> <çıktı-dizini> [playwright argümanları...]
+# Kaynak dizini: test edilecek dalın ağacı + tests/sunucu + apps/web/e2e + playwright.config.ts.
+#
+# Güvence (api-test.sh ile aynı): `--internal` ağ, port yayını yok, canlı Postgres/Redis'e ve
+# sirket-proxy'ye bağlantı yok, veri tmpfs'te, çıkışta her şey silinir.
+# Canlı yığını korumak için: derlemeler bellek sınırlıdır; vmstat tepe bellek/takas değerini kaydeder.
+# Turnstile: derlemeye site anahtarı verilmez, API'de TURNSTILE_SECRET_KEY yoktur (test ortamı).
+set -euo pipefail
+
+SRC="${1:?kaynak dizini gerekli}"
+OUT="${2:?çıktı dizini gerekli}"
+shift 2 || true
+RUN="bostest-e2e-$$"
+NET="${RUN}-net"
+API_IMG="bostest-api:$$"
+WEB_IMG="bostest-web:$$"
+E2E_IMG="bostest-e2e:$$"
+mkdir -p "$OUT"
+
+cleanup() {
+  # Konteyner root olarak yazar; çıktının sahibi çağıran kullanıcıya geçirilir (sonraki koşuda silinebilsin).
+  docker run --rm -v "$OUT:/out" --entrypoint chown "$E2E_IMG" -R "$(id -u):$(id -g)" /out >/dev/null 2>&1 || true
+  [ -n "${VMSTAT_PID:-}" ] && kill "$VMSTAT_PID" >/dev/null 2>&1 || true
+  docker rm -f "${RUN}-pg" "${RUN}-redis" "${RUN}-api" "${RUN}-web" "${RUN}-e2e" >/dev/null 2>&1 || true
+  docker network rm "$NET" >/dev/null 2>&1 || true
+  [ -n "${WEBSRC:-}" ] && rm -rf "$WEBSRC" || true
+  docker rmi "$API_IMG" "$WEB_IMG" "$E2E_IMG" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# Bellek kaydı: 2 sn aralıkla, MB. Sütunlar: free(4) si(7) so(8) ...
+vmstat -n -S M 2 > "$OUT/vmstat.txt" &
+VMSTAT_PID=$!
+
+PGPASS="$(openssl rand -hex 16)"
+JWT="$(openssl rand -hex 24)"
+
+docker build -q --memory 1g -f "$SRC/tests/sunucu/Dockerfile.api-test" -t "$API_IMG" "$SRC" >/dev/null
+# Web imajı, test dosyaları çıkarılmış bir kopyadan derlenir: canlıdaki imaj da testsiz derlenir ve
+# `next build` e2e/ dosyalarını (Playwright bağımlılığı) tip denetimine sokmamalıdır.
+WEBSRC="$(mktemp -d /tmp/bostest-websrc.XXXXXX)"
+tar -C "$SRC" --exclude=./apps/web/e2e --exclude=./apps/web/playwright.config.ts \
+  --exclude='./apps/web/vitest.*' -cf - . | tar -C "$WEBSRC" -xf -
+docker build -q --memory 1792m --memory-swap 1792m -f "$WEBSRC/apps/web/Dockerfile" \
+  --build-arg NEXT_PUBLIC_API_URL=http://api:3001 --build-arg NODE_HEAP_MB=1536 \
+  -t "$WEB_IMG" "$WEBSRC" >/dev/null
+rm -rf "$WEBSRC"
+docker build -q -f "$SRC/tests/sunucu/Dockerfile.e2e" -t "$E2E_IMG" "$SRC" >/dev/null
+
+docker network create --internal "$NET" >/dev/null
+docker run -d --name "${RUN}-pg" --network "$NET" --network-alias postgres \
+  --memory 384m --tmpfs /var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD="$PGPASS" -e POSTGRES_DB=beautyos_test \
+  postgres:17-bookworm -c fsync=off -c synchronous_commit=off >/dev/null
+docker run -d --name "${RUN}-redis" --network "$NET" --network-alias redis \
+  --memory 96m --tmpfs /data \
+  redis:7.4-alpine redis-server --save "" --appendonly no >/dev/null
+
+DBURL="postgresql://postgres:${PGPASS}@postgres:5432/beautyos_test"
+docker run -d --name "${RUN}-api" --network "$NET" --network-alias api --memory 512m \
+  -e TZ=UTC -e NODE_ENV=test -e PORT=3001 \
+  -e DATABASE_URL="$DBURL" -e DIRECT_URL="$DBURL" -e REDIS_URL="redis://redis:6379" \
+  -e JWT_SECRET="$JWT" -e CORS_ORIGIN="http://web:3000" -e ALLOWED_ORIGINS="http://web:3000" \
+  "$API_IMG" sh -c 'node /opt/bekle.cjs postgres:5432 redis:6379 \
+    && node_modules/.bin/prisma migrate deploy >/dev/null \
+    && exec npx --no-install tsx src/index.ts' >/dev/null
+docker run -d --name "${RUN}-web" --network "$NET" --network-alias web --memory 384m \
+  "$WEB_IMG" >/dev/null
+
+docker run --rm --name "${RUN}-e2e" --network "$NET" --memory 1g --shm-size=512m \
+  -v "$OUT:/out" -v "$SRC/tests/sunucu/bekle.cjs:/opt/bekle.cjs:ro" \
+  -e E2E_BASE_URL=http://web:3000 -e E2E_API_URL=http://api:3001 \
+  -e E2E_OUT_DIR=/out/cikti -e E2E_SHOT_DIR=/out/ekran -e DEMO_SEED_PASSWORD="$(openssl rand -hex 12)" -e DEMO_SEED_GUN=1 \
+  "$E2E_IMG" sh -c 'node /opt/bekle.cjs api:3001 web:3000 \
+    && node e2e/seed/defne.mjs && node e2e/seed/defne.mjs \
+    && npx playwright test "$@"' sh "$@"

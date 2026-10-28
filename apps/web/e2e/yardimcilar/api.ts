@@ -34,7 +34,11 @@ export async function kiraciKur(onek = 'e2e'): Promise<TestKiraci> {
     baseURL: API,
     extraHTTPHeaders: { Authorization: `Bearer ${token}` },
   })
-  return { slug, email, password, token, api, yol: (alt) => `/api/v1/tenants/${slug}${alt}` }
+  const k: TestKiraci = { slug, email, password, token, api, yol: (alt) => `/api/v1/tenants/${slug}${alt}` }
+  // Giriş sonrası onboarding sihirbazına düşülmesin: kurulum tamamlanmış kiracı kurulur.
+  const ayar = await api.patch(k.yol('/settings'), { data: { onboardingCompleted: true } })
+  expect(ayar.status(), await ayar.text()).toBe(200)
+  return k
 }
 
 async function olustur<T>(k: TestKiraci, alt: string, data: object): Promise<T> {
