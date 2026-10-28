@@ -49,17 +49,26 @@ Aynı sürümü yeniden derlemek için o paketin `agac/` dizininin önce temizle
 bash /srv/beautyos/betikler/yayinla.sh --kuru staging <sha12>      # plan + şimdiki imaj satırları, hiçbir şey değişmez
 bash /srv/beautyos/betikler/yayinla.sh staging <sha12>             # staging: önce api-staging, sonra web-staging
 bash /srv/beautyos/betikler/yayinla.sh --onayli canli <sha12>      # canlı: yalnız staging'de çalışan sürüm; --onayli zorunlu
+bash /srv/beautyos/betikler/yayinla.sh --migrate [--onayli] ...    # migration'lı yayın: önce YENİ imajla migration, sonra api, sonra web
 ```
 
 Sürüm değişkenleri (`BEAUTYOS_VERSION`, `BEAUTYOS_STAGING_VERSION`, `BEAUTYOS_PREVIOUS_VERSION`) gizli değildir ve ortam
 dosyasında değil `/srv/beautyos/surum.conf` dosyasındadır (üç satır, 644). Betik compose'u
-`--env-file <ortam dosyası> --env-file surum.conf` ile çalıştırır; aynı değişken iki dosyada varsa sonuncusu (surum.conf) kazanır,
-yani ortam dosyasındaki eski sürüm satırları etkisizdir ve sonra silinebilir.
+`--env-file <ortam dosyası> --env-file surum.conf` ile çalıştırır; aynı değişken iki dosyada varsa sonuncusu (surum.conf) kazanır.
+
+**Geçişte ortam dosyasındaki üç sürüm satırı SİLİNİR (zorunlu).** Kalırlarsa surum.conf'suz bir `docker compose up -d --force-recreate --no-deps api`
+(örn. gizli anahtar yükledikten sonra) canlı api'yi eski sürüme döndürür; web yeni kalır ve eski devCode açığı yeniden açılabilir.
+Bu yüzden `yayinla.sh` bu üç anahtar ortam dosyasında varsa gerçek yayında exit 2 verir (yalnız anahtar adı aranır; `--kuru` yalnız uyarır).
+Silindikten sonra surum.conf'suz sıradan compose "tanımlı olmalı" hatasıyla durur. Elle compose gerekirse her zaman
+`docker compose -p beautyos --env-file .env --env-file surum.conf ...` yazılır.
 
 - Sıra her zaman api, sonra web; her adımdan sonra konteyner `healthy` ve dış adres (`/health` 200, staging web 401, canlı web 200) beklenir.
 - Hata olursa `surum.conf` eski haline döner ve api + web BİRLİKTE yeniden oluşturulur (çıkış 1). Geri alma da başarısızsa çıkış 3: elle müdahale.
 - Canlı yayında eski `BEAUTYOS_VERSION`, `BEAUTYOS_PREVIOUS_VERSION` olur (`imaj-temizle.sh` onu ve kaynak paketini korur).
-- Migration yapmaz; migration ayrı ve `[ONAY]`'lıdır. İmajlar önceden `derle.sh` ile derlenmiş olmalıdır.
+- Migration yalnız açık `--migrate` ile çalışır (canlı için `[ONAY]`, `--onayli` beyanına dahildir): `migrate`/`migrate-staging` YENİ imajla, api yeniden oluşturulmadan ÖNCE koşar.
+  Başarısızsa hiçbir şey değişmez (çıkış 1); kısmi uygulanmış olabilir, veri geri yükleme elle ve `[ONAY]`'lıdır. Elle: `BEAUTYOS_VERSION=<yeni> docker compose ... --profile migrate run --rm migrate`.
+  İmajlar önceden `derle.sh` ile derlenmiş olmalıdır.
+- Staging web dış kontrolü beklenen 401'i Caddy basic_auth'tan alır; web-staging çökse de 401 gelir. Bu yüzden asıl kanıt konteynerin `healthy` olmasıdır, 401 ek kanıttır.
 - `compose config` çıktısı gizli değer içerir; betik yalnız servis adı + `image` satırlarını gösterir. Kayıt: `/srv/beautyos/yayinla.log`.
 - İlk kurulum: `surum.conf` mevcut çalışan etiketlerle elle oluşturulur (hiçbir konteyner değişmemeli; `--kuru` ile doğrulanır).
 - Betik testi (sahte docker, ağ yok): `bash deploy/betikler/test-yayinla.sh`.

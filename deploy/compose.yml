@@ -2,22 +2,22 @@
 #
 # Dosyalar (hepsini kurucu doldurur, git'e girmez, 600; adlar için deploy/.env.example):
 #   .env                  compose değişkenleri + canlı api (yalnız api okur; compose da değişken için okur)
-#                         BEAUTYOS_VERSION (canlı) ve BEAUTYOS_STAGING_VERSION (staging) AYRIDIR ve ikisi de zorunludur
-#                         (eksikse compose başlamaz). Staging sürümü değişince canlı etiketi etkilenmez.
-#   surum.conf            GİZLİ OLMAYAN sürüm dosyası (BEAUTYOS_VERSION / _STAGING_VERSION / _PREVIOUS_VERSION); yayinla.sh yönetir.
-#                         Compose bununla çalıştırılır:  docker compose -p beautyos --env-file .env --env-file surum.conf ...
-#                         (sonraki dosya kazanır; yayınlar için betikler/yayinla.sh kullanılır, elle `up` sürümü ortam dosyasından alır)
+#                         Sürüm satırları (BEAUTYOS_*VERSION) BURADA OLMAZ: geçişte silinir (ZORUNLU, yayinla.sh yoksa reddeder).
+#   surum.conf            GİZLİ OLMAYAN sürüm dosyası: BEAUTYOS_VERSION (canlı) ve BEAUTYOS_STAGING_VERSION (staging) AYRIDIR ve
+#                         ikisi de zorunludur (eksikse compose başlamaz); BEAUTYOS_PREVIOUS_VERSION geri alma güvencesi. yayinla.sh yönetir.
+#                         HER compose çağrısı bununla çalışır:  docker compose -p beautyos --env-file .env --env-file surum.conf ...
+#                         (surum.conf'suz çağrı sürümü bulamaz ve "tanımlı olmalı" hatasıyla güvenli biçimde durur)
 #   .env.staging          api-staging
 #   .env.db               postgres (süper kullanıcı + dört rolün parolaları)
 #   .env.redis            redis parolası
 #   .env.migrate          migrate           (MIGRATION_DATABASE_URL, canlı sahip rolü)
 #   .env.migrate-staging  migrate-staging   (MIGRATION_DATABASE_URL, staging sahip rolü)
 #
-# Yayın (servis adıyla ayrı): docker compose up -d api web          # canlı
-#                              docker compose up -d api-staging web-staging
-# Migration (elle, canlı için [ONAY]):
-#   docker compose --profile migrate run --rm migrate
-#   docker compose --profile migrate run --rm migrate-staging
+# Yayın: betikler/yayinla.sh [--migrate] <staging|canli> <sha12>  (önce api sonra web, birlikte geri alma). Elle yapılırsa DC="docker compose
+#   -p beautyos --env-file .env --env-file surum.conf" ile:  $DC up -d --no-deps api web (canlı) | api-staging web-staging (staging)
+# Migration (elle, canlı için [ONAY]); YENİ sürüm kabuk değişkeniyle verilir, yoksa eski imajla "No pending migrations" der:
+#   BEAUTYOS_VERSION=<yeni> $DC --profile migrate run --rm migrate
+#   BEAUTYOS_STAGING_VERSION=<yeni> $DC --profile migrate run --rm migrate-staging
 #
 # Hiçbir servis host portu yayınlamaz; dışarıya yalnız ortak Caddy (sirket-proxy ağı) açar.
 # api ve api-staging TEK kopya çalışır: BullMQ işçisi süreç içindedir, hız sınırı bellektedir. scale verme.
@@ -35,7 +35,7 @@ x-guvenlik: &guvenlik
 
 x-api: &api
   <<: *guvenlik
-  image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_VERSION:?.env içinde BEAUTYOS_VERSION tanımlı olmalı}
+  image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_VERSION:?BEAUTYOS_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}
   read_only: true
   tmpfs: [/tmp]
   depends_on:
@@ -63,7 +63,7 @@ x-web: &web
 
 x-migrate: &migrate
   <<: *guvenlik
-  image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_VERSION:?.env içinde BEAUTYOS_VERSION tanımlı olmalı}
+  image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_VERSION:?BEAUTYOS_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}
   profiles: [migrate]
   restart: "no"
   read_only: true
@@ -143,7 +143,7 @@ services:
 
   web:
     <<: *web
-    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION:?BEAUTYOS_VERSION tanımlı olmalı}-prod
+    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_VERSION:?BEAUTYOS_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}-prod
     environment:
       NODE_ENV: production
       TZ: UTC
@@ -169,7 +169,7 @@ services:
   api-staging:
     <<: *api
     # Staging sürümü canlıdan BAĞIMSIZDIR: servis adı verilmeyen bir "up -d" canlıyı değiştirmez.
-    image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION tanımlı olmalı}
+    image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}
     env_file: .env.staging
     environment:
       NODE_ENV: production
@@ -186,7 +186,7 @@ services:
 
   web-staging:
     <<: *web
-    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION tanımlı olmalı}-staging
+    image: ${IMAGE_PREFIX:-}beautyos-web:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}-staging
     environment:
       NODE_ENV: production
       TZ: UTC
@@ -200,7 +200,7 @@ services:
 
   migrate-staging:
     <<: *migrate
-    image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION tanımlı olmalı}
+    image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}
     env_file: .env.migrate-staging
     command:
       - sh
