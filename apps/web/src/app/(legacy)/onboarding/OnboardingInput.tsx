@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 
 // Dark-themed input for onboarding flow
 export const OnboardingInput = React.forwardRef<
@@ -8,14 +8,17 @@ export const OnboardingInput = React.forwardRef<
   React.InputHTMLAttributes<HTMLInputElement> & { error?: string; label?: string }
 >(function OnboardingInput({ error, label, ...props }, ref) {
   const [focused, setFocused] = useState(false)
+  const autoId = useId()
+  const id = props.id ?? autoId
   return (
     <div className="space-y-1.5">
       {label && (
-        <label className="text-xs font-medium text-white/50 uppercase tracking-wider">{label}</label>
+        <label htmlFor={id} className="text-xs font-medium text-white/50 uppercase tracking-wider">{label}</label>
       )}
       <input
         ref={ref}
         {...props}
+        id={id}
         onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
         onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
         className="w-full h-10 rounded-xl px-3.5 text-sm text-white placeholder-white/20 outline-none transition-all duration-200"
@@ -39,14 +42,17 @@ export const OnboardingSelect = React.forwardRef<
   HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement> & { error?: string; label?: string }
 >(function OnboardingSelect({ error, label, children, ...props }, ref) {
+  const autoId = useId()
+  const id = props.id ?? autoId
   return (
     <div className="space-y-1.5">
       {label && (
-        <label className="text-xs font-medium text-white/50 uppercase tracking-wider">{label}</label>
+        <label htmlFor={id} className="text-xs font-medium text-white/50 uppercase tracking-wider">{label}</label>
       )}
       <select
         ref={ref}
         {...props}
+        id={id}
         className="w-full h-10 rounded-xl px-3.5 text-sm text-white outline-none transition-all duration-200 appearance-none cursor-pointer"
         style={{
           background: '#1a1535',

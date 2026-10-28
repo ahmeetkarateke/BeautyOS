@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Step1Salon } from '../../app/onboarding/steps/Step1Salon'
+import { Step1Salon } from '../../app/(legacy)/onboarding/steps/Step1Salon'
 
 vi.mock('../../lib/api', () => ({
   apiFetch: vi.fn(),
