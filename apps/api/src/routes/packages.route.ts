@@ -298,6 +298,12 @@ export function createPackagesRouter(): Router {
       const tenantId = req.tenantId!
       const { id } = req.params
 
+      // Gövdeden gelen randevu çağıran kiracıya ait olmalı (başka kiracının randevusuna paket kullanımı bağlanamaz).
+      if (parsed.data.appointmentId) {
+        const appt = await db.appointment.findFirst({ where: { id: parsed.data.appointmentId, tenantId }, select: { id: true } })
+        if (!appt) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Randevu bulunamadı.' } })
+      }
+
       type UseError = { kind: 'error'; status: number; code: string; message: string }
       const result = await db.$transaction(async (tx) => {
         const cp = await tx.customerPackage.findFirst({ where: { id, tenantId } })

@@ -193,6 +193,16 @@ export function createWaitlistRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Kayıt bulunamadı.' } })
       }
 
+      // Gövdeden gelen hizmet/personel çağıran kiracıya ait olmalı (null = tercihi temizle serbest).
+      if (parsed.data.serviceId) {
+        const svc = await db.service.findFirst({ where: { id: parsed.data.serviceId, tenantId }, select: { id: true } })
+        if (!svc) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
+      }
+      if (parsed.data.staffId) {
+        const staff = await db.staffProfile.findFirst({ where: { id: parsed.data.staffId, tenantId }, select: { id: true } })
+        if (!staff) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
+      }
+
       const data: Record<string, unknown> = {}
       if (parsed.data.serviceId !== undefined) data.serviceId = parsed.data.serviceId
       if (parsed.data.staffId !== undefined) data.staffId = parsed.data.staffId

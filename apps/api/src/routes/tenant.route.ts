@@ -537,6 +537,12 @@ export function createTenantRouter(): Router {
 
       const { customerId, serviceId, staffId, startAt, notes } = parsed.data
 
+      // customerId gövdeden gelir: çağıran kiracıya ait olmalı (aksi halde başka kiracının müşteri verisi okunur/yazılır).
+      const customer = await db.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } })
+      if (!customer) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
+      }
+
       const service = await db.service.findFirst({
         where: { id: serviceId, tenantId, isActive: true },
         select: { durationMinutes: true, price: true },
@@ -2049,6 +2055,18 @@ export function createTenantRouter(): Router {
       if (!parsed.success) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz veri.' } })
       }
+      // staffId yoldan, serviceId gövdeden gelir: ikisi de çağıran kiracıya ait olmalı. upsert'in update dalı
+      // başka kiracının atamasını da değiştirebileceğinden doğrulama olmadan çağrılmaz.
+      const [staffInTenant, serviceInTenant] = await Promise.all([
+        db.staffProfile.findFirst({ where: { id: staffId, tenantId }, select: { id: true } }),
+        db.service.findFirst({ where: { id: parsed.data.serviceId, tenantId }, select: { id: true } }),
+      ])
+      if (!staffInTenant) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
+      }
+      if (!serviceInTenant) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
+      }
       const result = await db.staffServiceAssignment.upsert({
         where: { staffId_serviceId: { staffId, serviceId: parsed.data.serviceId } },
         create: { staffId, tenantId, ...parsed.data, isActive: true },
@@ -2116,6 +2134,10 @@ export function createTenantRouter(): Router {
       const parsed = createLeaveSchema.safeParse(req.body)
       if (!parsed.success) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz veri.' } })
+      }
+      const staffInTenant = await db.staffProfile.findFirst({ where: { id: req.params.staffId, tenantId: req.tenantId! }, select: { id: true } })
+      if (!staffInTenant) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
       }
       const leave = await db.staffLeave.create({
         data: {
