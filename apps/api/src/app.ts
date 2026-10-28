@@ -6,6 +6,15 @@ import { createAuthRouter } from './routes/auth.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { createPublicRouter } from './routes/public.route'
 import { createAdminRouter } from './routes/admin.route'
+import { createPackagesRouter } from './routes/packages.route'
+import { createTipsRouter } from './routes/tips.route'
+import { createCustomerEnrichmentRouter } from './routes/customer-enrichment.route'
+import { createCurrentAccountsRouter } from './routes/current-accounts.route'
+import { createPurchaseInvoicesRouter } from './routes/purchase-invoices.route'
+import { createFinancialAccountsRouter } from './routes/financial-accounts.route'
+import { createStaffPayoutsRouter } from './routes/staff-payouts.route'
+import { createStockRouter } from './routes/stock.route'
+import { createWaitlistRouter } from './routes/waitlist.route'
 
 export function createApp(options?: { rateLimitMax?: number }) {
   const app = express()
@@ -63,6 +72,16 @@ export function createApp(options?: { rateLimitMax?: number }) {
   app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax }))
   app.use('/api/v1/admin', createAdminRouter())
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
+  // index.ts ile AYNI sirada baglanir; testler uretimdeki yol tablosunu sinasin diye tum kiraci router'lari burada da var.
+  app.use('/api/v1/tenants/:slug/staff-payouts', createStaffPayoutsRouter())
+  app.use('/api/v1/tenants/:slug/waitlist', createWaitlistRouter())
+  app.use('/api/v1/tenants/:slug', createPackagesRouter())
+  app.use('/api/v1/tenants/:slug', createTipsRouter())
+  app.use('/api/v1/tenants/:slug', createCustomerEnrichmentRouter())
+  app.use('/api/v1/tenants/:slug', createCurrentAccountsRouter())
+  app.use('/api/v1/tenants/:slug', createPurchaseInvoicesRouter())
+  app.use('/api/v1/tenants/:slug', createFinancialAccountsRouter())
+  app.use('/api/v1/tenants/:slug', createStockRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   app.use((_err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
