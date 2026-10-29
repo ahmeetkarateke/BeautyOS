@@ -31,9 +31,9 @@ export function DropdownMenu({
           sideOffset={4}
           className="z-(--z-overlay) min-w-48 rounded-card border border-border bg-surface p-1 shadow-menu"
         >
-          {ordered.map((item) => (
+          {ordered.map((item, index) => (
             <RadixMenu.Item
-              key={item.label}
+              key={`${index}-${item.label}`}
               onSelect={item.onSelect}
               className={cn(
                 'flex min-h-(--size-control) cursor-pointer items-center rounded-control px-3 text-base outline-none',

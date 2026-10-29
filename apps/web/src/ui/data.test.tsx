@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { DataTable } from './data-table'
 import { buildDayRange, DayStrip } from './day-strip'
@@ -136,5 +137,37 @@ describe('Saat ızgarası', () => {
   it('W4: boş saat yoksa nedenini ve çıkış yolunu söyler', () => {
     render(<TimeSlots slots={[]} selected={null} onSelect={() => {}} />)
     expect(screen.getByText('Bu gün boş saat yok. Başka bir gün seçin.')).toBeTruthy()
+  })
+})
+
+describe('Tablo klavye erişimi (denetim W4-1 Kritik 1)', () => {
+  it('W4: onRowPress varsa masaüstü tablosunda ana hücre satır adıyla bir düğmedir', () => {
+    render(<DataTable aria-label="Liste" columns={columns} rows={rows} rowKey={(r) => r.id} onRowPress={() => {}} />)
+    const table = screen.getByRole('table')
+    expect(within(table).getByRole('button', { name: 'Ayşe Yılmaz' })).toBeTruthy()
+    expect(within(table).getByRole('button', { name: 'Elif Kaya' })).toBeTruthy()
+  })
+
+  it('W4: masaüstü düğmesine tıklamak ve Enter/Boşluk onRowPress çağırır', async () => {
+    const user = userEvent.setup()
+    const onRowPress = vi.fn()
+    render(<DataTable aria-label="Liste" columns={columns} rows={rows} rowKey={(r) => r.id} onRowPress={onRowPress} />)
+    const button = within(screen.getByRole('table')).getByRole('button', { name: 'Elif Kaya' })
+    button.focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+    expect(onRowPress).toHaveBeenCalledTimes(2)
+    expect(onRowPress).toHaveBeenLastCalledWith(rows[1])
+  })
+
+  it('W4: onRowPress yoksa masaüstü tablosunda düğme yoktur', () => {
+    render(<DataTable aria-label="Liste" columns={columns} rows={rows} rowKey={(r) => r.id} />)
+    expect(within(screen.getByRole('table')).queryByRole('button')).toBeNull()
+  })
+
+  it('W4: telefon toplam satırında değerler sütun başlığıyla yazılır', () => {
+    render(<DataTable aria-label="Liste" columns={columns} rows={rows} rowKey={(r) => r.id} footer={{ name: 'Toplam', total: '₺750' }} />)
+    const list = document.querySelector('[data-row-list]') as HTMLElement
+    expect(list.textContent).toContain('Tutar: ₺750')
   })
 })

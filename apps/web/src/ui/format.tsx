@@ -8,6 +8,8 @@ const moneyCents = new Intl.NumberFormat('tr-TR', { style: 'currency', currency:
 
 /** Tam tutar ondalıksız ("₺450"), kuruşlu tutar iki haneli ("₺1.250,50"). */
 export function formatMoney(value: number): string {
+  // Prisma Decimal gibi kaynaklardan gelen geçersiz değer "₺NaN" yazmasın.
+  if (!Number.isFinite(value)) return '—'
   const whole = Number.isInteger(value)
   return (whole ? moneyWhole : moneyCents).format(value)
 }

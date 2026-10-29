@@ -62,7 +62,21 @@ export function DataTable<Row>({
                     key={c.key}
                     className={cn('px-4 py-3 text-text', c.align === 'right' && 'text-right tabular-nums')}
                   >
-                    {c.cell(row)}
+                    {onRowPress && c === primary ? (
+                      // Klavye ve ekran okuyucu için gerçek düğme; satırın tamamındaki onClick yalnız fare kolaylığıdır.
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onRowPress(row)
+                        }}
+                        className="cursor-pointer rounded-control text-left font-medium text-text hover:underline"
+                      >
+                        {c.cell(row)}
+                      </button>
+                    ) : (
+                      c.cell(row)
+                    )}
                   </td>
                 ))}
               </tr>
@@ -111,7 +125,11 @@ export function DataTable<Row>({
         })}
         {footer ? (
           <li className="flex flex-wrap justify-between gap-x-4 rounded-card bg-surface-active px-3 py-2 text-sm font-semibold text-text">
-            {columns.map((c) => (footer[c.key] === undefined ? null : <span key={c.key}>{footer[c.key]}</span>))}
+            {columns.map((c) =>
+              footer[c.key] === undefined ? null : (
+                <span key={c.key}>{c === primary ? footer[c.key] : <>{c.header}: {footer[c.key]}</>}</span>
+              ),
+            )}
           </li>
         ) : null}
       </ul>

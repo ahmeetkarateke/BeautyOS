@@ -150,3 +150,25 @@ describe('Onay penceresi', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Vazgeç' }))
   })
 })
+
+describe('Onay penceresi: işlem sürerken (denetim W4-1 Öneri)', () => {
+  it('W4: loading sırasında Esc ve Vazgeç pencereyi kapatmaz', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Müşteriyi silmek istiyor musunuz?"
+        description="Bu işlem geri alınamaz."
+        actionLabel="Müşteriyi sil"
+        onConfirm={() => {}}
+        loading
+        loadingText="Siliniyor…"
+      />,
+    )
+    await user.keyboard('{Escape}')
+    fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }))
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+})

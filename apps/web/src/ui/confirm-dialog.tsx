@@ -33,8 +33,12 @@ export function ConfirmDialog({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
+  // Silme gibi işlem giderken pencere kapanmaz: kullanıcı sonucu görmeden belirsizlikte kalmasın.
+  const guardedOpenChange = (next: boolean) => {
+    if (!loading) onOpenChange(next)
+  }
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={guardedOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-text/40" />
         <Dialog.Content
@@ -55,7 +59,7 @@ export function ConfirmDialog({
             <Dialog.Description className="text-base leading-6 text-text-secondary">{description}</Dialog.Description>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button ref={cancelRef} variant="secondary" onClick={() => onOpenChange(false)}>
+            <Button ref={cancelRef} variant="secondary" onClick={() => guardedOpenChange(false)}>
               {cancelLabel}
             </Button>
             <Button

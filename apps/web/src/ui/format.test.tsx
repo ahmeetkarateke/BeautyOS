@@ -52,3 +52,10 @@ describe('Tarih ve saat (Europe/Istanbul)', () => {
     expect(formatDate('bozuk')).toBe('')
   })
 })
+
+describe('Para: geçersiz değer (denetim W4-1 Öneri)', () => {
+  it('W4: NaN ve sonsuz değer "—" yazar', () => {
+    expect(formatMoney(Number.NaN)).toBe('—')
+    expect(formatMoney(Number.POSITIVE_INFINITY)).toBe('—')
+  })
+})
