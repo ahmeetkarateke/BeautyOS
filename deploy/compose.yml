@@ -128,6 +128,8 @@ services:
   api:
     <<: *api
     env_file: .env
+    # Kapanışta bağlantılar/kuyruk boşaltılır (uygulama süresi 10 sn); docker varsayılanı da 10 sn olduğundan pay bırakılır (D6).
+    stop_grace_period: 15s
     environment:
       NODE_ENV: production
       TZ: UTC
@@ -171,6 +173,7 @@ services:
     # Staging sürümü canlıdan BAĞIMSIZDIR: servis adı verilmeyen bir "up -d" canlıyı değiştirmez.
     image: ${IMAGE_PREFIX:-}beautyos-api:${BEAUTYOS_STAGING_VERSION:?BEAUTYOS_STAGING_VERSION surum.conf içinde tanımlı olmalı (docker compose --env-file ... --env-file surum.conf ya da yayinla.sh)}
     env_file: .env.staging
+    stop_grace_period: 15s
     environment:
       NODE_ENV: production
       TZ: UTC
