@@ -35,7 +35,7 @@ export function DataTable<Row>({
 
   return (
     <div className={className}>
-      <div className="max-sm:hidden overflow-x-auto rounded-card border border-border bg-surface">
+      <div className="max-sm:hidden overflow-x-auto [&_:focus-visible]:-outline-offset-2 rounded-card border border-border bg-surface">
         <table aria-label={ariaLabel} className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-border">

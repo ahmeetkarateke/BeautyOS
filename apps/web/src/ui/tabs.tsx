@@ -27,7 +27,7 @@ export function TabList({ children, className, 'aria-label': ariaLabel }: { chil
   return (
     <RadixTabs.List
       aria-label={ariaLabel}
-      className={cn('flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
+      className={cn('flex gap-1 overflow-x-auto [&_:focus-visible]:-outline-offset-2 border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
     >
       {children}
     </RadixTabs.List>

@@ -15,6 +15,7 @@ const statuses = ['pending', 'confirmed', 'inprogress', 'completed', 'cancelled'
 const persons = [1, 2, 3, 4, 5]
 const candidates = [
   ...statuses.flatMap((s) => [`bg-status-${s}-bg`, `text-status-${s}-text`]),
+  '[&_:focus-visible]:-outline-offset-2',
   ...persons.flatMap((n) => [`bg-person-${n}-bg`, `text-person-${n}-text`, `bg-person-${n}-mark`]),
 ]
 
@@ -42,6 +43,12 @@ describe('app.css üretilen sınıflar (W3)', () => {
 })
 
 describe('odak göstergesi (denetim W3-1 Kritik 1, tasarim.md §4 "Odak")', () => {
+  it('W6-1: kırpan kabın içe dönük halka sınıfı üretilir ve içerideki :focus-visible için outline-offset eksi olur', () => {
+    const rule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(([, selector, body]) => selector.trim() === '& :focus-visible' && body.includes('outline-offset'))
+    expect(rule, 'sınıf üretilmedi').toBeTruthy()
+    expect(rule![2]).toMatch(/outline-offset:\s*(?:-2px|calc\(2px\s*\*\s*-1\))/)
+  })
+
   // jsdom :focus-visible hesaplamaz; derlenmiş CSS'te outline'ı kaldıran kuralların kapsamı denetlenir.
   const outlineNoneSelectors = (): string[] =>
     [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]

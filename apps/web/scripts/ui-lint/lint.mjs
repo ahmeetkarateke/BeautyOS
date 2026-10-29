@@ -34,6 +34,11 @@ function isForbiddenImport(importer, spec) {
   return false // paket adı
 }
 
+// Kırpan kap (overflow hidden/clip/auto/scroll) genel odak halkasını (dışa 2 px + 2 px boşluk) siler; denetim W3-1 ve W6-1.
+// Kap ya içindeki odağı içe çizer (FOCUS_INSET) ya da odaklanabilir öğe taşımadığını `clip-safe` işaretiyle bildirir.
+const CLIPPING = /(?<![\w-])overflow(?:-[xy])?-(?:hidden|clip|auto|scroll)(?![\w-])/
+const FOCUS_INSET = '[&_:focus-visible]:-outline-offset-2'
+
 /** @typedef {{ rule: string, line: number, text: string }} Finding */
 
 /**
@@ -73,6 +78,7 @@ export function lintSource(relativePath, content) {
     if (/(?:^|[\s"'`{(])dark:/.test(line)) at('dark-varyanti')
     if (/\btext-\[(?:[0-9]|1[01])(?:\.\d+)?px\]/.test(line) || /font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px/.test(line) || /\btext-\[0?\.(?:[0-6]\d*|7(?:[0-4]\d*)?)r?em\]/.test(line)) at('12px-alti-yazi')
     if (/\bfont-(?:bold|extrabold|black)\b|font-weight:\s*[7-9]00\b|\bfont-\[[7-9]00\]/.test(line)) at('kalin-700')
+    if (!isCss && CLIPPING.test(line) && !line.includes(FOCUS_INSET) && !line.includes('clip-safe')) at('kirpilan-odak')
     if (!isCss && [...line.matchAll(SPECIFIER)].some((m) => isForbiddenImport(relativePath, m[2]))) at('eski-klasor-importu')
   })
   if (isCss) findings.push(...lintCssImports(relativePath, content))

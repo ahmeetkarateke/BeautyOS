@@ -20,6 +20,25 @@ const variants: Record<ButtonVariant, string> = {
   'danger-solid': 'bg-danger text-text-inverse hover:bg-danger-text',
 }
 
+/**
+ * Düğme görünümü. Düğme gibi görünen bağlantılar (ör. "Ana sayfaya dön") için: <Link className={buttonClassName({ variant: 'secondary' })}>.
+ * Gezinen öğe bağlantı olarak kalır; `role="button"` verilmez.
+ */
+export function buttonClassName({
+  variant = 'primary',
+  size = 'md',
+  fullWidth = false,
+}: { variant?: ButtonVariant | 'icon'; size?: 'md' | 'sm'; fullWidth?: boolean } = {}): string {
+  return cn(
+    base,
+    variant === 'icon'
+      ? 'w-(--size-control) bg-transparent p-0 text-text-secondary hover:bg-surface-active hover:text-text'
+      : variants[variant],
+    size === 'sm' && variant !== 'icon' && 'min-h-(--size-control-sm) px-3 text-sm',
+    fullWidth && 'w-full',
+  )
+}
+
 type CommonProps = Omit<ComponentProps<'button'>, 'children'> & {
   size?: 'md' | 'sm'
   /** İşlem sürerken true: aria-busy, dönen işaret ve tekrar basma engeli. */
@@ -56,15 +75,7 @@ export function Button(props: ButtonProps) {
       aria-busy={loading ? true : undefined}
       // aria-disabled yerine gerçek disabled yalnız devre dışıda; işlemde odak kaybolmasın diye disabled kullanılmaz.
       onClick={loading ? (event) => event.preventDefault() : onClick}
-      className={cn(
-        base,
-        variant === 'icon'
-          ? 'w-(--size-control) bg-transparent p-0 text-text-secondary hover:bg-surface-active hover:text-text'
-          : variants[variant],
-        size === 'sm' && variant !== 'icon' && 'min-h-(--size-control-sm) px-3 text-sm',
-        fullWidth && 'w-full',
-        className,
-      )}
+      className={cn(buttonClassName({ variant, size, fullWidth }), className)}
     >
       {loading ? (
         <span

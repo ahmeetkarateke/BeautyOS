@@ -49,7 +49,7 @@ export function SegmentedControl({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[9px] bg-surface-active p-[3px]',
+        'inline-flex max-w-full gap-0.5 overflow-x-auto [&_:focus-visible]:-outline-offset-2 rounded-[9px] bg-surface-active p-[3px]',
         fullWidth && 'flex w-full min-[480px]:inline-flex min-[480px]:w-auto',
         className,
       )}

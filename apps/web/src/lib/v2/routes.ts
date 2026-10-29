@@ -73,6 +73,32 @@ export const SITE_ONLY_PATHS: readonly string[] = [
 
 const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password']
 
+const invert = (map: Record<string, string>) => Object.fromEntries(Object.entries(map).map(([legacy, next]) => [next, legacy]))
+const PANEL_TO_LEGACY = invert(LEGACY_PANEL_MAP)
+const DETAIL_TO_LEGACY = invert(LEGACY_DETAIL_MAP)
+
+/**
+ * Yeni panel yolunun (/panel/<salon>/<rest>) eski arayüzdeki karşılığı (/tenant/<salon>/<dönen değer>).
+ * Karşılığı olmayan yeni ekranlar (menu, gunum) için null. Hazır olmayan ekranda "Eski ekranda açın" bağlantısı için (W6 K6).
+ */
+export function legacyPathFor(rest: readonly string[]): string | null {
+  const exact = PANEL_TO_LEGACY[rest.join('/')]
+  if (exact) return exact
+  const detail = Object.hasOwn(DETAIL_TO_LEGACY, rest[0] ?? '') ? DETAIL_TO_LEGACY[rest[0]] : undefined
+  return detail && rest.length > 1 ? [detail, ...rest.slice(1)].join('/') : null
+}
+
+// Yeni panelin ekran adları (tasarim.md §8.1). Burada olmayan /panel/<salon>/<ad> yolu 404 olur; hazır olmayan ekran "hazırlanıyor" gösterir.
+const PANEL_SCREENS: ReadonlySet<string> = new Set([
+  'bugun', 'gunum', 'takvim', 'musteriler', 'musteri-yeni', 'musteri', 'hizmetler', 'personel', 'personel-detay', 'primim',
+  'kasa', 'bekleme', 'raporlar', 'hesaplar', 'cari', 'faturalar', 'fatura-yeni', 'tedarikciler', 'stok', 'paketler',
+  'odemeler', 'bahsis', 'asistan', 'ayarlar', 'hesabim', 'abonelik-bitti', 'menu',
+])
+
+export function isKnownPanelScreen(rest: readonly string[]): boolean {
+  return rest.length > 0 && PANEL_SCREENS.has(rest[0])
+}
+
 // Yüzde-kodlu yollar (/%76%32 = /v2) Next tarafından çözülerek eşleştirilir; burada da aynı biçime çevrilir. Bozuk kodlama olduğu gibi kalır.
 function normalize(pathname: string): string {
   let decoded = pathname
@@ -99,7 +125,12 @@ function surfaceOfInternalPath(pathname: string): Surface | 'any' {
   return 'any'
 }
 
-export function resolveRoute(rawPathname: string, enabled: ReadonlySet<Surface>): RouteDecision {
+export type RouteOptions = {
+  /** `?eski=1`: "Eski ekranda açın" bağlantısı. /tenant yolu yeni panele yönlendirilmez. */
+  legacyEscape?: boolean
+}
+
+export function resolveRoute(rawPathname: string, enabled: ReadonlySet<Surface>, options: RouteOptions = {}): RouteDecision {
   const pathname = normalize(rawPathname)
   const isOn = (s: Surface) => enabled.has(s)
 
@@ -114,7 +145,7 @@ export function resolveRoute(rawPathname: string, enabled: ReadonlySet<Surface>)
   }
 
   if (startsWithSegment(pathname, '/tenant')) {
-    if (!isOn('panel')) return NEXT
+    if (!isOn('panel') || options.legacyEscape) return NEXT
     const [, slug, ...rest] = pathname.split('/').filter(Boolean)
     if (!slug) return NEXT
     return { kind: 'redirect', pathname: `/panel/${slug}/${mapLegacyPanelPath(rest)}`, status: 307 }
