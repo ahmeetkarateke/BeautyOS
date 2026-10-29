@@ -265,7 +265,7 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
             <Button
               variant="secondary"
               onClick={() => {
-                setTerm(`0${customer.phoneDigits}`)
+                setTerm(customer.phoneDigits)
                 pickCustomer(null)
               }}
             >
