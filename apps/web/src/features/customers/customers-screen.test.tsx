@@ -102,6 +102,20 @@ describe('W17 Müşteriler (sahip/müdür/resepsiyon)', () => {
     expect(calls().at(-1)?.search).toBe('ayl')
   })
 
+  it('K8b: sonraki sayfadan gelen satır, arama değişince sonuca karışmaz (ek sayfalar sorgu anahtarına bağlı)', async () => {
+    handler = (q) => {
+      if (q.search) return { data: [row('c9', 'Ayla Kaya')], nextCursor: null }
+      return q.cursor ? { data: [row('c3', 'Cansu Er')], nextCursor: null } : { data: [row('c1', 'Ayşe Demir')], nextCursor: 'c1' }
+    }
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Daha fazla göster' }))
+    await screen.findByRole('button', { name: /Cansu Er/ })
+    type('ayl')
+    await screen.findByRole('button', { name: /Ayla Kaya/ })
+    expect(screen.queryByRole('button', { name: /Cansu Er/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Ayşe Demir/ })).toBeNull()
+  })
+
   it('K9: sonuç yoksa aranan terimle boş durum + Müşteri ekle', async () => {
     handler = (q) => (q.search ? { data: [], nextCursor: null } : { data: [row('c1', 'Ayşe Demir')], nextCursor: null })
     mount()
