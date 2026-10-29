@@ -151,10 +151,12 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
         <Card>
           <ErrorState subject="Bugünün randevuları" onRetry={dayQuery.refetch} retrying={dayQuery.loading} lastLoadedAt={dayQuery.loadedAt} className="px-0" />
         </Card>
-        <Card>
-          <h2 className="mb-1 text-base leading-6 font-semibold">Kasa özeti</h2>
-          <p className="text-sm text-text-secondary">Randevular yüklenmeden kasa özeti gösterilmez. Sıfır gibi görünen tutarlar yanıltıcı olur.</p>
-        </Card>
+        {canRevenue ? (
+          <Card>
+            <h2 className="mb-1 text-base leading-6 font-semibold">Kasa özeti</h2>
+            <p className="text-sm text-text-secondary">Randevular yüklenmeden kasa özeti gösterilmez. Sıfır gibi görünen tutarlar yanıltıcı olur.</p>
+          </Card>
+        ) : null}
       </div>
     )
   }
@@ -243,16 +245,18 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
                         {a.status === 'in_progress' ? ` · ${clockLabel(a.end)}’e kadar` : ''}
                       </span>
                     </button>
-                    <StatusBadge status={a.status} />
-                    {a.status === 'confirmed' ? (
-                      <Button size="sm" variant="secondary" loading={startingId === a.id} loadingText="Başlatılıyor…" onClick={() => void start(a)}>
-                        Başlat
-                      </Button>
-                    ) : a.status === 'pending' && canApprove ? (
-                      <Button size="sm" variant="secondary" onClick={() => setReviewing(a)}>
-                        Gözden geçir
-                      </Button>
-                    ) : null}
+                    <div className="grid flex-none justify-items-end gap-1.5">
+                      <StatusBadge status={a.status} />
+                      {a.status === 'confirmed' ? (
+                        <Button size="sm" variant="secondary" loading={startingId === a.id} loadingText="Başlatılıyor…" onClick={() => void start(a)}>
+                          Başlat
+                        </Button>
+                      ) : a.status === 'pending' && canApprove ? (
+                        <Button size="sm" variant="secondary" onClick={() => setReviewing(a)}>
+                          Gözden geçir
+                        </Button>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
