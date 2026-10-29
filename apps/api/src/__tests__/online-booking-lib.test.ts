@@ -219,6 +219,17 @@ describe('S2 Kritik 2: dogrulanmamis talepte musteri eslestirme (onayda)', () =>
     expect(q.take).toBe(5)
   })
 
+  it('ADR-0038 create: telefon baska kartta kayitliyken bile aday kontrolu yapilmadan yeni musteri olusur (eski kart degismez)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c9', fullName: 'Baska Ad' }])
+    expect(await approveOnlineRequest('t1', 'a1', { customerAction: 'create' })).toBe('ok')
+    expect(dbMock.customer.findMany).not.toHaveBeenCalled()
+    expect(dbMock.customer.create).toHaveBeenCalledTimes(1)
+    expect(dbMock.appointment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'a1', tenantId: 't1', status: 'pending', customerId: null, isDeleted: false },
+      data: { customerId: 'new-cust', status: 'confirmed' },
+    })
+  })
+
   it('create: iki es zamanli onaydan ikincisi (guncellenen satir 0) not_pending alir ve islem geri alinir', async () => {
     dbMock.appointment.updateMany.mockResolvedValueOnce({ count: 0 })
     dbMock.appointment.findFirst.mockResolvedValueOnce(unverified).mockResolvedValueOnce({ status: 'confirmed' })
