@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   'customer.view_all': OWNER_MANAGER, // 13 (uzman yalniz kendi musterilerini gorur)
   'customer.write': OWNER_MANAGER, // 15 (uzman duzenleyemez; kendi musterisinde not duzenleme acilirsa kapsam + alan beyaz listesi gerekir)
   'waitlist.view': OWNER_MANAGER, // 11 (liste musteri adi ve telefonu tasir)
+  'waitlist.write': OWNER_MANAGER, // 11 (bildirim yaniti telefon ve e-posta tasir)
   'health.view': OWNER_MANAGER_STAFF, // 17 (uzman yalniz kendi musterisinde)
   'health.write': OWNER_MANAGER_STAFF, // 17
   'customer.photo.view': OWNER_MANAGER_STAFF, // 19 (uzman yalniz kendi musterisinde)
@@ -34,8 +35,10 @@ export type PermissionKey = keyof typeof PERMISSIONS
 
 /** Rolun bu izni var mi? Bilinmeyen rol ya da izin her zaman false (kapali basarisizlik). */
 export function can(role: unknown, key: PermissionKey): boolean {
-  const allowed = PERMISSIONS[key] as readonly string[] | undefined
-  return typeof role === 'string' && allowed !== undefined && allowed.includes(role)
+  // Anahtar disaridan gelebilir: 'constructor' gibi miras adlar tabloda sayilmaz.
+  if (!Object.hasOwn(PERMISSIONS, key)) return false
+  const allowed = PERMISSIONS[key] as readonly string[]
+  return typeof role === 'string' && allowed.includes(role)
 }
 
 /** Rolun etkin izin listesi (A1: GET /auth/me bunu doner). */
