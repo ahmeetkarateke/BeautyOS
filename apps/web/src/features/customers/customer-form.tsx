@@ -214,7 +214,7 @@ function CustomerForm({ original }: { original: ServerCustomer | null }) {
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {duplicate ? (
             <>
-              <Button type="button" loading={busy} loadingText="Ekleniyor…" onClick={() => void save(true)}>
+              <Button type="button" autoFocus loading={busy} loadingText="Ekleniyor…" onClick={() => void save(true)}>
                 Yine de ekle
               </Button>
               <Link href={list} className={buttonClassName({ variant: 'secondary' })}>

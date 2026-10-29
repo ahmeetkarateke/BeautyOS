@@ -87,6 +87,8 @@ describe('W17 Yeni müşteri', () => {
     submit('Müşteri ekle')
     expect(await screen.findByText(/Bu telefonla kayıtlı bir müşteri zaten var/)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Kayıtlı müşteri ara' }).getAttribute('href')).toBe('/panel/defne/musteriler')
+    // Odak kaybolmaz: gönderme düğmesi DOM'dan kalkınca odak uyarıdan sonraki ilk eyleme (Yine de ekle) taşınır.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Yine de ekle' }))
     expect(push).not.toHaveBeenCalled()
     submit('Yine de ekle')
     await waitFor(() => expect(push).toHaveBeenCalledWith('/panel/defne/musteriler'))
