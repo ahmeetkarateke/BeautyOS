@@ -1,12 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { emptyService, groupByCategory, serviceMeta, toCreateBody, toFormValues, toUpdateBody, validateService, type ServiceRow, type ServiceValues } from './logic'
+import {
+  emptyService,
+  groupByCategory,
+  serviceMeta,
+  toCreateBody,
+  toFormValues,
+  toUpdateBody,
+  validateService,
+  type ServiceRow,
+  type ServiceValues,
+} from './logic'
 
-const row = (over: Partial<ServiceRow> = {}): ServiceRow => ({ id: 's1', name: 'Fön', category: 'Saç', durationMinutes: 45, price: 850, bufferMinutes: 0, isActive: true, isOnlineBookable: true, ...over })
+const row = (over: Partial<ServiceRow> = {}): ServiceRow => ({
+  id: 's1',
+  name: 'Fön',
+  category: 'Saç',
+  durationMinutes: 45,
+  price: 850,
+  bufferMinutes: 0,
+  isActive: true,
+  isOnlineBookable: true,
+  ...over,
+})
 const valid: ServiceValues = { name: 'Fön', category: 'Saç', durationText: '45', priceText: '850', bufferText: '0', isOnlineBookable: true, isActive: true }
 
 describe('W20 groupByCategory', () => {
   it('K1: kategoriler Türkçe sıraya göre (Ç, İ, Ş doğru yerde), kategorisiz "Diğer" en sonda', () => {
-    const groups = groupByCategory([row({ id: '1', category: 'Şekillendirme' }), row({ id: '2', category: 'Cilt' }), row({ id: '3', category: '' }), row({ id: '4', category: 'İğne' }), row({ id: '5', category: null }), row({ id: '6', category: 'Çocuk' })])
+    const groups = groupByCategory([
+      row({ id: '1', category: 'Şekillendirme' }),
+      row({ id: '2', category: 'Cilt' }),
+      row({ id: '3', category: '' }),
+      row({ id: '4', category: 'İğne' }),
+      row({ id: '5', category: null }),
+      row({ id: '6', category: 'Çocuk' }),
+    ])
     expect(groups.map((g) => g.category)).toEqual(['Cilt', 'Çocuk', 'İğne', 'Şekillendirme', 'Diğer'])
     expect(groups.at(-1)?.services.map((s) => s.id)).toEqual(['3', '5'])
   })
@@ -69,13 +96,24 @@ describe('W20 gövdeler', () => {
     expect('isOnlineBookable' in toCreateBody({ ...valid, isOnlineBookable: false })).toBe(false)
   })
   it('K5: sunucu kaydı forma çevrilir', () => {
-    expect(toFormValues(row({ price: 99.9, category: null }))).toEqual({ name: 'Fön', category: '', durationText: '45', priceText: '99,9', bufferText: '0', isOnlineBookable: true, isActive: true })
+    expect(toFormValues(row({ price: 99.9, category: null }))).toEqual({
+      name: 'Fön',
+      category: '',
+      durationText: '45',
+      priceText: '99,9',
+      bufferText: '0',
+      isOnlineBookable: true,
+      isActive: true,
+    })
     expect(emptyService().isActive).toBe(true)
   })
   it('K6: güncelleme yalnız değişen alanı gönderir', () => {
     const original = row()
     expect(toUpdateBody(toFormValues(original), original)).toEqual({})
     expect(toUpdateBody({ ...toFormValues(original), priceText: '900' }, original)).toEqual({ price: 900 })
-    expect(toUpdateBody({ ...toFormValues(original), isOnlineBookable: false, isActive: false }, original)).toEqual({ isOnlineBookable: false, isActive: false })
+    expect(toUpdateBody({ ...toFormValues(original), isOnlineBookable: false, isActive: false }, original)).toEqual({
+      isOnlineBookable: false,
+      isActive: false,
+    })
   })
 })
