@@ -214,6 +214,8 @@ describe('W10 Bugün ekranı', () => {
     mount()
     expect(await screen.findByText('Personel listesi yüklenemedi.')).toBeTruthy()
     expect((await screen.findByTestId('bugun-bulgu')).textContent).toContain('1 online randevu onay bekliyor.')
+    fireEvent.click(within(screen.getByTestId('bugun-bulgu')).getByRole('button', { name: 'Gözden geçir' }))
+    expect(await screen.findByRole('dialog', { name: 'Online randevu talebi' })).toBeTruthy()
   })
 
   it('K-boş: kurulum tamamsa liste gösterilmez, yalnız boş durum görünür', async () => {
