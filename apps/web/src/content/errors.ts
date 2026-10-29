@@ -61,6 +61,15 @@ const TEXTS: Record<string, Entry> = {
   SLOT_TAKEN: 'Bu saat doldu. Başka bir saat seçin.',
   SLOT_CONFLICT: conflictText,
   APPOINTMENT_CONFLICT: conflictText,
+  // Metin rehberinde henüz yok (teknik-yazar yok): W10 ile eklendi, denetçi/teknik-yazar onayına işaretli.
+  NOT_PENDING: 'Bu talep artık onay beklemiyor. Listeyi yenileyin.',
+  CUSTOMER_MATCH_REQUIRED: 'Bu telefonla kayıtlı bir müşteri var. Talebi onaylamadan önce kimle eşleşeceğini seçin.',
+  CUSTOMER_PHONE_MISMATCH: 'Seçtiğiniz müşterinin telefonu talepteki telefonla aynı değil. Listeden başka bir müşteri seçin ya da yeni müşteri olarak ekleyin.',
+  CUSTOMER_NOT_FOUND: 'Seçtiğiniz müşteri bulunamadı. Listeyi yenileyip yeniden seçin.',
+  TENANT_DAILY_LIMIT: 'Bu salon bugün için online randevu sınırına ulaştı. Salonu arayarak randevu alın.',
+  TOO_SOON_FOR_APPROVAL: 'Bu talep henüz onaylanamaz. Birkaç dakika sonra tekrar deneyin.',
+  RANGE_TOO_LARGE: 'Seçilen tarih aralığı çok geniş. En çok 31 gün seçebilirsiniz.',
+  INVALID_RANGE: 'Tarih aralığı geçersiz. Başlangıç tarihi bitişten önce olmalı.',
   STAFF_NOT_SKILLED: (ctx) => `${expertName(ctx)} bu hizmeti vermiyor. Başka bir uzman seçin.`,
   STATUS_LOCKED: {
     default: 'Bu kayıt artık işlem kabul etmiyor.',

@@ -11,6 +11,9 @@ export type DayAppointment = {
   /** Kişi anahtarı: A4 gelince staffId, o zamana dek adın anahtarı (nameKey). */
   staffKey: string
   staffName: string
+  /** Müşterisiz online talepte null. */
+  customerId: string | null
+  serviceId: string | null
   customerName: string
   customerPhone: string
   /** Müşteri kaydıyla eşleşmemiş (telefonu doğrulanmamış) online talep. */
@@ -68,6 +71,8 @@ const rowSchema = z.object({
   serviceName: z.string(),
   staffName: z.string(),
   staffId: z.string().optional(),
+  customerId: z.string().nullish(),
+  serviceId: z.string().optional(),
   startTime: z.string(),
   endTime: z.string(),
   status: z.enum(STATUSES),
@@ -84,6 +89,8 @@ export function parseDayAppointment(input: unknown): DayAppointment {
     id: row.id,
     staffKey: row.staffId ?? nameKey(row.staffName),
     staffName: row.staffName,
+    customerId: row.customerId ?? null,
+    serviceId: row.serviceId ?? null,
     customerName: row.customerName,
     customerPhone: row.customerPhone ?? '',
     unverified: row.unverified ?? false,

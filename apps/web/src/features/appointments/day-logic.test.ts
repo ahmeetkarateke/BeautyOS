@@ -23,6 +23,8 @@ function appt(over: Partial<DayAppointment> & { id: string; from: string; to: st
   return {
     staffKey: 'p1',
     staffName: 'Derya Aksoy',
+    customerId: 'c1',
+    serviceId: 'sv1',
     customerName: 'Müşteri',
     customerPhone: '',
     unverified: false,
