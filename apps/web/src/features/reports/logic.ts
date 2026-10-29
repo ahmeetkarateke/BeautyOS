@@ -5,7 +5,7 @@ export type Preset = 'today' | 'week' | 'month'
 export type CommissionRow = { staffId: string; staffName: string; completedAppointments: number; revenue: number; commission: number }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-const MAX_DAYS = 366
+const MAX_DAYS = 31
 const collator = new Intl.Collator('tr')
 
 export function periodRange(preset: Preset, today: string): { from: string; to: string } {
@@ -22,7 +22,7 @@ export function validateRange(from: string, to: string, today: string): string |
   if (!DATE_RE.test(from) || !DATE_RE.test(to)) return 'Başlangıç ve bitiş tarihini seçin.'
   if (from > to) return 'Başlangıç tarihi bitişten sonra olamaz.'
   if (to > today) return 'Rapor için gelecek bir tarih seçilemez.'
-  if (dayDiff(from, to) >= MAX_DAYS) return 'En çok 1 yıllık aralık seçebilirsiniz.'
+  if (dayDiff(from, to) >= MAX_DAYS) return 'En çok 31 günlük aralık seçebilirsiniz.'
   return null
 }
 

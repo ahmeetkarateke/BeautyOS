@@ -32,8 +32,10 @@ describe('W23 validateRange', () => {
     expect(validateRange('', TODAY, TODAY)).toBe('Başlangıç ve bitiş tarihini seçin.')
     expect(validateRange('29.10.2026', TODAY, TODAY)).toBe('Başlangıç ve bitiş tarihini seçin.')
   })
-  it('K2: 366 günden uzun aralık reddedilir (sunucu yükü)', () => {
-    expect(validateRange('2025-01-01', TODAY, TODAY)).toBe('En çok 1 yıllık aralık seçebilirsiniz.')
+  it('K2: 31 günden uzun aralık reddedilir (sunucu RANGE_TOO_LARGE: iki uç dahil en çok 31 gün); sınır kabul', () => {
+    expect(validateRange('2025-01-01', TODAY, TODAY)).toBe('En çok 31 günlük aralık seçebilirsiniz.')
+    expect(validateRange('2026-09-28', TODAY, TODAY)).toBe('En çok 31 günlük aralık seçebilirsiniz.')
+    expect(validateRange('2026-09-29', TODAY, TODAY)).toBeNull()
   })
 })
 
