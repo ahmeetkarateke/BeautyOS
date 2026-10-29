@@ -179,3 +179,38 @@ describe('apiClient: istek biçimi', () => {
     expect(await client.request('/api/v1/x', { method: 'DELETE' })).toBeUndefined()
   })
 })
+
+describe('apiClient: yenilemesiz uçlar açık liste (denetim W5-1 Önemli)', () => {
+  it('ADR-UI-11: /auth/me 401 verince oturum yenilenir ve istek tekrarlanır', async () => {
+    let refreshCalls = 0
+    const { client } = setup((url, init) => {
+      if (url.endsWith('/auth/refresh')) {
+        refreshCalls++
+        return json(200, { token: 'yeni' })
+      }
+      return auth(init) === 'Bearer yeni' ? json(200, { role: 'owner' }) : unauthorized()
+    })
+    client.setAccessToken('eski')
+    await expect(client.request('/api/v1/auth/me')).resolves.toEqual({ role: 'owner' })
+    expect(refreshCalls).toBe(1)
+  })
+
+  it.each(['login', 'register', 'refresh', 'forgot-password', 'reset-password', 'admin-login', 'logout'])(
+    'ADR-UI-11: /auth/%s 401 verince yenileme denenmez',
+    async (name) => {
+      const { client, calls } = setup(() => unauthorized())
+      await expect(client.request(`/api/v1/auth/${name}`, { method: 'POST', body: {} })).rejects.toMatchObject({ status: 401 })
+      expect(calls).toHaveLength(1)
+    },
+  )
+
+  it('ADR-UI-11: 429 yanıtında sunucunun kendi hata kodu ezilmez', async () => {
+    const { client } = setup(() => json(429, { error: { code: 'TENANT_DAILY_LIMIT', message: 'x' } }))
+    await expect(client.request('/api/v1/public/book', { method: 'POST', body: {} })).rejects.toMatchObject({ status: 429, code: 'TENANT_DAILY_LIMIT' })
+  })
+
+  it('ADR-UI-11: 429 yanıtında kod yoksa RATE_LIMIT olur', async () => {
+    const { client } = setup(() => json(429, {}))
+    await expect(client.request('/api/v1/x')).rejects.toMatchObject({ status: 429, code: 'RATE_LIMIT' })
+  })
+})

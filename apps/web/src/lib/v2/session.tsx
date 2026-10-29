@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { createContext, use, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import type { PermissionKey } from '@beautyos/shared'
@@ -37,7 +38,7 @@ export function useTerm(): (key: TermKey, form?: TermForm) => string {
 export function RequirePermission({ permission, children }: { permission: PermissionKey; children: ReactNode }) {
   const me = useMe()
   if (!me.permissions.includes(permission)) {
-    return <Forbidden action={<a href={`/panel/${me.tenant.slug}/bugun`}>Bugün’e dön</a>} />
+    return <Forbidden action={<Link href={`/panel/${me.tenant.slug}/bugun`}>Bugün’e dön</Link>} />
   }
   return <>{children}</>
 }
