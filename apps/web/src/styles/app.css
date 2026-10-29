@@ -1,0 +1,63 @@
+/* Yeni arayüzün (v2) tek CSS girişi (ADR-UI-04). Eski arayüz app/(legacy)/globals.css'i kullanır; ikisi birbirine karışmaz.
+   `source(none)`: Tailwind otomatik tarama yapmaz, yalnız aşağıdaki v2 klasörlerini tarar. */
+@import "tailwindcss" source(none);
+@source "../ui";
+@source "../features";
+@source "../content";
+@source "../app/(v2)";
+
+/* Varsayılan Tailwind renk paleti kapatılır: yalnız tokens.css'teki anlamsal renkler vardır (bg-gray-*, text-red-* üretilmez). */
+@theme {
+  --color-*: initial;
+}
+
+@import "./tokens.css";
+@import "./fonts.css";
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-page);
+    color: var(--color-text);
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    font-weight: var(--weight-regular);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Büyük harfli izli etiket yok (tasarim.md §3.2); başlıklarda dengeli, paragraflarda güzel satır kırma. */
+  h1, h2, h3, h4 { font-weight: var(--weight-semibold); text-wrap: balance; }
+  p { text-wrap: pretty; }
+
+  /* tabular-nums: para, saat ve tablo sütunları. */
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Odak: 2 px halka + 2 px boşluk (tasarim.md §4). outline kaldırılırsa yerine görünür gösterge olmalıdır. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
+  }
+}
+
+/* Hareket: süreler tokenlardan gelir ve reduced-motion'da 0'dır; animasyon ve geçişler de kapatılır. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

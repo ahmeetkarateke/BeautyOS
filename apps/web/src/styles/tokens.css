@@ -1,0 +1,87 @@
+/* BeautyOS tasarım tokenları — tek kaynak: docs/tasarim.md §3
+   Adlandırma (müdür kararı): CSS değişkenleri ve Tailwind anahtarları İNGİLİZCE; Türkçe açıklama tasarim.md'de.
+   Katman 1 (ham, --ref-*): yalnız bu dosyada hex. Bileşenler bunları doğrudan kullanmaz.
+   Katman 2 (anlamsal): bileşenler yalnız bunları kullanır. Koyu tema: yalnız [data-theme="dark"] altında katman 2 yeniden atanır (çizilmedi).
+   Tailwind v4: @theme static -> değişkenler hem :root'ta üretilir hem yardımcı sınıflara (bg-page, text-text-muted, rounded-card) bağlanır.
+   Prototipin Türkçe takma adları (katman 3) bu dosyaya TAŞINMAZ. Kaynak: docs/tasarim/prototip/tokens.css (--z-prototype yalnız prototipe aittir, taşınmadı). */
+
+@theme static {
+  /* ---- Katman 1: ham renkler ---- */
+  --ref-petrol-50: #EEF4F5; --ref-petrol-100: #DCE8EA; --ref-petrol-200: #B9D0D4; --ref-petrol-500: #3D6F7C;
+  --ref-petrol-600: #2B5562; --ref-petrol-700: #1F3E47; --ref-petrol-800: #183239; --ref-petrol-900: #11242A;
+  --ref-powder-50: #FDF3F2; --ref-powder-100: #FAE4E2; --ref-powder-200: #F3C7C3; --ref-powder-300: #E89B96;
+  --ref-powder-500: #C4615A; --ref-powder-700: #A84A44; --ref-powder-900: #6E2C28;
+  --ref-gray-0: #FFFFFF; --ref-gray-25: #FAF9F8; --ref-gray-50: #F6F4F3; --ref-gray-100: #EEEBEA; --ref-gray-200: #E4E0DE;
+  --ref-gray-400: #9A9391; --ref-gray-600: #5F6B72; --ref-gray-700: #45545B; --ref-gray-900: #14262C;
+  --ref-green-50: #E3F3EA; --ref-green-700: #1E6B45; --ref-green-900: #0F3D26;
+  --ref-amber-50: #FDF3DC; --ref-amber-300: #EBC77A; --ref-amber-800: #7A4B07;
+  --ref-red-50: #FDECEA; --ref-red-600: #B3261E; --ref-red-900: #7A1A14;
+
+  /* ---- Katman 2: anlamsal (açık tema) ---- */
+  --color-page: var(--ref-gray-50);
+  --color-surface: var(--ref-gray-0);
+  --color-surface-subtle: var(--ref-gray-25);
+  --color-surface-active: var(--ref-gray-100);
+  --color-border: var(--ref-gray-200);
+  --color-border-subtle: var(--ref-gray-100);
+  --color-border-control: var(--ref-gray-400);
+  --color-text: var(--ref-gray-900);
+  --color-text-secondary: var(--ref-gray-700);
+  --color-text-muted: var(--ref-gray-600);
+  --color-text-inverse: var(--ref-gray-0);
+  --color-primary: var(--ref-petrol-700);
+  --color-primary-hover: var(--ref-petrol-800);
+  --color-primary-pressed: var(--ref-petrol-900);
+  --color-on-primary: var(--ref-gray-0);
+  --color-primary-soft: var(--ref-petrol-50);
+  --color-primary-soft-text: var(--ref-petrol-800);
+  --color-accent: var(--ref-powder-300);
+  --color-accent-mark: var(--ref-powder-500);
+  --color-accent-text: var(--ref-powder-700);
+  --color-accent-soft: var(--ref-powder-50);
+  --color-focus: var(--ref-petrol-600);
+  --color-success: var(--ref-green-700); --color-success-bg: var(--ref-green-50); --color-success-text: var(--ref-green-900);
+  --color-warning-bg: var(--ref-amber-50); --color-warning-border: var(--ref-amber-300); --color-warning-text: var(--ref-amber-800);
+  --color-danger: var(--ref-red-600); --color-danger-bg: var(--ref-red-50); --color-danger-text: var(--ref-red-900);
+  --color-info-bg: var(--ref-petrol-50); --color-info-text: var(--ref-petrol-800);
+  /* Geçmiş (tamamlanmış) randevu: opaklık değil ayrı ton (kontrast >= 4.5:1) */
+  --color-past-bg: var(--ref-gray-25); --color-past-text: var(--ref-gray-700);
+
+  --status-pending-bg: var(--ref-amber-50);   --status-pending-text: var(--ref-amber-800);
+  --status-confirmed-bg: var(--ref-petrol-50); --status-confirmed-text: var(--ref-petrol-800);
+  --status-inprogress-bg: var(--ref-powder-100); --status-inprogress-text: var(--ref-powder-900);
+  --status-completed-bg: var(--ref-green-50);  --status-completed-text: var(--ref-green-900);
+  --status-cancelled-bg: var(--ref-gray-100);  --status-cancelled-text: var(--ref-gray-700);
+  --status-noshow-bg: var(--ref-red-50);       --status-noshow-text: var(--ref-red-900);
+
+  --person-1-bg: #FAE4E2; --person-1-text: #6E2C28; --person-1-mark: #C4615A;
+  --person-2-bg: #E2EFE6; --person-2-text: #24513A; --person-2-mark: #4E8B66;
+  --person-3-bg: #E1ECF4; --person-3-text: #1E4A66; --person-3-mark: #4F86AE;
+  --person-4-bg: #F5EAD3; --person-4-text: #5E430E; --person-4-mark: #A87C2C;
+  --person-5-bg: #EAE6DF; --person-5-text: #4A4033; --person-5-mark: #857560;
+
+  --brand-booking: var(--ref-petrol-700); --brand-booking-on: #FFFFFF; --brand-booking-soft: var(--ref-petrol-50);
+
+  /* Yazı: Hanken Grotesk; ₺ (U+20BA) Hanken'de yok → Inter latin-ext yedek; tüm tutarlarda ₺ aynı yüzden gelir */
+  --font-sans: "Hanken Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.25rem; --text-xl: 1.5rem; --text-2xl: 2rem;
+  --text-display: clamp(2.5rem, 1.4rem + 4.2vw, 4.75rem);
+  --leading-xs: 1rem; --leading-sm: 1.25rem; --leading-base: 1.5rem; --leading-lg: 1.75rem; --leading-xl: 2rem; --leading-2xl: 2.5rem;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --space-10: 40px; --space-12: 48px; --space-16: 64px; --space-24: 96px; --space-32: 128px;
+
+  --radius-tag: 4px; --radius-control: 6px; --radius-card: 8px; --radius-sheet: 16px; --radius-full: 999px;
+  --shadow-floating: 0 12px 32px rgba(17, 36, 42, 0.14), 0 2px 6px rgba(17, 36, 42, 0.08);
+  --shadow-menu: 0 6px 20px rgba(17, 36, 42, 0.12), 0 1px 3px rgba(17, 36, 42, 0.08);
+
+  --size-control: 44px; --size-control-sm: 36px; --size-row: 56px; --size-topbar: 56px; --size-bottombar: 64px;
+  --size-sidebar: 248px; --size-content-max: 1200px;
+  --duration-fast: 120ms; --duration-base: 220ms; --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --z-topbar: 20; --z-bottombar: 30; --z-overlay: 40; --z-toast: 50;
+}
+
+/* [data-theme="dark"] { color-scheme: dark; --color-page: …; }  — sonra (kurucu kararı 13) */
+
+@media (prefers-reduced-motion: reduce) { :root { --duration-fast: 0ms; --duration-base: 0ms; } }
