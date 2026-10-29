@@ -37,6 +37,7 @@ interface TenantInfo {
   logoUrl: string | null
   coverUrl: string | null
   aboutText: string | null
+  bookingMode?: 'verified' | 'approval_required'
 }
 
 interface Service {
@@ -96,6 +97,7 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null)
+  const [approvalRequired, setApprovalRequired] = useState(true)
   const [captchaToken, setCaptchaToken] = useState<string>('')
   const [redirectNotice, setRedirectNotice] = useState<string>('')
 
@@ -116,6 +118,9 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
     queryFn: () => publicFetch<TenantInfo>(`/api/v1/tenants/${slug}/public/tenant`),
     retry: false,
   })
+
+  // SMS sağlayıcısı yokken (approval_required) kod adımı yoktur; eski API bookingMode döndürmezse kod adımı korunur.
+  const codeRequired = tenantInfo?.bookingMode !== 'approval_required'
 
   const { data: servicesData } = useQuery({
     queryKey: ['public-services', slug],
@@ -176,7 +181,7 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
 
   const bookMutation = useMutation({
     mutationFn: () =>
-      publicFetch<{ referenceCode: string }>(`/api/v1/tenants/${slug}/public/book`, {
+      publicFetch<{ referenceCode: string; approvalRequired: boolean }>(`/api/v1/tenants/${slug}/public/book`, {
         method: 'POST',
         body: JSON.stringify({
           serviceId: selectedService!.id,
@@ -189,6 +194,7 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
       }),
     onSuccess: (data) => {
       setConfirmedRef(data.referenceCode)
+      setApprovalRequired(data.approvalRequired)
       setStep('done')
     },
     onError: (err: Error) => {
@@ -541,7 +547,7 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
                       disabled={phoneVerified}
                       className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-zinc-50"
                     />
-                    {!phoneVerified && (
+                    {codeRequired && !phoneVerified && (
                       <button
                         onClick={() => sendCodeMutation.mutate()}
                         disabled={phone.trim().length < 7 || sendCodeMutation.isPending || verifyCooldown > 0}
@@ -617,7 +623,7 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
                   disabled={
                     name.trim().length < 2
                     || phone.trim().length < 7
-                    || !phoneVerified
+                    || (codeRequired && !phoneVerified)
                     || bookMutation.isPending
                     || (!!TURNSTILE_SITE_KEY && !captchaToken)
                   }
@@ -626,13 +632,15 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
                 >
                   {bookMutation.isPending ? 'Gönderiliyor…' : 'Randevu Talebini Gönder'}
                 </button>
-                {!phoneVerified && phone.trim().length >= 7 && !verifyCodeSent && (
+                {codeRequired && !phoneVerified && phone.trim().length >= 7 && !verifyCodeSent && (
                   <p className="text-[11px] text-amber-600 text-center">
                     ⚠ Randevu için önce telefonunuzu doğrulamanız gerekir.
                   </p>
                 )}
                 <p className="text-[11px] text-zinc-500 text-center">
-                  Randevunuz salon tarafından onaylandıktan sonra kesinleşir.
+                  {codeRequired
+                    ? 'Randevunuz salon tarafından onaylandıktan sonra kesinleşir.'
+                    : 'Talebiniz salona iletilir. Salon onayladığında kesinleşir; onay için salon sizi arayabilir.'}
                 </p>
               </div>
             )}
@@ -643,14 +651,15 @@ export default function PublicBookingPage(props: { params: Promise<{ slug: strin
                 <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
                   <Check size={32} className="text-amber-600" />
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900">Talebiniz alındı!</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{approvalRequired ? 'Talebiniz alındı!' : 'Randevunuz onaylandı!'}</h2>
                 <p className="text-sm text-zinc-500">
                   {selectedService?.name}<br />
                   {formatDateTR(date)} · {selectedSlot?.label}
                 </p>
                 <p className="text-sm text-gray-700 max-w-xs mx-auto leading-relaxed">
-                  Randevu talebiniz salonun onayına gönderildi.
-                  Onaylanınca size haber verilecek.
+                  {approvalRequired
+                    ? 'Talebiniz salona iletildi. Salon onayladığında kesinleşir. Onay için salon sizi arayabilir.'
+                    : 'Randevunuz kesinleşti. Sizi bekliyoruz.'}
                 </p>
                 <div className="inline-block px-3 py-1.5 bg-zinc-100 rounded text-xs font-mono text-zinc-700">
                   Referans: {confirmedRef}
