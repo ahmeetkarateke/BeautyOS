@@ -161,9 +161,31 @@ describe('W12 Takvim', () => {
     const grid = await screen.findByRole('group', { name: 'Günlük takvim' })
     expect(within(grid).getByRole('heading', { name: /Derya/ }).textContent).toContain('2 randevu')
     // Şerit 09:00 başlar; a1 10:00 -> (60 dk / 60) * 72 + 1 = 73 px, yükseklik 72 - 3 = 69
-    const event = within(grid).getByRole('button', { name: /10:00 – 11:00, Müşteri a1/ })
+    const event = within(grid).getByRole('button', { name: /Müşteri a1.*10:00 – 11:00/ })
     expect(event.style.top).toBe('73px')
     expect(event.style.height).toBe('69px')
+  })
+
+  it('K-axe (W12-H3): ızgaradaki randevu düğmesinin adı görünür metinle başlar; aria-label yoktur, durum gizli metindedir', async () => {
+    desktop = true
+    mount()
+    const grid = await screen.findByRole('group', { name: 'Günlük takvim' })
+    const events = Array.from(grid.querySelectorAll<HTMLElement>('[data-event-id]'))
+    expect(events.length).toBeGreaterThan(1)
+    for (const el of events) {
+      expect(el.hasAttribute('aria-label')).toBe(false)
+      const visible = Array.from(el.querySelectorAll(':scope > :not(.sr-only)'))
+        .map((n) => n.textContent)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      const name = (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+      expect(visible.length).toBeGreaterThan(0)
+      // Görünür metin adın başında ve bütünüyle geçer (WCAG 2.5.3); durum ve hizmet gizli metinle eklenir.
+      expect(name.startsWith(visible)).toBe(true)
+    }
+    const a1 = within(grid).getByRole('button', { name: /Müşteri a1/ })
+    expect(a1.textContent).toContain('Onaylandı')
   })
 
   it('K-masaüstü: örtüşen randevular aynı sütunda yan yana şeritlere bölünür', async () => {
