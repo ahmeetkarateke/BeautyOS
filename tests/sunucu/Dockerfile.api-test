@@ -10,8 +10,11 @@ ENV TZ=UTC HOME=/tmp
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+# @beautyos/shared bir npm çalışma alanıdır: API bunu içe aktarır, bu yüzden npm ci'dan önce kopyalanır ve dist'i derlenir.
+COPY packages/shared packages/shared
 RUN npm ci --workspace=apps/api
 COPY apps/api apps/api
 COPY tests/sunucu/bekle.cjs /opt/bekle.cjs
+RUN npm run build --workspace=@beautyos/shared
 WORKDIR /app/apps/api
 RUN node_modules/.bin/prisma generate
