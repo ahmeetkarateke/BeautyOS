@@ -220,3 +220,31 @@ describe('W18 müdür kararı: uzmanın kartı', () => {
     expect(await screen.findByText('₺3.400')).toBeTruthy()
   })
 })
+
+const withoutPrice = (a: (typeof baseCard.appointments)[number]) => Object.fromEntries(Object.entries(a).filter(([key]) => key !== 'priceCharged'))
+
+describe('W18 uzman turu: sunucu tutar alanlarını göndermezse', () => {
+  it('K15: staff oturumunda sunucu lifetimeValue ve priceCharged göndermez; kartın hiçbir sekmesinde ₺ geçmez, NaN/boş tutar çizilmez', async () => {
+    card = {
+      ...baseCard,
+      lifetimeValue: undefined,
+      appointments: baseCard.appointments.map((a) => withoutPrice(a)),
+    }
+    mount({ ...makeMe('staff'), staffId: 's1' })
+    await screen.findByRole('heading', { level: 1, name: 'Ayşe Demir' })
+    expect(document.body.textContent).not.toContain('₺')
+    openTab(await screen.findByRole('tab', { name: 'Randevular' }))
+    const list = await screen.findByRole('list', { name: 'Randevular' })
+    expect(list.textContent).toContain('Fön')
+    expect(document.body.textContent).not.toContain('₺')
+    expect(document.body.textContent).not.toContain('NaN')
+  })
+
+  it('K16: yetkili rolde bile sunucu alanları göndermezse çökmez ve tutar yazılmaz (alanlar opsiyonel)', async () => {
+    card = { ...baseCard, lifetimeValue: undefined, appointments: baseCard.appointments.map((a) => withoutPrice(a)) }
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'Ayşe Demir' })
+    expect(screen.queryByText('Toplam harcama')).toBeNull()
+    expect(document.body.textContent).not.toContain('NaN')
+  })
+})

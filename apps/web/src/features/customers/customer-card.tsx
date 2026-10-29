@@ -175,7 +175,7 @@ function AppointmentsTab({ detail, showPrice }: { detail: CardDetail; showPrice:
                 {a.serviceName} · {a.staffName}
               </span>
             </span>
-            {showPrice ? (
+            {showPrice && a.priceCharged != null ? (
               <span className={cn('flex-none tabular-nums', a.status === 'cancelled' && 'text-text-muted line-through')}>{formatMoney(a.priceCharged)}</span>
             ) : null}
             <StatusBadge status={a.status as AppointmentStatus} />

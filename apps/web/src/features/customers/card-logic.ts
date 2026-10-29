@@ -1,7 +1,15 @@
 import { formatDate, formatMoney } from '@/ui/format'
 
 // Müşteri kartı saf mantığı (W18). Yetkiyi sunucu verir; sekme görünürlüğü yalnız arayüzü yönlendirir.
-export type CardAppointment = { id: string; startTime: string; endTime: string; status: string; priceCharged: number; serviceName: string; staffName: string }
+export type CardAppointment = {
+  id: string
+  startTime: string
+  endTime: string
+  status: string
+  priceCharged?: number | null
+  serviceName: string
+  staffName: string
+}
 export type CardDetail = {
   id: string
   fullName: string
@@ -13,7 +21,8 @@ export type CardDetail = {
   allergyNotes?: string | null
   preferenceNotes?: string | null
   totalVisits: number
-  lifetimeValue: number
+  /** Uzman için sunucu göndermez. */
+  lifetimeValue?: number | null
   segment?: string | null
   lastVisitAt?: string | null
   marketingConsentSms: boolean
@@ -39,7 +48,7 @@ export const canSeeAmounts = (permissions: readonly string[]): boolean => permis
 export function summaryItems(detail: CardDetail, options: { showSpending: boolean } = { showSpending: true }): { label: string; value: string }[] {
   return [
     { label: 'Ziyaret', value: String(detail.totalVisits) },
-    ...(options.showSpending ? [{ label: 'Toplam harcama', value: formatMoney(detail.lifetimeValue) }] : []),
+    ...(options.showSpending && detail.lifetimeValue != null ? [{ label: 'Toplam harcama', value: formatMoney(detail.lifetimeValue) }] : []),
     { label: 'Son ziyaret', value: detail.lastVisitAt ? formatDate(detail.lastVisitAt, 'short') : 'Henüz yok' },
   ]
 }
