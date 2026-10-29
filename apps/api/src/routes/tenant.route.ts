@@ -1877,6 +1877,8 @@ export function createTenantRouter(): Router {
 
   // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD (single day)
   //   or ?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day] (date range)
+  const MAX_REPORT_RANGE_DAYS = 31
+
   router.get('/reports/daily', requirePermission('finance.report.daily'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
@@ -1894,6 +1896,12 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
       }
 
+      // İki uç dahil en çok 31 gün: yıllık aralık gereksiz yük ve kişisel veri aktarımıdır.
+      const spanDays = Math.round((Date.parse(`${toParam}T00:00:00Z`) - Date.parse(`${fromParam}T00:00:00Z`)) / 86_400_000) + 1
+      if (spanDays > MAX_REPORT_RANGE_DAYS) {
+        return res.status(400).json({ error: { code: 'RANGE_TOO_LARGE', message: `Rapor aralığı en çok ${MAX_REPORT_RANGE_DAYS} gün olabilir.` } })
+      }
+
       // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
       if (!can(req.user!.role, 'finance.report.range') && (fromParam !== today || toParam !== today)) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
@@ -1904,6 +1912,8 @@ export function createTenantRouter(): Router {
       const expenseRangeStart = new Date(`${fromParam}T00:00:00.000Z`)
       const expenseRangeEnd = new Date(`${toParam}T23:59:59.999Z`)
 
+      // groupBy=day yalnız toplam ve günlük döküm döner: müşteri/hizmet/not alanları hiç çekilmez (veri en aza indirme).
+      const aggregateOnly = groupBy === 'day'
       const [transactions, expenses] = await Promise.all([
         db.transaction.findMany({
           where: { tenantId, status: 'completed', completedAt: { gte: rangeStart, lte: rangeEnd } },
@@ -1914,14 +1924,18 @@ export function createTenantRouter(): Router {
             cashAmount: true,
             cardAmount: true,
             completedAt: true,
-            notes: true,
-            appointment: {
-              select: {
-                startAt: true,
-                customer: { select: { fullName: true } },
-                service: { select: { name: true, category: true } },
-              },
-            },
+            ...(aggregateOnly
+              ? {}
+              : {
+                  notes: true,
+                  appointment: {
+                    select: {
+                      startAt: true,
+                      customer: { select: { fullName: true } },
+                      service: { select: { name: true, category: true } },
+                    },
+                  },
+                }),
           },
           orderBy: { completedAt: 'asc' },
         }),
