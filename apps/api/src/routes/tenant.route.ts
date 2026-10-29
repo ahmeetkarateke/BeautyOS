@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit'
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { scheduleReminders, cancelReminders } from '../lib/queue'
+import { initialAppointmentStatus } from '../lib/appointment-status'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
@@ -393,6 +394,7 @@ export function createTenantRouter(): Router {
           customerName: a.customer?.fullName ?? a.requestedName ?? '',
           customerPhone: a.customer?.phone ?? a.requestedPhone ?? '',
           unverified: a.customer === null,
+          bookingChannel: a.bookingChannel,
           serviceName: a.service.name,
           serviceCategory: a.service.category ?? '',
           staffName: a.staff.user.fullName,
@@ -682,7 +684,7 @@ export function createTenantRouter(): Router {
           referenceCode,
           notes,
           bookingChannel: 'manual',
-          status: 'pending',
+          status: initialAppointmentStatus('manual'),
         },
         include: {
           customer: { select: { fullName: true } },
@@ -944,6 +946,19 @@ export function createTenantRouter(): Router {
         select: { id: true, status: true, cancellationReason: true },
       })
 
+      // ADR-0044/0045: onaylıya geçince hatırlatma işleri kurulur; bekleyene, iptale, tamamlandıya ya da gelmediye geçince silinir.
+      void (async () => {
+        try {
+          if (status === 'confirmed' && existing.status !== 'confirmed') {
+            await scheduleReminders({ appointmentId, tenantId, startAt: existing.startAt })
+          } else if (status !== 'confirmed' && status !== 'in_progress') {
+            await cancelReminders(appointmentId)
+          }
+        } catch (err) {
+          logger.warn({ err, appointmentId }, 'Durum değişiminde hatırlatma işleri güncellenemedi')
+        }
+      })()
+
       let followUpAppointments: Array<{ id: string; startAt: string; label: string }> = []
 
       if (status === 'completed' && existing.status !== 'completed') {
@@ -1025,7 +1040,7 @@ export function createTenantRouter(): Router {
                       serviceId: appt.serviceId,
                       startAt: fuStart,
                       endAt: fuEnd,
-                      status: 'pending',
+                      status: initialAppointmentStatus('manual'),
                       notes: entry.label,
                       bookingChannel: 'manual',
                       referenceCode: `APT-${Date.now().toString(36).toUpperCase()}-F${entry.day}`,
@@ -1039,6 +1054,8 @@ export function createTenantRouter(): Router {
               }
               if (!fuAppt) continue
               followUpAppointments.push({ id: fuAppt.id, startAt: fuStart.toISOString(), label: entry.label })
+              // Takip randevusu da onaylı açılır (ADR-0045); hatırlatma işleri kurulur.
+              await scheduleReminders({ appointmentId: fuAppt.id, tenantId, startAt: fuStart }).catch((err) => logger.warn({ err, appointmentId: fuAppt!.id }, 'Takip randevusu hatırlatması kurulamadı'))
             }
 
             // Bildirimleri fire-and-forget gönder

@@ -7,6 +7,7 @@ import { getSlots } from '../lib/slots'
 import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
 import { normalizePhoneTR } from '../lib/sms'
 import { scheduleReminders } from '../lib/queue'
+import { initialAppointmentStatus } from '../lib/appointment-status'
 import { isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { logger } from '../lib/logger'
 import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
@@ -492,7 +493,7 @@ export function createPublicRouter(): Router {
       const customerId = verifiedMode ? await resolveCustomerId(tenant.id, normalizedPhone, customerName, verifiedAt) : null
       // Müşteri bağlanamadıysa (doğrulanmamış talep ya da aynı telefonda birden çok kart) salon eşleştirmeden randevu onaylanmaz.
       const approvalRequired = customerId === null || resolveApprovalMode(tenant) === 'manual'
-      const status = approvalRequired ? 'pending' : 'confirmed'
+      const status = initialAppointmentStatus('web', { approvalRequired })
       const referenceCode = newReferenceCode(nowMs)
 
       const appointment = await db.appointment.create({

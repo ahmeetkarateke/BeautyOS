@@ -48,6 +48,7 @@ export const remindersQueue = new Queue<ReminderJobData>('reminders', {
 
 const HOUR_MS = 60 * 60 * 1000
 const RECONCILE_WINDOW_MS = 48 * HOUR_MS
+const DUPLICATE_WINDOW_MS = 6 * HOUR_MS
 // Netgsm'in yeniden denemeyle düzelmeyecek kodları: metin, başlık, IYS onayı, parametre. Diğerleri (ağ, 85, 99, bilinmeyen) geçici sayılır.
 const PERMANENT_SMS_CODES: ReadonlySet<string> = new Set(['20', '40', '50', '51', '70'])
 
@@ -148,10 +149,27 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
   const serviceName = isHealthRegulated(appointment.tenant.businessType) ? null : appointment.service.name
   const text = reminderText(type, { salonName, fullName, time, serviceName })
 
+  const purpose = type === 'reminder_24h' ? DeliveryPurpose.reminder_24h : DeliveryPurpose.reminder_2h
+
+  // Çift gönderim önlemi (ADR-0044 riski): aynı randevu ve tür için yakın zamanda gönderilmiş kayıt varsa tekrar gönderilmez
+  // (yeniden deneme, uzlaştırma ya da çift iş). Pencere kısa tutulur ki saati değişen randevunun yeni hatırlatması engellenmesin.
+  const alreadySent = await db.messageDelivery.findFirst({
+    where: {
+      appointmentId,
+      purpose,
+      status: { in: ['sent', 'delivered'] },
+      createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+    },
+    select: { id: true },
+  })
+  if (alreadySent) {
+    logger.info({ appointmentId, type }, 'Hatırlatma zaten gönderilmiş, atlandı')
+    return
+  }
+
   // Kanal: SMS (sağlayıcı gerçek ve telefon geçerli) → e-posta yedeği → atla.
   const normalized = normalizePhoneTR(phone)
   if (getSmsProvider().name !== 'mock' && normalized) {
-    const purpose = type === 'reminder_24h' ? DeliveryPurpose.reminder_24h : DeliveryPurpose.reminder_2h
     const { result } = await sendSms({
       tenantId: appointment.tenantId,
       customerId,
@@ -175,6 +193,12 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
   if (email && isEmailConfigured()) {
     const sent = await sendReminderEmail({ to: email, salonName, text })
     if (!sent) throw new Error('Hatırlatma e-postası gönderilemedi')
+    // E-posta teslim kaydı: sonraki deneme ya da uzlaştırma aynı hatırlatmayı tekrar göndermesin.
+    await db.messageDelivery
+      .create({
+        data: { tenantId: appointment.tenantId, customerId, appointmentId, channel: 'email', purpose, email, body: text, status: 'sent', providerName: 'resend', sentAt: new Date() },
+      })
+      .catch((err) => logger.warn({ err, appointmentId }, 'E-posta teslim kaydı yazılamadı'))
     logger.info({ appointmentId, type, channel: 'email' }, 'Hatırlatma e-postası gönderildi')
     return
   }
