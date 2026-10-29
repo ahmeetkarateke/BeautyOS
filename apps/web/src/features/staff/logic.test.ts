@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { commissionLine, hoursBody, leaveTypeLabel, sortLeaves, validateHours, validateProfile, weekRows, type HourRow } from './logic'
 
 describe('W21 weekRows', () => {
-  it('K1: yedi gün Pazartesi\'den başlar, Türkçe adlarla; çalışılmayan gün (null) kapalı görünür', () => {
+  it("K1: yedi gün Pazartesi'den başlar, Türkçe adlarla; çalışılmayan gün (null) kapalı görünür", () => {
     const rows = weekRows({ monday: { start: '09:00', end: '18:00' }, sunday: null })
     expect(rows.map((r) => r.label)).toEqual(['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'])
     expect(rows[0]).toEqual({ key: 'monday', label: 'Pazartesi', open: true, start: '09:00', end: '18:00' })
@@ -20,7 +20,8 @@ describe('W21 weekRows', () => {
 })
 
 describe('W21 validateHours', () => {
-  const rows = (over: Partial<HourRow> = {}): HourRow[] => weekRows({ monday: { start: '09:00', end: '18:00' } }).map((r) => (r.key === 'monday' ? { ...r, ...over } : r))
+  const rows = (over: Partial<HourRow> = {}): HourRow[] =>
+    weekRows({ monday: { start: '09:00', end: '18:00' } }).map((r) => (r.key === 'monday' ? { ...r, ...over } : r))
   it('K2: geçerli program hatasızdır; kapalı günler doğrulanmaz', () => {
     expect(validateHours(rows())).toEqual({})
     expect(validateHours(rows({ open: false, start: '18:00', end: '09:00' }))).toEqual({})
@@ -67,6 +68,11 @@ describe('W21 commissionLine / leaveTypeLabel / sortLeaves', () => {
     expect(leaveTypeLabel('zzz')).toBe('Diğer')
   })
   it('K6: izinler tarihe göre artan sıralanır', () => {
-    expect(sortLeaves([{ id: 'b', leaveDate: '2026-11-05', leaveType: 'day_off' }, { id: 'a', leaveDate: '2026-11-01', leaveType: 'day_off' }]).map((l) => l.id)).toEqual(['a', 'b'])
+    expect(
+      sortLeaves([
+        { id: 'b', leaveDate: '2026-11-05', leaveType: 'day_off' },
+        { id: 'a', leaveDate: '2026-11-01', leaveType: 'day_off' },
+      ]).map((l) => l.id),
+    ).toEqual(['a', 'b'])
   })
 })
