@@ -23,7 +23,7 @@ const schema = z.object({
   name: z.string().min(2, 'Salon adı en az 2 karakter olmalıdır'),
   address: z.string().min(5, 'Adres giriniz'),
   phone: z.string().min(10, 'Geçerli bir telefon numarası girin'),
-  businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).optional(),
+  businessType: z.enum(['barbershop', 'beauty_center', 'nail_studio', 'aesthetic', 'other']).nullish(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -46,7 +46,7 @@ export function Step1Salon({ slug, onNext }: Step1SalonProps) {
     mutationFn: (data: FormData) =>
       apiFetch(`/api/v1/tenants/${slug}/settings`, {
         method: 'PATCH',
-        body: JSON.stringify({ ...data, workingHours }),
+        body: JSON.stringify({ ...data, businessType: data.businessType ?? undefined, workingHours }),
       }),
     onSuccess: () => onNext(),
     onError: (err) => toast(err instanceof Error ? err.message : 'Bir sorun oluştu', 'error'),
