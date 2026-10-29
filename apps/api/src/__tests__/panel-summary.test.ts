@@ -153,7 +153,8 @@ describe('GET /panel-summary', () => {
     for (const w of wheres) expect(w.tenantId).toBe('t1')
     expect(dbMock.tenant.findUnique.mock.calls[0][0].where).toEqual({ id: 't1' })
     const pending = dbMock.appointment.count.mock.calls.map((c) => c[0].where).find((w) => w.status === 'pending')
-    expect(pending).toMatchObject({ bookingChannel: 'web', status: 'pending', isDeleted: false })
+    // Online talep = web kanali ya da musterisiz bekleyen (bot 'multiple') talep (ADR-0038)
+    expect(pending).toMatchObject({ status: 'pending', isDeleted: false, OR: [{ bookingChannel: 'web' }, { customerId: null }] })
     expect(dbMock.waitlist.count.mock.calls[0][0].where.status).toBe('waiting')
   })
 
