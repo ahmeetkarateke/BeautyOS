@@ -95,7 +95,6 @@ describe('W24 Hesaplar', () => {
     await screen.findByRole('list', { name: 'Hesaplar' })
     expect(screen.queryByRole('button', { name: 'Hesap ekle' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Virman yap' })).toBeNull()
-    expect((screen.getByRole('button', { name: /^Kasa/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('K4: yeni hesap: kısa ad istek atmaz; geçerli form POST eder (IBAN boşluksuz, açılış bakiyesi sayı)', async () => {
@@ -200,5 +199,32 @@ describe('W24 Hesaplar', () => {
     listError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
     mount()
     expect((await screen.findByRole('alert')).textContent).toContain('Hesaplar yüklenemedi.')
+  })
+})
+
+describe('W24-1 öneriler ve kritik', () => {
+  it('K11 (Kritik): eksi açılış bakiyesi istek atmaz ve nedenini yazar', async () => {
+    mount()
+    await screen.findByRole('list', { name: 'Hesaplar' })
+    fireEvent.click(screen.getByRole('button', { name: 'Hesap ekle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Hesap ekle' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Hesap adı' }), { target: { value: 'Kredi kartı' } })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /Açılış bakiyesi/ }), { target: { value: '-5000' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hesap ekle' }))
+    expect(await within(dialog).findByText(/Açılış bakiyesi 0 ya da artı olmalı/)).toBeTruthy()
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('K12: yalnız okuma izninde hesap satırı düğme değil düz metindir; yazma izninde düğmedir', async () => {
+    mount(readOnly())
+    await screen.findByRole('list', { name: 'Hesaplar' })
+    expect(screen.queryByRole('button', { name: /^Kasa/ })).toBeNull()
+    expect(within(screen.getByRole('list', { name: 'Hesaplar' })).getAllByRole('listitem')[0].textContent).toContain('Kasa')
+  })
+
+  it('K13: Varsayılan hesap açıklaması türü başına olduğunu söyler', async () => {
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Hesap ekle' }))
+    expect(await screen.findByText(/Bu hesap türünde varsayılan olur/)).toBeTruthy()
   })
 })

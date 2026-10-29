@@ -92,20 +92,19 @@ function AccountsBody({ canWrite }: { canWrite: boolean }) {
           <ul aria-label="Hesaplar" className="m-0 grid list-none gap-0 p-0">
             {accounts.map((account) => (
               <li key={account.id} className="border-b border-border-subtle last:border-b-0">
-                <button
-                  type="button"
-                  disabled={!canWrite}
-                  onClick={() => setEditing(account)}
-                  className="flex min-h-(--size-row) w-full cursor-pointer items-center gap-3 rounded-control px-1 py-3 text-left hover:bg-surface-subtle disabled:cursor-default"
-                >
-                  <span className="grid min-w-0 flex-1 gap-0.5">
-                    <span className="truncate font-medium">{account.name}</span>
-                    <span className="text-sm text-text-muted">
-                      {[accountTypeLabel(account.type), account.isDefault ? 'Varsayılan' : '', account.isActive ? '' : 'Pasif'].filter(Boolean).join(' · ')}
-                    </span>
-                  </span>
-                  <span className="flex-none font-semibold tabular-nums">{formatMoney(account.balance)}</span>
-                </button>
+                {canWrite ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(account)}
+                    className="flex min-h-(--size-row) w-full cursor-pointer items-center gap-3 rounded-control px-1 py-3 text-left hover:bg-surface-subtle"
+                  >
+                    <AccountLine account={account} />
+                  </button>
+                ) : (
+                  <div className="flex min-h-(--size-row) items-center gap-3 px-1 py-3">
+                    <AccountLine account={account} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -150,6 +149,20 @@ function AccountsBody({ canWrite }: { canWrite: boolean }) {
         />
       ) : null}
     </div>
+  )
+}
+
+function AccountLine({ account }: { account: AccountRow }) {
+  return (
+    <>
+      <span className="grid min-w-0 flex-1 gap-0.5">
+        <span className="truncate font-medium">{account.name}</span>
+        <span className="text-sm text-text-muted">
+          {[accountTypeLabel(account.type), account.isDefault ? 'Varsayılan' : '', account.isActive ? '' : 'Pasif'].filter(Boolean).join(' · ')}
+        </span>
+      </span>
+      <span className="flex-none font-semibold tabular-nums">{formatMoney(account.balance)}</span>
+    </>
   )
 }
 
@@ -277,7 +290,7 @@ function AccountSheet({ account, onClose, onSaved }: { account: AccountRow | nul
         ) : null}
         <Switch
           label="Varsayılan hesap"
-          description="Yeni gelir ve giderler önce bu hesaba yazılır."
+          description="Bu hesap türünde varsayılan olur; yeni gelir ve giderler önce ona yazılır."
           checked={values.isDefault}
           onCheckedChange={(on) => set('isDefault', on)}
         />

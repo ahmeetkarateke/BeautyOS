@@ -56,9 +56,13 @@ describe('W24 validateAccount', () => {
     expect(Object.keys(validateAccount({ ...valid, name: 'A' }))).toEqual(['name'])
     expect(Object.keys(validateAccount({ ...valid, name: 'a'.repeat(101) }))).toEqual(['name'])
   })
-  it('K3: açılış bakiyesi boş = 0 kabul, eksi kabul (borçlu hesap), harf reddedilir', () => {
+  it('K3 (W24-1 Kritik): açılış bakiyesi boş = 0 kabul; eksi REDDEDİLİR (sunucu açılış hareketini mutlak değerle yazar: -5.000 ₺ kart +5.000 ₺ görünürdü); harf reddedilir', () => {
     expect(validateAccount({ ...valid, openingText: '' })).toEqual({})
-    expect(validateAccount({ ...valid, openingText: '-250,5' })).toEqual({})
+    expect(validateAccount({ ...valid, openingText: '-250,5' })).toEqual({
+      openingText: 'Açılış bakiyesi 0 ya da artı olmalı. Borçlu hesabı 0 ile açıp hareket olarak girin.',
+    })
+    expect(Object.keys(validateAccount({ ...valid, openingText: '-0,01' }))).toEqual(['openingText'])
+    expect(validateAccount({ ...valid, openingText: '0' })).toEqual({})
     expect(Object.keys(validateAccount({ ...valid, openingText: 'abc' }))).toEqual(['openingText'])
   })
   it('K3: IBAN 50, not 500 karakteri geçemez', () => {

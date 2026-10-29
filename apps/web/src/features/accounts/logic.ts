@@ -37,7 +37,7 @@ const NAME_MAX = 100
 const IBAN_MAX = 50
 const NOTES_MAX = 500
 
-/** Açılış bakiyesi: boş = 0, eksi kabul (borçlu hesap). */
+/** Açılış bakiyesi: boş = 0. Eksi okunur ama validateAccount reddeder. */
 function parseOpening(text: string): number | null {
   const raw = text.trim()
   if (raw === '') return 0
@@ -51,7 +51,10 @@ export function validateAccount(values: AccountValues): Record<string, string> {
   const errors: Record<string, string> = {}
   const name = values.name.trim()
   if (name.length < 2 || name.length > NAME_MAX) errors.name = `Hesap adı 2 ile ${NAME_MAX} karakter arasında olmalı.`
-  if (parseOpening(values.openingText) === null) errors.openingText = 'Açılış bakiyesini rakamlarla yazın. Örnek: 1.250,50'
+  const opening = parseOpening(values.openingText)
+  if (opening === null) errors.openingText = 'Açılış bakiyesini rakamlarla yazın. Örnek: 1.250,50'
+  // Sunucu açılış hareketini mutlak değerle yazar: eksi bakiye artı görünürdü (W24-1 Kritik). Sunucu düzelene dek eksi reddedilir.
+  else if (opening < 0) errors.openingText = 'Açılış bakiyesi 0 ya da artı olmalı. Borçlu hesabı 0 ile açıp hareket olarak girin.'
   if (values.iban.trim().length > IBAN_MAX) errors.iban = `IBAN en çok ${IBAN_MAX} karakter olabilir.`
   if (values.notes.length > NOTES_MAX) errors.notes = `Not en çok ${NOTES_MAX} karakter olabilir.`
   return errors
