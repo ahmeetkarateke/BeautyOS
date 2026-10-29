@@ -85,6 +85,18 @@ function getIstanbulDateStr(date: Date = new Date()): string {
   }).format(date)
 }
 
+// Seçilen İstanbul gününe, şu anki İstanbul saatiyle bir an kurar (konteyner TZ=UTC; yerel saat kullanılmaz).
+function istanbulInstantOnDay(dateStr: string, now: Date = new Date()): Date {
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Istanbul',
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(now)
+  return new Date(`${dateStr}T${time}+03:00`)
+}
+
 function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().split('T')[0]
@@ -2073,7 +2085,7 @@ export function createTenantRouter(): Router {
   // ─── Manual Revenues ─────────────────────────────────────────────────────────
 
   const createRevenueSchema = z.object({
-    description: z.string().trim().min(1),
+    description: z.string().trim().min(1).max(200),
     amount: z.coerce.number().positive(),
     paymentMethod: z.enum(['cash', 'card']),
     revenueDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -2093,7 +2105,7 @@ export function createTenantRouter(): Router {
       if (revenueDate !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
-      const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
+      const completedAt = istanbulInstantOnDay(revenueDate)
 
       const revenue = await db.transaction.create({
         data: {
