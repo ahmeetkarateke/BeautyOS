@@ -168,7 +168,8 @@ describe('BullMQ hatırlatma sistemi', () => {
   it('telefon normalleştirilemezse SMS gönderilmez, hata fırlatmaz', async () => {
     // Yalnız telefon bozuk; randevu aktif ve diğer her şey geçerli (tek kural bozulur).
     const bozuk = await createTestCustomer(tenantId, '12345678', `${suffix}-bozuk`)
-    const start = new Date(Date.now() + 48 * 60 * 60 * 1000)
+    // beforeAll randevulari ~48 saatte ayni uzmanda; S3 EXCLUDE kisitina takilmamak icin 5 gun sonra.
+    const start = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
     const appt = await db.appointment.create({
       data: {
         tenantId,

@@ -263,6 +263,19 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
     expect(res.body.error.code).toBe('SLOT_TAKEN')
   })
 
+  it('S3-K2: on kontrolden sonra veritabani cakisma kisiti (23P01) tetiklenirse de 409 SLOT_TAKEN', async () => {
+    dbMock.appointment.create.mockRejectedValueOnce(new Error('conflicting key value violates exclusion constraint "appointments_staff_no_overlap" (code: 23P01)'))
+    const res = await book(makeApp())
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('SLOT_TAKEN')
+    expect(queueMock.add).not.toHaveBeenCalled()
+  })
+
+  it('S3-K2: cakisma disindaki veritabani hatasi 409 olmaz (500)', async () => {
+    dbMock.appointment.create.mockRejectedValueOnce(new Error('connection refused'))
+    expect((await book(makeApp())).status).toBe(500)
+  })
+
   it('GET /tenant bookingMode=approval_required doner', async () => {
     const res = await request(makeApp()).get('/api/v1/tenants/salon/public/tenant')
     expect(res.status).toBe(200)

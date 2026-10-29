@@ -13,6 +13,7 @@ import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
+import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -594,9 +595,10 @@ export function createTenantRouter(): Router {
         },
       })
       if (conflict) {
-        return res.status(409).json({ error: { code: 'APPOINTMENT_CONFLICT', message: 'Seçilen personelin bu saatte başka bir randevusu var.' } })
+        return res.status(409).json(SLOT_TAKEN_BODY)
       }
 
+      // Ön kontrol yarışa açıktır; asıl koruma veritabanı kısıtıdır (S3).
       const appointment = await db.appointment.create({
         data: {
           tenantId,
@@ -662,7 +664,7 @@ export function createTenantRouter(): Router {
         staffColorCode: appointment.staff.colorCode,
       })
     } catch (err) {
-      next(err)
+      respondSlotTakenOr(err, res, next)
     }
   })
 
@@ -939,40 +941,47 @@ export function createTenantRouter(): Router {
               // Same time-of-day as original appointment, N days later
               let fuStart = new Date(originalStart.getTime() + entry.day * 24 * 60 * 60 * 1000)
 
-              // Resolve slot conflicts: find next free slot for this staff
-              let attempts = 0
-              while (attempts < 24) {
+              // Boş ilk saati bul ve oluştur; ön kontrol ile oluşturma arasında saat dolarsa (veritabanı kısıtı, S3) sonraki boşluğa geç.
+              let fuAppt: { id: string } | null = null
+              for (let attempts = 0; attempts < 24 && !fuAppt; attempts++) {
                 const fuEnd = new Date(fuStart.getTime() + durationMs)
                 const conflict = await db.appointment.findFirst({
                   where: {
+                    tenantId,
                     staffId: appt.staffId,
                     status: { notIn: ['cancelled', 'no_show'] },
+                    isDeleted: false,
                     startAt: { lt: fuEnd },
                     endAt: { gt: fuStart },
                   },
                   orderBy: { endAt: 'asc' },
                 })
-                if (!conflict) break
-                fuStart = new Date(conflict.endAt)
-                attempts++
+                if (conflict) {
+                  fuStart = new Date(conflict.endAt)
+                  continue
+                }
+                try {
+                  fuAppt = await db.appointment.create({
+                    data: {
+                      tenantId,
+                      customerId: appt.customerId,
+                      staffId: appt.staffId,
+                      serviceId: appt.serviceId,
+                      startAt: fuStart,
+                      endAt: fuEnd,
+                      status: 'pending',
+                      notes: entry.label,
+                      bookingChannel: 'manual',
+                      referenceCode: `APT-${Date.now().toString(36).toUpperCase()}-F${entry.day}`,
+                      priceCharged: appt.priceCharged,
+                    },
+                    select: { id: true },
+                  })
+                } catch (err) {
+                  if (!isSlotOverlapError(err)) throw err
+                }
               }
-
-              const fuEnd = new Date(fuStart.getTime() + durationMs)
-              const fuAppt = await db.appointment.create({
-                data: {
-                  tenantId,
-                  customerId: appt.customerId,
-                  staffId: appt.staffId,
-                  serviceId: appt.serviceId,
-                  startAt: fuStart,
-                  endAt: fuEnd,
-                  status: 'pending',
-                  notes: entry.label,
-                  bookingChannel: 'manual',
-                  referenceCode: `APT-${Date.now().toString(36).toUpperCase()}-F${entry.day}`,
-                  priceCharged: appt.priceCharged,
-                },
-              })
+              if (!fuAppt) continue
               followUpAppointments.push({ id: fuAppt.id, startAt: fuStart.toISOString(), label: entry.label })
             }
 
@@ -1058,7 +1067,7 @@ export function createTenantRouter(): Router {
         },
       })
       if (conflict) {
-        return res.status(409).json({ error: { code: 'SLOT_CONFLICT', message: 'Seçilen personelin bu saatte başka bir randevusu var.' } })
+        return res.status(409).json(SLOT_TAKEN_BODY)
       }
 
       const updated = await db.appointment.update({
@@ -1113,7 +1122,7 @@ export function createTenantRouter(): Router {
         staffColorCode: updated.staff.colorCode,
       })
     } catch (err) {
-      next(err)
+      respondSlotTakenOr(err, res, next)
     }
   })
 
