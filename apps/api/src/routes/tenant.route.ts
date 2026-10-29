@@ -1317,6 +1317,12 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz alan değeri.' } })
       }
 
+      // activeModules (R7) ve businessType (klinik KVKK korumalarını belirler) yalnız sahibe aittir.
+      // Rol adı kasıtlı: bu alanlar için izin anahtarı yok; izin tablosu başka dalda değişiyor.
+      if (role !== 'owner' && (parsed.data.activeModules !== undefined || parsed.data.businessType !== undefined)) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu ayarı yalnızca salon sahibi değiştirebilir.' } })
+      }
+
       const { name, onboardingCompleted, businessType, ...settingsPatch } = parsed.data
       const tenantId = req.tenantId!
 
