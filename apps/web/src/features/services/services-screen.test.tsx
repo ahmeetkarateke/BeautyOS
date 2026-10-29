@@ -101,7 +101,7 @@ describe('W20 Hizmetler', () => {
     fill(within(dialog).getByRole('textbox', { name: /Süre/ }), '3')
     fill(within(dialog).getByRole('textbox', { name: /Fiyat/ }), '400')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hizmet ekle' }))
-    expect(await within(dialog).findByText('Süreyi dakika olarak yazın. En az 5, en çok 1440 dakika.')).toBeTruthy()
+    expect(await within(dialog).findByText('Süreyi dakika olarak yazın. En az 5, en çok 720 dakika.')).toBeTruthy()
     expect(writes()).toHaveLength(0)
     fill(within(dialog).getByRole('textbox', { name: /Süre/ }), '30')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hizmet ekle' }))

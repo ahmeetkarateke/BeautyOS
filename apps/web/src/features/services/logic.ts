@@ -24,7 +24,7 @@ export type ServiceErrors = Partial<Record<keyof ServiceValues, string>>
 
 export const OTHER_CATEGORY = 'Diğer'
 export const MIN_DURATION = 5
-const MAX_DURATION = 1440
+const MAX_DURATION = 720
 const MAX_BUFFER = 240
 const NAME_MAX = 100
 const CATEGORY_MAX = 50
