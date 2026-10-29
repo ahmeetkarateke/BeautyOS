@@ -110,6 +110,7 @@ enum AppointmentStatus {
 enum AppointmentCancelReason {
   rejected
   expired
+  cancelled_by_customer
 }
 
 enum BookingChannel {
@@ -420,6 +421,7 @@ model Appointment {
   serviceId          String            @db.Uuid
   resourceId         String?           @db.Uuid
   referenceCode      String            @unique
+  manageTokenHash    String?           @unique // musteri baglantisi (ADR-0043): token yalniz sha-256 ozetiyle saklanir
   status             AppointmentStatus @default(pending)
   bookingChannel     BookingChannel    @default(manual)
   startAt            DateTime

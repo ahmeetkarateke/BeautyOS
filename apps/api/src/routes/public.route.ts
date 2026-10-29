@@ -30,7 +30,7 @@ function applyApprovalLead<T extends { id: string; available: boolean }>(slots: 
 const MANUAL_BY_DEFAULT: ReadonlySet<string> = new Set(['dentist', 'aesthetic_clinic'])
 
 /** T3: salon ayarı varsa o; yoksa klinik türleri elle onay, diğerleri otomatik. Yalnız sms (doğrulanmış) modunda geçerlidir. */
-function resolveApprovalMode(tenant: { settings: unknown; businessType: string }): 'auto' | 'manual' {
+export function resolveApprovalMode(tenant: { settings: unknown; businessType: string }): 'auto' | 'manual' {
   const configured = (tenant.settings as { onlineBookingApproval?: unknown } | null)?.onlineBookingApproval
   if (configured === 'auto' || configured === 'manual') return configured
   return MANUAL_BY_DEFAULT.has(tenant.businessType) ? 'manual' : 'auto'
