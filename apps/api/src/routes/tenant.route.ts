@@ -1569,7 +1569,7 @@ export function createTenantRouter(): Router {
     preferenceNotes: noXss(500).optional().nullable(),
   })
 
-  router.patch('/customers/:customerId', async (req: Request, res: Response, next: NextFunction) => {
+  router.patch('/customers/:customerId', requirePermission('customer.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { customerId } = req.params
       const tenantId = req.tenantId!

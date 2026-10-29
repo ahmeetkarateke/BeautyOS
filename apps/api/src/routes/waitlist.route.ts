@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { db } from '../lib/db'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
+import { requirePermission } from '../middleware/permission'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -49,7 +50,7 @@ export function createWaitlistRouter(): Router {
   }
 
   // GET /waitlist
-  router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/', requirePermission('waitlist.view'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
 

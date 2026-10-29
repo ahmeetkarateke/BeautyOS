@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Prisma, PackageStatus } from '@prisma/client'
 import { db } from '../lib/db'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
+import { canAccessCustomer, customerAccessFilter } from '../lib/customer-scope'
 
 const UUID = z.string().uuid()
 
@@ -42,6 +43,15 @@ const updateCustomerPackageSchema = z.object({
   status: z.nativeEnum(PackageStatus).optional(),
   notes: z.string().trim().max(500).nullable().optional(),
 })
+
+/** Paket bu kiracida var mi ve sahibi musteriye isteği yapan kullanici erisebiliyor mu? */
+async function canAccessCustomerPackage(req: Request, customerPackageId: string): Promise<boolean> {
+  const cp = await db.customerPackage.findFirst({
+    where: { id: customerPackageId, tenantId: req.tenantId! },
+    select: { customerId: true },
+  })
+  return cp !== null && (await canAccessCustomer(req, cp.customerId))
+}
 
 function requireOwnerOrManager(req: Request, res: Response): boolean {
   const role = req.user!.role
@@ -211,7 +221,11 @@ export function createPackagesRouter(): Router {
       const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : undefined
       const statusRaw = typeof req.query.status === 'string' ? req.query.status : undefined
 
-      const where: Prisma.CustomerPackageWhereInput = { tenantId }
+      // Uzman yalniz kendi musterilerinin paketlerini gorur (K4); kapsamsiz uzman bos liste alir.
+      const scope = await customerAccessFilter(req)
+      if (scope === null) return res.json({ data: [] })
+
+      const where: Prisma.CustomerPackageWhereInput = { tenantId, customer: scope }
       if (customerId) where.customerId = customerId
       if (statusRaw && (Object.values(PackageStatus) as string[]).includes(statusRaw)) {
         where.status = statusRaw as PackageStatus
@@ -305,6 +319,10 @@ export function createPackagesRouter(): Router {
       }
 
       type UseError = { kind: 'error'; status: number; code: string; message: string }
+      if (!(await canAccessCustomerPackage(req, id))) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri paketi bulunamadı.' } })
+      }
+
       const result = await db.$transaction(async (tx) => {
         const cp = await tx.customerPackage.findFirst({ where: { id, tenantId } })
         if (!cp) return { kind: 'error', status: 404, code: 'NOT_FOUND', message: 'Müşteri paketi bulunamadı.' } satisfies UseError
@@ -404,8 +422,7 @@ export function createPackagesRouter(): Router {
       const tenantId = req.tenantId!
       const { id } = req.params
 
-      const cp = await db.customerPackage.findFirst({ where: { id, tenantId }, select: { id: true } })
-      if (!cp) {
+      if (!(await canAccessCustomerPackage(req, id))) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri paketi bulunamadı.' } })
       }
 
