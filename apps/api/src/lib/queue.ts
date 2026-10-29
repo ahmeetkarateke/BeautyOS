@@ -5,6 +5,7 @@ import { db } from './db'
 import { logger } from './logger'
 import { sendSms, normalizePhoneTR } from './sms'
 import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
+import { purgeExpiredSessions } from './sessions'
 
 export type ReminderJobData =
   | { type: 'reminder_24h'; appointmentId: string }
@@ -44,6 +45,7 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
   if (data.type === 'nightly_noshow') {
     await sweepExpiredOnlineRequests()
     await anonymizeStaleRequests()
+    await purgeExpiredSessions()
     await processNightlyNoShow()
     return
   }

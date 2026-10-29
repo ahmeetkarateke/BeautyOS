@@ -79,17 +79,19 @@ describe('S2 Kritik 2: dogrulanmamis talep ve onayda musteri eslestirme (gercek 
     await cleanupTenant(tenantBId)
   })
 
-  it('CHECK: musterisiz kayit yalniz dogrulanmamis ve ad+telefon tasiyan talep olabilir (phoneVerified=true iken customerId null reddedilir)', async () => {
+  it('CHECK (ADR-0038): musterisiz kayit ad ve telefon (requested*) tasimak zorunda; ikisi de doluysa phoneVerified degerinden bagimsiz kabul edilir', async () => {
     const start = new Date(Date.now() + 90 * 24 * H)
     const base = {
       tenantId, staffId, serviceId, customerId: null, startAt: start, endAt: new Date(start.getTime() + H), priceCharged: 100,
     }
     await expect(
-      db.appointment.create({ data: { ...base, referenceCode: 'CHK-1', phoneVerified: true, requestedName: 'A', requestedPhone: '+905550001122' } }),
+      db.appointment.create({ data: { ...base, referenceCode: 'CHK-1', phoneVerified: true, requestedName: null, requestedPhone: null } }),
     ).rejects.toThrow(/appointments_customer_or_request|check constraint/i)
     await expect(
       db.appointment.create({ data: { ...base, referenceCode: 'CHK-2', phoneVerified: false, requestedName: null, requestedPhone: '+905550001122' } }),
     ).rejects.toThrow(/appointments_customer_or_request|check constraint/i)
+    const ok = await db.appointment.create({ data: { ...base, referenceCode: 'CHK-3', phoneVerified: true, requestedName: 'A', requestedPhone: '+905550001122' } })
+    expect(ok.customerId).toBeNull()
   })
 
   it('musterisiz talep, telefonu kayitli musterinin kartina baglanmaz: liste ad/telefonu talepten verir, musteri sayisi ve kart degismez', async () => {
