@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { cn } from './cn'
 
 // Prototip karşılığı: .dugme (bilesenler.css). Kural: ekran başına tek birincil; ad = fiil + nesne.
@@ -20,7 +20,7 @@ const variants: Record<ButtonVariant, string> = {
   'danger-solid': 'bg-danger text-text-inverse hover:bg-danger-text',
 }
 
-type CommonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
+type CommonProps = Omit<ComponentProps<'button'>, 'children'> & {
   size?: 'md' | 'sm'
   /** İşlem sürerken true: aria-busy, dönen işaret ve tekrar basma engeli. */
   loading?: boolean
