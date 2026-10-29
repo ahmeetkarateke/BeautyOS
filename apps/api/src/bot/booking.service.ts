@@ -3,9 +3,17 @@ import { logger } from '../lib/logger'
 import { getSlots } from '../lib/slots'
 import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
 import { resolveCustomerByPhone, lookupValues } from '../lib/customer-phone'
-import { computeExpiryAt, scheduleOnlineExpiry } from '../lib/online-booking'
+import { computeExpiryAt, scheduleOnlineExpiry, ONLINE_LIMITS } from '../lib/online-booking'
 import { normalizePhoneTR } from '../lib/sms/types'
 import type { BookingChannel } from '@prisma/client'
+
+/** Telefon birden çok karta uyuyor (salon eşleştirecek) ama saat 2 saatten yakın: talep onaylanamadan düşerdi (S2ek-2). */
+export class SlotTooSoonForApprovalError extends Error {
+  readonly code = 'SLOT_TOO_SOON_FOR_APPROVAL'
+  constructor() {
+    super('Saat onay için çok yakın.')
+  }
+}
 
 /** Hizmet adı bu kiracıdaki aktif hizmetlerle eşleşmedi: akış netleştirme sorusu sorar, sahte yanıt üretmez (S5 K2). */
 export class ServiceNotFoundError extends Error {
@@ -198,6 +206,10 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
       : found.kind === 'none'
         ? (await db.customer.create({ data: { tenantId, phone: identity, fullName: customerName }, select: { id: true } })).id
         : null
+  // Eşleşmeyi bekleyen talep randevudan 2 saat önce düşer; daha yakın saatte talep hemen düşerdi, bu yüzden hiç yazılmaz.
+  if (!customerId && startAt.getTime() - Date.now() < ONLINE_LIMITS.expiryLeadHours * 60 * 60 * 1000) {
+    throw new SlotTooSoonForApprovalError()
+  }
   const status = customerId ? 'confirmed' : 'pending'
 
   const referenceCode = `RDV-${Date.now().toString(36).toUpperCase()}`

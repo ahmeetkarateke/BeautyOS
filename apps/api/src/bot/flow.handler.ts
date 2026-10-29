@@ -8,6 +8,7 @@ import {
   createAppointment,
   cancelAppointmentByRef,
   ServiceNotFoundError,
+  SlotTooSoonForApprovalError,
   type AvailableSlot,
 } from './booking.service'
 
@@ -530,6 +531,10 @@ export class FlowHandler {
         session.entities.service = undefined
         session.step = 'awaiting_service'
         await channel.sendText(msg.from, 'Hizmeti doğrulayamadım, lütfen hizmeti yeniden seçin.')
+        return
+      }
+      if (error instanceof SlotTooSoonForApprovalError) {
+        await channel.sendText(msg.from, 'Bu saat çok yakın olduğu için talebinizi onaya gönderemiyorum. Lütfen salonu arayın ya da daha ileri bir saat seçin.')
         return
       }
       if (error instanceof SlotTakenError) {

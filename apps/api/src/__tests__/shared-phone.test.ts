@@ -24,7 +24,7 @@ vi.mock('../middleware/auth.middleware', () => ({
 }))
 
 import { resolveCustomerByPhone } from '../lib/customer-phone'
-import { createAppointment } from '../bot/booking.service'
+import { createAppointment, SlotTooSoonForApprovalError } from '../bot/booking.service'
 import { createTenantRouter } from '../routes/tenant.route'
 
 beforeEach(() => {
@@ -122,6 +122,23 @@ describe('bot createAppointment (ADR-0038)', () => {
     dbMock.customer.findMany.mockResolvedValue([])
     await createAppointment({ ...input, customerPhone: '905320000001', channel: 'whatsapp' })
     expect(dbMock.customer.create.mock.calls[0][0].data.phone).toBe('+905320000001')
+  })
+
+  it('S2ek-2 Onemli 2: multiple + baslangica 2 saatten az varsa talep yazilmaz, SlotTooSoonForApprovalError (talep hemen dusecekti)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+    const soon = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    await expect(createAppointment({ ...input, slotId: `${soon}__sp1` })).rejects.toBeInstanceOf(SlotTooSoonForApprovalError)
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+    expect(queueMock.add).not.toHaveBeenCalled()
+  })
+
+  it('S2ek-2 Onemli 2: ayni yakin saat tek eslesmede normal onaylanir; multiple 3 saat sonrasi pending olur', async () => {
+    const soon = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c-old' }])
+    expect((await createAppointment({ ...input, slotId: `${soon}__sp1` })).status).toBe('confirmed')
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+    const later = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
+    expect((await createAppointment({ ...input, slotId: `${later}__sp1` })).status).toBe('pending')
   })
 
   it('K-bot: single -> var olan karta baglanir, yeni musteri olusmaz', async () => {
@@ -225,6 +242,28 @@ describe('panel: ortak telefon yalniz bilincli (allowSharedPhone)', () => {
     const res = await request(app).patch(`${URL}/customers/c1`).set(owner).send({ phone: '05551112233', allowSharedPhone: true })
     expect(res.status).toBe(200)
     expect(dbMock.customer.update.mock.calls[0][0].data).not.toHaveProperty('allowSharedPhone')
+  })
+
+  it('S2ek-2 Onemli 1: telefonu degismeyen (Telegram sohbet no, sabit hat) musteri adini guncelleyebilir; telefon ayni gonderilse de 400 olmaz ve yazilmaz', async () => {
+    for (const stored of ['123456789', '02121234567']) {
+      dbMock.customer.findFirst.mockResolvedValue({ ...existing, phone: stored })
+      dbMock.customer.update.mockResolvedValue({ ...existing, phone: stored })
+      dbMock.customer.update.mockClear()
+      dbMock.customer.findMany.mockClear()
+      const res = await request(app).patch(`${URL}/customers/c1`).set(owner).send({ fullName: 'Ayse Yeni', phone: stored })
+      expect(res.status).toBe(200)
+      const data = dbMock.customer.update.mock.calls[0][0].data
+      expect(data.fullName).toBe('Ayse Yeni')
+      expect(data).not.toHaveProperty('phone')
+      expect(dbMock.customer.findMany).not.toHaveBeenCalled()
+    }
+  })
+
+  it('S2ek-2 Onemli 1: telefon degisiyorsa yeni deger yine normalize edilmek zorunda (gecersiz -> 400)', async () => {
+    dbMock.customer.findFirst.mockResolvedValue({ ...existing, phone: '123456789' })
+    const res = await request(app).patch(`${URL}/customers/c1`).set(owner).send({ phone: 'abcdefgh' })
+    expect(res.status).toBe(400)
+    expect(dbMock.customer.update).not.toHaveBeenCalled()
   })
 
   it('K6: PATCH telefon degismiyorsa tekrar kontrolu yapilmaz', async () => {
