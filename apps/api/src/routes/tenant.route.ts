@@ -1412,7 +1412,7 @@ export function createTenantRouter(): Router {
     label: z.string().trim().max(100),
   })
 
-  // Uç değerler slot hesabını bozar (ör. 99999 dk); üst sınırlar arayüzle aynıdır.
+  // Uç değerler slot hesabını bozar (ör. 99999 dk); sunucu tavanları bunlardır, arayüz aynı değerlere çekilecek (W20'de süre tavanı 1440 idi).
   const MAX_SERVICE_DURATION_MINUTES = 720
   const MAX_SERVICE_BUFFER_MINUTES = 240
 

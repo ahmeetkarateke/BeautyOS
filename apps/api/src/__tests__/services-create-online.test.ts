@@ -51,6 +51,11 @@ describe('POST /services online randevu ayari', () => {
     expect(res.body.isOnlineBookable).toBe(false)
   })
 
+  it('POST yaniti icin isOnlineBookable veritabanindan secilir (select icinde)', async () => {
+    await create('owner', valid)
+    expect(dbMock.service.create.mock.calls[0][0].select.isOnlineBookable).toBe(true)
+  })
+
   it('alan gonderilmezse online\'a acik kalir (veritabani varsayilani; veriye alan yazilmaz)', async () => {
     const res = await create('manager', valid)
     expect(res.status).toBe(201)
