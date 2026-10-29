@@ -56,7 +56,7 @@ export function safeError(value: unknown): unknown {
 /** Ad, telefon, e-posta, jeton ve kimlik bilgisi alanlari her derinlikte (pino redact joker yolu bir seviyedir) silinir. */
 export const REDACT_KEYS = [
   'phone', 'from', 'to', 'msisdn', 'recipient', 'chatId',
-  'fullName', 'customerName', 'email', 'text', 'message_text',
+  'fullName', 'customerName', 'email', 'text', 'message_text', 'body',
   'password', 'passwordHash', 'token', 'accessToken', 'refreshToken', 'resetToken',
   'authorization', 'cookie', 'otp',
 ] as const
