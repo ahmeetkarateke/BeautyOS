@@ -1900,6 +1900,9 @@ export function createTenantRouter(): Router {
 
   // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD (single day)
   //   or ?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day] (date range)
+  const MAX_REPORT_RANGE_DAYS = 31
+  const MAX_LEGACY_REPORT_RANGE_DAYS = 366
+
   router.get('/reports/daily', requirePermission('finance.report.daily'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
@@ -1908,6 +1911,7 @@ export function createTenantRouter(): Router {
       const fromParam = (req.query.from as string | undefined) ?? dateParam ?? today
       const toParam = (req.query.to as string | undefined) ?? dateParam ?? today
       const groupBy = req.query.groupBy as string | undefined
+      const summaryMode = req.query.fields === 'summary'
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fromParam) || !/^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
@@ -1915,6 +1919,13 @@ export function createTenantRouter(): Router {
 
       if (fromParam > toParam) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
+      }
+
+      // Aralık iki uç dahil sayılır. Özet kipinde (fields=summary) 31 gün; eski sözleşmede (canlıdaki eski finans ekranı) 366 gün.
+      const maxDays = summaryMode ? MAX_REPORT_RANGE_DAYS : MAX_LEGACY_REPORT_RANGE_DAYS
+      const spanDays = Math.round((Date.parse(`${toParam}T00:00:00Z`) - Date.parse(`${fromParam}T00:00:00Z`)) / 86_400_000) + 1
+      if (spanDays > maxDays) {
+        return res.status(400).json({ error: { code: 'RANGE_TOO_LARGE', message: `Rapor aralığı en çok ${maxDays} gün olabilir.` } })
       }
 
       // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
@@ -1927,25 +1938,31 @@ export function createTenantRouter(): Router {
       const expenseRangeStart = new Date(`${fromParam}T00:00:00.000Z`)
       const expenseRangeEnd = new Date(`${toParam}T23:59:59.999Z`)
 
-      const [transactions, expenses] = await Promise.all([
+      // groupBy=day yalnız toplam ve günlük döküm döner: müşteri/hizmet/not alanları hiç çekilmez (veri en aza indirme).
+      const aggregateOnly = summaryMode
+      const amountSelect = {
+        id: true,
+        grossAmount: true,
+        paymentMethod: true,
+        cashAmount: true,
+        cardAmount: true,
+        completedAt: true,
+      } as const
+      const listSelect = {
+        ...amountSelect,
+        notes: true,
+        appointment: {
+          select: {
+            startAt: true,
+            customer: { select: { fullName: true } },
+            service: { select: { name: true, category: true } },
+          },
+        },
+      } as const
+      const [rawTransactions, expenses] = await Promise.all([
         db.transaction.findMany({
           where: { tenantId, status: 'completed', completedAt: { gte: rangeStart, lte: rangeEnd } },
-          select: {
-            id: true,
-            grossAmount: true,
-            paymentMethod: true,
-            cashAmount: true,
-            cardAmount: true,
-            completedAt: true,
-            notes: true,
-            appointment: {
-              select: {
-                startAt: true,
-                customer: { select: { fullName: true } },
-                service: { select: { name: true, category: true } },
-              },
-            },
-          },
+          select: aggregateOnly ? amountSelect : listSelect,
           orderBy: { completedAt: 'asc' },
         }),
         db.expense.findMany({
@@ -1954,30 +1971,14 @@ export function createTenantRouter(): Router {
         }),
       ])
 
+      // aggregateOnly iken liste alanları (appointment, notes) çekilmediği için aşağıda yalnız tutar alanları ve erken dönüş kullanılır.
+      const transactions = rawTransactions as unknown as Array<Prisma.TransactionGetPayload<{ select: typeof listSelect }>>
       const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.grossAmount), 0)
       const cashRevenue = transactions.reduce((sum, t) => sum + Number(t.cashAmount), 0)
       const cardRevenue = transactions.reduce((sum, t) => sum + Number(t.cardAmount), 0)
       const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
-      const txMapped = transactions.map((t) => ({
-        id: t.id,
-        time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
-        customerName: t.appointment?.customer?.fullName ?? null,
-        serviceName: t.appointment?.service.name ?? null,
-        serviceCategory: t.appointment?.service.category ?? 'Diğer',
-        amount: Number(t.grossAmount),
-        paymentMethod: t.paymentMethod,
-        notes: t.notes ?? null,
-      }))
-
-      const expensesMapped = expenses.map((e) => ({
-        id: e.id,
-        title: e.title,
-        category: e.category,
-        amount: Number(e.amount),
-      }))
-
-      const base = {
+      const summary = {
         from: fromParam,
         to: toParam,
         totalRevenue,
@@ -1985,11 +1986,9 @@ export function createTenantRouter(): Router {
         cardRevenue,
         completedCount: transactions.length,
         netRevenue: totalRevenue - totalExpenses,
-        transactions: txMapped,
-        expenses: expensesMapped,
       }
 
-      if (groupBy === 'day') {
+      const buildDaily = () => {
         const dayMap = new Map<string, {
           date: string
           revenue: number
@@ -2016,14 +2015,33 @@ export function createTenantRouter(): Router {
           dayMap.set(key, entry)
         }
 
-        const daily = [...dayMap.entries()]
+        return [...dayMap.entries()]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([, v]) => ({ ...v, netRevenue: v.revenue - v.expenses }))
-
-        return res.json({ ...base, daily })
       }
 
-      return res.json(base)
+      if (aggregateOnly) return res.json({ ...summary, daily: buildDaily() })
+
+      const txMapped = transactions.map((t) => ({
+        id: t.id,
+        time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
+        customerName: t.appointment?.customer?.fullName ?? null,
+        serviceName: t.appointment?.service.name ?? null,
+        serviceCategory: t.appointment?.service.category ?? 'Diğer',
+        amount: Number(t.grossAmount),
+        paymentMethod: t.paymentMethod,
+        notes: t.notes ?? null,
+      }))
+
+      const expensesMapped = expenses.map((e) => ({
+        id: e.id,
+        title: e.title,
+        category: e.category,
+        amount: Number(e.amount),
+      }))
+
+      // Eski sözleşme (fields yok): groupBy=day listelerle birlikte günlük dökümü de döner (canlıdaki eski finans ekranı).
+      return res.json({ ...summary, transactions: txMapped, expenses: expensesMapped, ...(groupBy === 'day' ? { daily: buildDaily() } : {}) })
     } catch (err) {
       next(err)
     }
