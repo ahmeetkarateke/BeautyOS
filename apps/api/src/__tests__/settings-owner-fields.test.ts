@@ -57,6 +57,13 @@ describe('PATCH /settings alan bazli rol kapisi', () => {
     expect(dbMock.tenant.update).not.toHaveBeenCalled()
   })
 
+  it('manager bos activeModules dizisi (butun modulleri kapatir) gonderirse de 403, hicbir sey yazilmaz', async () => {
+    const res = await patch('manager', { activeModules: [] })
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('FORBIDDEN')
+    expect(dbMock.tenant.update).not.toHaveBeenCalled()
+  })
+
   it('manager businessType gonderirse 403 FORBIDDEN, hicbir sey yazilmaz', async () => {
     const res = await patch('manager', { businessType: 'dentist' })
     expect(res.status).toBe(403)
