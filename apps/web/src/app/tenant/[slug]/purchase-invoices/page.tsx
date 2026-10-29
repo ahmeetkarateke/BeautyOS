@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -12,7 +12,7 @@ import { apiFetch } from '@/lib/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 interface Invoice {
@@ -34,7 +34,8 @@ const STATUS_META: Record<Invoice['status'], { label: string; className: string;
   cancelled: { label: 'İptal',          className: 'bg-red-100 text-red-600',       icon: Ban },
 }
 
-export default function PurchaseInvoicesPage({ params }: PageProps) {
+export default function PurchaseInvoicesPage(props: PageProps) {
+  const params = use(props.params)
   const { slug } = params
   const searchParams = useSearchParams()
   const supplierFilter = searchParams?.get('supplierId') ?? null

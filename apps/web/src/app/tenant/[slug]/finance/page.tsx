@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Banknote, CreditCard, Wallet, TrendingUp, Trash2, Printer } from 'lucide-react'
@@ -13,7 +13,7 @@ import { toast } from '@/components/ui/toaster'
 import { cn } from '@/lib/utils'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom'
@@ -118,7 +118,8 @@ function getDateRange(preset: DatePreset, customFrom: string, customTo: string):
   }
 }
 
-export default function FinancePage({ params }: PageProps) {
+export default function FinancePage(props: PageProps) {
+  const params = use(props.params)
   const slug = params.slug
   const user = useAuthStore((s) => s.user)
   const router = useRouter()

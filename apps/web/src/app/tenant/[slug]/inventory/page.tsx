@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, History, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,12 +15,13 @@ import { SupplierModal, type Supplier } from '@/components/inventory/supplier-mo
 import { StockMovementsPanel } from '@/components/inventory/stock-movements-panel'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 type TabKey = 'items' | 'suppliers' | 'low-stock'
 
-export default function InventoryPage({ params }: PageProps) {
+export default function InventoryPage(props: PageProps) {
+  const params = use(props.params)
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const canEdit = user?.role === 'owner' || user?.role === 'manager'

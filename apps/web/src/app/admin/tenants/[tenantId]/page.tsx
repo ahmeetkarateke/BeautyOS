@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Users, Calendar, Building2 } from 'lucide-react'
@@ -47,10 +47,11 @@ const planColor: Record<string, string> = {
 }
 
 interface Props {
-  params: { tenantId: string }
+  params: Promise<{ tenantId: string }>
 }
 
-export default function AdminTenantDetailPage({ params }: Props) {
+export default function AdminTenantDetailPage(props: Props) {
+  const params = use(props.params)
   const router = useRouter()
   const qc = useQueryClient()
 

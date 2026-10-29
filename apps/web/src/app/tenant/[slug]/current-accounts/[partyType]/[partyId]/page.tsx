@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, use } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2, Phone, BookOpen } from 'lucide-react'
@@ -16,7 +16,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string; partyType: 'customer' | 'supplier'; partyId: string }
+  params: Promise<{ slug: string; partyType: 'customer' | 'supplier'; partyId: string }>
 }
 
 type RefType = 'manual' | 'opening_balance' | 'appointment' | 'invoice' | 'purchase_invoice' | 'payment' | 'refund' | 'adjustment'
@@ -49,7 +49,8 @@ const REF_LABELS: Record<RefType, string> = {
   adjustment: 'Düzeltme',
 }
 
-export default function CurrentAccountExtractPage({ params }: PageProps) {
+export default function CurrentAccountExtractPage(props: PageProps) {
+  const params = use(props.params)
   const { slug, partyType, partyId } = params
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)

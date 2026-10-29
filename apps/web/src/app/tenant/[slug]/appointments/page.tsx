@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -21,7 +21,7 @@ const AppointmentCalendar = dynamic(
 )
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 interface StaffItem {
@@ -41,7 +41,8 @@ const STATUS_OPTIONS = [
 const SELECT_CLASS =
   'h-9 rounded-md border border-salon-border bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
 
-export default function AppointmentsPage({ params }: PageProps) {
+export default function AppointmentsPage(props0: PageProps) {
+  const params = use(props0.params)
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()

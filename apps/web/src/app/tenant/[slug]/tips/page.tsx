@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Wallet, Users, TrendingUp, Trash2, HandCoins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { cn } from '@/lib/utils'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 type Period = 'today' | 'week' | 'month' | 'custom'
@@ -110,7 +110,8 @@ function getDateRange(period: Period, customFrom: string, customTo: string): { f
   return { from: customFrom || today, to: customTo || today }
 }
 
-export default function TipsPage({ params }: PageProps) {
+export default function TipsPage(props: PageProps) {
+  const params = use(props.params)
   const user = useAuthStore((s) => s.user)
   const isOwnerOrManager = user?.role === 'owner' || user?.role === 'manager'
 

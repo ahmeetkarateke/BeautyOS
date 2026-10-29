@@ -7,10 +7,10 @@ const monorepoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..
 const nextConfig = {
   // Docker imajı için: yalnız gereken dosyalarla bağımsız sunucu üretir.
   output: 'standalone',
-  // Monorepo'da bağımlılıklar kökte olduğundan izleme kökü depo köküdür.
-  experimental: { outputFileTracingRoot: monorepoRoot },
+  // Monorepo'da bağımlılıklar kökte olduğundan izleme kökü ve Turbopack kökü depo köküdür.
+  outputFileTracingRoot: monorepoRoot,
+  turbopack: { root: monorepoRoot },
   transpilePackages: [
-    '@beautyos/shared',
     '@fullcalendar/core',
     '@fullcalendar/react',
     '@fullcalendar/daygrid',

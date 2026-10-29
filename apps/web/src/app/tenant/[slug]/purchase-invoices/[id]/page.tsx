@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,7 +14,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toaster'
 
 interface PageProps {
-  params: { slug: string; id: string }
+  params: Promise<{ slug: string; id: string }>
 }
 
 interface Item {
@@ -52,7 +52,8 @@ const STATUS_META: Record<InvoiceDetail['status'], { label: string; className: s
   cancelled: { label: 'İptal',          className: 'bg-red-100 text-red-600',       icon: Ban },
 }
 
-export default function PurchaseInvoiceDetailPage({ params }: PageProps) {
+export default function PurchaseInvoiceDetailPage(props: PageProps) {
+  const params = use(props.params)
   const { slug, id } = params
   const router = useRouter()
   const qc = useQueryClient()

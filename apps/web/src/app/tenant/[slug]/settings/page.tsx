@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,7 +23,7 @@ import { toast } from '@/components/ui/toaster'
 import { WorkingHoursPicker, parseWorkingHours, DEFAULT_WORKING_HOURS, type WorkingHoursMap } from '@/components/working-hours-picker'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -572,7 +572,7 @@ function PublicBookingSection({
         </>
       )}
     </div>
-  )
+  );
 }
 
 // ─── Password change form ─────────────────────────────────────────────────────
@@ -908,7 +908,8 @@ function BotSettingsForm({ tenantSlug }: { tenantSlug: string }) {
 
 type TabId = 'salon' | 'modules' | 'anamnesis' | 'account' | 'integrations' | 'bot'
 
-export default function SettingsPage({ params }: PageProps) {
+export default function SettingsPage(props: PageProps) {
+  const params = use(props.params)
   const searchParams = useSearchParams()
   const initialTab = (searchParams?.get('tab') as TabId | null) ?? 'salon'
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, BellRing, CheckCircle2, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -72,7 +72,7 @@ const statusBadge: Record<WaitlistStatus, { label: string; className: string }> 
 }
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 function daysAgoLabel(iso: string): string {
@@ -86,7 +86,8 @@ function daysAgoLabel(iso: string): string {
   return `${days} gün önce bildirildi`
 }
 
-export default function WaitlistPage({ params }: PageProps) {
+export default function WaitlistPage(props: PageProps) {
+  const params = use(props.params)
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState<'' | WaitlistStatus>('')
   const [serviceFilter, setServiceFilter] = useState<string>('')

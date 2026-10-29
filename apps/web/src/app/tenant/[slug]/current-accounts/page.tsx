@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, use } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { Search, BookOpen, ChevronRight, TrendingUp, TrendingDown, Phone } from 'lucide-react'
@@ -11,7 +11,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface PageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 type PartyType = 'customer' | 'supplier'
@@ -26,7 +26,8 @@ interface AccountRow {
   lastEntryDate: string | null
 }
 
-export default function CurrentAccountsPage({ params }: PageProps) {
+export default function CurrentAccountsPage(props: PageProps) {
+  const params = use(props.params)
   const [activeType, setActiveType] = useState<PartyType>('customer')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
