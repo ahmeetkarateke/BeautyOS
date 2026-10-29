@@ -193,7 +193,7 @@ async function bootstrap(): Promise<void> {
     }
   })
 
-  // ─── Düzgün kapanış (G5-K3): HTTP -> işçi -> kuyruk -> Redis -> Prisma, en çok 10 sn ───
+  // ─── Düzgün kapanış (G5-K3): HTTP -> işçi -> kuyruk -> Redis -> Prisma, en çok 8 sn ───
   const shutdown = createShutdown({
     closers: [
       { name: 'http', close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))) },
@@ -202,7 +202,7 @@ async function bootstrap(): Promise<void> {
       { name: 'redis', close: () => closeRedisConnections() },
       { name: 'prisma', close: () => db.$disconnect() },
     ],
-    timeoutMs: 10_000,
+    timeoutMs: 8_000, // Docker varsayilan stop suresi 10 sn: zorla cikis SIGKILL ile yarismasin
     exit: (code) => process.exit(code),
     log: logger,
   })
