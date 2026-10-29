@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
-import { Prisma, BusinessType } from '@prisma/client'
+import { Prisma, BusinessType, type AppointmentStatus } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import rateLimit from 'express-rate-limit'
 import { db } from '../lib/db'
@@ -947,18 +947,59 @@ export function createTenantRouter(): Router {
         }
       }
 
-      const updated = await db.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status,
-          ...(cancellationReason ? { cancellationReason } : {}),
-        },
-        select: { id: true, status: true, cancellationReason: true },
+      // A6: durum geçişi koşullu güncellemeyle (count === 1) ve tamamlamada kasa kaydıyla tek işlemde yapılır;
+      // eş zamanlı iki istekten yalnız biri kazanır, ikincisi STATUS_LOCKED alır (çift ödeme olmaz).
+      const method = parsed.data.paymentMethod ?? 'cash'
+      const outcome = await db.$transaction(async (tx) => {
+        const claimed = await tx.appointment.updateMany({
+          where: { id: appointmentId, tenantId, status: { notIn: TERMINAL_STATUSES as AppointmentStatus[] } },
+          data: { status, ...(cancellationReason ? { cancellationReason } : {}) },
+        })
+        if (claimed.count !== 1) return null
+        if (status !== 'completed') return { payment: null }
+        const svc = await tx.appointment.findFirst({ where: { id: appointmentId, tenantId }, include: { service: true } })
+        if (!svc) return null
+        const gross = new Prisma.Decimal(priceOverride ?? Number(svc.priceCharged)).toDecimalPlaces(2)
+        const rate = new Prisma.Decimal(svc.service.commissionRate)
+        const txn = await tx.transaction.create({
+          data: {
+            tenantId,
+            appointmentId,
+            staffId: svc.staffId,
+            grossAmount: gross,
+            commissionRate: rate,
+            commissionAmount: gross.mul(rate).toDecimalPlaces(2),
+            paymentMethod: method,
+            cashAmount: method === 'cash' ? gross : 0,
+            cardAmount: method === 'card' ? gross : 0,
+            status: 'completed',
+            completedAt: new Date(),
+          },
+        })
+        if (priceOverride) {
+          await tx.appointment.update({ where: { id: appointmentId }, data: { priceCharged: gross } })
+        }
+        return {
+          payment: {
+            transactionId: txn.id,
+            grossAmount: Number(gross),
+            paymentMethod: method,
+            cashAmount: method === 'cash' ? Number(gross) : 0,
+            cardAmount: method === 'card' ? Number(gross) : 0,
+            completedAt: txn.completedAt?.toISOString() ?? null,
+          },
+        }
       })
+      if (!outcome) {
+        return res.status(409).json({
+          error: { code: 'STATUS_LOCKED', message: 'Tamamlanan veya iptal edilen randevunun durumu değiştirilemez.' },
+        })
+      }
+      const updated = { id: appointmentId, status, cancellationReason: cancellationReason ?? existing.cancellationReason }
 
       let followUpAppointments: Array<{ id: string; startAt: string; label: string }> = []
 
-      if (status === 'completed' && existing.status !== 'completed') {
+      if (status === 'completed') {
         const appt = await db.appointment.findFirst({
           where: { id: appointmentId },
           include: {
@@ -968,31 +1009,6 @@ export function createTenantRouter(): Router {
           },
         })
         if (appt) {
-          const rate = Number(appt.service.commissionRate)
-          const gross = priceOverride ?? Number(appt.priceCharged)
-          const method = parsed.data.paymentMethod ?? 'cash'
-          const completedAt = new Date()
-          await db.transaction.create({
-            data: {
-              tenantId,
-              appointmentId,
-              staffId: appt.staffId,
-              grossAmount: gross,
-              commissionRate: rate,
-              commissionAmount: gross * rate,
-              paymentMethod: method,
-              cashAmount: method === 'cash' ? gross : 0,
-              cardAmount: method === 'card' ? gross : 0,
-              status: 'completed',
-              completedAt,
-            },
-          })
-          if (priceOverride) {
-            await db.appointment.update({
-              where: { id: appointmentId },
-              data: { priceCharged: gross },
-            })
-          }
 
           // Takip randevuları oluştur
           const tenantSettings = appt.tenant?.settings as { followUpEnabled?: boolean } | null
@@ -1079,6 +1095,7 @@ export function createTenantRouter(): Router {
 
       return res.json({
         ...updated,
+        ...(outcome.payment ? { payment: outcome.payment } : {}),
         ...(followUpAppointments.length > 0 ? { followUpAppointments } : {}),
       })
     } catch (err) {
