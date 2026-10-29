@@ -16,7 +16,7 @@ import { StatusBadge, type AppointmentStatus } from '@/ui/status-badge'
 import { SummaryStrip } from '@/ui/summary-strip'
 import { Tab, TabList, TabPanel, Tabs } from '@/ui/tabs'
 import { fetchAnamnesis, fetchCustomerCard } from './card-api'
-import { availableTabs, formatAnswer, summaryItems, type CardDetail, type TabValue } from './card-logic'
+import { availableTabs, canSeeAmounts, formatAnswer, summaryItems, type CardDetail, type TabValue } from './card-logic'
 
 // Müşteri kartı (tasarim.md §8.1 `musteri/<id>`): başlık + eylemler + özet + sekmeler (Genel, Randevular, Sağlık bilgileri).
 // Fotoğraflar, Paketler ve Cari sekmeleri sonraki parçalardır. Sağlık sekmesi izinsiz rolde hiç çizilmez (R9).
@@ -76,6 +76,7 @@ function CardBody({ detail, base }: { detail: CardDetail; base: string }) {
   const me = useMe()
   const canWrite = useCan('customer.write')
   const tabs = availableTabs(me.permissions)
+  const seeAmounts = canSeeAmounts(me.permissions)
   const [tab, setTab] = useState<TabValue>('genel')
   const wa = detail.phone ? whatsappHref(detail.phone) : null
 
@@ -108,7 +109,7 @@ function CardBody({ detail, base }: { detail: CardDetail; base: string }) {
           ) : null}
         </div>
       </div>
-      <SummaryStrip items={summaryItems(detail)} />
+      <SummaryStrip items={summaryItems(detail, { showSpending: seeAmounts })} />
       <Tabs value={tab} onValueChange={(value) => setTab(value as TabValue)}>
         <TabList aria-label="Kart bölümleri">
           {tabs.map((item) => (
@@ -121,7 +122,7 @@ function CardBody({ detail, base }: { detail: CardDetail; base: string }) {
           <GeneralTab detail={detail} />
         </TabPanel>
         <TabPanel value="randevular">
-          <AppointmentsTab detail={detail} />
+          <AppointmentsTab detail={detail} showPrice={seeAmounts} />
         </TabPanel>
         {tabs.some((item) => item.value === 'saglik') ? <TabPanel value="saglik">{tab === 'saglik' ? <HealthTab detail={detail} /> : null}</TabPanel> : null}
       </Tabs>
@@ -153,7 +154,7 @@ function GeneralTab({ detail }: { detail: CardDetail }) {
   )
 }
 
-function AppointmentsTab({ detail }: { detail: CardDetail }) {
+function AppointmentsTab({ detail, showPrice }: { detail: CardDetail; showPrice: boolean }) {
   if (detail.appointments.length === 0) {
     return (
       <Card>
@@ -174,7 +175,9 @@ function AppointmentsTab({ detail }: { detail: CardDetail }) {
                 {a.serviceName} · {a.staffName}
               </span>
             </span>
-            <span className={cn('flex-none tabular-nums', a.status === 'cancelled' && 'text-text-muted line-through')}>{formatMoney(a.priceCharged)}</span>
+            {showPrice ? (
+              <span className={cn('flex-none tabular-nums', a.status === 'cancelled' && 'text-text-muted line-through')}>{formatMoney(a.priceCharged)}</span>
+            ) : null}
             <StatusBadge status={a.status as AppointmentStatus} />
           </li>
         ))}

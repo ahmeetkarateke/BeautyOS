@@ -67,3 +67,14 @@ describe('W18 formatAnswer', () => {
     expect(formatAnswer('yes_no', false)).toBe('Hayır')
   })
 })
+
+describe('W18 müdür kararı: uzman toplam harcamayı görmez', () => {
+  it('K4: harcama görme yetkisi yoksa özet yalnız Ziyaret ve Son ziyaret içerir (Toplam harcama hiç yok)', () => {
+    const items = summaryItems(detail(), { showSpending: false })
+    expect(items.map((i) => i.label)).toEqual(['Ziyaret', 'Son ziyaret'])
+    expect(JSON.stringify(items)).not.toContain('3.400')
+  })
+  it('K4: yetkili rolde (varsayılan) Toplam harcama kalır', () => {
+    expect(summaryItems(detail(), { showSpending: true }).map((i) => i.label)).toEqual(['Ziyaret', 'Toplam harcama', 'Son ziyaret'])
+  })
+})

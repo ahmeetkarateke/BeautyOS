@@ -33,10 +33,13 @@ export function availableTabs(permissions: readonly string[]): { value: TabValue
   return tabs
 }
 
-export function summaryItems(detail: CardDetail): { label: string; value: string }[] {
+/** Tutar görme yetkisi (tasarim.md §8.1): uzman kartta hiçbir tutar görmez; sunucu yanıtı bu sınırı ayrıca uygulamalıdır. */
+export const canSeeAmounts = (permissions: readonly string[]): boolean => permissions.includes('customer.view_all')
+
+export function summaryItems(detail: CardDetail, options: { showSpending: boolean } = { showSpending: true }): { label: string; value: string }[] {
   return [
     { label: 'Ziyaret', value: String(detail.totalVisits) },
-    { label: 'Toplam harcama', value: formatMoney(detail.lifetimeValue) },
+    ...(options.showSpending ? [{ label: 'Toplam harcama', value: formatMoney(detail.lifetimeValue) }] : []),
     { label: 'Son ziyaret', value: detail.lastVisitAt ? formatDate(detail.lastVisitAt, 'short') : 'Henüz yok' },
   ]
 }

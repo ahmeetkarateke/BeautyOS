@@ -203,3 +203,20 @@ describe('W18 Müşteri kartı', () => {
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Düzenle' })).toBeNull())
   })
 })
+
+describe('W18 müdür kararı: uzmanın kartı', () => {
+  it('K14 (tasarim.md §8.1): uzman kartta hiçbir tutar görmez (özette Toplam harcama ve satır ücreti yok; tarih, hizmet, durum görünür)', async () => {
+    mount({ ...makeMe('staff'), staffId: 's1' })
+    await screen.findByRole('heading', { level: 1, name: 'Ayşe Demir' })
+    expect(screen.queryByText('Toplam harcama')).toBeNull()
+    expect(screen.queryByText('₺3.400')).toBeNull()
+    openTab(await screen.findByRole('tab', { name: 'Randevular' }))
+    const rows = (await screen.findByRole('list', { name: 'Randevular' })).textContent ?? ''
+    expect(rows).toContain('Fön')
+    expect(rows).not.toContain('₺')
+  })
+  it('K14: resepsiyon Toplam harcamayı görür', async () => {
+    mount(makeMe('receptionist'))
+    expect(await screen.findByText('₺3.400')).toBeTruthy()
+  })
+})
