@@ -203,3 +203,26 @@ describe('K4: iptal sahiplik ister', () => {
     expect(await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000001')).toEqual({ ok: false, reason: 'too_soon' })
   })
 })
+
+describe('ADR-0038 Onemli 1: bot bekleyen talepte bos soz vermez', () => {
+  it('pending dönen kayitta yanit "iletisime gececek" der; bildirim sozu (bilgi verilecek) yoktur', async () => {
+    vi.resetModules()
+    vi.doMock('../bot/booking.service', async (orig) => {
+      const actual = await orig<typeof import('../bot/booking.service')>()
+      return { ...actual, createAppointment: vi.fn().mockResolvedValue({ referenceCode: 'RDV-X1', status: 'pending' }) }
+    })
+    const { FlowHandler } = await import('../bot/flow.handler')
+    const session = { sessionId: 's', tenantId: 't1', channelType: 'whatsapp', from: '905320000001', currentIntent: 'book', entities: { service: 'Saç Kesimi', confirmedSlot: '2026-11-20T10:00:00__sp1' }, messages: [], turnCount: 5, clarifyCount: 0, step: 'awaiting_confirm', createdAt: '', lastMessageAt: '' }
+    const sessionService = { getOrCreate: vi.fn().mockResolvedValue(session), addMessage: vi.fn(), save: vi.fn(), reset: vi.fn() }
+    const sent: string[] = []
+    const channel = { type: 'whatsapp', sendText: vi.fn(async (_to: string, t: string) => { sent.push(t) }) }
+    const salon = { name: 'S', address: 'a', workingHours: '09-19', services: [], staff: [] }
+    const handler = new FlowHandler(sessionService as never, { detect: vi.fn() } as never)
+    await handler.handle(channel as never, { channelType: 'whatsapp', from: '905320000001', text: 'evet', messageId: 'm', timestamp: new Date(), rawPayload: {} }, salon as never, 't1')
+    const text = sent.join('\n')
+    expect(text).toMatch(/iletişime geçecek/)
+    expect(text).not.toMatch(/bilgi verilecek/)
+    expect(text).toContain('RDV-X1')
+    vi.doUnmock('../bot/booking.service')
+  })
+})

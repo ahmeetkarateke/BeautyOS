@@ -9,7 +9,8 @@ const dbMock = vi.hoisted(() => ({
   appointment: { create: vi.fn() },
 }))
 vi.mock('../lib/db', () => ({ db: dbMock }))
-vi.mock('../lib/queue', () => ({ remindersQueue: { add: vi.fn(), remove: vi.fn() } }))
+const queueMock = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
+vi.mock('../lib/queue', () => ({ remindersQueue: queueMock }))
 vi.mock('../middleware/auth.middleware', () => ({
   authenticateJWT: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = { userId: 'u-me', tenantId: 't1', tenantSlug: 'salon', role: String(req.headers['x-role']) } as never
@@ -77,7 +78,8 @@ describe('bot createAppointment (ADR-0038)', () => {
 
   beforeEach(() => {
     dbMock.service.findFirst.mockResolvedValue({ id: 'sv1', durationMinutes: 30, bufferMinutes: 0, price: 250 })
-    dbMock.appointment.create.mockResolvedValue({})
+    dbMock.appointment.create.mockResolvedValue({ id: 'appt-1' })
+    queueMock.add.mockResolvedValue({})
     dbMock.customer.create.mockResolvedValue({ id: 'c-new' })
     dbMock.customer.update.mockResolvedValue({})
   })
@@ -96,6 +98,30 @@ describe('bot createAppointment (ADR-0038)', () => {
     expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toEqual(['905321234567'])
     await createAppointment({ ...input, customerPhone: '905321234567', channel: 'whatsapp' })
     expect(dbMock.customer.findMany.mock.calls[1][0].where.phone.in).toContain('+905321234567')
+  })
+
+  it('ADR-0038 Onemli 1: bot multiple talebi icin sure dolumu is kurulur (belirlenimci jobId); musterili randevuda kurulmaz', async () => {
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+    await createAppointment(input)
+    expect(queueMock.add).toHaveBeenCalledWith('online-expire', { type: 'online_expire', appointmentId: 'appt-1' }, expect.objectContaining({ jobId: 'online-expire-appt-1' }))
+    queueMock.add.mockClear()
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c-old' }])
+    await createAppointment(input)
+    expect(queueMock.add).not.toHaveBeenCalled()
+  })
+
+  it('ADR-0038 Onemli 2: WhatsApp multiple talebinde requestedPhone normalize saklanir (+90...), Telegram sohbet no oldugu gibi', async () => {
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+    await createAppointment({ ...input, customerPhone: '905320000001', channel: 'whatsapp' })
+    expect(dbMock.appointment.create.mock.calls[0][0].data.requestedPhone).toBe('+905320000001')
+    await createAppointment({ ...input, customerPhone: '905320000001', channel: 'telegram' })
+    expect(dbMock.appointment.create.mock.calls[1][0].data.requestedPhone).toBe('905320000001')
+  })
+
+  it('ADR-0038 Onemli 2: WhatsApp none yolunda yeni musterinin telefonu normalize yazilir', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await createAppointment({ ...input, customerPhone: '905320000001', channel: 'whatsapp' })
+    expect(dbMock.customer.create.mock.calls[0][0].data.phone).toBe('+905320000001')
   })
 
   it('K-bot: single -> var olan karta baglanir, yeni musteri olusmaz', async () => {
@@ -153,6 +179,34 @@ describe('panel: ortak telefon yalniz bilincli (allowSharedPhone)', () => {
   })
 
   const existing = { id: 'c1', fullName: 'Ayse', phone: '05550000000', email: null, birthDate: null, allergyNotes: null, preferenceNotes: null, totalVisits: 0, segment: null, lastVisitAt: null, createdAt: new Date() }
+
+  it('ADR-0038 Onemli 3: panel POST telefonu normalize saklar (0532 123 45 67 -> +905321234567); tekrar kontrolu de normalize deger uzerinden', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    dbMock.customer.create.mockResolvedValue(created)
+    const res = await request(app).post(`${URL}/customers`).set(owner).send({ fullName: 'Yeni Kisi', phone: '0532 123 45 67' })
+    expect(res.status).toBe(201)
+    expect(dbMock.customer.create.mock.calls[0][0].data.phone).toBe('+905321234567')
+    expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toContain('+905321234567')
+  })
+
+  it('ADR-0038 Onemli 3: panel POST gecersiz telefonu 400 ile reddeder (yazmaz)', async () => {
+    const res = await request(app).post(`${URL}/customers`).set(owner).send({ fullName: 'Yeni Kisi', phone: 'abcdefgh' })
+    expect(res.status).toBe(400)
+    expect(dbMock.customer.create).not.toHaveBeenCalled()
+  })
+
+  it('ADR-0038 Onemli 3: panel PATCH telefonu normalize saklar; gecersiz telefon 400', async () => {
+    dbMock.customer.findFirst.mockResolvedValue(existing)
+    dbMock.customer.findMany.mockResolvedValue([])
+    dbMock.customer.update.mockResolvedValue({ ...existing, phone: '+905321234567' })
+    const ok = await request(app).patch(`${URL}/customers/c1`).set(owner).send({ phone: '0532-123-45-67' })
+    expect(ok.status).toBe(200)
+    expect(dbMock.customer.update.mock.calls[0][0].data.phone).toBe('+905321234567')
+    dbMock.customer.update.mockClear()
+    const bad = await request(app).patch(`${URL}/customers/c1`).set(owner).send({ phone: 'abcdefgh' })
+    expect(bad.status).toBe(400)
+    expect(dbMock.customer.update).not.toHaveBeenCalled()
+  })
 
   it('K6: PATCH telefon baska kartta kayitliysa 409; kendi karti sayilmaz (sorgu id != kendisi)', async () => {
     dbMock.customer.findFirst.mockResolvedValue(existing)

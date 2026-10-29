@@ -192,6 +192,25 @@ describe('S2: onay ve ret', () => {
   })
 })
 
+describe('ADR-0038 Onemli 1: sure dolumu kanaldan bagimsiz (musterisiz bekleyen talep dahil)', () => {
+  const onlineScope = [{ bookingChannel: 'web' }, { customerId: null }]
+
+  it('expireOnlineRequest web talebini ve musterisiz (bot) bekleyen talebi kapsar; musterili panel/bot randevusunu kapsamaz', async () => {
+    await expireOnlineRequest('a1')
+    const where = dbMock.appointment.updateMany.mock.calls[0][0].where
+    expect(where).toMatchObject({ id: 'a1', status: 'pending', OR: onlineScope })
+  })
+
+  it('gece taramasi ayni kapsami kullanir (web ya da musterisiz) ve sure kosulunu korur', async () => {
+    await sweepExpiredOnlineRequests(new Date('2026-11-01T00:00:00Z'))
+    const where = dbMock.appointment.updateMany.mock.calls[0][0].where
+    expect(where.status).toBe('pending')
+    expect(JSON.stringify(where)).toContain('"customerId":null')
+    expect(JSON.stringify(where)).toContain('"bookingChannel":"web"')
+    expect(JSON.stringify(where)).toContain('createdAt')
+  })
+})
+
 describe('S2 Kritik 2: dogrulanmamis talepte musteri eslestirme (onayda)', () => {
   const PHONE = '+905551112233'
   const unverified = { status: 'pending', customerId: null, requestedName: 'Ayse Yilmaz', requestedPhone: PHONE }
