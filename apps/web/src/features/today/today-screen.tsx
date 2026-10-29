@@ -184,6 +184,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
           <ErrorState subject="Bugünün randevuları" onRetry={dayQuery.refetch} retrying={dayQuery.loading} lastLoadedAt={dayQuery.loadedAt} className="px-0" />
         </Card>
         {pendingBanners}
+        {approvalSheet}
         {canRevenue ? (
           <Card>
             <h2 className="mb-1 text-base leading-6 font-semibold">Kasa özeti</h2>
@@ -202,6 +203,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
           <ErrorState subject="Personel listesi" onRetry={staffQuery.refetch} retrying={staffQuery.loading} lastLoadedAt={staffQuery.loadedAt} className="px-0" />
         </Card>
         {pendingBanners}
+        {approvalSheet}
       </div>
     )
   }
