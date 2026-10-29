@@ -24,6 +24,8 @@ export type ServiceErrors = Partial<Record<keyof ServiceValues, string>>
 
 export const OTHER_CATEGORY = 'Diğer'
 export const MIN_DURATION = 5
+const MAX_DURATION = 1440
+const MAX_BUFFER = 240
 const NAME_MAX = 100
 const CATEGORY_MAX = 50
 const collator = new Intl.Collator('tr')
@@ -74,10 +76,12 @@ export function validateService(values: ServiceValues): ServiceErrors {
   else if (name.length > NAME_MAX) errors.name = `Ad en çok ${NAME_MAX} karakter olabilir.`
   if (values.category.trim().length > CATEGORY_MAX) errors.category = `Kategori en çok ${CATEGORY_MAX} karakter olabilir.`
   const duration = values.durationText.trim()
-  if (!INTEGER_RE.test(duration) || Number(duration) < MIN_DURATION) errors.durationText = `Süreyi dakika olarak yazın. En az ${MIN_DURATION} dakika.`
+  if (!INTEGER_RE.test(duration) || Number(duration) < MIN_DURATION || Number(duration) > MAX_DURATION)
+    errors.durationText = `Süreyi dakika olarak yazın. En az ${MIN_DURATION}, en çok ${MAX_DURATION} dakika.`
   if (parsePrice(values.priceText) === null) errors.priceText = 'Fiyatı rakamlarla yazın. Örnek: 850 ya da 850,50. Ücretsiz için 0.'
   const buffer = values.bufferText.trim()
-  if (buffer !== '' && !INTEGER_RE.test(buffer)) errors.bufferText = 'Ara süreyi dakika olarak yazın. Yoksa 0 yazın.'
+  if (buffer !== '' && (!INTEGER_RE.test(buffer) || Number(buffer) > MAX_BUFFER))
+    errors.bufferText = `Ara süreyi dakika olarak yazın (en çok ${MAX_BUFFER}). Yoksa 0 yazın.`
   return errors
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useMe, useTerm } from '@/lib/v2/session'
 import { useApiQuery } from '@/lib/v2/use-api-query'
 import { Button } from '@/ui/button'
@@ -24,6 +24,7 @@ export function ServicesScreen() {
 }
 
 function ServicesList() {
+  const listId = useId()
   const slug = useMe().tenant.slug
   const t = useTerm()
   const query = useApiQuery('services:all', (c, signal) => fetchAllServices(c, slug, signal))
@@ -65,13 +66,13 @@ function ServicesList() {
   } else {
     body = (
       <div className="grid gap-4">
-        {groups.map((group) => (
+        {groups.map((group, index) => (
           <Card key={group.category}>
-            <section aria-labelledby={`kategori-${group.category}`}>
-              <h2 id={`kategori-${group.category}`} className="mb-1 text-base leading-6 font-semibold">
+            <>
+              <h2 id={`${listId}-${index}`} className="mb-1 text-base leading-6 font-semibold">
                 {group.category}
               </h2>
-              <ul className="m-0 grid list-none gap-0 p-0">
+              <ul aria-labelledby={`${listId}-${index}`} className="m-0 grid list-none gap-0 p-0">
                 {group.services.map((service) => (
                   <li key={service.id} className="border-b border-border-subtle last:border-b-0">
                     <ListRow
@@ -84,7 +85,7 @@ function ServicesList() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </>
           </Card>
         ))}
       </div>

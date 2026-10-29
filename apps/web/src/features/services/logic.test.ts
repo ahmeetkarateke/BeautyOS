@@ -117,3 +117,12 @@ describe('W20 gövdeler', () => {
     })
   })
 })
+
+describe('W20-1 üst sınırlar', () => {
+  it('K7: süre en çok 24 saat (1440 dk), ara süre en çok 240 dk; sınır değerler kabul', () => {
+    expect(Object.keys(validateService({ ...valid, durationText: '1441' }))).toEqual(['durationText'])
+    expect(validateService({ ...valid, durationText: '1440' })).toEqual({})
+    expect(Object.keys(validateService({ ...valid, bufferText: '241' }))).toEqual(['bufferText'])
+    expect(validateService({ ...valid, bufferText: '240' })).toEqual({})
+  })
+})

@@ -101,7 +101,7 @@ describe('W20 Hizmetler', () => {
     fill(within(dialog).getByRole('textbox', { name: /Süre/ }), '3')
     fill(within(dialog).getByRole('textbox', { name: /Fiyat/ }), '400')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hizmet ekle' }))
-    expect(await within(dialog).findByText('Süreyi dakika olarak yazın. En az 5 dakika.')).toBeTruthy()
+    expect(await within(dialog).findByText('Süreyi dakika olarak yazın. En az 5, en çok 1440 dakika.')).toBeTruthy()
     expect(writes()).toHaveLength(0)
     fill(within(dialog).getByRole('textbox', { name: /Süre/ }), '30')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hizmet ekle' }))
@@ -173,5 +173,37 @@ describe('W20 Hizmetler', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Değişiklikleri kaydet' }))
     expect((await within(dialog).findByRole('alert')).textContent).toBeTruthy()
     expect((within(dialog).getByRole('textbox', { name: /Fiyat/ }) as HTMLInputElement).value).toBe('900')
+  })
+})
+
+describe('W20-1 Önemli 1: ikinci istek düşerse', () => {
+  it('K10: oluşturma başarılı, online kapatma PATCH düşerse katman düzenleme kipine geçer; yeniden basış yeni POST atmaz, yalnız PATCH tekrarlanır', async () => {
+    let patchFails = true
+    request.mockImplementation(async (_path: string, init?: Init) => {
+      if (init?.method === 'POST') return { id: 's9' }
+      if (init?.method === 'PATCH') {
+        if (patchFails) throw new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+        return {}
+      }
+      return { data: list }
+    })
+    mount()
+    await screen.findByRole('heading', { level: 2, name: 'Cilt' })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Hizmet ekle' })[0])
+    const dialog = await screen.findByRole('dialog', { name: 'Hizmet ekle' })
+    fill(within(dialog).getByRole('textbox', { name: 'Ad' }), 'Özel bakım')
+    fill(within(dialog).getByRole('textbox', { name: /Süre/ }), '60')
+    fill(within(dialog).getByRole('textbox', { name: /Fiyat/ }), '500')
+    fireEvent.click(within(dialog).getByRole('switch', { name: 'Online randevuya açık' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hizmet ekle' }))
+    expect((await within(dialog).findByRole('alert')).textContent).toBeTruthy()
+    expect(writes().filter(([, i]) => i.method === 'POST')).toHaveLength(1)
+    // Katman artık düzenleme kipinde: başlık ve düğme değişti.
+    expect(await screen.findByRole('dialog', { name: 'Hizmet düzenle' })).toBeTruthy()
+    patchFails = false
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Değişiklikleri kaydet' }))
+    await waitFor(() => expect(writes().filter(([, i]) => i.method === 'PATCH')).toHaveLength(2))
+    expect(writes().filter(([, i]) => i.method === 'POST')).toHaveLength(1)
+    expect(writes().at(-1)?.[1].body).toEqual({ isOnlineBookable: false })
   })
 })
