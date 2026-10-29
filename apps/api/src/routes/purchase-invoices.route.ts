@@ -8,6 +8,7 @@ import {
   StockMovementType,
 } from '@prisma/client'
 import { db } from '../lib/db'
+import { ensurePermission } from '../middleware/permission'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -21,8 +22,6 @@ function noXss(min: number, max: number) {
     .refine((v) => !XSS_PATTERN.test(v), { message: 'Geçersiz karakter içeriyor.' })
 }
 
-const ALLOWED_ROLES_READ = new Set(['owner', 'manager', 'staff'])
-const ALLOWED_ROLES_WRITE = new Set(['owner', 'manager'])
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
@@ -232,10 +231,7 @@ export function createPurchaseInvoicesRouter(): Router {
   // ─── GET /purchase-invoices ─────────────────────────────────────────────────
   router.get('/purchase-invoices', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'purchase_invoice.read')) return
       const tenantId = req.tenantId!
 
       const status = typeof req.query.status === 'string' ? req.query.status : undefined
@@ -285,10 +281,7 @@ export function createPurchaseInvoicesRouter(): Router {
   // ─── GET /purchase-invoices/:id ─────────────────────────────────────────────
   router.get('/purchase-invoices/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'purchase_invoice.read')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Fatura bulunamadı.' } })
@@ -334,10 +327,7 @@ export function createPurchaseInvoicesRouter(): Router {
   // ─── POST /purchase-invoices ────────────────────────────────────────────────
   router.post('/purchase-invoices', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Sadece yönetici fatura kaydedebilir.' } })
-      }
+      if (!ensurePermission(req, res, 'purchase_invoice.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
 
@@ -415,10 +405,7 @@ export function createPurchaseInvoicesRouter(): Router {
   // ─── POST /purchase-invoices/:id/post ───────────────────────────────────────
   router.post('/purchase-invoices/:id/post', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'purchase_invoice.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
       const { id } = req.params
@@ -440,10 +427,7 @@ export function createPurchaseInvoicesRouter(): Router {
   // ─── POST /purchase-invoices/:id/cancel ─────────────────────────────────────
   router.post('/purchase-invoices/:id/cancel', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'purchase_invoice.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
       const { id } = req.params
@@ -465,10 +449,7 @@ export function createPurchaseInvoicesRouter(): Router {
   // Sadece draft silinebilir
   router.delete('/purchase-invoices/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'purchase_invoice.write')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Fatura bulunamadı.' } })

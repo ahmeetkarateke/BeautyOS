@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { Prisma, StockMovementType } from '@prisma/client'
 import { db } from '../lib/db'
+import { ensurePermission } from '../middleware/permission'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { applyInventoryDeduction } from '../lib/inventory-deduction'
 
@@ -418,6 +419,7 @@ export function createStockRouter(): Router {
 
   router.get('/suppliers', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!ensurePermission(req, res, 'supplier.read')) return
       const tenantId = req.tenantId!
       const includeInactive = req.query.includeInactive === 'true'
       const suppliers = await db.supplier.findMany({

@@ -10,6 +10,9 @@ import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../midd
 import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
+import { can } from '@beautyos/shared'
+import { requirePermission } from '../middleware/permission'
+import { customerAccessFilter } from '../lib/customer-scope'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -205,13 +208,15 @@ export function createTenantRouter(): Router {
       const maxSlots = totalStaff * 8 * periodDays
       const occupancyRate = maxSlots === 0 ? 0 : Math.min(100, Math.round((currentAppointments / maxSlots) * 100))
 
+      // Ciro yalnizca izinli rollere doner (matris 2); uzman icin alan yanitta hic yer almaz.
+      const showRevenue = can(req.user!.role, 'dashboard.revenue')
+
       return res.json({
         period,
-        todayRevenue: currentRevenue,
+        ...(showRevenue ? { todayRevenue: currentRevenue, revenueChange } : {}),
         todayAppointmentCount: currentAppointments,
         totalCustomers,
         occupancyRate,
-        revenueChange,
         appointmentChange,
       })
     } catch (err) {
@@ -409,8 +414,13 @@ export function createTenantRouter(): Router {
           }
         : {}
 
+      const accessFilter = await customerAccessFilter(req)
+      if (accessFilter === null) {
+        return res.json({ data: [], nextCursor: null })
+      }
+
       const customers = await db.customer.findMany({
-        where: { tenantId, ...searchFilter },
+        where: { tenantId, ...accessFilter, ...searchFilter },
         orderBy: { createdAt: 'desc' },
         take: limit + 1,
         ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
@@ -731,8 +741,13 @@ export function createTenantRouter(): Router {
       const tenantId = req.tenantId!
       const { customerId } = req.params
 
+      const accessFilter = await customerAccessFilter(req)
+      if (accessFilter === null) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
+      }
+
       const customer = await db.customer.findFirst({
-        where: { id: customerId, tenantId },
+        where: { id: customerId, tenantId, ...accessFilter },
         select: {
           id: true,
           fullName: true,
@@ -1603,7 +1618,7 @@ export function createTenantRouter(): Router {
   })
 
   // POST /api/v1/tenants/:slug/finance/close-day?date=YYYY-MM-DD
-  router.post('/finance/close-day', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/finance/close-day', requirePermission('finance.close_day'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const dateStr = (req.query.date as string | undefined) ?? getIstanbulDateStr()
@@ -1716,7 +1731,7 @@ export function createTenantRouter(): Router {
 
   // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD (single day)
   //   or ?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day] (date range)
-  router.get('/reports/daily', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/reports/daily', requirePermission('finance.report.daily'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const today = getIstanbulDateStr()
@@ -1841,7 +1856,7 @@ export function createTenantRouter(): Router {
   })
 
   // GET /api/v1/tenants/:slug/reports/staff-commissions?date=YYYY-MM-DD
-  router.get('/reports/staff-commissions', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/reports/staff-commissions', requirePermission('finance.report.commissions'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const dateStr = (req.query.date as string | undefined) ?? new Date().toISOString().split('T')[0]
@@ -1907,7 +1922,7 @@ export function createTenantRouter(): Router {
     revenueDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
   })
 
-  router.post('/revenues', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/revenues', requirePermission('finance.revenue.create'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
 

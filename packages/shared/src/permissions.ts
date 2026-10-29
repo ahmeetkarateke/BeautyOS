@@ -1,0 +1,42 @@
+import type { Role } from './roles'
+
+/**
+ * Tek izin tablosu (ADR-UI-09): rol -> izin. Sunucu bunu zorlar, arayuz yalnizca gosterir.
+ * Her anahtarin yorumundaki sayi, docs/tasarim-girdisi/roller-ve-akislar.md 1.4 matrisindeki satir numarasidir.
+ * "Kendi musterisi" kapsami (uzman) izin tablosunda degil, servis sorgusunda uygulanir.
+ */
+const OWNER_MANAGER = ['owner', 'manager'] as const
+const OWNER_MANAGER_STAFF = ['owner', 'manager', 'staff'] as const
+
+export const PERMISSIONS = {
+  'dashboard.revenue': OWNER_MANAGER, // 2
+  'finance.close_day': OWNER_MANAGER, // 37
+  'finance.report.daily': OWNER_MANAGER, // 36, 41
+  'finance.report.commissions': OWNER_MANAGER, // 42
+  'finance.revenue.create': OWNER_MANAGER, // 38
+  'finance.account.read': OWNER_MANAGER, // 43
+  'finance.account.write': OWNER_MANAGER, // 43
+  'current_account.read': OWNER_MANAGER, // 44
+  'current_account.write': OWNER_MANAGER, // 44
+  'purchase_invoice.read': OWNER_MANAGER, // 45
+  'purchase_invoice.write': OWNER_MANAGER, // 45
+  'supplier.read': OWNER_MANAGER, // 46
+  'customer.view_all': OWNER_MANAGER, // 13 (uzman yalniz kendi musterilerini gorur)
+  'health.view': OWNER_MANAGER_STAFF, // 17 (uzman yalniz kendi musterisinde)
+  'health.write': OWNER_MANAGER_STAFF, // 17
+  'customer.photo.view': OWNER_MANAGER_STAFF, // 19 (uzman yalniz kendi musterisinde)
+  'customer.photo.write': OWNER_MANAGER_STAFF, // 19
+} as const satisfies Record<string, readonly Role[]>
+
+export type PermissionKey = keyof typeof PERMISSIONS
+
+/** Rolun bu izni var mi? Bilinmeyen rol ya da izin her zaman false (kapali basarisizlik). */
+export function can(role: unknown, key: PermissionKey): boolean {
+  const allowed = PERMISSIONS[key] as readonly string[] | undefined
+  return typeof role === 'string' && allowed !== undefined && allowed.includes(role)
+}
+
+/** Rolun etkin izin listesi (A1: GET /auth/me bunu doner). */
+export function permissionsFor(role: unknown): PermissionKey[] {
+  return (Object.keys(PERMISSIONS) as PermissionKey[]).filter((key) => can(role, key))
+}

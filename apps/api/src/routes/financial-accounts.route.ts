@@ -8,6 +8,7 @@ import {
   CurrentAccountEntryRefType,
 } from '@prisma/client'
 import { db } from '../lib/db'
+import { ensurePermission } from '../middleware/permission'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -21,8 +22,6 @@ function noXss(min: number, max: number) {
     .refine((v) => !XSS_PATTERN.test(v), { message: 'Geçersiz karakter içeriyor.' })
 }
 
-const ALLOWED_ROLES_READ = new Set(['owner', 'manager', 'staff'])
-const ALLOWED_ROLES_WRITE = new Set(['owner', 'manager'])
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
@@ -63,10 +62,7 @@ export function createFinancialAccountsRouter(): Router {
   // GET /accounts — bakiye ile birlikte hesap listesi
   router.get('/accounts', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.read')) return
       const tenantId = req.tenantId!
       const includeInactive = req.query.includeInactive === 'true'
 
@@ -114,10 +110,7 @@ export function createFinancialAccountsRouter(): Router {
   // GET /accounts/:id — hesap detayı + son hareketler
   router.get('/accounts/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.read')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hesap bulunamadı.' } })
@@ -206,10 +199,7 @@ export function createFinancialAccountsRouter(): Router {
 
   router.post('/accounts', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
 
@@ -279,10 +269,7 @@ export function createFinancialAccountsRouter(): Router {
 
   router.patch('/accounts/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.write')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hesap bulunamadı.' } })
@@ -321,10 +308,7 @@ export function createFinancialAccountsRouter(): Router {
   // DELETE: hareketsiz hesabı sil, aksi halde pasifleştir
   router.delete('/accounts/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.write')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hesap bulunamadı.' } })
@@ -360,10 +344,7 @@ export function createFinancialAccountsRouter(): Router {
 
   router.post('/transactions', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
 
@@ -444,10 +425,7 @@ export function createFinancialAccountsRouter(): Router {
 
   router.post('/transactions/transfer', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
 
@@ -502,10 +480,7 @@ export function createFinancialAccountsRouter(): Router {
   // DELETE /transactions/:id — sadece manuel; bağlı cari kaydı varsa o da silinir
   router.delete('/transactions/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'finance.account.write')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hareket bulunamadı.' } })

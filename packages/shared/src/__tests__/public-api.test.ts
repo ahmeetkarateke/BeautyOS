@@ -3,7 +3,7 @@ import * as shared from '../index'
 
 describe('@beautyos/shared dis API', () => {
   it('K3: dis API tam olarak bu listedir (yeni ad eklemek bu testi bilerek degistirmeyi gerektirir)', () => {
-    expect(Object.keys(shared).sort()).toEqual(['ROLES', 'isRole'])
+    expect(Object.keys(shared).sort()).toEqual(['PERMISSIONS', 'ROLES', 'can', 'isRole', 'permissionsFor'])
   })
 })
 
@@ -21,5 +21,31 @@ describe('isRole', () => {
   it('Turk I vakasi: buyuk I iceren rol adi dil bagimsiz kucultmeyle taninir, kucultulmemis hali taninmaz', () => {
     expect(shared.isRole('MANAGER'.toLowerCase())).toBe(true)
     expect(shared.isRole('STAFF')).toBe(false)
+  })
+})
+
+describe('izin tablosu', () => {
+  it('staff finans, cari, fatura ve tedarikci izinlerine sahip degil', () => {
+    for (const key of [
+      'dashboard.revenue', 'finance.close_day', 'finance.report.daily', 'finance.report.commissions',
+      'finance.revenue.create', 'finance.account.read', 'current_account.read', 'purchase_invoice.read',
+      'supplier.read', 'customer.view_all',
+    ] as const) {
+      expect(shared.can('staff', key)).toBe(false)
+      expect(shared.can('owner', key)).toBe(true)
+      expect(shared.can('manager', key)).toBe(true)
+    }
+  })
+
+  it('bilinmeyen rol, superadmin ve bos deger hicbir izne sahip degil', () => {
+    for (const role of ['superadmin', 'admin', '', undefined, null]) {
+      expect(shared.permissionsFor(role)).toEqual([])
+    }
+  })
+
+  it('permissionsFor: staff yalnizca saglik ve fotograf izinlerini alir', () => {
+    expect(shared.permissionsFor('staff').sort()).toEqual(
+      ['customer.photo.view', 'customer.photo.write', 'health.view', 'health.write'],
+    )
   })
 })

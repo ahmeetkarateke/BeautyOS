@@ -4,3 +4,5 @@
  */
 export { ROLES, isRole } from './roles'
 export type { Role } from './roles'
+export { PERMISSIONS, can, permissionsFor } from './permissions'
+export type { PermissionKey } from './permissions'

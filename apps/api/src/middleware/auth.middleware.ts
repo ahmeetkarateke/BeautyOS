@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { db } from '../lib/db'
-import type { Role } from '@beautyos/shared'
+import { isRole, type Role } from '@beautyos/shared'
 
 export interface JwtPayload {
   userId: string
@@ -34,6 +34,11 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
   }
   try {
     const payload = jwt.verify(token, secret) as JwtPayload
+    // Bilinmeyen rol iddia eden token (ornegin eski/elle uretilmis) izin tablosuna hic ulasmadan reddedilir.
+    if (!isRole(payload.role)) {
+      res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Token geçersiz veya süresi dolmuş.' } })
+      return
+    }
     req.user = payload
     next()
   } catch {

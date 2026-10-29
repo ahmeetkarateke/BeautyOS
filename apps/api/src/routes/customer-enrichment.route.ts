@@ -2,6 +2,8 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { AnamnesisQuestionType } from '@prisma/client'
 import { db } from '../lib/db'
+import { ensurePermission } from '../middleware/permission'
+import { canAccessCustomer } from '../lib/customer-scope'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -22,18 +24,16 @@ const httpsUrl = z
   .url()
   .refine((v) => /^https:\/\//i.test(v), { message: 'Yalnızca https URL kabul edilir.' })
 
-const ALLOWED_ROLES_READ = new Set(['owner', 'manager', 'staff'])
-const ALLOWED_ROLES_WRITE = new Set(['owner', 'manager', 'staff'])
 const ALLOWED_ROLES_QUESTION_MANAGE = new Set(['owner', 'manager'])
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 }
 
-async function ensureCustomerInTenant(customerId: string, tenantId: string): Promise<boolean> {
+/** Musteri bu kiracida var ve (uzmansa) kendi musterisi mi? Aksi halde 404 doner, varligi sizdirmaz. */
+async function ensureCustomerAccess(req: Request, customerId: string): Promise<boolean> {
   if (!isUuid(customerId)) return false
-  const c = await db.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true } })
-  return !!c
+  return canAccessCustomer(req, customerId)
 }
 
 /** Cevap değerini soru tipine göre doğrular ve normalize eder. */
@@ -100,10 +100,7 @@ export function createCustomerEnrichmentRouter(): Router {
   // GET /anamnesis-questions
   router.get('/anamnesis-questions', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'health.view')) return
       const tenantId = req.tenantId!
       const includeInactive = req.query.includeInactive === 'true'
       const items = await db.anamnesisQuestion.findMany({
@@ -239,13 +236,10 @@ export function createCustomerEnrichmentRouter(): Router {
   // GET /customers/:customerId/anamnesis
   router.get('/customers/:customerId/anamnesis', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'health.view')) return
       const tenantId = req.tenantId!
       const { customerId } = req.params
-      if (!(await ensureCustomerInTenant(customerId, tenantId))) {
+      if (!(await ensureCustomerAccess(req, customerId))) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
       }
 
@@ -279,13 +273,10 @@ export function createCustomerEnrichmentRouter(): Router {
   // PUT /customers/:customerId/anamnesis
   router.put('/customers/:customerId/anamnesis', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'health.write')) return
       const tenantId = req.tenantId!
       const { customerId } = req.params
-      if (!(await ensureCustomerInTenant(customerId, tenantId))) {
+      if (!(await ensureCustomerAccess(req, customerId))) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
       }
 
@@ -326,14 +317,11 @@ export function createCustomerEnrichmentRouter(): Router {
   // GET /customers/:customerId/photos?category=
   router.get('/customers/:customerId/photos', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'customer.photo.view')) return
       const tenantId = req.tenantId!
       const { customerId } = req.params
 
-      if (!(await ensureCustomerInTenant(customerId, tenantId))) {
+      if (!(await ensureCustomerAccess(req, customerId))) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
       }
 
@@ -368,14 +356,11 @@ export function createCustomerEnrichmentRouter(): Router {
   // POST /customers/:customerId/photos
   router.post('/customers/:customerId/photos', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'customer.photo.write')) return
       const tenantId = req.tenantId!
       const { customerId } = req.params
 
-      if (!(await ensureCustomerInTenant(customerId, tenantId))) {
+      if (!(await ensureCustomerAccess(req, customerId))) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
       }
 
@@ -409,18 +394,15 @@ export function createCustomerEnrichmentRouter(): Router {
   // DELETE /photos/:id
   router.delete('/photos/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'customer.photo.write')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Fotoğraf bulunamadı.' } })
       }
 
-      const existing = await db.customerPhoto.findFirst({ where: { id, tenantId }, select: { id: true } })
-      if (!existing) {
+      const existing = await db.customerPhoto.findFirst({ where: { id, tenantId }, select: { id: true, customerId: true } })
+      if (!existing || !(await canAccessCustomer(req, existing.customerId))) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Fotoğraf bulunamadı.' } })
       }
 
