@@ -180,15 +180,19 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
               key={d}
               type="button"
               aria-current={d === date ? 'date' : undefined}
-              aria-label={`${weekdayShort.format(noon(d))} ${dayNo.format(noon(d))}`}
               onClick={() => go('gun', d === today ? null : d)}
               className={cn(
                 'grid min-h-12 min-w-11 flex-1 cursor-pointer place-items-center rounded-control border px-1 text-sm',
                 d === date ? 'border-text bg-text text-text-inverse' : 'border-border bg-surface text-text-secondary hover:border-text-muted',
               )}
             >
-              <span className="text-xs opacity-75">{weekdayShort.format(noon(d))}</span>
-              <span className="font-semibold tabular-nums">{dayNo.format(noon(d))}</span>
+              <span aria-hidden="true" className={cn('text-xs', d === date ? 'text-text-inverse' : 'text-text-muted')}>
+                {weekdayShort.format(noon(d))}
+              </span>
+              <span aria-hidden="true" className="font-semibold tabular-nums">
+                {dayNo.format(noon(d))}
+              </span>
+              <span className="sr-only">{`${weekdayShort.format(noon(d))} ${dayNo.format(noon(d))}`}</span>
             </button>
           ))}
         </div>
