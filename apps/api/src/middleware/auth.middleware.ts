@@ -2,12 +2,15 @@ import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { db } from '../lib/db'
 import { isRole, type Role } from '@beautyos/shared'
+import { isSessionLive } from '../lib/sessions'
 
 export interface JwtPayload {
   userId: string
   tenantId?: string
   tenantSlug?: string
   role: Role
+  /** Oturum ailesi (S6). Geçiş döneminde eski token'larda yoktur. */
+  sid?: string
 }
 
 declare global {
@@ -19,7 +22,11 @@ declare global {
   }
 }
 
-export function authenticateJWT(req: Request, res: Response, next: NextFunction): void {
+/**
+ * Erişim token'ı imzayla birlikte her istekte durumla doğrulanır (S6 K3): kullanıcı hâlâ aktif mi ve (sid varsa) oturum ailesi iptal edilmemiş mi.
+ * sid taşımayan token test dışında reddedilir (iptal edilemez); istemci /auth/refresh ile sid'li token alır.
+ */
+export async function authenticateJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Token gerekli.' } })
@@ -32,6 +39,7 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
     res.status(500).json({ error: { code: 'CONFIG_ERROR', message: 'Sunucu yapılandırma hatası.' } })
     return
   }
+  let verified: JwtPayload
   try {
     const payload = jwt.verify(token, secret) as JwtPayload
     // Bilinmeyen rol iddia eden token (ornegin eski/elle uretilmis) izin tablosuna hic ulasmadan reddedilir.
@@ -39,10 +47,38 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
       res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Token geçersiz veya süresi dolmuş.' } })
       return
     }
-    req.user = payload
-    next()
+    verified = payload
   } catch {
     res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Token geçersiz veya süresi dolmuş.' } })
+    return
+  }
+
+  // sid'siz token sunucuda iptal edilemez; yalnız birim/entegrasyon testlerinin yardımcı token'ı için açık yol vardır (NODE_ENV=test).
+  if (!verified.sid && process.env.NODE_ENV !== 'test') {
+    res.status(401).json({ error: { code: 'SESSION_REQUIRED', message: 'Oturum yenilenmeli, lütfen yeniden giriş yapın.' } })
+    return
+  }
+
+  try {
+    const [user, live] = await Promise.all([
+      db.user.findFirst({
+        where: { id: verified.userId, isActive: true, ...(verified.tenantId ? { tenantId: verified.tenantId } : {}) },
+        select: { id: true },
+      }),
+      verified.sid ? isSessionLive(verified.sid) : Promise.resolve(true),
+    ])
+    if (!user) {
+      res.status(401).json({ error: { code: 'ACCOUNT_INACTIVE', message: 'Hesap aktif değil, lütfen yeniden giriş yapın.' } })
+      return
+    }
+    if (!live) {
+      res.status(401).json({ error: { code: 'SESSION_REVOKED', message: 'Oturum sonlandırıldı, lütfen yeniden giriş yapın.' } })
+      return
+    }
+    req.user = verified
+    next()
+  } catch (err) {
+    next(err)
   }
 }
 

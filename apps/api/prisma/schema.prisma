@@ -291,6 +291,7 @@ model User {
   tenant              Tenant?               @relation(fields: [tenantId], references: [id])
   staffProfile        StaffProfile?
   passwordResetTokens PasswordResetToken[]
+  sessions            Session[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -357,7 +358,7 @@ model Customer {
   messageDeliveries MessageDelivery[]
   phoneVerifications PhoneVerification[]
 
-  @@unique([tenantId, phone])
+  @@index([tenantId, phone]) // ADR-0038: ayni telefonla birden cok musteri olabilir
   @@index([tenantId])
   @@map("customers")
 }
@@ -596,6 +597,26 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+// S6: yenileme token'i oturumu. Ham token saklanmaz (tokenHash = sha256). Bir giris = bir familyId; yenilemede yeni satir acilir.
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tenantId  String?   @db.Uuid
+  familyId  String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime? // dondurulerek kullanildi; tekrar gelirse aile iptal
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 model BotSession {

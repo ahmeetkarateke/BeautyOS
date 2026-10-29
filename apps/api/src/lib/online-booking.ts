@@ -68,10 +68,13 @@ export async function scheduleOnlineExpiry(appointmentId: string, expiresAt: Dat
   }
 }
 
-/** Yalniz hala bekleyen web talebini iptal eder; atomik, onaylanmis talebe dokunmaz. */
+/** Online talep kapsami: web kanali ya da musterisiz (salon eslestirmesi bekleyen, orn. bot 'multiple') bekleyen talep. Panelden elle acilan musterili pending randevuya dokunulmaz. */
+const ONLINE_REQUEST_SCOPE = [{ bookingChannel: 'web' as const }, { customerId: null }]
+
+/** Yalniz hala bekleyen online talebi iptal eder; atomik, onaylanmis talebe dokunmaz. */
 export async function expireOnlineRequest(appointmentId: string): Promise<boolean> {
   const result = await db.appointment.updateMany({
-    where: { id: appointmentId, status: 'pending', bookingChannel: 'web' },
+    where: { id: appointmentId, status: 'pending', OR: ONLINE_REQUEST_SCOPE },
     data: { status: 'cancelled', cancelReason: 'expired' },
   })
   return result.count > 0
@@ -82,10 +85,14 @@ export async function sweepExpiredOnlineRequests(now: Date = new Date()): Promis
   const result = await db.appointment.updateMany({
     where: {
       status: 'pending',
-      bookingChannel: 'web',
-      OR: [
-        { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * HOUR_MS) } },
-        { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * HOUR_MS) } },
+      AND: [
+        { OR: ONLINE_REQUEST_SCOPE },
+        {
+          OR: [
+            { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * HOUR_MS) } },
+            { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * HOUR_MS) } },
+          ],
+        },
       ],
     },
     data: { status: 'cancelled', cancelReason: 'expired' },
@@ -172,8 +179,12 @@ async function confirmUnverifiedRequest(
     return 'ok'
   }
 
-  const candidates = await findCustomerCandidates(tenantId, requested.phone)
-  if (candidates.length > 0) return { result: 'match_required', candidates }
+  // 'create' bilinçli karardır (ADR-0038: aynı telefon birden çok kişide olabilir): aday kontrolü yapılmaz.
+  // Eylem verilmediyse eski güvenlik ağı sürer: aday varsa salon önce seçsin.
+  if (input.customerAction !== 'create') {
+    const candidates = await findCustomerCandidates(tenantId, requested.phone)
+    if (candidates.length > 0) return { result: 'match_required', candidates }
+  }
   try {
     const outcome = await db.$transaction(async (tx) => {
       const created = await tx.customer.create({
@@ -191,10 +202,6 @@ async function confirmUnverifiedRequest(
     return outcome
   } catch (err) {
     if (err instanceof RequestNotPendingError) return explainNoChange(tenantId, appointmentId)
-    // Eş zamanlı bir kayıt aynı telefonla müşteri oluşturdu (unique tenantId+phone): salon yeniden seçsin.
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      return { result: 'match_required', candidates: await findCustomerCandidates(tenantId, requested.phone) }
-    }
     throw err
   }
 }

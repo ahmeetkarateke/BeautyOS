@@ -12,6 +12,7 @@ import { logger } from '../lib/logger'
 import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
 import { resolveBookingMode } from '../lib/booking-mode'
 import { ONLINE_LIMITS, computeExpiryAt, phoneVariants, scheduleOnlineExpiry } from '../lib/online-booking'
+import { resolveCustomerByPhone } from '../lib/customer-phone'
 
 const MAX_ACTIVE_PER_PHONE = 2
 // Süre dolumu randevudan 2 saat önce olduğundan, bundan yakın talep hemen dolacaktı.
@@ -63,27 +64,24 @@ function newReferenceCode(nowMs: number): string {
   return `RDV-${nowMs.toString(36).toUpperCase()}${randomBytes(2).toString('hex').toUpperCase()}`
 }
 
-/** Kayıtlı müşteri farklı telefon biçimiyle bulunur; yoksa normalize telefonla oluşturulur. */
+/**
+ * ADR-0038: doğrulanmış (sms) kanalda telefona göre müşteri çözümü. Kayıt yoksa oluşturulur, tek kayıt varsa bağlanır,
+ * birden çok kayıt varsa null döner: talep requested* ile bekler, salon bilinçli eşleştirir.
+ */
 async function resolveCustomerId(
   tenantId: string,
   normalizedPhone: string,
-  variants: string[],
   fullName: string,
   verifiedAt: Date | null,
-): Promise<string> {
-  const existing = await db.customer.findFirst({
-    where: { tenantId, phone: { in: variants } },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-  if (existing) return existing.id
+): Promise<string | null> {
   const verified = verifiedAt ? { phoneVerifiedAt: verifiedAt } : {}
-  const customer = await db.customer.upsert({
-    where: { tenantId_phone: { tenantId, phone: normalizedPhone } },
-    create: { tenantId, phone: normalizedPhone, fullName, ...verified },
-    update: { ...verified },
-    select: { id: true },
-  })
+  const found = await resolveCustomerByPhone(db, tenantId, normalizedPhone)
+  if (found.kind === 'multiple') return null
+  if (found.kind === 'single') {
+    if (verifiedAt) await db.customer.update({ where: { id: found.id }, data: verified })
+    return found.id
+  }
+  const customer = await db.customer.create({ data: { tenantId, phone: normalizedPhone, fullName, ...verified }, select: { id: true } })
   return customer.id
 }
 
@@ -498,8 +496,9 @@ export function createPublicRouter(): Router {
       }
 
       // Doğrulanmamış talep var olan müşteriye bağlanmaz ve müşteri oluşturmaz (KVKK): ad/telefon talepte tutulur, salon onayda eşleştirir.
-      const customerId = verifiedMode ? await resolveCustomerId(tenant.id, normalizedPhone, variants, customerName, verifiedAt) : null
-      const approvalRequired = !verifiedMode || resolveApprovalMode(tenant) === 'manual'
+      const customerId = verifiedMode ? await resolveCustomerId(tenant.id, normalizedPhone, customerName, verifiedAt) : null
+      // Müşteri bağlanamadıysa (doğrulanmamış talep ya da aynı telefonda birden çok kart) salon eşleştirmeden randevu onaylanmaz.
+      const approvalRequired = customerId === null || resolveApprovalMode(tenant) === 'manual'
       const status = approvalRequired ? 'pending' : 'confirmed'
       const referenceCode = newReferenceCode(nowMs)
 
@@ -510,8 +509,8 @@ export function createPublicRouter(): Router {
           staffId,
           serviceId,
           referenceCode,
-          requestedName: verifiedMode ? null : customerName,
-          requestedPhone: verifiedMode ? null : normalizedPhone,
+          requestedName: customerId ? null : customerName,
+          requestedPhone: customerId ? null : normalizedPhone,
           status,
           phoneVerified: verifiedMode,
           bookingChannel: 'web',
@@ -526,7 +525,7 @@ export function createPublicRouter(): Router {
       if (approvalRequired) {
         await scheduleOnlineExpiry(appointment.id, computeExpiryAt(new Date(nowMs), startDate), new Date(nowMs))
       }
-      if (verifiedMode) await scheduleReminders(appointment.id, startDate, nowMs)
+      if (customerId) await scheduleReminders(appointment.id, startDate, nowMs)
 
       return res.status(201).json({
         id: appointment.id,

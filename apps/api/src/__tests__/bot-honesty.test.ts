@@ -182,8 +182,20 @@ describe('K4: iptal sahiplik ister', () => {
     const r = await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000009')
     expect(r).toEqual({ ok: false, reason: 'not_found' })
     const where = dbMock.appointment.findFirst.mock.calls[0][0].where
-    expect(where).toMatchObject({ tenantId: 't1', referenceCode: 'RDV-ABC', customer: { phone: '905320000009' } })
+    expect(where).toMatchObject({ tenantId: 't1', referenceCode: 'RDV-ABC' })
+    // WhatsApp: 905... biçimi normalize (+90...) kayıtla eşleşir; müşterisiz talep requestedPhone ile eşleşir
+    expect(where.OR).toEqual([
+      { customer: { phone: { in: expect.arrayContaining(['905320000009', '+905320000009']) } } },
+      { requestedPhone: { in: expect.arrayContaining(['905320000009', '+905320000009']) } },
+    ])
     expect(dbMock.appointment.update).not.toHaveBeenCalled()
+  })
+
+  it('ADR-0038: Telegram kanalinda (exact) sohbet no normalize edilmez, yalniz tam eslesir', async () => {
+    dbMock.appointment.findFirst.mockResolvedValue(null)
+    await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000009', { exact: true })
+    const where = dbMock.appointment.findFirst.mock.calls[0][0].where
+    expect(where.OR[0]).toEqual({ customer: { phone: { in: ['905320000009'] } } })
   })
 
   it('K4: sahibi kendi randevusunu iptal eder', async () => {
@@ -201,5 +213,51 @@ describe('K4: iptal sahiplik ister', () => {
   it('K4: 2 saatten az kalan randevu sahibine bile too_soon', async () => {
     dbMock.appointment.findFirst.mockResolvedValue({ id: 'a1', startAt: new Date(Date.now() + 3600 * 1000) })
     expect(await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000001')).toEqual({ ok: false, reason: 'too_soon' })
+  })
+})
+
+describe('S2ek-2 Onemli 2: bot yakin saatte bekleyen talep icin bos soz vermez', () => {
+  it('SlotTooSoonForApprovalError -> yanit "alindi" demez, salonu aramasini soyler; oturum sifirlanmaz', async () => {
+    vi.resetModules()
+    vi.doMock('../bot/booking.service', async (orig) => {
+      const actual = await orig<typeof import('../bot/booking.service')>()
+      return { ...actual, createAppointment: vi.fn().mockRejectedValue(new actual.SlotTooSoonForApprovalError()) }
+    })
+    const { FlowHandler } = await import('../bot/flow.handler')
+    const session = { sessionId: 's', tenantId: 't1', channelType: 'whatsapp', from: '905320000001', currentIntent: 'book', entities: { service: 'Saç Kesimi', confirmedSlot: '2026-11-20T10:00:00__sp1' }, messages: [], turnCount: 5, clarifyCount: 0, step: 'awaiting_confirm', createdAt: '', lastMessageAt: '' }
+    const sessionService = { getOrCreate: vi.fn().mockResolvedValue(session), addMessage: vi.fn(), save: vi.fn(), reset: vi.fn() }
+    const sent: string[] = []
+    const channel = { type: 'whatsapp', sendText: vi.fn(async (_to: string, t: string) => { sent.push(t) }) }
+    const salon = { name: 'S', address: 'a', workingHours: '09-19', services: [], staff: [] }
+    const handler = new FlowHandler(sessionService as never, { detect: vi.fn() } as never)
+    await handler.handle(channel as never, { channelType: 'whatsapp', from: '905320000001', text: 'evet', messageId: 'm', timestamp: new Date(), rawPayload: {} }, salon as never, 't1')
+    const text = sent.join('\n')
+    expect(text).not.toMatch(/alındı|oluşturuldu/)
+    expect(text).toMatch(/salonu arayın/)
+    expect(sessionService.reset).not.toHaveBeenCalled()
+    vi.doUnmock('../bot/booking.service')
+  })
+})
+
+describe('ADR-0038 Onemli 1: bot bekleyen talepte bos soz vermez', () => {
+  it('pending dönen kayitta yanit "iletisime gececek" der; bildirim sozu (bilgi verilecek) yoktur', async () => {
+    vi.resetModules()
+    vi.doMock('../bot/booking.service', async (orig) => {
+      const actual = await orig<typeof import('../bot/booking.service')>()
+      return { ...actual, createAppointment: vi.fn().mockResolvedValue({ referenceCode: 'RDV-X1', status: 'pending' }) }
+    })
+    const { FlowHandler } = await import('../bot/flow.handler')
+    const session = { sessionId: 's', tenantId: 't1', channelType: 'whatsapp', from: '905320000001', currentIntent: 'book', entities: { service: 'Saç Kesimi', confirmedSlot: '2026-11-20T10:00:00__sp1' }, messages: [], turnCount: 5, clarifyCount: 0, step: 'awaiting_confirm', createdAt: '', lastMessageAt: '' }
+    const sessionService = { getOrCreate: vi.fn().mockResolvedValue(session), addMessage: vi.fn(), save: vi.fn(), reset: vi.fn() }
+    const sent: string[] = []
+    const channel = { type: 'whatsapp', sendText: vi.fn(async (_to: string, t: string) => { sent.push(t) }) }
+    const salon = { name: 'S', address: 'a', workingHours: '09-19', services: [], staff: [] }
+    const handler = new FlowHandler(sessionService as never, { detect: vi.fn() } as never)
+    await handler.handle(channel as never, { channelType: 'whatsapp', from: '905320000001', text: 'evet', messageId: 'm', timestamp: new Date(), rawPayload: {} }, salon as never, 't1')
+    const text = sent.join('\n')
+    expect(text).toMatch(/iletişime geçecek/)
+    expect(text).not.toMatch(/bilgi verilecek/)
+    expect(text).toContain('RDV-X1')
+    vi.doUnmock('../bot/booking.service')
   })
 })

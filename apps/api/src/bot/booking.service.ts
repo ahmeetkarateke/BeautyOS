@@ -2,7 +2,18 @@ import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { getSlots } from '../lib/slots'
 import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
+import { resolveCustomerByPhone, lookupValues } from '../lib/customer-phone'
+import { computeExpiryAt, scheduleOnlineExpiry, ONLINE_LIMITS } from '../lib/online-booking'
+import { normalizePhoneTR } from '../lib/sms/types'
 import type { BookingChannel } from '@prisma/client'
+
+/** Telefon birden çok karta uyuyor (salon eşleştirecek) ama saat 2 saatten yakın: talep onaylanamadan düşerdi (S2ek-2). */
+export class SlotTooSoonForApprovalError extends Error {
+  readonly code = 'SLOT_TOO_SOON_FOR_APPROVAL'
+  constructor() {
+    super('Saat onay için çok yakın.')
+  }
+}
 
 /** Hizmet adı bu kiracıdaki aktif hizmetlerle eşleşmedi: akış netleştirme sorusu sorar, sahte yanıt üretmez (S5 K2). */
 export class ServiceNotFoundError extends Error {
@@ -167,7 +178,13 @@ export interface CreateAppointmentInput {
   channel: BookingChannel
 }
 
-export async function createAppointment(input: CreateAppointmentInput): Promise<string> {
+export interface CreatedAppointment {
+  referenceCode: string
+  /** pending: ayni telefonda birden cok kart var, salon eslestirip onaylayacak (ADR-0038). */
+  status: 'confirmed' | 'pending'
+}
+
+export async function createAppointment(input: CreateAppointmentInput): Promise<CreatedAppointment> {
   const { tenantId, customerPhone, customerName, serviceName, slotId, channel } = input
 
   // slotId'den başlangıç zamanı ve personeli ayır
@@ -179,29 +196,42 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 
   const endAt = new Date(startAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)
 
-  // Müşteriyi bul ya da oluştur (upsert by phone)
-  const customer = await db.customer.upsert({
-    where: { tenantId_phone: { tenantId, phone: customerPhone } },
-    create: { tenantId, phone: customerPhone, fullName: customerName },
-    update: {},
-  })
+  // ADR-0038: telefon -> none (oluştur) | single (bağla) | multiple (bağlama, requested* ile pending)
+  // Telefon her yerde normalize saklanir (ADR-0038). Telegram'da sohbet no telefon degildir: oldugu gibi kalir.
+  const identity = channel === 'telegram' ? customerPhone : (normalizePhoneTR(customerPhone) ?? customerPhone)
+  const found = await resolveCustomerByPhone(db, tenantId, identity, { exact: channel === 'telegram' })
+  const customerId =
+    found.kind === 'single'
+      ? found.id
+      : found.kind === 'none'
+        ? (await db.customer.create({ data: { tenantId, phone: identity, fullName: customerName }, select: { id: true } })).id
+        : null
+  // Eşleşmeyi bekleyen talep randevudan 2 saat önce düşer; daha yakın saatte talep hemen düşerdi, bu yüzden hiç yazılmaz.
+  if (!customerId && startAt.getTime() - Date.now() < ONLINE_LIMITS.expiryLeadHours * 60 * 60 * 1000) {
+    throw new SlotTooSoonForApprovalError()
+  }
+  const status = customerId ? 'confirmed' : 'pending'
 
   const referenceCode = `RDV-${Date.now().toString(36).toUpperCase()}`
 
+  let appointment: { id: string }
   try {
-    await db.appointment.create({
+    appointment = await db.appointment.create({
       data: {
         tenantId,
-        customerId: customer.id,
+        customerId,
+        requestedName: customerId ? null : customerName,
+        requestedPhone: customerId ? null : identity,
         staffId,
         serviceId: service.id,
         referenceCode,
-        status: 'confirmed',
+        status,
         bookingChannel: channel,
         startAt,
         endAt,
         priceCharged: service.price,
       },
+      select: { id: true },
     })
   } catch (err) {
     // Bot yolunda ön kontrol yok: saat dolduysa veritabanı kısıtı (S3) reddeder.
@@ -209,13 +239,18 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     throw err
   }
 
-  // Müşteri ziyaret sayısını artır
-  await db.customer.update({
-    where: { id: customer.id },
-    data: { totalVisits: { increment: 1 }, lastVisitAt: new Date() },
-  })
+  // Eşleşmeyi bekleyen talep süresiz kalmasın: web talebiyle aynı süre dolumu kurulur (gece taraması yedektir).
+  if (!customerId) await scheduleOnlineExpiry(appointment.id, computeExpiryAt(new Date(), startAt))
 
-  return referenceCode
+  // Müşteri ziyaret sayısını artır (bağlanmamış talepte kart yoktur)
+  if (customerId) {
+    await db.customer.update({
+      where: { id: customerId },
+      data: { totalVisits: { increment: 1 }, lastVisitAt: new Date() },
+    })
+  }
+
+  return { referenceCode, status }
 }
 
 // ─── Referans kodu ile randevu iptal et ───────────────────────────────────────
@@ -232,11 +267,19 @@ export async function cancelAppointmentByRef(
   tenantId: string,
   referenceCode: string,
   customerPhone: string,
+  options: { exact?: boolean } = {},
 ): Promise<CancelResult> {
   if (!customerPhone.trim()) return { ok: false, reason: 'not_found' }
 
+  // Kimlik, randevunun kart telefonuyla ya da (müşterisiz talepte) requestedPhone ile eşleşmeli; WhatsApp biçim farkı (905… / +905…) önemsiz.
+  const values = lookupValues(customerPhone, options.exact === true)
   const appointment = await db.appointment.findFirst({
-    where: { tenantId, referenceCode, status: { in: ['pending', 'confirmed'] }, customer: { phone: customerPhone } },
+    where: {
+      tenantId,
+      referenceCode,
+      status: { in: ['pending', 'confirmed'] },
+      OR: [{ customer: { phone: { in: values } } }, { requestedPhone: { in: values } }],
+    },
   })
 
   if (!appointment) return { ok: false, reason: 'not_found' }
