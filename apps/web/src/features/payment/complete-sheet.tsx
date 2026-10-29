@@ -81,7 +81,7 @@ export function CompleteSheet({
       description={`${appointment.customerName} · ${appointment.serviceName} · ${clockLabel(appointment.start)}`}
       footer={
         <Button disabled={busy || (canEdit && !parsed.ok && text.trim() === '')} loading={busy} loadingText="Kaydediliyor…" onClick={() => void pay()}>
-          {payLabel(amount)}
+          {parsed.ok ? payLabel(amount) : 'Ödeme al'}
         </Button>
       }
     >

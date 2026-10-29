@@ -147,3 +147,12 @@ describe('W16 Tamamla ve ödeme al', () => {
     expect(screen.getByText('Paketten düşme ve karma ödeme yakında.')).toBeTruthy()
   })
 })
+
+describe('W16-1 öneri: geçersiz tutarda eski fiyat yazılmaz', () => {
+  it('K10: tutar geçersizken düğme etiketi "Ödeme al" olur (eski fiyat görünmez)', () => {
+    mount()
+    fireEvent.change(screen.getByRole('textbox', { name: /Tutar/ }), { target: { value: '85a' } })
+    expect(screen.getByRole('button', { name: 'Ödeme al' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Ödeme al · ₺850' })).toBeNull()
+  })
+})
