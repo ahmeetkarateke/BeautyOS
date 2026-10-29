@@ -3,6 +3,7 @@
 #   <tam-commit-sha>: 40 haneli küçük harfli onaltılık commit kimliği. Kısa sha, dal adı, etiket ya da HEAD kabul edilmez (çıkış 2).
 # Sunucu GitHub'dan ÇEKMEZ (deploy key yok). Müdür onaylı commit'i kendi bilgisayarında paketleyip aktarır:
 #   /srv/beautyos/kaynak/<sha12>/{kaynak.tar, commit.txt, kaynak.tar.sha256}
+#   Paket komutu: git -c core.autocrlf=false archive --format=tar <tam-sha> -o kaynak.tar  (Windows'ta CRLF'yi önler; betik CRLF bulursa durur)
 # Bu betik paketi doğrular (sha256, tar içindeki commit kimliği, commit.txt, argüman), boş agac/ altına açar ve derler.
 # Üretilenler (hepsi org.opencontainers.image.revision=<tam sha> etiketli, latest yok):
 #   beautyos-api:<sha12>   beautyos-web:<sha12>-prod   beautyos-web:<sha12>-staging
@@ -56,6 +57,23 @@ if [ "$TAR_SHA" != "$SHA_TAM" ]; then
 fi
 if [ "$COMMIT_TXT" != "$SHA_TAM" ]; then
   hata "commit.txt argümanla eşleşmiyor"
+  exit 1
+fi
+# Satır sonu: .sh ve Dockerfile* dosyalarında CR (CRLF) varsa derleme başlamaz. Windows'ta `git archive`
+# autocrlf yüzünden bu dosyalara CRLF yazabilir; imajdaki betikler "bad interpreter" ile düşer.
+# Paket şöyle üretilmeli:  git -c core.autocrlf=false archive --format=tar <tam-sha> -o kaynak.tar
+UYUMSUZ=""
+LISTE="$(tar -tf "$PAKET/kaynak.tar" 2>/dev/null || true)"
+while IFS= read -r uye; do
+  case "$uye" in
+    */) continue ;;
+    *.sh | Dockerfile | Dockerfile.* | */Dockerfile | */Dockerfile.*)
+      CR_SAYISI="$(tar -xOf "$PAKET/kaynak.tar" -- "$uye" 2>/dev/null | tr -cd '\r' | wc -c || true)"
+      if [ "${CR_SAYISI:-0}" -gt 0 ]; then UYUMSUZ="$UYUMSUZ $uye"; fi ;;
+  esac
+done <<<"$LISTE"
+if [ -n "$UYUMSUZ" ]; then
+  hata "pakette CRLF içeren dosya(lar):$UYUMSUZ ; paketi 'git -c core.autocrlf=false archive' ile yeniden üretin (derleme başlamadı)"
   exit 1
 fi
 AGAC="$PAKET/agac"
