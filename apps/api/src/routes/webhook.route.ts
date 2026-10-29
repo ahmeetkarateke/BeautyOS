@@ -12,8 +12,8 @@ async function resolveTenantId(
   source: 'telegram' | 'whatsapp',
   identifier: string, // botToken veya phoneNumberId
 ): Promise<string | null> {
-  // 1. Hızlı env var yolu (tek-tenant deployment)
-  const fromEnv = TenantRegistry.fromEnv()
+  // 1. Hızlı env var yolu (tek-tenant Telegram deployment'ı). WhatsApp'a uygulanmaz: o kanal phoneNumberId ile eşleşmeli.
+  const fromEnv = source === 'telegram' ? TenantRegistry.fromEnv() : null
   if (fromEnv) return fromEnv
 
   // 2. DB lookup
@@ -66,6 +66,10 @@ export function createWebhookRouter(
     if (!tenantId) return
 
     const salon = await getSalon(tenantId)
+    if (!salon) {
+      logger.warn({ tenantId }, 'Salon bulunamadı, mesaj atlanıyor')
+      return
+    }
     await flowHandler.handle(channel, msg, salon, tenantId)
   })
 
@@ -111,6 +115,10 @@ export function createWebhookRouter(
       const tenantId = await resolveTenantId(tenantRegistry, 'whatsapp', phoneNumberId)
       if (!tenantId) return
       const salon = await getSalon(tenantId)
+      if (!salon) {
+        logger.warn({ tenantId }, 'Salon bulunamadı, mesaj atlanıyor')
+        return
+      }
 
       await flowHandler.handle(channel, msg, salon, tenantId)
     } catch (error) {

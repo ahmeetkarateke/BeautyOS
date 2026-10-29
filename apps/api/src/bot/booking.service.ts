@@ -21,6 +21,7 @@ const TR_OFFSET_MS = TZ_OFFSET_HOURS * 60 * 60 * 1000
 
 function normalizeTR(str: string): string {
   return str
+    .replace(/İ/g, 'i')
     .toLowerCase()
     .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
     .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
@@ -87,6 +88,17 @@ export function resolveDate(datePreference: string | undefined): Date {
   return today
 }
 
+/** Hizmeti ada göre bulur: önce içerir-eşleşme, sonra Türkçe karakterleri sadeleştirilmiş eşleşme (slot ve kayıt aynı kuralı kullanır). */
+async function findActiveService(tenantId: string, serviceName: string) {
+  const name = serviceName.trim()
+  if (!name) return null
+  const direct = await db.service.findFirst({ where: { tenantId, name: { contains: name, mode: 'insensitive' }, isActive: true } })
+  if (direct) return direct
+  const normalizedInput = normalizeTR(name)
+  const all = await db.service.findMany({ where: { tenantId, isActive: true } })
+  return all.find((s) => normalizeTR(s.name).includes(normalizedInput) || normalizedInput.includes(normalizeTR(s.name))) ?? null
+}
+
 // ─── Müsait slotları getir ────────────────────────────────────────────────────
 
 export interface AvailableSlot {
@@ -109,23 +121,8 @@ export async function getAvailableSlots(
   const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } })
   if (!tenant) return []
 
-  // Hizmet bul
-  let service = await db.service.findFirst({
-    where: { tenantId, name: { contains: serviceName, mode: 'insensitive' }, isActive: true },
-    select: { id: true },
-  })
-  if (!service) {
-    const normalizedInput = normalizeTR(serviceName)
-    const allServices = await db.service.findMany({ where: { tenantId, isActive: true }, select: { id: true, name: true } })
-    const found = allServices.find(
-      (s) => normalizeTR(s.name).includes(normalizedInput) || normalizedInput.includes(normalizeTR(s.name)),
-    )
-    service = found ? { id: found.id } : null
-  }
-  if (!service) {
-    logger.warn({ tenantId, serviceName }, 'Hizmet bulunamadı, mock slot dönüyor')
-    return mockSlots(date, 9, 19)
-  }
+  const service = await findActiveService(tenantId, serviceName)
+  if (!service) throw new ServiceNotFoundError(serviceName)
 
   // Bu hizmeti yapabilen personel listesi
   const staffList = await db.staffProfile.findMany({
@@ -143,7 +140,7 @@ export async function getAvailableSlots(
 
   const results = await Promise.all(
     staffList.map(async (sp) => {
-      const raw = await getSlots({ tenantId, serviceId: service!.id, staffId: sp.id, date: dateStr })
+      const raw = await getSlots({ tenantId, serviceId: service.id, staffId: sp.id, date: dateStr })
       return raw
         .filter((s) => s.available)
         .map((s): AvailableSlot => ({
@@ -177,12 +174,8 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   const [isoTime, staffId] = slotId.split('__')
   const startAt = new Date(isoTime)
 
-  // Hizmet bul
-  const service = await db.service.findFirst({
-    where: { tenantId, name: { contains: serviceName, mode: 'insensitive' }, isActive: true },
-  })
-
-  if (!service) throw new Error(`Hizmet bulunamadı: ${serviceName}`)
+  const service = await findActiveService(tenantId, serviceName)
+  if (!service) throw new ServiceNotFoundError(serviceName)
 
   const endAt = new Date(startAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)
 
@@ -234,12 +227,16 @@ export type CancelResult =
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 
+/** İptal sahiplik ister: randevunun müşteri kimliği (kanal telefonu/sohbet no) isteği yapanla aynı olmalı; başkasının kodu "bulunamadı" döner (S5 K4). */
 export async function cancelAppointmentByRef(
   tenantId: string,
   referenceCode: string,
+  customerPhone: string,
 ): Promise<CancelResult> {
+  if (!customerPhone.trim()) return { ok: false, reason: 'not_found' }
+
   const appointment = await db.appointment.findFirst({
-    where: { tenantId, referenceCode, status: { in: ['pending', 'confirmed'] } },
+    where: { tenantId, referenceCode, status: { in: ['pending', 'confirmed'] }, customer: { phone: customerPhone } },
   })
 
   if (!appointment) return { ok: false, reason: 'not_found' }
@@ -254,23 +251,4 @@ export async function cancelAppointmentByRef(
   })
 
   return { ok: true }
-}
-
-// ─── Mock slot (DB'de henüz tenant/personel yoksa) ────────────────────────────
-
-function mockSlots(date: Date, startH: number, endH: number): AvailableSlot[] {
-  const slots: AvailableSlot[] = []
-  const dateStr = date.toISOString().slice(0, 10)
-  const mockStaffId = 'mock-staff'
-
-  for (let h = startH; h < endH; h += 2) {
-    const hh = h.toString().padStart(2, '0')
-    slots.push({
-      id: `${dateStr}T${hh}:00:00__${mockStaffId}`,
-      label: `${hh}:00`,
-      staffId: mockStaffId,
-      staffName: 'Uygun Uzman',
-    })
-  }
-  return slots.slice(0, 3)
 }
