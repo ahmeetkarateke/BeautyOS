@@ -106,4 +106,19 @@ describe('A4: randevu listesi sozlesmesi (gercek PG)', () => {
     expect(res.status).toBe(200)
     expect(res.body.data).toEqual([])
   })
+
+  it('kiraci izolasyonu: B kiracisinin tokeni A kiracisinin slug'iyla istek atarsa reddedilir ve randevu sizmaz', async () => {
+    const otherOwner = await createTestOwner(otherTenant.id, otherTenant.slug, `${suffixB}x`)
+    const res = await request(app)
+      .get(`/api/v1/tenants/${tenant.slug}/appointments?date=2031-03-10`)
+      .set('Authorization', `Bearer ${otherOwner.token}`)
+    expect([403, 404]).toContain(res.status)
+    expect(JSON.stringify(res.body)).not.toContain('APT-A4')
+  })
+
+  it('yalniz dateFrom verilirse o tek gun doner (dateTo=dateFrom gibi)', async () => {
+    const res = await list('dateFrom=2031-03-10')
+    const codes = res.body.data.map((x: { referenceCode: string }) => x.referenceCode.split('-')[2]).sort()
+    expect(codes).toEqual(['A', 'B'])
+  })
 })

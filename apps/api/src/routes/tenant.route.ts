@@ -311,6 +311,7 @@ export function createTenantRouter(): Router {
       // Gün sınırları Europe/Istanbul gününe göredir (A4). Aralıkta (date, dateFrom/dateTo) satır sınırı yoktur; en çok 31 gün.
       let dateFilter = {}
       let hasDateRange = false
+      // Yalnız biri verilirse (dateFrom ya da dateTo) o tek gün sayılır; açık uçlu aralık yoktur.
       const rangeFrom = dateFrom ?? date ?? dateTo
       const rangeTo = dateTo ?? date ?? dateFrom
       if (rangeFrom && rangeTo) {
