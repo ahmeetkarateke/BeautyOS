@@ -135,8 +135,11 @@ describe('S1 uzman yalniz kendi musterilerini gorur (K4)', () => {
   let ownPhotoId: string
   let otherPhotoId: string
   let questionId: string
+  let serviceId: string
+  let staffAProfileId: string
+  let staffBProfileId: string
 
-  async function appointment(staffId: string, customerId: string, serviceId: string, startAt: Date, status: 'confirmed' | 'cancelled' = 'confirmed') {
+  async function appointment(staffId: string, customerId: string, serviceId: string, startAt: Date, status: 'confirmed' | 'cancelled' | 'completed' | 'no_show' = 'confirmed') {
     return db.appointment.create({
       data: {
         tenantId,
@@ -162,6 +165,9 @@ describe('S1 uzman yalniz kendi musterilerini gorur (K4)', () => {
     staffAToken = staffA.token
     staffBToken = staffB.token
     const service = await createTestService(tenantId, suffix)
+    serviceId = service.id
+    staffAProfileId = staffA.profile.id
+    staffBProfileId = staffB.profile.id
 
     const own = await createTestCustomer(tenantId, '+905550000101', `${suffix}-own`)
     const other = await createTestCustomer(tenantId, '+905550000102', `${suffix}-other`)
@@ -282,5 +288,116 @@ describe('S1 uzman yalniz kendi musterilerini gorur (K4)', () => {
   it('K4 staff B, A uzmaninin musterisine erisemez (iki yonlu)', async () => {
     expect((await get(`/customers/${ownCustomerId}`, staffBToken)).status).toBe(404)
     expect((await get(`/customers/${otherStaffCustomerId}`, staffBToken)).status).toBe(200)
+  })
+
+  // ─── S1 tur 2: ayni siniftaki sizintilar ────────────────────────────────────
+
+  const patch = (customerId: string, token: string, body: object) =>
+    request(app).patch(`/api/v1/tenants/${slug}/customers/${customerId}`).set('Authorization', `Bearer ${token}`).send(body)
+
+  it('matris 15: staff PATCH {} baska uzmanin musterisinde 403', async () => {
+    const res = await patch(otherStaffCustomerId, staffAToken, {})
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('FORBIDDEN')
+  })
+
+  it('matris 15: staff PATCH allergyNotes 403 ve kayit degismez (kendi musterisi de dahil)', async () => {
+    for (const id of [otherStaffCustomerId, ownCustomerId]) {
+      const before = await db.customer.findUniqueOrThrow({ where: { id }, select: { allergyNotes: true, phone: true } })
+      const res = await patch(id, staffAToken, { allergyNotes: 'DEGISTI', phone: '+905559999999' })
+      expect(res.status).toBe(403)
+      const after = await db.customer.findUniqueOrThrow({ where: { id }, select: { allergyNotes: true, phone: true } })
+      expect(after).toEqual(before)
+    }
+  })
+
+  it('matris 15: owner PATCH 200 ve kayit gercekten degisir (staff testinin tesadufen gecmedigini kanitlar)', async () => {
+    const res = await patch(otherStaffCustomerId, ownerToken, { allergyNotes: 'Lateks alerjisi' })
+    expect(res.status).toBe(200)
+    expect((await db.customer.findUniqueOrThrow({ where: { id: otherStaffCustomerId } })).allergyNotes).toBe('Lateks alerjisi')
+  })
+
+  it('matris 15: owner baska kiracinin musterisini PATCH edemez (404) ve kayit degismez', async () => {
+    const res = await patch(foreignTenantCustomerId, ownerToken, { allergyNotes: 'SIZINTI' })
+    expect(res.status).toBe(404)
+    expect((await db.customer.findUniqueOrThrow({ where: { id: foreignTenantCustomerId } })).allergyNotes).not.toBe('SIZINTI')
+  })
+
+  it('matris 11: staff GET /waitlist 403; owner veriyi gorur (veri gercekten var)', async () => {
+    const entry = await db.waitlist.create({ data: { tenantId, customerId: otherStaffCustomerId } })
+    const staffRes = await get('/waitlist', staffAToken)
+    expect(staffRes.status).toBe(403)
+    expect(JSON.stringify(staffRes.body)).not.toContain('+905550000102')
+
+    const ownerRes = await get('/waitlist', ownerToken)
+    expect(ownerRes.status).toBe(200)
+    expect(ownerRes.body.data.map((e: { id: string }) => e.id)).toContain(entry.id)
+  })
+
+  describe('musteri paketleri (K4 kapsami)', () => {
+    let ownCpId: string
+    let otherCpId: string
+
+    beforeAll(async () => {
+      const pkg = await db.servicePackage.create({
+        data: { tenantId, serviceId, name: 'Test Paket', totalSessions: 5, price: 500 },
+      })
+      const mk = (customerId: string) =>
+        db.customerPackage.create({
+          data: { tenantId, customerId, packageId: pkg.id, totalSessions: 5, remainingSessions: 5, pricePaid: 500 },
+        })
+      ownCpId = (await mk(ownCustomerId)).id
+      otherCpId = (await mk(otherStaffCustomerId)).id
+    })
+
+    it('GET /customer-packages: staff A yalniz kendi musterisinin paketini gorur, owner ikisini de', async () => {
+      const staff = await get('/customer-packages', staffAToken)
+      expect(staff.status).toBe(200)
+      expect(staff.body.data.map((p: { id: string }) => p.id)).toEqual([ownCpId])
+      expect(JSON.stringify(staff.body)).not.toContain('+905550000102')
+
+      const owner = await get('/customer-packages', ownerToken)
+      expect(owner.body.data.map((p: { id: string }) => p.id)).toEqual(expect.arrayContaining([ownCpId, otherCpId]))
+    })
+
+    it('GET /customer-packages?customerId=<baska uzmanin musterisi>: staff bos liste alir', async () => {
+      const res = await get(`/customer-packages?customerId=${otherStaffCustomerId}`, staffAToken)
+      expect(res.status).toBe(200)
+      expect(res.body.data).toEqual([])
+    })
+
+    it('GET usages: baska uzmanin musteri paketi 404, kendi musterisininki 200', async () => {
+      expect((await get(`/customer-packages/${otherCpId}/usages`, staffAToken)).status).toBe(404)
+      expect((await get(`/customer-packages/${ownCpId}/usages`, staffAToken)).status).toBe(200)
+    })
+
+    it('POST use: staff baska uzmanin musteri paketini kullanamaz (404) ve seans sayisi degismez', async () => {
+      const post = (id: string) =>
+        request(app).post(`/api/v1/tenants/${slug}/customer-packages/${id}/use`).set('Authorization', `Bearer ${staffAToken}`).send({})
+      expect((await post(otherCpId)).status).toBe(404)
+      expect((await db.customerPackage.findUniqueOrThrow({ where: { id: otherCpId } })).remainingSessions).toBe(5)
+      expect((await post(ownCpId)).status).toBeLessThan(300)
+      expect((await db.customerPackage.findUniqueOrThrow({ where: { id: ownCpId } })).remainingSessions).toBe(4)
+    })
+  })
+
+  describe('"kendi musterisi" 12 ay penceresi', () => {
+    const monthsAgo = (m: number) => new Date(Date.now() - m * 30 * 24 * 60 * 60 * 1000)
+
+    it('11 ay once tamamlanmis randevu kapsamda (200), 13 ay once kapsam disi (404)', async () => {
+      const inWindow = await createTestCustomer(tenantId, '+905550000111', `${suffix}-w11`)
+      const outWindow = await createTestCustomer(tenantId, '+905550000113', `${suffix}-w13`)
+      await appointment(staffAProfileId, inWindow.id, serviceId, monthsAgo(11), 'completed')
+      await appointment(staffAProfileId, outWindow.id, serviceId, monthsAgo(13), 'completed')
+      expect((await get(`/customers/${inWindow.id}`, staffAToken)).status).toBe(200)
+      expect((await get(`/customers/${outWindow.id}`, staffAToken)).status).toBe(404)
+    })
+
+    it('karar: no_show randevusu musteriyi "kendi musterisi" sayar (iptalden farkli)', async () => {
+      const noShow = await createTestCustomer(tenantId, '+905550000112', `${suffix}-ns`)
+      await appointment(staffBProfileId, noShow.id, serviceId, monthsAgo(1), 'no_show')
+      expect((await get(`/customers/${noShow.id}`, staffBToken)).status).toBe(200)
+      expect((await get(`/customers/${noShow.id}`, staffAToken)).status).toBe(404)
+    })
   })
 })
