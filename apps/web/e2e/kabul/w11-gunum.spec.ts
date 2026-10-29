@@ -98,7 +98,7 @@ test('W11: Sıradaki kartı en yakın randevuyu, kalan süreyi ve aranabilir tel
   await expect(kart).toContainText('Müşteri Bir')
   await expect(kart).toContainText(/\d+ dk sonra/)
   await expect(kart.getByRole('button', { name: 'Başlat' })).toBeVisible()
-  const ara = kart.getByRole('link', { name: /\bara$/ })
+  const ara = kart.getByRole('link', { name: /^Ara:/ })
   const href = (await ara.getAttribute('href')) ?? ''
   expect(href.startsWith('tel:'), `tel bağlantısı: ${href}`).toBe(true)
   expect(href.replace(/\D/g, '').endsWith(birinciTelefon.slice(-10)), `telefon hanesi: ${href}`).toBe(true)

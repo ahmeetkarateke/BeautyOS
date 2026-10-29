@@ -1,7 +1,12 @@
 import { Resend } from 'resend'
 import { logger } from './logger'
 
-type EmailKind = 'password_reset' | 'welcome'
+type EmailKind = 'password_reset' | 'welcome' | 'invitation'
+
+/** E-posta gönderimi yapılandırılmış mı (hatırlatma yedeği bunu görüp atlar; yapılandırma eksikliği yeniden denemeyle düzelmez). */
+export function isEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY)
+}
 
 interface OutgoingEmail {
   to: string
@@ -58,5 +63,15 @@ export async function sendWelcomeEmail(email: string, salonName: string, trialEn
     to: email,
     subject: `BeautyOS'a hoş geldiniz, ${singleLine(salonName)}!`,
     html: `<p>Merhaba,</p><p><strong>${escapeHtml(salonName)}</strong> adına BeautyOS'a hoş geldiniz! 30 günlük ücretsiz deneme süreniz başladı.</p><p>Deneme süreniz <strong>${trialEndStr}</strong> tarihinde sona erecek.</p>`,
+  })
+}
+
+/** Personel davet e-postası (ADR-0042). Bağlantı e-posta gövdesindedir; log'a yazılmaz. */
+export async function sendInvitationEmail(input: { to: string; salonName: string; fullName: string; link: string; expiresAt: Date }): Promise<boolean> {
+  const until = input.expiresAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
+  return deliver('invitation', {
+    to: input.to,
+    subject: `${singleLine(input.salonName)} sizi BeautyOS'a davet etti`,
+    html: `<p>Merhaba ${escapeHtml(input.fullName)},</p><p><strong>${escapeHtml(input.salonName)}</strong> sizi BeautyOS'ta çalışmaya davet etti. Şifrenizi belirleyip hesabınızı açmak için aşağıdaki bağlantıyı kullanın:</p><p><a href="${escapeHtml(input.link)}">Daveti kabul et</a></p><p>Bağlantı tek kullanımlıktır ve <strong>${until}</strong> tarihine kadar geçerlidir.</p>`,
   })
 }
