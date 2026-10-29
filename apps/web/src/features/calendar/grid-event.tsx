@@ -52,7 +52,6 @@ export function GridEvent({
       data-movable={draggable ? 'true' : undefined}
       {...(draggable ? listeners : {})}
       onClick={() => onOpen(a.id)}
-      aria-label={`${clockLabel(a.start)} – ${clockLabel(a.end)}, ${a.customerName}, ${a.serviceName}, ${STATUS_LABELS[a.status]}`}
       style={{
         top: `${top}px`,
         height: `${height}px`,
@@ -67,10 +66,17 @@ export function GridEvent({
         eventClasses(a.status, tone),
       )}
     >
+      {/* Erişilebilir ad görünür metinle başlar (WCAG 2.5.3, axe label-content-name-mismatch): aria-label yok; görünmeyen bilgi gizli metinle sonuna eklenir. */}
       {short ? (
-        <strong className="truncate font-semibold">
-          {clockLabel(a.start)} {a.customerName}
-        </strong>
+        <>
+          <strong className="truncate font-semibold">
+            {clockLabel(a.start)} {a.customerName}
+          </strong>
+          <span className="sr-only">
+            , {clockLabel(a.end)} bitiş, {a.serviceName}, {STATUS_LABELS[a.status]}
+            {a.unverified ? ', Online' : ''}
+          </span>
+        </>
       ) : (
         <>
           <strong className="truncate font-semibold">{a.customerName}</strong>
@@ -82,7 +88,12 @@ export function GridEvent({
               {STATUS_LABELS[a.status]}
               {a.unverified ? ' · Online' : ''}
             </span>
-          ) : null}
+          ) : (
+            <span className="sr-only">
+              , {STATUS_LABELS[a.status]}
+              {a.unverified ? ', Online' : ''}
+            </span>
+          )}
         </>
       )}
     </button>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { fetchSlots } from '@/features/appointment-create/api'
-import { slotStartAt } from '@/features/appointment-create/create-logic'
+import { futureSlots, slotStartAt } from '@/features/appointment-create/create-logic'
 import { clockLabel, type DayAppointment } from '@/features/appointments/day-logic'
 import { ApiError } from '@/lib/v2/api-client'
 import { useApiClient } from '@/lib/v2/api-context'
@@ -23,7 +23,7 @@ import { rescheduleAppointment } from './api'
 const DAYS = 14
 const SLOT_ERRORS = new Set(['SLOT_TAKEN', 'SLOT_CONFLICT', 'APPOINTMENT_CONFLICT'])
 
-export function RescheduleSheet({ appointment, today, onClose, onDone }: { appointment: DayAppointment; today: string; onClose: () => void; onDone: () => void }) {
+export function RescheduleSheet({ appointment, today, now, onClose, onDone }: { appointment: DayAppointment; today: string; now?: Date; onClose: () => void; onDone: () => void }) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
   const toast = useToast()
@@ -34,7 +34,9 @@ export function RescheduleSheet({ appointment, today, onClose, onDone }: { appoi
 
   const serviceId = appointment.serviceId ?? ''
   const slots = useApiQuery(serviceId ? `slots:${serviceId}:${appointment.staffKey}:${date}` : null, (c, signal) => fetchSlots(c, slug, serviceId, appointment.staffKey, date, signal))
-  const free = useMemo(() => (slots.data ?? []).filter((s) => s.available), [slots.data])
+  const [openedAt] = useState(() => new Date())
+  const nowMs = (now ?? openedAt).getTime()
+  const free = useMemo(() => futureSlots((slots.data ?? []).filter((s) => s.available), nowMs), [slots.data, nowMs])
   const slotId = free.some((s) => s.id === choice) ? choice : ''
   const days = useMemo(() => buildDayRange(today, DAYS).map((d) => ({ date: d })), [today])
 
