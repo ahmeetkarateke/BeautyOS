@@ -2,7 +2,7 @@ import { permissionsFor, type PermissionKey, type Role } from '@beautyos/shared'
 import { MODULE_KEYS, isValidModuleKey } from './modules'
 import type { BookingMode } from './booking-mode'
 
-const TERM_SETS = ['salon', 'clinic_client', 'clinic_patient'] as const
+export const TERM_SETS = ['salon', 'clinic_client', 'clinic_patient'] as const
 type TermSet = (typeof TERM_SETS)[number]
 
 export interface MeProfile {

@@ -12,6 +12,7 @@ import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission, ensurePermission } from '../middleware/permission'
+import { TERM_SETS } from '../lib/me-profile'
 import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
 import { phoneInUse } from '../lib/customer-phone'
 import { normalizePhoneTR } from '../lib/sms/types'
@@ -1289,6 +1290,15 @@ export function createTenantRouter(): Router {
     botFaqs: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })).max(20).optional(),
     botHidePrices: z.boolean().optional(),
     publicBookingEnabled: z.boolean().optional(),
+    // A5 / ADR-0031: terim seti ve özelleştirmeler. Yalnız sahip yazar; değerler arayüzde metin olarak çizildiği için işaretleme reddedilir.
+    termSet: z.enum(TERM_SETS).optional(),
+    termOverrides: z
+      .record(
+        z.string().regex(/^[A-Za-z0-9_]{1,40}$/),
+        z.string().trim().min(1).max(60).refine((v) => !/[<>]/.test(v), { message: 'Geçersiz karakter içeriyor.' }),
+      )
+      .refine((o) => Object.keys(o).length <= 30, { message: 'En çok 30 terim.' })
+      .optional(),
     onlineBookingApproval: z.enum(['auto', 'manual']).optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir hex renk (ör. #6B48FF)').optional(),
     logoUrl: httpsOnlyUrl().optional().or(z.literal('')),
@@ -1317,9 +1327,9 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz alan değeri.' } })
       }
 
-      // activeModules (R7) ve businessType (klinik KVKK korumalarını belirler) yalnız sahibe aittir.
+      // activeModules (R7), businessType (klinik KVKK korumalarını belirler) ve terim ayarları (A5) yalnız sahibe aittir.
       // Rol adı kasıtlı: bu alanlar için izin anahtarı yok; izin tablosu başka dalda değişiyor.
-      if (role !== 'owner' && (parsed.data.activeModules !== undefined || parsed.data.businessType !== undefined)) {
+      if (role !== 'owner' && (parsed.data.activeModules !== undefined || parsed.data.businessType !== undefined || parsed.data.termSet !== undefined || parsed.data.termOverrides !== undefined)) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu ayarı yalnızca salon sahibi değiştirebilir.' } })
       }
 
