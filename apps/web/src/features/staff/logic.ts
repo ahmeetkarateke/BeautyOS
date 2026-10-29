@@ -35,12 +35,30 @@ export function weekRows(workingHours: unknown): HourRow[] {
 /** Yalnız açık günler doğrulanır; hatalı günün anahtarı hata metniyle döner. */
 export function validateHours(rows: readonly HourRow[]): Record<string, string> {
   const errors: Record<string, string> = {}
+  // Hiç gün açık değilse sunucu personeli salon saatlerine düşürür: "hepsi kapalı" anlamsız bir kayıt olur, engellenir.
+  if (!rows.some((row) => row.open)) return { _all: 'En az bir gün açık olmalı. Hiç gün açık değilse salon çalışma saatleri kullanılır.' }
   for (const row of rows) {
     if (!row.open) continue
     if (!TIME_RE.test(row.start) || !TIME_RE.test(row.end)) errors[row.key] = `${row.label}: saatleri 09:00 biçiminde yazın.`
     else if (row.end <= row.start) errors[row.key] = `${row.label}: bitiş saati başlangıçtan sonra olmalı.`
   }
   return errors
+}
+
+/** Personelin hiç açık günü yoksa sunucu salon çalışma saatlerini kullanır (lib/slots). */
+export const usesSalonHours = (rows: readonly HourRow[]): boolean => !rows.some((row) => row.open)
+
+/** Salon saati nesne ya da eski "09:00-19:00" dizesi olabilir (dize: Pazartesi-Cumartesi). */
+export function salonRows(value: unknown): HourRow[] {
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/)
+    if (match) {
+      const day = { start: match[1], end: match[2] }
+      return weekRows({ monday: day, tuesday: day, wednesday: day, thursday: day, friday: day, saturday: day, sunday: null })
+    }
+    return weekRows(null)
+  }
+  return weekRows(value)
 }
 
 export function hoursBody(rows: readonly HourRow[]): Record<string, unknown> {

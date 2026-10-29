@@ -65,3 +65,11 @@ export async function addLeave(client: ApiClient, slug: string, id: string, payl
 export async function removeLeave(client: ApiClient, slug: string, id: string, leaveId: string): Promise<void> {
   await client.request<unknown>(`${base(slug)}/${encodeURIComponent(id)}/leaves/${encodeURIComponent(leaveId)}`, { method: 'DELETE' })
 }
+
+const salonHoursSchema = z.object({ settings: z.object({ workingHours: z.unknown().optional() }).passthrough().nullish() })
+
+/** Salon çalışma saatleri (personelin özel saati yoksa sunucu bunu kullanır). */
+export async function fetchSalonHours(client: ApiClient, slug: string, signal?: AbortSignal): Promise<unknown> {
+  const body = salonHoursSchema.parse(await client.request<unknown>(`/api/v1/tenants/${encodeURIComponent(slug)}/settings`, { signal }))
+  return body.settings?.workingHours
+}

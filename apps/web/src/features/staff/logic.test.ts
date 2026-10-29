@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { commissionLine, hoursBody, leaveTypeLabel, sortLeaves, validateHours, validateProfile, weekRows, type HourRow } from './logic'
+import {
+  commissionLine,
+  hoursBody,
+  leaveTypeLabel,
+  salonRows,
+  sortLeaves,
+  usesSalonHours,
+  validateHours,
+  validateProfile,
+  weekRows,
+  type HourRow,
+} from './logic'
 
 describe('W21 weekRows', () => {
   it("K1: yedi gün Pazartesi'den başlar, Türkçe adlarla; çalışılmayan gün (null) kapalı görünür", () => {
@@ -24,7 +35,8 @@ describe('W21 validateHours', () => {
     weekRows({ monday: { start: '09:00', end: '18:00' } }).map((r) => (r.key === 'monday' ? { ...r, ...over } : r))
   it('K2: geçerli program hatasızdır; kapalı günler doğrulanmaz', () => {
     expect(validateHours(rows())).toEqual({})
-    expect(validateHours(rows({ open: false, start: '18:00', end: '09:00' }))).toEqual({})
+    const withTuesday = rows({ open: false, start: '18:00', end: '09:00' }).map((r) => (r.label === 'Salı' ? { ...r, open: true } : r))
+    expect(validateHours(withTuesday)).toEqual({})
   })
   it('K2: bitiş başlangıçtan önce ya da eşitse yalnız o gün hatalı (neden: saat sırası)', () => {
     expect(Object.keys(validateHours(rows({ start: '18:00', end: '09:00' })))).toEqual(['monday'])
@@ -74,5 +86,24 @@ describe('W21 commissionLine / leaveTypeLabel / sortLeaves', () => {
         { id: 'a', leaveDate: '2026-11-01', leaveType: 'day_off' },
       ]).map((l) => l.id),
     ).toEqual(['a', 'b'])
+  })
+})
+
+describe('W21-1 salon saatleri ve özel saat', () => {
+  it('K7: personelin hiç açık günü yoksa "salon saatleri kullanılıyor" sayılır; bir gün açıksa özel saattir', () => {
+    expect(usesSalonHours(weekRows(null))).toBe(true)
+    expect(usesSalonHours(weekRows({ monday: null, sunday: null }))).toBe(true)
+    expect(usesSalonHours(weekRows({ monday: { start: '09:00', end: '18:00' } }))).toBe(false)
+  })
+  it('K8: salon saati nesne biçiminde de, eski "09:00-19:00" dize biçiminde de (Pazartesi-Cumartesi) satırlara çevrilir', () => {
+    const fromObject = salonRows({ monday: { start: '10:00', end: '19:00' } })
+    expect(fromObject[0]).toMatchObject({ open: true, start: '10:00', end: '19:00' })
+    const fromString = salonRows('09:00-19:00')
+    expect(fromString.filter((r) => r.open).map((r) => r.label)).toEqual(['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'])
+    expect(fromString[6].open).toBe(false)
+    expect(salonRows(undefined).every((r) => !r.open)).toBe(true)
+  })
+  it('K9: hepsi kapalı özel program kaydedilemez (sunucu bunu salon saatine çevirir): neden metni yazılır', () => {
+    expect(validateHours(weekRows(null))).toEqual({ _all: 'En az bir gün açık olmalı. Hiç gün açık değilse salon çalışma saatleri kullanılır.' })
   })
 })
