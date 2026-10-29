@@ -98,6 +98,8 @@ describe('W23 Raporlar', () => {
     expect(await screen.findByText('₺5.000')).toBeTruthy()
     const query = (cashCalls()[0][1] as Init).query!
     expect(query.groupBy).toBe('day')
+    // Yeni sözleşme (gelistirici-2): fields=summary ile en çok 31 gün ve liste yok; eski ekran etkilenmez.
+    expect(query.fields).toBe('summary')
     expect(String(query.from)).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     const table = screen.getByRole('table', { name: 'Günlük döküm' })
     expect(within(table).getAllByRole('row')).toHaveLength(3)
