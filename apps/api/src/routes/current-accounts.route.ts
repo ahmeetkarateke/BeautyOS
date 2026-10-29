@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { Prisma, CurrentAccountPartyType, CurrentAccountEntryRefType, FinancialTransactionType } from '@prisma/client'
 import { db } from '../lib/db'
+import { ensurePermission } from '../middleware/permission'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -15,8 +16,6 @@ function noXss(min: number, max: number) {
     .refine((v) => !XSS_PATTERN.test(v), { message: 'Geçersiz karakter içeriyor.' })
 }
 
-const ALLOWED_ROLES_READ = new Set(['owner', 'manager', 'staff'])
-const ALLOWED_ROLES_WRITE = new Set(['owner', 'manager'])
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
@@ -33,10 +32,7 @@ export function createCurrentAccountsRouter(): Router {
   // Hesap listesi + bakiye + son hareket
   router.get('/current-accounts', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'current_account.read')) return
       const tenantId = req.tenantId!
       const partyType = req.query.type === 'supplier' ? 'supplier' : 'customer'
       const search = typeof req.query.search === 'string' ? req.query.search.trim() : ''
@@ -108,10 +104,7 @@ export function createCurrentAccountsRouter(): Router {
   // Ekstre — borç, alacak, yürüyen bakiye
   router.get('/current-accounts/:partyType/:partyId/entries', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_READ.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yetkiniz yok.' } })
-      }
+      if (!ensurePermission(req, res, 'current_account.read')) return
       const tenantId = req.tenantId!
       const { partyType, partyId } = req.params
       if (partyType !== 'customer' && partyType !== 'supplier') {
@@ -191,10 +184,7 @@ export function createCurrentAccountsRouter(): Router {
 
   router.post('/current-accounts/entries', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Sadece yönetici işlem yapabilir.' } })
-      }
+      if (!ensurePermission(req, res, 'current_account.write')) return
       const tenantId = req.tenantId!
       const userId = req.user!.userId
 
@@ -278,10 +268,7 @@ export function createCurrentAccountsRouter(): Router {
   // Sadece manuel veya opening_balance kayıtları silinebilir
   router.delete('/current-accounts/entries/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (!ALLOWED_ROLES_WRITE.has(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Sadece yönetici silebilir.' } })
-      }
+      if (!ensurePermission(req, res, 'current_account.write')) return
       const tenantId = req.tenantId!
       const { id } = req.params
       if (!isUuid(id)) {
