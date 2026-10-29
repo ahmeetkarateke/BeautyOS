@@ -34,8 +34,12 @@ export async function searchCustomers(client: ApiClient, slug: string, term: str
   return z.array(customerSchema).parse(body.data ?? [])
 }
 
-export async function createCustomer(client: ApiClient, slug: string, fullName: string, phoneDigits: string): Promise<{ id: string }> {
-  const body = await client.request<unknown>(`${base(slug)}/customers`, { method: 'POST', body: { fullName: fullName.trim(), phone: `0${phoneDigits}` } })
+/** allowSharedPhone: aynı telefon başka kartta kayıtlıyken kullanıcı bilerek yeni kart ister (ADR-0038, "Yine de ekle"). */
+export async function createCustomer(client: ApiClient, slug: string, fullName: string, phoneDigits: string, allowSharedPhone = false): Promise<{ id: string }> {
+  const body = await client.request<unknown>(`${base(slug)}/customers`, {
+    method: 'POST',
+    body: { fullName: fullName.trim(), phone: `0${phoneDigits}`, ...(allowSharedPhone ? { allowSharedPhone: true } : {}) },
+  })
   return z.object({ id: z.string() }).parse(body)
 }
 

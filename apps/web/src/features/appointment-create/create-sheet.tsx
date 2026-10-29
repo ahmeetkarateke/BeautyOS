@@ -62,6 +62,8 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
   const [busy, setBusy] = useState(false)
   const [slotError, setSlotError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  // Aynı telefon başka kartta kayıtlı: kullanıcı kayıtlı müşteriyi seçer ya da bilerek yeni kart ister (ADR-0038).
+  const [duplicatePhone, setDuplicatePhone] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(term.trim()), 250)
@@ -100,6 +102,7 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
     setCustomer(next)
     setCreatedId(null)
     setFormError(null)
+    setDuplicatePhone(false)
   }
 
   function editNewCustomer(patch: { name?: string; phoneDigits?: string }) {
@@ -108,17 +111,18 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
     setCreatedId(null)
   }
 
-  async function submit() {
+  async function submit(allowSharedPhone = false) {
     if (!customer || !complete) return
     setBusy(true)
     setFormError(null)
     setSlotError(null)
+    setDuplicatePhone(false)
     try {
       let customerId: string
       if (customer.kind === 'existing') customerId = customer.id
       else {
         // Saat dolup yeniden denenirse müşteri ikinci kez oluşturulmaz.
-        customerId = createdId ?? (await createCustomer(client, slug, customer.name, customer.phoneDigits)).id
+        customerId = createdId ?? (await createCustomer(client, slug, customer.name, customer.phoneDigits, allowSharedPhone)).id
         setCreatedId(customerId)
       }
       await createAppointment(client, slug, { customerId, serviceId, staffId, startAt: slotStartAt(slotId), ...(notes.trim() ? { notes: notes.trim() } : {}) })
@@ -131,7 +135,10 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
         setSlotError(apiError.text())
         setSlotChoice('')
         slots.refetch()
-      } else setFormError(apiError.text())
+      } else {
+        setFormError(apiError.text())
+        if (apiError.code === 'DUPLICATE_PHONE') setDuplicatePhone(true)
+      }
     } finally {
       setBusy(false)
     }
@@ -154,7 +161,7 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
       footer={
         <>
           {summary ? <p className="mr-auto min-w-0 flex-1 basis-full truncate self-center text-sm text-text-secondary sm:basis-auto">{summary}</p> : null}
-          <Button disabled={!complete || busy} loading={busy} loadingText="Kaydediliyor…" onClick={() => void submit()}>
+          <Button disabled={!complete || busy} loading={busy} loadingText="Kaydediliyor…" onClick={() => void submit(false)}>
             Randevu oluştur
           </Button>
         </>
@@ -253,6 +260,22 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
 
         <TextareaField label="Not" optional rows={2} maxLength={500} value={notes} onChange={(event) => setNotes(event.target.value)} />
         {formError ? <Banner tone="error">{formError}</Banner> : null}
+        {duplicatePhone && customer?.kind === 'new' ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setTerm(`0${customer.phoneDigits}`)
+                pickCustomer(null)
+              }}
+            >
+              Kayıtlı müşteriyi seç
+            </Button>
+            <Button variant="secondary" disabled={busy} onClick={() => void submit(true)}>
+              Yine de yeni müşteri ekle
+            </Button>
+          </div>
+        ) : null}
       </div>
     </Sheet>
   )

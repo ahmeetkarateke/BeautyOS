@@ -233,6 +233,48 @@ describe('W13 Randevu oluştur', () => {
     expect(calls('/appointments', 'POST')).toHaveLength(0)
   })
 
+  it('W13-1 K: DUPLICATE_PHONE çıkmaz bırakmaz; iki seçenek sunulur (kayıtlı müşteriyi seç / yine de yeni ekle)', async () => {
+    customerError = new ApiError({ status: 409, code: 'DUPLICATE_PHONE' })
+    mount()
+    await pickNewCustomer()
+    await pickServiceAndStaff()
+    fireEvent.click(await screen.findByRole('button', { name: '10:00' }))
+    fireEvent.click(submit())
+    await screen.findByRole('alert')
+    expect(screen.getByRole('button', { name: 'Kayıtlı müşteriyi seç' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Yine de yeni müşteri ekle' })).toBeTruthy()
+  })
+
+  it('W13-1 K: "Yine de yeni müşteri ekle" allowSharedPhone ile yeniden dener ve randevuyu oluşturur', async () => {
+    customerError = new ApiError({ status: 409, code: 'DUPLICATE_PHONE' })
+    mount()
+    await pickNewCustomer()
+    await pickServiceAndStaff()
+    fireEvent.click(await screen.findByRole('button', { name: '10:00' }))
+    fireEvent.click(submit())
+    await screen.findByRole('alert')
+    customerError = null
+    fireEvent.click(screen.getByRole('button', { name: 'Yine de yeni müşteri ekle' }))
+    await waitFor(() => expect(calls('/appointments', 'POST')).toHaveLength(1))
+    const posts = calls('/customers', 'POST')
+    expect(posts[0][1].body).not.toHaveProperty('allowSharedPhone')
+    expect(posts[1][1].body).toMatchObject({ allowSharedPhone: true })
+    expect(calls('/appointments', 'POST')[0][1].body).toMatchObject({ customerId: 'cNew' })
+  })
+
+  it('W13-1 K: "Kayıtlı müşteriyi seç" aramaya döner ve telefonla arar', async () => {
+    customerError = new ApiError({ status: 409, code: 'DUPLICATE_PHONE' })
+    mount()
+    await pickNewCustomer()
+    await pickServiceAndStaff()
+    fireEvent.click(await screen.findByRole('button', { name: '10:00' }))
+    fireEvent.click(submit())
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Kayıtlı müşteriyi seç' }))
+    expect((screen.getByRole('searchbox', { name: /Müşteri ara/ }) as HTMLInputElement).value).toBe('05321234567')
+    await waitFor(() => expect(calls('/customers', undefined).some(([, i]) => (i as Init).query?.search === '05321234567')).toBe(true))
+  })
+
   it('K-uzman: uzman kendi adına açar; personel seçimi ve fiyat görünmez, personel olarak kendi kimliği gönderilir', async () => {
     mount({ ...makeMe('staff'), staffId: 'p1' })
     await pickExistingCustomer()
