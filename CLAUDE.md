@@ -2,28 +2,31 @@
 
 - **Müşteri:** Şirket ürünü (B2B SaaS: berber, kuaför ve güzellik merkezleri için randevu ve salon yönetimi)
 - **Başlangıç:** 2026-04-20 (şirket dışında başladı; şirkete taşınma 2026-10-27)
-- **Durum:** canlı (gerçek kullanıcı yok) · Vercel + Railway + Supabase + Upstash'ten şirket sunucusuna **taşınıyor**
-- **Depo:** GitHub `ahmeetkarateke/BeautyOS` (özel), ana dal `master`
+- **Durum:** canlı (gerçek kullanıcı yok) · şirket sunucusuna **taşındı** (DNS geçişi 2026-10-29). Eski servislerin kapatılması bekliyor (G17).
+- **Depo:** GitHub `ahmeetkarateke/BeautyOS` (özel). Yeni arayüz ve güvenlik işinin ana hattı yerel `gelistirme` dalıdır (ADR-0022). `master` taşıma öncesinden kaldı.
 
-Şirketin genel kuralları üst klasördeki CLAUDE.md'de ve `kod-standartlari` skill'indedir. Bu dosya yalnız projeye özel kuralları içerir. Taşıma belgeleri: `docs/mevcut-durum.md`, `docs/tasima-plani.md`, `docs/kararlar.md`, `docs/gorevler.md`.
+Şirketin genel kuralları üst klasördeki CLAUDE.md'de ve `kod-standartlari` skill'indedir. Bu dosya yalnız projeye özel kuralları içerir. Belgeler: `docs/kodlama-plani.md` (yeni arayüz + güvenlik), `docs/kararlar.md`, `docs/tasarim.md`, taşıma için `docs/tasima-plani.md` ve `docs/gorevler.md`.
 
-## UYARI: `master` / `staging` push'u = CANLIYA ALMA
+## Push ve dallar
 
-- Taşıma tamamlanıp kurucu Railway ve Vercel'in GitHub bağlantısını kesene kadar (tasima-plani §10 adım 1): **`master`'a push prod'u, `staging`'e push staging'i otomatik dağıtır.**
-- Bu iki dala birleştirme ve her türlü `git push` yalnız kurucu onayıyla, müdür tarafından yapılır. Ajanlar yalnız yerel commit atar.
-- Railway yalnız `apps/api/**` değişikliğini izler ("watch paths"). Kök dosya değişikliği (`Dockerfile`, `railway.json`) push'ta SKIPPED olur ve kurucunun elle Redeploy etmesini gerektirir. Push sonrası GitHub dağıtım durumunu kontrol et. Railway canlısının adresi `api.beautyossapp.com`'dur.
-- Taşıma dalları (`tasima/*`) o adımdan önce `master`'a ya da `staging`'e birleştirilmez. Tek istisna canlıdaki açığı kapatan hotfix'lerdir (ör. G4a `/debug`); bunlar bilerek `master` üzerinden Railway'e çıkar.
-- Kök `Dockerfile`, `railway.json`, `nixpacks.toml` ve `apps/web/vercel.json` eski sisteme geri dönüş yoludur. G18'e kadar değiştirilmez.
+- **Push artık hiçbir yere yayın yapmaz.** Kurucu Railway ve Vercel'in GitHub bağlantısını kesti (G17-K0, 2026-10-29). Yayın yalnız sunucuda yapılır (bkz. Komutlar).
+- Her türlü `git push` ve `master`'a birleştirme yine yalnız kurucu onayıyla, müdür tarafından yapılır. Ajanlar yalnız yerel commit atar.
+- Görev dalları `gelistirme`'den açılır. Müdür denetçinin ONAY verdiği dalı yerelde `gelistirme`'ye birleştirir (ADR-0022). `tasima/docker` donduruldu.
+- Railway servisleri G17'de kapatılana kadar çalışmayı sürdürüyor ama trafik almıyor. Kök `Dockerfile`, `railway.json`, `nixpacks.toml` ve `apps/web/vercel.json` G18'de silinecek.
 
 ## Teknoloji
 
-- **Monorepo:** npm workspaces (`apps/*`), tek `package-lock.json`.
-- **API (`apps/api`):** Node 20, Express 4, TypeScript, Prisma 5.22 (PostgreSQL), BullMQ 5 + ioredis, zod, pino, bcryptjs + JWT (erişim 15 dk, yenileme 30 gün, httpOnly çerez), Telegram/WhatsApp kanalları, Gemini, NetGSM SMS, Resend e-posta, Sentry, Cloudflare Turnstile.
-- **Web (`apps/web`):** Next.js 14 App Router, React 18, Tailwind, React Query, Zustand. API'ye tarayıcıdan `NEXT_PUBLIC_API_URL` ile gider (derlemede gömülür).
+- **Monorepo:** npm workspaces (`apps/*`, `packages/*`), tek `package-lock.json`. Paylaşılan kod `packages/shared`'de (izinler, terimler, işletme türleri; ADR-0030, ADR-0031).
+- **API (`apps/api`):** Node 20 (Node 22'ye geçiş S9'da, ADR-0024), Express 4, TypeScript, Prisma 5.22 (PostgreSQL), BullMQ 5 + ioredis, zod, pino, bcryptjs + JWT (erişim 15 dk, yenileme 30 gün, httpOnly çerez), Telegram/WhatsApp kanalları, Gemini, NetGSM SMS, Resend e-posta, Sentry, Cloudflare Turnstile.
+- **Web (`apps/web`):** Next.js 16 App Router (Turbopack, `proxy.ts`), React 19, Tailwind v4 (tek sürüm, `tailwind.config.ts` yok), React Query, Zustand. API'ye tarayıcıdan `NEXT_PUBLIC_API_URL` ile gider (derlemede gömülür). ADR-0024, ADR-0025.
+  - **Yeni arayüz (v2)** eskisiyle aynı uygulamada iki kök düzende durur: `app/(legacy)` ve `app/(v2)`. Hangi yüzeyin yeni olduğunu derleme anındaki `NEXT_PUBLIC_UI_V2` bayrağı belirler; canlıda boş, staging'de dolu (ADR-0023).
+  - v2 kodu eski klasörlerden içe aktarma yapmaz.
+  - v2 teknolojileri: Radix Primitives + kendi `src/ui` bileşenlerimiz (ADR-0026), depodan Hanken Grotesk (ADR-0027), lucide-react (ADR-0028), kendi takvimimiz + `@dnd-kit/core` + `date-fns`/`@date-fns/tz` (ADR-0029).
+  - Web testleri: Vitest + RTL, Playwright + axe (ADR-0033).
 - **Veri:** PostgreSQL 17 (hedef), Redis 7.4 (yalnız BullMQ `reminders` kuyruğu).
-- **Hedef barındırma:** `sirket-sunucu-1` (DO FRA1), compose projesi `beautyos` (`/srv/beautyos`), ortak Caddy (`sirket-proxy` ağı), Cloudflare proxy + Full (strict). Canlı hostlar `beautyossapp.com`, `app.`, `www.` (web) ve `api.` (API). Kalıcı staging `yeni.` (web, basic auth) ve `yeni-api.` (ADR-0016); aynı Postgres/Redis örneğinde ayrı veritabanı, rol ve Redis DB 1 kullanır.
+- **Barındırma:** `sirket-sunucu-1` (DO FRA1), compose projesi `beautyos` (`/srv/beautyos`), ortak Caddy (`sirket-proxy` ağı). Cloudflare DNS bugün gri (proxy kapalı, ADR-0021); turuncu bulut ve Full (strict) G20'de. Canlı hostlar `beautyossapp.com`, `app.`, `www.` (web) ve `api.` (API). Kalıcı staging `yeni.` (web, basic auth) ve `yeni-api.` (ADR-0016); aynı Postgres/Redis örneğinde ayrı veritabanı, rol ve Redis DB 1 kullanır.
 - **Dış servis durumu (2026-10-27):** NetGSM SMS kapalı. Telegram yalnız staging'de. WhatsApp kullanılmıyor.
-- **Çok kiracılık:** paylaşımlı şema, `tenantId` sütunu, filtre **yalnız uygulama katmanında** (RLS yok, teknik borç T-B1). Kiracı URL yolundan seçilir (`/tenant/[slug]`).
+- **Çok kiracılık:** paylaşımlı şema, `tenantId` sütunu, filtre **yalnız uygulama katmanında** (RLS yok, teknik borç T-B1). Kiracı URL yolundan seçilir: eski arayüzde `/tenant/[slug]`, yenisinde `/panel/[slug]`.
 
 ## Komutlar
 
@@ -31,14 +34,14 @@
 - Geliştirme: `npm run dev:api`, `npm run dev:web`
 - Test: `npm test` (API, Vitest). **Gerçek PostgreSQL + Redis ister.** Supabase/canlı veritabanına bağlanmayı test yardımcısı reddeder; yerelde ya da CI'da geçici `postgres:17` kullanılır.
 - Tip ve lint: `npm run type-check`, `npm run lint`
-- Migration (yerel): `cd apps/api && npx prisma migrate deploy`. Sunucuda yalnız `docker compose --profile migrate run --rm migrate` ve `[ONAY]` ile.
+- Migration (yerel): `cd apps/api && npx prisma migrate deploy`. Sunucuda yalnız `deploy/betikler/yayinla.sh --migrate …` ile (migration yeni imajla, api'den önce çalışır; canlıda `--onayli`).
 - İmaj: sunucuda `deploy/betikler/derle.sh <tam-sha>` (ADR-0018, ADR-0019).
   - Sunucu GitHub'dan çekmez. Müdür, denetçi ONAY'lı commit'i `git archive` paketiyle `/srv/beautyos/kaynak/<sha12>/` dizinine aktarır.
   - Betik paketin SHA-256 özetini ve içindeki commit kimliğini doğrulamadan derlemez.
-  - Taşıma dalları GitHub'a push edilmez. Vercel her dal push'unda preview açar.
+  - Push yalnız kurucu onayıyla yapılır; Vercel/Railway bağlantısı kesildiği için push dağıtım ya da preview tetiklemez (G17-K0).
   - Etiket commit'in ilk 12 hanesidir; son 3 sürüm yerelde tutulur. Kayıt defteri (GHCR) yok.
   - CI'daki `imaj.yml` yalnız derleme kontrolüdür; G18 birleştirmesine kadar çalışmaz.
-- Yayın: devops yapar. Önce staging: `docker compose up -d api-staging web-staging`. Test GEÇTİ sonrası canlı: `docker compose up -d api web`. Her seferinde imaj etiketi compose'da güncellenir (`docker-yayinlama` skill'i).
+- Yayın: devops yapar, **yalnız** `deploy/betikler/yayinla.sh [--kuru] [--migrate] [--onayli] <staging|canli> <sha12>` ile (önce api sonra web, sağlık kontrolü, hata olursa ikisi birlikte geri alınır). Sürüm etiketleri gizli olmayan `/srv/beautyos/surum.conf`'ta; compose elle çalıştırılacaksa her zaman `docker compose -p beautyos --env-file .env --env-file surum.conf …`. `.env`'de `BEAUTYOS_*VERSION` satırı kalırsa betik durur. Düz `docker compose up` canlıyı eski sürüme döndürebilir; kullanılmaz. Canlı yayın kurucunun açık onayıyla.
 
 ## Projeye özel kurallar
 
@@ -51,4 +54,4 @@
 7. **Log:** pino JSON. Log'a ad, telefon, e-posta, mesaj içeriği yazılmaz; `tenantId` ve kayıt ID'si yazılır. Anamnez (sağlık) verisi özel nitelikli kişisel veridir.
 8. **Docker:** Caddy dışında hiçbir servis port yayınlamaz (sunucu-altyapi ADR-0004). Postgres ve Redis `sirket-proxy` ağına girmez.
 9. **Türk I'sı:** host ve e-posta karşılaştırmalarında `toLowerCase()` ya da `URL` normalizasyonu; `toLocaleLowerCase` kullanılmaz. Testlere büyük `I` içeren vaka eklenir.
-10. **Dal adları:** bu projede ana dal şimdilik `master` (Vercel/Railway bağlı). Görev dalları `gorev/<no>-<kisa-ad>`, taşıma dalları `tasima/<ad>`.
+10. **Dal adları:** ana hat `gelistirme` (ADR-0022); `master`'a birleştirme kurucu kararıdır. Görev dalları `gorev/<no>-<kisa-ad>`, taşıma dalları `tasima/<ad>` (donduruldu).

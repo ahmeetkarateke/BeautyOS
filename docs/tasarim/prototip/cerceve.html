@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telefon çerçevesi · BeautyOS prototip</title>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="bilesenler.css">
+  <style>
+    body { background: #E9E6E4; min-height: 100dvh; }
+    .cubuk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; padding: 12px; }
+    .sahne { display: grid; place-items: center; padding: 8px 12px 40px; }
+    .cihaz { background: #11242A; padding: 10px; border-radius: 36px; box-shadow: var(--golge-yuzen); }
+    .cihaz--tablet { border-radius: 24px; }
+    iframe { display: block; border: 0; border-radius: 28px; background: var(--renk-zemin); }
+    .cihaz--tablet iframe { border-radius: 16px; }
+  </style>
+</head>
+<body>
+  <div class="cubuk">
+    <a class="dugme dugme--ikincil dugme--kucuk" href="index.html">Ekran listesi</a>
+    <div class="parcali" role="group" aria-label="Genişlik" id="gen"></div>
+    <a class="dugme dugme--metin dugme--kucuk" id="tam">Tam genişlikte aç</a>
+  </div>
+  <div class="sahne"><div class="cihaz" id="cihaz"><iframe id="ekran" title="Prototip ekranı"></iframe></div></div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const u = q.get('u') || 'panel.html#bugun';
+    const w = Number(q.get('w') || 390);
+    const H = { 390: 844, 768: 1024 };
+    const f = document.getElementById('ekran');
+    f.src = u; f.width = w; f.height = H[w] || 844;
+    document.getElementById('cihaz').classList.toggle('cihaz--tablet', w > 500);
+    document.getElementById('tam').href = u;
+    document.getElementById('gen').innerHTML = [390, 768].map((x) => `<a class="dugme" style="min-height:36px;border:0;${x === w ? 'background:var(--renk-yuzey);box-shadow:0 1px 2px rgba(17,36,42,.12)' : 'background:transparent'}" href="?w=${x}&u=${encodeURIComponent(u)}" ${x === w ? 'aria-current="true"' : ''}>${x} px</a>`).join('');
+  </script>
+</body>
+</html>

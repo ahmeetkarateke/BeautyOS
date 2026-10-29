@@ -1,0 +1,152 @@
+/* Tanıtım sitesi hareket katmanı (kurucu kararı A1). Kütüphanesiz: CSS, IntersectionObserver, Web Animations API, scroll timeline.
+   Kural: yalnız transform / opacity / clip-path / color. Tüm gizli başlangıç durumları `html.js-hareket` (betik kendisi ekler)
+   ve `prefers-reduced-motion: no-preference` altında: betik yüklenmezse ya da hareket azaltılmışsa sayfa bitmiş hâliyle görünür.
+   Panel ekranlarına uygulanmaz. Tek dil: süre 500–1100 ms, eğri --ease-expo (girişler) / --ease-io (açılma, perde), gecikme adımı 70–110 ms. */
+
+:root {
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-io: cubic-bezier(0.76, 0, 0.24, 1);
+  --stagger: 70ms;
+}
+
+/* ---- Maskeli satırlar (başlıklar) ---- */
+.maske { display: block; overflow: clip; padding: 0.14em 0 0.1em; margin: -0.14em 0 -0.1em; } /* üst pay: İ noktası kırpılmaz */
+.maske > span { display: block; }
+
+/* ---- Beyan ---- */
+.beyan { padding: 88px 0 8px; }
+.beyan__metin { font-size: clamp(28px, 1.1rem + 2.8vw, 54px); line-height: 1.14; letter-spacing: -0.028em; font-weight: 500; max-width: 21ch; }
+[data-fill] { --fill: var(--color-text); color: var(--fill); }
+
+/* ---- Hikâye: yapışkan telefon, dört adım ---- */
+.hikaye { margin-top: 56px; }
+.hikaye__sahne { display: none; }
+.hikaye__adimlar { list-style: none; margin: 0; padding: 0; display: grid; gap: 64px; }
+.adim h3 { font-size: 24px; line-height: 1.25; font-weight: 600; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.adim__kart > p { color: var(--ref-powder-900); margin-top: 8px; max-width: 40ch; font-size: 18px; }
+.adim__ekran { margin-top: 24px; }
+.telefon { width: 320px; height: 620px; max-width: 100%; background: var(--ref-petrol-900); border-radius: 40px; padding: 10px; box-shadow: 0 30px 60px -24px rgba(17, 36, 42, 0.5); }
+.telefon--kucuk { width: 300px; height: 560px; margin: 0 auto; }
+.telefon__ekran { position: relative; height: 100%; border-radius: 30px; overflow: clip; background: var(--color-page); }
+.ek { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--color-page); font-size: 14px; line-height: 20px; }
+.ek-ust { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 24px 18px 12px; background: var(--color-surface); border-bottom: 1px solid var(--color-border-subtle); }
+.ek-baslik { font-weight: 600; font-size: 17px; }
+.ek-govde { flex: 1; padding: 12px 16px; display: grid; align-content: start; gap: 8px; }
+.ek-etiket { font-size: 12px; color: var(--color-text-muted); margin-top: 6px; }
+.ek .secim-kart { min-height: 48px; padding: 8px 12px; }
+.ek .saatler { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ek .saat { min-height: 38px; font-size: 14px; }
+.ek .ozet__deger { font-size: 18px; }
+.ek-alt { padding: 12px 16px 20px; background: var(--color-surface); border-top: 1px solid var(--color-border); }
+.ek-tutar { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -0.02em; }
+.ek-mesaj { background: var(--ref-gray-100); }
+.ek-balon { background: var(--color-surface); border-radius: 16px 16px 16px 4px; padding: 12px 14px; max-width: 88%; box-shadow: 0 1px 2px rgba(17, 36, 42, 0.08); }
+.ek-tamam { display: flex; gap: 8px; align-items: center; color: var(--color-success); font-weight: 500; margin-top: 12px; }
+.hikaye__sayac { margin-top: 16px; text-align: center; color: var(--ref-powder-900); }
+/* Yapışkan telefon yalnız hareket serbestken; azaltılmış harekette adımlar kendi ekranlarıyla alt alta */
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .js-hareket .hikaye { display: grid; grid-template-columns: 5fr 6fr; gap: 64px; align-items: start; }
+  .js-hareket .hikaye__sahne { display: block; position: sticky; top: 9vh; justify-self: center; }
+  .js-hareket .hikaye__sahne .ek { opacity: 0; transform: translateY(18px) scale(0.985); transition: opacity 450ms ease, transform 700ms var(--ease-expo); }
+  .js-hareket .hikaye__sahne .ek.is-on { opacity: 1; transform: none; }
+  .js-hareket .hikaye__adimlar { gap: 0; }
+  .js-hareket .adim { min-height: 76vh; display: flex; flex-direction: column; justify-content: center; }
+  /* Etkin olmayan adım: opaklık değil ton; pudra-100 zeminde 4,9:1 */
+  .js-hareket .adim h3, .js-hareket .adim__kart > p { transition: color 300ms ease; }
+  .js-hareket .adim:not(.is-active) h3, .js-hareket .adim:not(.is-active) .adim__kart > p { color: #7A4A46; }
+  .js-hareket .adim.is-active h3 { color: var(--color-text); }
+  .js-hareket .adim__ekran { display: none; }
+}
+
+/* ---- Sektör sekmeleri ---- */
+.sektor__sekmeler { position: relative; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--color-border); }
+.sektor__sekmeler::-webkit-scrollbar { display: none; }
+.sektor__sekmeler [role="tab"] { flex: none; min-height: 48px; padding: 0 16px; border: 0; background: none; font: inherit; font-size: 16px; font-weight: 500; color: var(--color-text-muted); cursor: pointer; transition: color 180ms ease; }
+.sektor__sekmeler [role="tab"]:hover, .sektor__sekmeler [role="tab"][aria-selected="true"] { color: var(--color-text); }
+.sektor__iz { position: absolute; left: 0; bottom: -1px; width: 100px; height: 3px; border-radius: 2px; background: var(--ref-powder-500); transform-origin: left; transition: transform 460ms var(--ease-expo); }
+.sektor__panel { display: grid; gap: 24px; margin-top: 32px; }
+@media (min-width: 900px) { .sektor__panel { grid-template-columns: 7fr 5fr; align-items: center; } }
+.sektor__kartlar { display: grid; gap: 10px; max-width: 560px; }
+.sektor__yan { display: grid; gap: 16px; justify-items: start; max-width: 40ch; }
+
+/* ---- Canlı hero parçası ---- */
+#hero-parca .parca { position: relative; }
+.dokunus { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px var(--ref-petrol-700), 0 4px 10px rgba(17, 36, 42, 0.3); opacity: 0; pointer-events: none; z-index: 3; }
+.parca-bildirim { position: absolute; right: 12px; top: 10px; max-width: calc(100% - 24px); z-index: 4; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--color-text); color: #fff; font-size: 14px; line-height: 20px; opacity: 0; pointer-events: none; }
+
+/* ---- Yuvarlanan rakamlar ---- */
+.roll__digits { display: inline-flex; font-variant-numeric: tabular-nums; }
+.roll__col { display: inline-block; height: 1.4em; line-height: 1.4em; overflow: clip; vertical-align: top; }
+.roll__strip { display: flex; flex-direction: column; transform: translateY(calc(var(--d) * -1.4em)); }
+.roll__strip > span { height: 1.4em; }
+
+/* ---- Mikro etkileşimler ve odak ---- */
+.dugme { transition: background-color 180ms ease, transform 140ms var(--ease-expo), box-shadow 220ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .dugme--birincil:hover { box-shadow: 0 8px 20px -8px rgba(17, 36, 42, 0.5); }
+  #ana a:not(.dugme) { text-decoration-color: color-mix(in oklab, currentColor 35%, transparent); transition: text-decoration-color 180ms ease; }
+  #ana a:not(.dugme):hover { text-decoration-color: currentColor; }
+}
+/* Koyu zeminlerde (petrol) açık odak halkası: beyaz / petrol-700 11,6:1 */
+.sahne :focus-visible, .alan-petrol :focus-visible, .alt :focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
+
+/* ================= Hareketli durumlar ================= */
+@media (prefers-reduced-motion: no-preference) {
+  /* Yükleniş: başlık maskeden yükselir; alt metin ve CTA ilk karede görünür, yalnız hafif kayar; ürün parçası perde gibi açılır */
+  .js-hareket .satirli .maske > span { transform: translateY(105%); animation: yukari 900ms var(--ease-expo) forwards; animation-delay: calc(100ms + var(--i) * 110ms); }
+  .js-hareket [data-yuk] { animation: kay 600ms var(--ease-expo) both; }
+  .js-hareket #hero-parca { clip-path: inset(18% 0 0 0); animation: perde 1000ms var(--ease-io) 150ms forwards; }
+
+  /* Bölüm başlıkları: üç çeşit. cizgi = maskeden yükselir · sil = soldan açılır (kırpma iç span'de) · yaklas = hafif ölçekle belirir */
+  .js-hareket [data-anim="cizgi"] .maske > span { transform: translateY(105%); transition: transform 900ms var(--ease-expo); }
+  .js-hareket [data-anim="cizgi"].is-in .maske > span { transform: none; }
+  .js-hareket [data-anim="sil"] .maske > span { clip-path: inset(0 100% 0 0); transition: clip-path 1000ms var(--ease-io); }
+  .js-hareket [data-anim="sil"].is-in .maske > span { clip-path: inset(0 -2% 0 0); }
+  .js-hareket [data-anim="yaklas"] { opacity: 0; transform: translateY(20px) scale(0.985); transform-origin: left bottom; transition: opacity 700ms ease, transform 900ms var(--ease-expo); }
+  .js-hareket [data-anim="yaklas"].is-in { opacity: 1; transform: none; }
+
+  /* Listeler satır satır */
+  .js-hareket [data-anim="satirlar"] > * { opacity: 0; transform: translateY(16px); transition: opacity 500ms ease, transform 700ms var(--ease-expo); transition-delay: calc(var(--i, 0) * var(--stagger)); }
+  .js-hareket [data-anim="satirlar"].is-in > * { opacity: 1; transform: none; }
+
+  /* Takvim: randevular saat sırasıyla sütunlara düşer, sonra "şimdi" çizgisi çekilir */
+  .js-hareket [data-anim="dusme"] .takvim__olay { clip-path: inset(0 0 100% 0); transition: clip-path 800ms var(--ease-expo); transition-delay: var(--d, 0ms); }
+  .js-hareket [data-anim="dusme"].is-in .takvim__olay { clip-path: inset(0); }
+  .js-hareket [data-anim="dusme"] .takvim__simdi { transform: scaleX(0); transform-origin: left; transition: transform 900ms var(--ease-io) 700ms; }
+  .js-hareket [data-anim="dusme"].is-in .takvim__simdi { transform: none; }
+
+  /* Rakamlar bir kez yuvarlanır */
+  .js-hareket .roll:not(.is-in) .roll__strip { transform: none; }
+  .js-hareket .roll.is-in .roll__strip { transition: transform 1100ms var(--ease-expo) calc(var(--i) * 60ms); }
+
+  /* Beyan: kelimeler okunur tonla başlar (%72, >= 4,5:1) ve tam mürekkebe dolar.
+     Scroll timeline varsa kaydırmaya kilitli; yoksa (Firefox, eski Safari) görününce kelime kelime. */
+  .js-hareket .is-filling > span { display: inline-block; color: color-mix(in oklab, var(--fill) 72%, transparent); }
+  .js-hareket .is-filling.is-in > span { color: var(--fill); transition: color 600ms ease; transition-delay: calc(var(--w) * 45ms); }
+  @supports (animation-timeline: view()) {
+    .js-hareket .is-filling > span { animation: murekkep linear both; animation-timeline: view(); animation-range: cover 15% cover 42%; transition: none; }
+    .js-hareket .hero { view-timeline-name: --hero; }
+    .js-hareket .hero .sahne { animation: cekil linear both; animation-timeline: --hero; animation-range: exit 0% exit 100%; }
+    .js-hareket .kapanis .kap { animation: yaklasma linear both; animation-timeline: view(); animation-range: entry 0% cover 35%; }
+  }
+  /* Scroll timeline yoksa: hero geri çekilmesini betik (rAF) yazar; kapanış görününce yaklaşır */
+  .js-hareket .kapanis.is-in-yedek .kap { animation: yaklasma 900ms var(--ease-expo) both; }
+
+  /* Hikâye ekranlarında küçük sonuç anları */
+  .js-hareket .hikaye__sahne .ek [data-ek-tamam] { opacity: 0; transform: translateY(6px); }
+  .js-hareket .hikaye__sahne .ek.is-on [data-ek-tamam] { animation: yuksel 500ms var(--ease-expo) 900ms forwards; }
+  .js-hareket .hikaye__sahne .ek.is-on [data-ek-sec] { animation: sec 520ms var(--ease-expo) 450ms both; }
+
+  /* Sektör paneli açılınca kartlar sırayla */
+  .js-hareket .sektor__panel:not([hidden]) .randevu-kart { animation: yuksel 600ms var(--ease-expo) both; animation-delay: calc(var(--j) * 80ms); }
+  .js-hareket .sektor__panel:not([hidden]) .sektor__yan { animation: yuksel 600ms var(--ease-expo) 220ms both; }
+}
+
+@keyframes yukari { to { transform: none; } }
+@keyframes kay { from { transform: translateY(8px); } to { transform: none; } }
+@keyframes yuksel { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes perde { to { clip-path: inset(0); } }
+@keyframes sec { 0% { transform: scale(1); } 40% { transform: scale(0.95); } 100% { transform: scale(1); } }
+@keyframes cekil { to { transform: translateY(5%) scale(0.97); } }
+@keyframes murekkep { to { color: var(--fill); } }
+@keyframes yaklasma { from { transform: translateY(40px) scale(0.98); opacity: 0.6; } to { transform: none; opacity: 1; } }

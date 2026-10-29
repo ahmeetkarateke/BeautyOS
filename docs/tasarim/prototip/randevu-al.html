@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1F3E47">
+  <title>Online randevu · BeautyOS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="bilesenler.css">
+  <style>
+    body { background: var(--renk-zemin); }
+    .ra { max-width: 560px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; background: var(--renk-yuzey); }
+    @media (min-width: 600px) { .ra { margin: 24px auto; min-height: auto; border: 1px solid var(--renk-cizgi); border-radius: var(--yaricap-katman); overflow: hidden; } }
+    .ra-bas { background: var(--salon-renk); color: var(--salon-renk-uzeri); padding: 20px 16px 16px; }
+    .ra-bas__ust { display: flex; gap: 12px; align-items: center; }
+    .ra-logo { width: 48px; height: 48px; border-radius: 12px; background: rgba(255,255,255,.14); display: grid; place-items: center; font-weight: 600; font-size: 18px; flex: none; }
+    .ra-bas h1 { font-size: var(--yazi-20); line-height: var(--satir-20); font-weight: 600; }
+    .ra-bas p { opacity: .86; font-size: var(--yazi-14); line-height: var(--satir-14); }
+    .ra-kisayol { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .ra-kisayol a { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: var(--yaricap-kontrol); background: rgba(255,255,255,.12); color: inherit; text-decoration: none; font-size: var(--yazi-14); font-weight: 500; }
+    .ra-kisayol a:hover { background: rgba(255,255,255,.2); }
+    .ra-adim { padding: 14px 16px 0; }
+    .ra-govde { flex: 1; padding: 16px; }
+    .ra-alt { position: sticky; bottom: 0; display: flex; gap: 12px; align-items: center; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--renk-yuzey); border-top: 1px solid var(--renk-cizgi); }
+    .ra-alt .dugme--birincil { background: var(--salon-renk); color: var(--salon-renk-uzeri); flex: none; }
+    .ra-dip { padding: 16px; border-top: 1px solid var(--renk-cizgi-hafif); font-size: var(--yazi-12); line-height: var(--satir-12); color: var(--renk-metin-soluk); display: grid; gap: 4px; }
+    .ra-dip a { color: inherit; display: inline-flex; align-items: center; min-height: 44px; }
+    .ra [aria-pressed="true"].secim-kart, .ra [aria-checked="true"].secim-kart { border-color: var(--salon-renk); background: var(--salon-renk-hafif); box-shadow: inset 0 0 0 1px var(--salon-renk); }
+    .ra .saat[aria-pressed="true"], .ra .gun[aria-pressed="true"] { background: var(--salon-renk); border-color: var(--salon-renk); color: var(--salon-renk-uzeri); }
+    .kod { font-size: 28px; letter-spacing: .4em; text-align: center; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="ra" id="ra"></div>
+  <script src="veri.js"></script>
+  <script src="prototip.js"></script>
+  <script>
+  (function () {
+    const V = VERI, ik = P.ikon, S = V.SALON, kl = P.klinik;
+    const fiyatGoster = !kl; // klinikte varsayılan kapalı (hukuk-uyum §10)
+    const kampanya = P.param('kampanya') === '1' && !kl;
+    const s = { h: null, p: 'fark', gun: 29, saat: '' };
+    const ADIMLAR = [['hizmet', P.T('hizmet')], ['zaman', `${P.T('veren')} ve saat`], ['bilgi', 'Bilgileriniz'], ['kod', 'Doğrulama']];
+    const bas = () => `<header class="ra-bas"><div class="ra-bas__ust"><span class="ra-logo" aria-hidden="true">${S.ad.split(' ').slice(0, 2).map((x) => x[0]).join('')}</span><div><h1>${S.ad}</h1><p>${S.adres}</p></div></div>
+      <div class="ra-kisayol"><a href="tel:${S.telefon.replace(/\s/g, '')}">${ik('telefon', 'ikon--16')}Ara</a><a href="https://wa.me/90${S.telefon.replace(/\D/g, '').slice(1)}" target="_blank" rel="noopener">${ik('mesaj', 'ikon--16')}WhatsApp</a><a href="#" aria-label="Haritada göster">${ik('konum', 'ikon--16')}Harita</a></div></header>`;
+    const dip = () => `<footer class="ra-dip"><span>${S.ad} · ${S.adres} · ${S.telefon}</span>${kl ? `<span>Ruhsat no: ${S.ruhsat} · Sorumlu hekim: ${S.sorumlu}</span>` : ''}<span><a href="#" data-aydinlatma>Aydınlatma metni</a> · <a href="tanitim.html#yasal/gizlilik">BeautyOS altyapısıyla</a></span></footer>`;
+    const adim = (i) => `<div class="ra-adim"><div class="adimlar" aria-hidden="true">${ADIMLAR.map((_, j) => `<span data-durum="${j < i ? 'bitti' : j === i ? 'simdi' : ''}"></span>`).join('')}</div><p class="metin-kucuk metin-soluk" style="margin-top:6px">${ADIMLAR[i][1]} · ${i + 1}/${ADIMLAR.length}</p></div>`;
+    const h = () => V.HIZMETLER.find((x) => x.id === s.h);
+    const ozet = () => s.h ? `<div style="flex:1;min-width:0;display:grid" aria-live="polite"><span class="metin-14 orta" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h().ad}</span><span class="metin-kucuk metin-soluk">${P.sure(h().sure)}${fiyatGoster ? ' · ' + P.para(h().fiyat) : ''}${s.saat ? ` · ${s.gun} ${s.gun > 28 && s.gun <= 31 ? 'Ekim' : 'Kasım'} ${s.saat}` : ''}</span></div>` : '<span style="flex:1" class="metin-14 metin-soluk">Bir seçim yapın</span>';
+    const ekranlar = {
+      hizmet() {
+        const kats = [...new Set(V.HIZMETLER.filter((x) => x.online).map((x) => x.kat))];
+        return { ad: `${P.T('hizmet')} seçin`, adim: 0, html: `<h2 class="baslik-bolum">${kl ? 'Ne için randevu almak istiyorsunuz?' : 'Hangi hizmeti istiyorsunuz?'}</h2>${kats.map((k) => `<h3 class="grup-baslik" style="padding-left:0">${k}</h3><div class="yigin yigin--8" role="radiogroup" aria-label="${k}">${V.HIZMETLER.filter((x) => x.kat === k && x.online).map((x) => `<button class="secim-kart" role="radio" aria-checked="${s.h === x.id}" data-h="${x.id}"><span class="secim-kart__ana"><span class="orta">${x.ad}</span><span class="metin-14 metin-soluk">${P.sure(x.sure)}</span></span>${fiyatGoster ? `<span class="secim-kart__sag sayi orta">${P.para(x.fiyat)}</span>` : ''}</button>`).join('')}</div>`).join('')}`, ileri: 'zaman', hazir: () => !!s.h };
+      },
+      zaman() {
+        if (!s.h) s.h = 'h1';
+        const uygun = V.PERSONEL.filter((p) => h().personel.includes(p.id));
+        const saatler = ['10:00', '10:45', '11:30', '13:00', '13:45', '15:15', '16:00', '17:30', '18:15'];
+        return { ad: 'Zaman seçin', adim: 1, html: `<h2 class="baslik-bolum">${P.T('veren')}</h2><div class="cipler" data-tekli role="group" aria-label="${P.T('veren')}" style="margin:8px 0 20px" id="uz"><button class="cip" aria-pressed="${s.p === 'fark'}" data-deger="fark" style="min-height:44px">Fark etmez</button>${uygun.map((p) => `<button class="cip" aria-pressed="${s.p === p.id}" data-deger="${p.id}" style="min-height:44px">${P.avatar(p, 'avatar--kucuk')}${p.ad}</button>`).join('')}</div>
+          <h2 class="baslik-bolum">Gün</h2><div class="gun-seridi" data-tekli role="group" aria-label="Gün" style="margin:8px 0 20px" id="gn">${[['Per', 29], ['Cum', 30], ['Cmt', 31], ['Paz', 1], ['Pzt', 2], ['Sal', 3], ['Çar', 4], ['Per', 5], ['Cum', 6], ['Cmt', 7], ['Paz', 8], ['Pzt', 9], ['Sal', 10], ['Çar', 11]].map(([a, n]) => `<button class="gun" aria-pressed="${s.gun === n}" data-deger="${n}" ${a === 'Paz' ? `disabled aria-label="${n} Pazar, kapalı"` : ''}><span class="gun__ad">${a}</span><span class="gun__no">${n}</span></button>`).join('')}</div>
+          <h2 class="baslik-bolum">Saat</h2><div class="saatler" data-tekli role="group" aria-label="Boş saatler" style="margin-top:8px" id="st">${saatler.map((t) => `<button class="saat" aria-pressed="${s.saat === t}" data-deger="${t}">${t}</button>`).join('')}</div>
+          ${s.p === 'fark' ? `<p class="alan__ipucu" style="margin-top:12px">“Fark etmez” seçtiyseniz o saatte boş olan ${P.T('veren').toLocaleLowerCase('tr-TR')} atanır; adı onay ekranında yazar.</p>` : ''}`, ileri: 'bilgi', hazir: () => !!s.saat };
+      },
+      bilgi() {
+        return { ad: 'Bilgileriniz', adim: 2, html: `<h2 class="baslik-bolum" style="margin-bottom:8px">Bilgileriniz</h2>
+          <div class="alan"><label class="alan__etiket" for="b-ad">Ad soyad</label><input class="alan__girdi" id="b-ad" name="name" autocomplete="name"></div>
+          <div class="alan"><label class="alan__etiket" for="b-tel">Telefon</label><div class="alan__on-ek"><span>+90</span><input class="alan__girdi" id="b-tel" name="tel" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="5xx xxx xx xx" aria-describedby="b-tel-ip"></div><p class="alan__ipucu" id="b-tel-ip">Telefon numaranızı doğrulamak için bu numaraya tek kullanımlık bir kod göndereceğiz.</p></div>
+          ${kampanya ? `<label class="secenek" style="margin-top:12px"><input type="checkbox"><span class="secenek__metin"><span>${S.ad}’nın kampanya ve duyurularını SMS ile almak istiyorum. <span class="metin-soluk">(İsteğe bağlı)</span></span></span></label>` : ''}
+          <p class="metin-kucuk metin-soluk" style="margin-top:16px;display:flex;gap:6px;align-items:center" data-testid="bot-korumasi">${ik('kalkan', 'ikon--16')}Bu form otomatik bot korumasıyla korunur.</p>
+          <p class="metin-kucuk metin-ikincil" style="margin-top:16px">Kişisel verileriniz, randevunuzu oluşturmak ve size hatırlatma göndermek amacıyla ${S.ad} tarafından işlenir. Ayrıntılar için <a href="#" data-aydinlatma>Aydınlatma Metni</a>’ni inceleyebilirsiniz.</p>`, ileri: 'kod', eylem: 'Kod gönder', hazir: () => true };
+      },
+      kod() {
+        return { ad: 'Telefonunuzu doğrulayın', adim: 3, html: `<h2 class="baslik-bolum">Telefonunuzu doğrulayın</h2><p class="metin-ikincil" style="margin:4px 0 16px">0500 000 00 27 numarasına kod gönderdik. <a href="#bilgi">Numarayı değiştir</a></p>
+          <div class="alan"><label class="alan__etiket" for="k-kod">Doğrulama kodu</label><input class="alan__girdi kod" id="k-kod" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-describedby="k-ip"><p class="alan__ipucu" id="k-ip">Telefonunuza gönderilen 6 haneli kodu girin. Kod 10 dakika geçerlidir.</p></div>
+          <p class="metin-14 metin-soluk" style="margin-top:12px" aria-live="polite">45 saniye sonra yeni kod isteyebilirsiniz.</p>`, ileri: 'onay', eylem: 'Randevuyu onayla', hazir: () => true };
+      },
+      onay() {
+        if (!s.h) { s.h = 'h1'; s.saat = '13:45'; }
+        const atanan = s.p === 'fark' ? V.PERSONEL.find((p) => h().personel.includes(p.id)) : V.PERSONEL.find((p) => p.id === s.p);
+        return { ad: 'Randevunuz alındı', html: `<div class="bos bos--orta" style="padding:16px 0 8px"><span class="bos__ikon" style="background:var(--renk-basari-zemin);color:var(--renk-basari)">${ik('tamam')}</span>${(kl ? P.param('onay') !== 'otomatik' : P.param('onay') === 'elle') ? `<h2 class="bos__baslik" style="font-size:var(--yazi-20)">Randevu talebiniz alındı.</h2><p class="bos__metin">${S.ad} onayladığında randevunuz kesinleşir.${P.param('sms') === '1' ? ' Onay ve hatırlatma SMS ile gelir.' : ''}</p>` : `<h2 class="bos__baslik" style="font-size:var(--yazi-20)">Randevunuz alındı.</h2>${P.param('sms') === '1' ? '<p class="bos__metin">Randevudan önce SMS ile hatırlatma gelir.</p>' : ''}`}</div>
+          <div class="kuyu">${[['Gün', `${s.gun} ${s.gun <= 31 && s.gun > 28 ? 'Ekim' : 'Kasım'} 2026, ${s.saat || '13:45'}`], [P.T('hizmet'), h().ad], [P.T('veren'), atanan.ad], ...(fiyatGoster ? [['Ücret', P.para(h().fiyat)]] : []), ['Referans', '<span class="sayi orta">DG-4K7Q</span>']].map(([a, b]) => `<div class="kuyu__satir"><span class="metin-14 metin-soluk">${a}</span><span class="orta" style="text-align:right">${b}</span></div>`).join('')}</div>
+          <div class="yigin yigin--8" style="margin-top:16px"><a class="dugme dugme--ikincil dugme--tam" href="#" onclick="P.bildir('Takvim dosyası indirildi.');return false">${ik('takvim')}Takvime ekle</a><a class="dugme dugme--ikincil dugme--tam" href="#degistir">Randevuyu değiştir ya da iptal et</a></div>
+          <p class="metin-14 metin-ikincil" style="margin-top:16px">Değişiklik ve iptal randevudan 2 saat öncesine kadar bu sayfadan yapılır. Daha sonrası için ${S.ad} ile iletişime geçin: <a href="tel:${S.telefon.replace(/\s/g, '')}">${S.telefon}</a>.</p>` };
+      },
+      'degistir-kod'() {
+        return { ad: 'Randevunuzu doğrulayın', html: `<h2 class="baslik-bolum">Telefonunuza kod gönderdik</h2><p class="metin-ikincil" style="margin:4px 0 16px">Randevunuzu değiştirmek ya da iptal etmek için, randevuyu aldığınız numaraya gelen kodu girin. Bu adım, bağlantıyı açanın siz olduğunuzu doğrular.</p><div class="alan"><label class="alan__etiket" for="dk-t">Telefon</label><div class="alan__on-ek"><span>+90</span><input class="alan__girdi" id="dk-t" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="5xx xxx xx xx"></div></div><div class="alan"><label class="alan__etiket" for="dk-k">Doğrulama kodu</label><input class="alan__girdi kod" id="dk-k" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div><a class="dugme dugme--birincil dugme--tam" style="margin-top:16px;background:var(--salon-renk)" href="#degistir">Doğrula</a>` };
+      },
+      gecersiz() {
+        return { ad: 'Bağlantı geçersiz', html: `<div class="bos bos--orta"><span class="bos__ikon">${ik('baglanti')}</span><h2 class="bos__baslik">Bu bağlantı geçersiz ya da süresi dolmuş.</h2><p class="bos__metin">Randevunuzu telefon numaranızla doğrulayarak açabilir ya da ${S.ad}’nı arayabilirsiniz.</p><div class="dugme-sirasi" style="justify-content:center"><a class="dugme dugme--ikincil" href="#degistir-kod">Kod ile doğrula</a><a class="dugme dugme--ikincil" href="tel:${S.telefon.replace(/\s/g, '')}">${ik('telefon')}Ara</a></div></div>` };
+      },
+      degistir() {
+        return { ad: 'Randevunuz', html: `<h2 class="baslik-bolum">Randevunuz</h2><p class="metin-ikincil" style="margin:4px 0 16px">Perşembe, 29 Ekim · 13:45 · ${V.HIZMETLER[0].ad}</p><div class="yigin yigin--8"><a class="dugme dugme--ikincil dugme--tam" href="#zaman">Saati değiştir</a><button class="dugme dugme--tehlike dugme--tam" onclick="P.onay({baslik:'Randevunuz iptal edilsin mi?',metin:'Perşembe, 29 Ekim 13:45 randevunuz iptal edilir ve ${S.ad} bilgilendirilir.',vazgec:'Randevuyu koru',eylem:'Randevuyu iptal et',sonra:()=>P.bildir('Randevunuz iptal edildi.')})">Randevuyu iptal et</button></div><div class="serit serit--bilgi" style="margin-top:16px">${ik('saat')}<span class="serit__metin">Randevuya 2 saatten az kaldıysa değişiklik için salonu arayın.</span></div>` };
+      },
+      kapali() {
+        return { ad: 'Online randevu kapalı', html: `<div class="bos bos--orta"><span class="bos__ikon">${ik('takvim')}</span><h2 class="bos__baslik">Bu ${P.T('isletme').toLocaleLowerCase('tr-TR')} şu an online randevu almıyor.</h2><p class="bos__metin">Randevu için arayabilir ya da WhatsApp’tan yazabilirsiniz.</p><a class="dugme dugme--birincil" style="background:var(--salon-renk)" href="tel:${S.telefon.replace(/\s/g, '')}">${ik('telefon')}${S.telefon}</a></div>
+          <hr style="border:0;border-top:1px solid var(--renk-cizgi);margin:24px 0"><p class="metin-kucuk metin-soluk">Diğer durumlar (prototip):</p><div class="yigin yigin--8" style="margin-top:8px">
+          <div class="serit serit--hata">${ik('hata')}<span class="serit__metin">Bu saat doldu. Başka bir saat seçin.</span></div>
+          <div class="serit serit--hata">${ik('hata')}<span class="serit__metin">Kod hatalı ya da süresi doldu. Yeni kod isteyin.</span></div>
+          <div class="serit serit--uyari">${ik('saat')}<span class="serit__metin">Çok fazla randevu denemesi yapıldı. 1 saat sonra tekrar deneyin.</span></div>
+          <div class="serit serit--hata">${ik('sinyal')}<span class="serit__metin">Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar deneyin.</span></div></div>` };
+      },
+      bulunamadi() {
+        return { ad: 'Sayfa bulunamadı', html: `<div class="bos bos--orta"><span class="bos__ikon">${ik('ara')}</span><h1 class="bos__baslik" style="font-size:var(--yazi-20)">Bu randevu sayfası bulunamadı.</h1><p class="bos__metin">Bağlantı yanlış yazılmış ya da sayfa kaldırılmış olabilir. Randevu için doğrudan işletmeyi arayın.</p></div>` };
+      },
+    };
+    function ciz() {
+      const ad = location.hash.slice(1) || 'hizmet';
+      const e = (ekranlar[ad] || ekranlar.hizmet)();
+      const sade = ['onay', 'kapali', 'bulunamadi', 'degistir'].includes(ad);
+      document.title = `${e.ad} · ${S.ad}`;
+      document.getElementById('ra').innerHTML = (ad === 'bulunamadi' ? '' : bas()) + (e.adim !== undefined ? adim(e.adim) : '') + `<main class="ra-govde" id="ana">${P.durum === 'yukleniyor' ? '<p role="status" class="metin-soluk">Boş saatler getiriliyor…</p>' : e.html}</main>` + (sade ? '' : `<div class="ra-alt">${e.adim > 0 ? `<a class="dugme dugme--ikon" href="#${ADIMLAR[e.adim - 1][0]}" aria-label="Geri">${ik('geri')}</a>` : ''}${ozet()}<button class="dugme dugme--birincil" id="ileri" ${e.hazir && !e.hazir() ? 'aria-disabled="true"' : ''}>${e.eylem || 'Devam et'}</button></div>`) + dip();
+      const k = document.getElementById('ra');
+      k.querySelectorAll('[data-h]').forEach((b) => (b.onclick = () => { s.h = b.dataset.h; ciz(); }));
+      k.querySelector('#uz')?.addEventListener('secim', (ev) => { s.p = ev.detail; ciz(); });
+      k.querySelector('#gn')?.addEventListener('secim', (ev) => { s.gun = Number(ev.detail); s.saat = ''; ciz(); });
+      k.querySelector('#st')?.addEventListener('secim', (ev) => { s.saat = ev.detail; ciz(); });
+      k.querySelector('#ileri')?.addEventListener('click', (ev) => { if (e.hazir && !e.hazir()) { P.bildir(ad === 'hizmet' ? 'Önce bir seçim yapın.' : 'Saat seçin.', { tur: 'hata' }); return; } if (ad === 'bilgi') { const a = k.querySelector('#b-ad'), t = k.querySelector('#b-tel'); if (!a.value.trim() || t.value.replace(/\D/g, '').length !== 10) { const al = (!a.value.trim() ? a : t).closest('.alan'); al.classList.add('alan--hatali'); if (!al.querySelector('.alan__hata')) al.insertAdjacentHTML('beforeend', `<p class="alan__hata" role="alert">${ik('hata', 'ikon--16')}${!a.value.trim() ? 'Adınızı ve soyadınızı yazın.' : 'Telefon numarası eksik. 10 haneli yazın, ör. 5xx xxx xx xx.'}</p>`); (!a.value.trim() ? a : t).focus(); return; } } P.isle(ev.currentTarget, ad === 'bilgi' ? 'Kod gönderiliyor…' : 'Kaydediliyor…', () => (location.hash = '#' + e.ileri), 500); });
+      k.querySelectorAll('[data-aydinlatma]').forEach((a) => (a.onclick = (ev) => { ev.preventDefault(); P.katmanAc({ baslik: 'Aydınlatma metni', govde: `<p class="metin-14 metin-soluk">${S.ad} · Sürüm v1</p><div class="cerceve-bos" style="margin-top:12px">[YASAL METİN — avukat onayından sonra eklenecek · Belge: ${S.ad} aydınlatma metni · Sürüm: v0 · Not: bot koruması Cloudflare Turnstile ile yapılır]</div>`, alt: '<button class="dugme dugme--ikincil" data-katman-kapat>Kapat</button>' }); }));
+    }
+    document.documentElement.style.setProperty('--salon-renk', P.param('renk') ? '#' + P.param('renk') : '#1F3E47');
+    window.addEventListener('hashchange', () => { ciz(); window.scrollTo(0, 0); });
+    ciz(); P.cubuk({ rol: false });
+  })();
+  </script>
+</body>
+</html>

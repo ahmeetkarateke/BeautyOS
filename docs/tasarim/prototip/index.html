@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BeautyOS prototip · ekran listesi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="bilesenler.css">
+  <style>
+    .sayfa { max-width: 1120px; margin: 0 auto; padding: 32px 20px 96px; }
+    .ust { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+    .denetim { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .denetim .alan { min-width: 180px; }
+    .yuzey { margin-top: 40px; }
+    .yuzey > h2 { font-size: var(--yazi-20); line-height: var(--satir-20); font-weight: 600; }
+    .yuzey > p { color: var(--renk-metin-ikincil); margin: 4px 0 12px; max-width: 70ch; }
+    .ekran { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 12px 16px; }
+    .ekran + .ekran { border-top: 1px solid var(--renk-cizgi-hafif); }
+    .ekran__ad { font-weight: 500; }
+    .ekran__amac { font-size: var(--yazi-14); color: var(--renk-metin-soluk); }
+    .ekran__baglantilar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    @media (max-width: 639px) { .ekran { grid-template-columns: 1fr; } .ekran__baglantilar { justify-content: flex-start; } }
+  </style>
+</head>
+<body>
+  <div class="sayfa">
+    <div class="ust">
+      <div>
+        <a class="marka" href="index.html" style="padding-left:0"><span id="isaret"></span><span class="marka__ad">BeautyOS</span></a>
+        <h1 class="baslik-sayfa">Tasarım prototipi</h1>
+        <p class="metin-ikincil" style="margin-top:4px;max-width:60ch">Beş yüzeyin ekranları. Kurgusal örnek veri: Defne Güzellik Salonu, 28 Ekim 2026 Çarşamba, saat 14:20. Tasarım belgesi: <code>docs/tasarim.md</code>.</p>
+      </div>
+      <form class="denetim" aria-label="Görünüm seçimi">
+        <div class="alan"><label class="alan__etiket" for="rol">Rol</label><select id="rol"><option value="sahip">Salon / klinik sahibi</option><option value="mudur">Müdür</option><option value="resepsiyon">Resepsiyon</option><option value="uzman">Uzman / hekim</option><option value="saglik-personeli">Sağlık personeli (yalnız klinik)</option></select></div>
+        <div class="alan"><label class="alan__etiket" for="set">Klinik terim seti</label><select id="set"><option value="hasta">Hasta · Hekim · İşlem</option><option value="danisan">Danışan · Uzman · Uygulama</option></select></div>
+        <div class="alan"><label class="alan__etiket" for="tur">İşletme türü</label><select id="tur"><option value="kuafor">Kuaför (salon)</option><option value="estetik">Estetik kliniği</option><option value="dis">Diş hekimi</option></select></div>
+        <div class="alan"><label class="alan__etiket" for="durum">Durum</label><select id="durum"><option value="normal">Dolu (normal)</option><option value="yukleniyor">Yükleniyor</option><option value="bos">Boş / ilk kullanım</option><option value="hata">Yüklenemedi</option><option value="yetkisiz">Yetkisiz</option></select></div>
+      </form>
+    </div>
+    <div class="serit serit--bilgi">Her ekranı “Telefon” ile 390 px çerçevede, “768” ile tablet genişliğinde, “Tam genişlik” ile tarayıcı boyunda açabilirsiniz. Açılan ekrandaki “Prototip” çubuğundan rol, işletme türü ve durum değişir; çubuk ürünün parçası değildir.</div>
+    <div id="liste"></div>
+  </div>
+  <script src="prototip.js"></script>
+  <script>
+    document.getElementById('isaret').outerHTML = P.isaret();
+    const Y = [
+      ['a', 'Salon paneli', 'Salon sahibi, müdür, resepsiyon ve uzmanın her gün kullandığı yönetim ekranları. Operate modu.', [
+        ['Bugün', 'Sırada kim var, kimde boş yer var; günün özeti', 'panel.html#bugun'],
+        ['Günüm (uzman)', 'Uzmanın kendi günü; rolü “Uzman / hekim” seçin', 'panel.html?rol=uzman#gunum'],
+        ['Takvim, gün', 'Personel sütunları, şimdi çizgisi, boş dilime tıkla', 'panel.html#takvim/28'],
+        ['Takvim, hafta', 'Personel × gün özet tablosu (masaüstü)', 'panel.html?gorunum=hafta#takvim/28'],
+        ['Randevu oluştur', 'Müşteri → hizmet → personel → gün → saat', 'panel.html?ac=randevu-yeni#bugun'],
+        ['Randevu oluştur, saat doldu', 'Çakışma hatası (saat seçip kaydedin)', 'panel.html?ac=randevu-yeni&cakisma=1#bugun'],
+        ['Randevu ayrıntısı', 'Durum, iletişim, not, eylemler', 'panel.html?ac=randevu-detay&id=r7#bugun'],
+        ['Tamamla ve ödeme al', 'Tutar, yöntem, bahşiş; paketten düş', 'panel.html?ac=tamamla&id=r3#bugun'],
+        ['Randevusuz işlem', 'Randevusuz gelen için hizmet + ödeme', 'panel.html?ac=hizli-islem#bugun'],
+        ['Müşteriler', 'Arama ve liste', 'panel.html#musteriler'],
+        ['Müşteri ekle', 'Form, alan hataları, kampanya izni', 'panel.html#musteri-yeni'],
+        ['Müşteri kartı', 'Genel, randevular, sağlık, fotoğraf, paket, cari', 'panel.html#musteri/m1'],
+        ['Sağlık bilgileri: rıza kapısı', 'Rıza yok → Rıza al → müşteri modu', 'panel.html?sekme=saglik#musteri/m4'],
+        ['Fotoğraflar (F1/F2)', 'İki ayrı onay; dosya yükleme yakında', 'panel.html?sekme=foto#musteri/m2'],
+        ['Paket ve seans', 'Kalan seans, seans düş', 'panel.html?sekme=paket#musteri/m4'],
+        ['Hizmetler', 'Kategoriler, hizmet formu', 'panel.html#hizmetler'],
+        ['Personel', 'Liste ve yetki seti', 'panel.html#personel'],
+        ['Personel ayrıntısı', 'Profil, hizmetleri, çalışma saatleri, izinler, ödemeler', 'panel.html#personel-detay/p3'],
+        ['Kasa', 'Tahsilat, gider, prim, bahşiş', 'panel.html#kasa'],
+        ['Gün sonu', 'Kapanmamış randevu, kasa sayımı, günü kapat', 'panel.html?ac=gun-sonu#kasa'],
+        ['Raporlar', 'Kasa raporu ve prim raporu', 'panel.html#raporlar'],
+        ['Bekleme listesi', 'Haber ver, randevuya çevir', 'panel.html#bekleme'],
+        ['Stok', 'Ürünler, hareketler, reçeteler (Yönetim)', 'panel.html#stok'],
+        ['Paketler', 'Paket türleri ve satılanlar (Yönetim)', 'panel.html#paketler'],
+        ['Hesaplar', 'Banka, POS, nakit; virman (Yönetim)', 'panel.html#hesaplar'],
+        ['Cari hesap', 'Müşteri ve tedarikçi bakiyeleri (Yönetim)', 'panel.html#cari'],
+        ['Alış faturaları', 'Liste (Yönetim)', 'panel.html#faturalar'],
+        ['Fatura ekle', 'Kalemler, faturayı işle', 'panel.html#fatura-yeni'],
+        ['Tedarikçiler', 'Liste (Yönetim)', 'panel.html#tedarikciler'],
+        ['Personel ödemeleri', 'Prim + bahşiş, ödendi olarak işaretle (Yönetim)', 'panel.html#odemeler'],
+        ['Bahşiş', 'Havuz ve dağıtım (Yönetim)', 'panel.html#bahsis'],
+        ['Primim (uzman)', 'Uzmanın ayı ve ödemeleri', 'panel.html?rol=uzman#primim'],
+        ['Mesaj asistanı', 'Konuşmalar; kapalıyken bilgi', 'panel.html#asistan'],
+        ['Ayarlar', 'Bölüm listesi', 'panel.html#ayarlar'],
+        ['Ayarlar › Online randevu sayfası', 'Bağlantı, renk, kampanya izni sorusu', 'panel.html#ayarlar/online'],
+        ['Ayarlar › Bildirimler ve mesajlar', 'Şablon, önizleme, bilgilendirme uyarısı', 'panel.html#ayarlar/bildirimler'],
+        ['Ayarlar › Kullanıcılar ve yetkiler', 'Rol × yetki özeti', 'panel.html#ayarlar/kullanicilar'],
+        ['Ayarlar › Gizlilik ve KVKK', 'Aydınlatma, rıza metinleri, sağlık erişimi', 'panel.html#ayarlar/gizlilik'],
+        ['Ayarlar › Plan ve abonelik', 'Deneme, fiyat yer tutucu, veri, hesabı kapat', 'panel.html#ayarlar/abonelik'],
+        ['Ayarlar › Terimler', 'Hazır terim setleri ve ana terimler', 'panel.html#ayarlar/terimler'],
+        ['Ayarlar › Güvenlik', 'İki adımlı doğrulama, oturum kilidi', 'panel.html#ayarlar/guvenlik'],
+        ['Hesabım', 'Şifre, çıkış (tüm roller)', 'panel.html#hesabim'],
+        ['Menü (telefon)', 'Tüm hedefler', 'panel.html#menu'],
+        ['Deneme süresi doldu', 'Plan seç, veri bilgisi', 'panel.html#abonelik-bitti'],
+        ['Koşullar güncellendi', 'Yeniden kabul (yalnız sahip)', 'panel.html#yeniden-kabul'],
+      ]],
+      ['k', 'Klinik modu (panel)', 'Aynı panel, klinik terimleri ve klinik kuralları. İşletme türü “Estetik kliniği” ya da “Diş hekimi” ile açılır.', [
+        ['Bugün (klinik)', 'Hekim, hasta, işlem terimleri', 'panel.html?tur=estetik#bugun'],
+        ['Hasta kartı (hekim)', 'Sağlık bilgileri (aydınlatma), Onamlar, Klinik notu, Erişim geçmişi', 'panel.html?tur=estetik&rol=uzman#musteri/m3'],
+        ['Hasta kartı (müdür)', 'Sağlık sekmeleri görünmez', 'panel.html?tur=estetik&rol=mudur#musteri/m1'],
+        ['Klinik notu ve düzeltme', 'Düzenlenmez; düzeltme eklenir', 'panel.html?tur=estetik&rol=uzman&sekme=knot#musteri/m3'],
+        ['Hasta kaydını kapat', 'Kart › ⋮ (sahip)', 'panel.html?tur=estetik&rol=sahip&ac=kayit-kapat#musteri/m1'],
+        ['Sağlık personeli görünümü', 'Atandığı randevular; sağlık bilgisi yok', 'panel.html?tur=estetik&rol=saglik-personeli#gunum'],
+        ['Ayarlar › Gizlilik ve KVKK (klinik)', 'Sahip klinik notlarını görür anahtarı', 'panel.html?tur=estetik&rol=sahip#ayarlar/gizlilik'],
+        ['Ayarlar › Terimler (klinik)', 'Hasta seti', 'panel.html?tur=estetik#ayarlar/terimler'],
+        ['Ayarlar › Güvenlik (klinik)', '2 adımlı doğrulama zorunlu', 'panel.html?tur=estetik#ayarlar/guvenlik'],
+        ['Diş hekimi örneği', 'Diş kliniği verisi', 'panel.html?tur=dis#bugun'],
+        ['İki adımlı doğrulama kurulmamış', 'Kalıcı şerit; sağlık verisi kapalı (U1)', 'panel.html?tur=estetik&rol=uzman&2fa=yok#musteri/m3'],
+        ['Online randevu onay ayarı', 'Klinikte varsayılan “Ben onaylayayım”', 'panel.html?tur=estetik&rol=sahip#ayarlar/online'],
+      ]],
+      ['b', 'Online randevu sayfası', 'Müşterinin bağlantıdan randevu aldığı sayfa. Salonun rengini taşır.', [
+        ['Hizmet seçimi', 'Kategori, süre, fiyat', 'randevu-al.html#hizmet'],
+        ['Uzman ve zaman', '“Fark etmez”, gün şeridi, boş saatler', 'randevu-al.html#zaman'],
+        ['Bilgileriniz', 'Ad, telefon, R1 aydınlatma', 'randevu-al.html#bilgi'],
+        ['Bilgileriniz, kampanya izni açık', 'R2 kutusu (salon açtıysa)', 'randevu-al.html?kampanya=1#bilgi'],
+        ['Telefon doğrulama', '6 haneli kod', 'randevu-al.html#kod'],
+        ['Onay', 'Özet, referans, iptal/değiştir (2 saat kuralı)', 'randevu-al.html#onay'],
+        ['Randevuyu değiştir ya da iptal et', 'Doğrulanmış oturumda (onay ekranından)', 'randevu-al.html#degistir'],
+        ['Değiştir: telefon kodu ile doğrulama', 'SMS/e-posta bağlantısından sonraki erişim (U5)', 'randevu-al.html#degistir-kod'],
+        ['Değiştir: bağlantı geçersiz', '', 'randevu-al.html#gecersiz'],
+        ['Onay, işletme elle onaylıyorsa', '“Randevu talebiniz alındı”', 'randevu-al.html?onay=elle#onay'],
+        ['Kapalı ve hata durumları', 'Kapalı, saat doldu, kod, hız sınırı, bağlantı', 'randevu-al.html#kapali'],
+        ['Sayfa bulunamadı', '', 'randevu-al.html#bulunamadi'],
+        ['Salon rengiyle', 'Mürdüm örneği', 'randevu-al.html?renk=7A3E5C#hizmet'],
+        ['Klinik online randevu', 'Fiyat gizli; kuruluş adı, ruhsat, sorumlu hekim', 'randevu-al.html?tur=estetik#hizmet'],
+      ]],
+      ['c', 'Giriş, kayıt, kurulum', 'Hesaba giriş ve ilk kurulum.', [
+        ['Giriş', 'E-posta, şifre', 'giris.html#giris'],
+        ['Giriş hatası / hız sınırı', '', 'giris.html?hata=sinir#giris'],
+        ['İki adımlı doğrulama girişi', 'Klinik: 6 haneli kod', 'giris.html?tur=estetik#2fa'],
+        ['Kurtarma kodu ile giriş', '', 'giris.html?tur=estetik#kurtarma-gir'],
+        ['Kayıt, adım 1', 'İşletme türü, salon adresi', 'giris.html#kayit'],
+        ['Kayıt, adım 2', 'K1 / K3 / K2', 'giris.html#kayit-2'],
+        ['Şifremi unuttum', 'P1 metni', 'giris.html#sifremi-unuttum'],
+        ['Şifre sıfırla', '', 'giris.html#sifre-sifirla'],
+        ['Davet kabul', 'Personel kendi şifresini belirler (R8)', 'giris.html#davet'],
+        ['Oturum kilidi', 'Hareketsizlikte', 'giris.html?tur=estetik#kilit'],
+        ['İki adımlı doğrulama kurulumu', 'Kare kod, kurtarma kodları', 'giris.html?tur=estetik#2fa-kur'],
+        ['Kurulum sihirbazı (salon)', 'Tür, saatler, hizmetler, ekip, yasal, hazır', 'giris.html?tur=kuafor#kurulum/tur'],
+        ['Kurulum sihirbazı (klinik)', '+ Sağlık kuruluşu bilgileri, HBYS bilgisi, güvenlik', 'giris.html?tur=estetik#kurulum/tur'],
+      ]],
+      ['d', 'Tanıtım sitesi', 'beautyossapp.com. Persuade modu; ürün görselleri prototipin kendi ekranları.', [
+        ['Ana sayfa', 'Hero (statik parça + canlı demo düğmesi), günün işi, telefonda, her iş, kimler, başlangıç, fiyat, yakında, SSS', 'tanitim.html'],
+        ['Özellikler', 'Gerçek ekran parçaları + “Tasarım önizlemesi, yakında”', 'tanitim.html#ozellikler'],
+        ['Fiyat', 'Yer tutucu paket kartı', 'tanitim.html#fiyat'],
+        ['Sık sorulan sorular', '', 'tanitim.html#sss'],
+        ['İletişim ve demo isteği', 'Form, aydınlatma satırı, künye', 'tanitim.html#iletisim'],
+        ['Hakkımızda', 'Yer tutucu', 'tanitim.html#hakkimizda'],
+        ['Kuaförler için', '', 'tanitim.html#sektor/kuafor'],
+        ['Berberler için', '', 'tanitim.html#sektor/berber'],
+        ['Güzellik merkezleri için', '', 'tanitim.html#sektor/guzellik'],
+        ['Klinikler için', 'Nötr örnek veri, HBYS sınır cümlesi', 'tanitim.html#sektor/klinik'],
+        ['Estetik kliniği için', '', 'tanitim.html#sektor/estetik'],
+        ['Diş hekimleri için', '', 'tanitim.html#sektor/dis'],
+        ['Yasal sayfa şablonu', 'Sürüm satırı, içindekiler, yer tutucu', 'tanitim.html#yasal/kvkk'],
+      ]],
+      ['e', 'Süper yönetici', 'BeautyOS ekibinin salonları yönettiği iç panel.', [
+        ['Giriş', 'Ayrı giriş + doğrulama kodu', 'yonetici.html#giris'],
+        ['Genel bakış', 'Toplamlar, ilgilenilmesi gerekenler', 'yonetici.html#genel'],
+        ['Salonlar', 'Arama, süzgeç, tablo', 'yonetici.html#salonlar'],
+        ['Salon ayrıntısı', 'Plan, deneme uzat, not, aktif/pasif, yasal kayıtlar, destek erişimi', 'yonetici.html#salon/0'],
+        ['Yasal belgeler', 'Sürüm yayınlama, yeniden kabul', 'yonetici.html#yasal'],
+      ]],
+      ['s', 'Sistem ekranları', 'Markalı hata sayfaları.', [
+        ['404', '', 'sistem.html#404'],
+        ['Beklenmeyen hata', 'Referans no', 'sistem.html#hata'],
+        ['Bakım', '', 'sistem.html#bakim'],
+        ['Oturum doldu', '', 'sistem.html#oturum'],
+        ['Hesap aktif değil', '', 'sistem.html#pasif'],
+        ['Bağlantı yok', '', 'sistem.html#cevrimdisi'],
+      ]],
+    ];
+    const sec = { rol: document.getElementById('rol'), tur: document.getElementById('tur'), set: document.getElementById('set'), durum: document.getElementById('durum') };
+    sec.rol.value = { yonetici: 'mudur', personel: 'uzman' }[localStorage.getItem('bos-rol')] || localStorage.getItem('bos-rol') || 'sahip';
+    sec.tur.value = localStorage.getItem('bos-tur') || 'kuafor';
+    function adres(u) {
+      const [yol, hash = ''] = u.split('#');
+      const [dosya, q = ''] = yol.split('?');
+      const p = new URLSearchParams(q);
+      if (!p.has('rol')) p.set('rol', sec.rol.value);
+      if (!p.has('tur')) p.set('tur', sec.tur.value);
+      if (sec.durum.value !== 'normal') p.set('durum', sec.durum.value);
+      if (p.get('tur') !== 'kuafor' && sec.set.value === 'danisan') p.set('set', 'danisan');
+      return `${dosya}?${p}${hash ? '#' + hash : ''}`;
+    }
+    function ciz() {
+      localStorage.setItem('bos-rol', sec.rol.value); localStorage.setItem('bos-tur', sec.tur.value);
+      document.getElementById('liste').innerHTML = Y.map(([k, b, a, e]) => `<section class="yuzey" aria-labelledby="y-${k}"><h2 id="y-${k}">${b}</h2><p>${a}</p><div class="kart">${e.map(([ad, amac, u, plan]) => `<div class="ekran"><div><div class="ekran__ad">${ad}</div>${amac ? `<div class="ekran__amac">${amac}</div>` : ''}</div><div class="ekran__baglantilar">${plan ? '<span class="durum durum--yakinda">Planlandı</span>' : `<a class="dugme dugme--ikincil dugme--kucuk" href="cerceve.html?w=390&u=${encodeURIComponent(adres(u))}">Telefon</a><a class="dugme dugme--ikincil dugme--kucuk" href="cerceve.html?w=768&u=${encodeURIComponent(adres(u))}">768</a><a class="dugme dugme--metin dugme--kucuk" href="${adres(u)}">Tam genişlik</a>`}</div></div>`).join('')}</div></section>`).join('');
+    }
+    Object.values(sec).forEach((s) => s.addEventListener('change', ciz));
+    ciz();
+  </script>
+</body>
+</html>

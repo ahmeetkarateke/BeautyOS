@@ -1,0 +1,127 @@
+/* BeautyOS tasarım tokenları — tek kaynak: docs/tasarim.md §3
+   Adlandırma (müdür kararı): CSS değişkenleri ve Tailwind anahtarları İNGİLİZCE; Türkçe açıklama tasarim.md'de.
+   Katman 1 (ham, --ref-*): yalnız bu dosyada hex. Bileşenler bunları doğrudan kullanmaz.
+   Katman 2 (anlamsal): bileşenler yalnız bunları kullanır. Koyu tema: yalnız [data-theme="dark"] altında katman 2 yeniden atanır (çizilmedi).
+   Katman 3 (dosya sonu): prototipin Türkçe sınıf dosyası için takma adlar. ÜRETİME TAŞINMAZ. */
+
+:root {
+  /* ---- Katman 1: ham renkler ---- */
+  --ref-petrol-50: #EEF4F5; --ref-petrol-100: #DCE8EA; --ref-petrol-200: #B9D0D4; --ref-petrol-500: #3D6F7C;
+  --ref-petrol-600: #2B5562; --ref-petrol-700: #1F3E47; --ref-petrol-800: #183239; --ref-petrol-900: #11242A;
+  --ref-powder-50: #FDF3F2; --ref-powder-100: #FAE4E2; --ref-powder-200: #F3C7C3; --ref-powder-300: #E89B96;
+  --ref-powder-500: #C4615A; --ref-powder-700: #A84A44; --ref-powder-900: #6E2C28;
+  --ref-gray-0: #FFFFFF; --ref-gray-25: #FAF9F8; --ref-gray-50: #F6F4F3; --ref-gray-100: #EEEBEA; --ref-gray-200: #E4E0DE;
+  --ref-gray-400: #9A9391; --ref-gray-600: #5F6B72; --ref-gray-700: #45545B; --ref-gray-900: #14262C;
+  --ref-green-50: #E3F3EA; --ref-green-700: #1E6B45; --ref-green-900: #0F3D26;
+  --ref-amber-50: #FDF3DC; --ref-amber-300: #EBC77A; --ref-amber-800: #7A4B07;
+  --ref-red-50: #FDECEA; --ref-red-600: #B3261E; --ref-red-900: #7A1A14;
+
+  /* ---- Katman 2: anlamsal (açık tema) ---- */
+  --color-page: var(--ref-gray-50);
+  --color-surface: var(--ref-gray-0);
+  --color-surface-subtle: var(--ref-gray-25);
+  --color-surface-active: var(--ref-gray-100);
+  --color-border: var(--ref-gray-200);
+  --color-border-subtle: var(--ref-gray-100);
+  --color-border-control: var(--ref-gray-400);
+  --color-text: var(--ref-gray-900);
+  --color-text-secondary: var(--ref-gray-700);
+  --color-text-muted: var(--ref-gray-600);
+  --color-text-inverse: var(--ref-gray-0);
+  --color-primary: var(--ref-petrol-700);
+  --color-primary-hover: var(--ref-petrol-800);
+  --color-primary-pressed: var(--ref-petrol-900);
+  --color-on-primary: var(--ref-gray-0);
+  --color-primary-soft: var(--ref-petrol-50);
+  --color-primary-soft-text: var(--ref-petrol-800);
+  --color-accent: var(--ref-powder-300);
+  --color-accent-mark: var(--ref-powder-500);
+  --color-accent-text: var(--ref-powder-700);
+  --color-accent-soft: var(--ref-powder-50);
+  --color-focus: var(--ref-petrol-600);
+  --color-success: var(--ref-green-700); --color-success-bg: var(--ref-green-50); --color-success-text: var(--ref-green-900);
+  --color-warning-bg: var(--ref-amber-50); --color-warning-border: var(--ref-amber-300); --color-warning-text: var(--ref-amber-800);
+  --color-danger: var(--ref-red-600); --color-danger-bg: var(--ref-red-50); --color-danger-text: var(--ref-red-900);
+  --color-info-bg: var(--ref-petrol-50); --color-info-text: var(--ref-petrol-800);
+  /* Geçmiş (tamamlanmış) randevu: opaklık değil ayrı ton (kontrast >= 4.5:1) */
+  --color-past-bg: var(--ref-gray-25); --color-past-text: var(--ref-gray-700);
+
+  --status-pending-bg: var(--ref-amber-50);   --status-pending-text: var(--ref-amber-800);
+  --status-confirmed-bg: var(--ref-petrol-50); --status-confirmed-text: var(--ref-petrol-800);
+  --status-inprogress-bg: var(--ref-powder-100); --status-inprogress-text: var(--ref-powder-900);
+  --status-completed-bg: var(--ref-green-50);  --status-completed-text: var(--ref-green-900);
+  --status-cancelled-bg: var(--ref-gray-100);  --status-cancelled-text: var(--ref-gray-700);
+  --status-noshow-bg: var(--ref-red-50);       --status-noshow-text: var(--ref-red-900);
+
+  --person-1-bg: #FAE4E2; --person-1-text: #6E2C28; --person-1-mark: #C4615A;
+  --person-2-bg: #E2EFE6; --person-2-text: #24513A; --person-2-mark: #4E8B66;
+  --person-3-bg: #E1ECF4; --person-3-text: #1E4A66; --person-3-mark: #4F86AE;
+  --person-4-bg: #F5EAD3; --person-4-text: #5E430E; --person-4-mark: #A87C2C;
+  --person-5-bg: #EAE6DF; --person-5-text: #4A4033; --person-5-mark: #857560;
+
+  --brand-booking: var(--ref-petrol-700); --brand-booking-on: #FFFFFF; --brand-booking-soft: var(--ref-petrol-50);
+
+  /* Yazı: Hanken Grotesk; ₺ (U+20BA) Hanken'de yok → Inter latin-ext yedek; tüm tutarlarda ₺ aynı yüzden gelir */
+  --font-sans: "Hanken Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.25rem; --text-xl: 1.5rem; --text-2xl: 2rem;
+  --text-display: clamp(2.5rem, 1.4rem + 4.2vw, 4.75rem);
+  --leading-xs: 1rem; --leading-sm: 1.25rem; --leading-base: 1.5rem; --leading-lg: 1.75rem; --leading-xl: 2rem; --leading-2xl: 2.5rem;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --space-10: 40px; --space-12: 48px; --space-16: 64px; --space-24: 96px; --space-32: 128px;
+
+  --radius-tag: 4px; --radius-control: 6px; --radius-card: 8px; --radius-sheet: 16px; --radius-full: 999px;
+  --shadow-floating: 0 12px 32px rgba(17, 36, 42, 0.14), 0 2px 6px rgba(17, 36, 42, 0.08);
+  --shadow-menu: 0 6px 20px rgba(17, 36, 42, 0.12), 0 1px 3px rgba(17, 36, 42, 0.08);
+
+  --size-control: 44px; --size-control-sm: 36px; --size-row: 56px; --size-topbar: 56px; --size-bottombar: 64px;
+  --size-sidebar: 248px; --size-content-max: 1200px;
+  --duration-fast: 120ms; --duration-base: 220ms; --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --z-topbar: 20; --z-bottombar: 30; --z-overlay: 40; --z-toast: 50; --z-prototype: 60;
+}
+
+/* [data-theme="dark"] { color-scheme: dark; --color-page: …; }  — sonra (kurucu kararı 13) */
+
+@media (prefers-reduced-motion: reduce) { :root { --duration-fast: 0ms; --duration-base: 0ms; } }
+
+/* ---- Katman 3: prototip takma adları (bilesenler.css Türkçe sınıflarla yazıldı). Üretime taşınmaz. ---- */
+:root {
+  --petrol-50: var(--ref-petrol-50); --petrol-100: var(--ref-petrol-100); --petrol-200: var(--ref-petrol-200); --petrol-700: var(--ref-petrol-700); --petrol-800: var(--ref-petrol-800);
+  --pudra-50: var(--ref-powder-50); --pudra-100: var(--ref-powder-100); --pudra-200: var(--ref-powder-200); --pudra-300: var(--ref-powder-300); --pudra-500: var(--ref-powder-500); --pudra-700: var(--ref-powder-700);
+  --gri-25: var(--ref-gray-25); --gri-50: var(--ref-gray-50); --gri-100: var(--ref-gray-100); --gri-200: var(--ref-gray-200); --gri-400: var(--ref-gray-400); --gri-600: var(--ref-gray-600); --gri-700: var(--ref-gray-700); --gri-900: var(--ref-gray-900);
+  --kirmizi-50: var(--ref-red-50);
+  --renk-zemin: var(--color-page); --renk-yuzey: var(--color-surface); --renk-yuzey-ikincil: var(--color-surface-subtle); --renk-yuzey-aktif: var(--color-surface-active);
+  --renk-cizgi: var(--color-border); --renk-cizgi-hafif: var(--color-border-subtle); --renk-kontrol-cizgi: var(--color-border-control);
+  --renk-metin: var(--color-text); --renk-metin-ikincil: var(--color-text-secondary); --renk-metin-soluk: var(--color-text-muted); --renk-metin-ters: var(--color-text-inverse);
+  --renk-birincil: var(--color-primary); --renk-birincil-hover: var(--color-primary-hover); --renk-birincil-basili: var(--color-primary-pressed); --renk-birincil-uzeri: var(--color-on-primary);
+  --renk-birincil-hafif: var(--color-primary-soft); --renk-birincil-hafif-metin: var(--color-primary-soft-text);
+  --renk-vurgu: var(--color-accent); --renk-vurgu-isaret: var(--color-accent-mark); --renk-vurgu-metin: var(--color-accent-text); --renk-vurgu-hafif: var(--color-accent-soft);
+  --renk-odak: var(--color-focus);
+  --renk-basari: var(--color-success); --renk-basari-zemin: var(--color-success-bg); --renk-basari-metin: var(--color-success-text);
+  --renk-uyari-zemin: var(--color-warning-bg); --renk-uyari-kenar: var(--color-warning-border); --renk-uyari-metin: var(--color-warning-text);
+  --renk-hata: var(--color-danger); --renk-hata-zemin: var(--color-danger-bg); --renk-hata-metin: var(--color-danger-text);
+  --renk-bilgi-zemin: var(--color-info-bg); --renk-bilgi-metin: var(--color-info-text);
+  --durum-bekliyor-z: var(--status-pending-bg); --durum-bekliyor-m: var(--status-pending-text);
+  --durum-onayli-z: var(--status-confirmed-bg); --durum-onayli-m: var(--status-confirmed-text);
+  --durum-suruyor-z: var(--status-inprogress-bg); --durum-suruyor-m: var(--status-inprogress-text);
+  --durum-bitti-z: var(--status-completed-bg); --durum-bitti-m: var(--status-completed-text);
+  --durum-iptal-z: var(--status-cancelled-bg); --durum-iptal-m: var(--status-cancelled-text);
+  --durum-gelmedi-z: var(--status-noshow-bg); --durum-gelmedi-m: var(--status-noshow-text);
+  --kisi-1-z: var(--person-1-bg); --kisi-1-m: var(--person-1-text); --kisi-1-i: var(--person-1-mark);
+  --kisi-2-z: var(--person-2-bg); --kisi-2-m: var(--person-2-text); --kisi-2-i: var(--person-2-mark);
+  --kisi-3-z: var(--person-3-bg); --kisi-3-m: var(--person-3-text); --kisi-3-i: var(--person-3-mark);
+  --kisi-4-z: var(--person-4-bg); --kisi-4-m: var(--person-4-text); --kisi-4-i: var(--person-4-mark);
+  --kisi-5-z: var(--person-5-bg); --kisi-5-m: var(--person-5-text); --kisi-5-i: var(--person-5-mark);
+  --salon-renk: var(--brand-booking); --salon-renk-uzeri: var(--brand-booking-on); --salon-renk-hafif: var(--brand-booking-soft);
+  --yazi-aile: var(--font-sans);
+  --yazi-12: var(--text-xs); --yazi-14: var(--text-sm); --yazi-16: var(--text-base); --yazi-20: var(--text-lg); --yazi-24: var(--text-xl); --yazi-32: var(--text-2xl); --yazi-vitrin: var(--text-display);
+  --satir-12: var(--leading-xs); --satir-14: var(--leading-sm); --satir-16: var(--leading-base); --satir-20: var(--leading-lg); --satir-24: var(--leading-xl); --satir-32: var(--leading-2xl);
+  --kalinlik-normal: var(--weight-regular); --kalinlik-orta: var(--weight-medium); --kalinlik-kalin: var(--weight-semibold);
+  --bosluk-1: var(--space-1); --bosluk-2: var(--space-2); --bosluk-3: var(--space-3); --bosluk-4: var(--space-4); --bosluk-6: var(--space-6); --bosluk-8: var(--space-8);
+  --yaricap-etiket: var(--radius-tag); --yaricap-kontrol: var(--radius-control); --yaricap-kart: var(--radius-card); --yaricap-katman: var(--radius-sheet); --yaricap-tam: var(--radius-full);
+  --golge-yuzen: var(--shadow-floating); --golge-menu: var(--shadow-menu);
+  --kontrol-y: var(--size-control); --kontrol-y-kucuk: var(--size-control-sm); --satir-y: var(--size-row); --ust-bar-y: var(--size-topbar); --alt-menu-y: var(--size-bottombar); --yan-menu-g: var(--size-sidebar); --icerik-azami: var(--size-content-max);
+  --sure-hizli: var(--duration-fast); --sure-orta: var(--duration-base); --egri-cikis: var(--ease-out);
+  --z-ust-bar: var(--z-topbar); --z-alt-menu: var(--z-bottombar); --z-katman: var(--z-overlay); --z-bildirim: var(--z-toast);
+}

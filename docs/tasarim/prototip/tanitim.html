@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1F3E47">
+  <title>BeautyOS: Salon ve Klinik Randevu Programı</title>
+  <meta name="description" content="Randevu, müşteri kartı, kasa ve personel takibi tek uygulamada. Telefondan yönetin, 30 gün ücretsiz deneyin.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="bilesenler.css">
+  <link rel="stylesheet" href="tanitim-hareket.css">
+  <script>document.documentElement.classList.add('js')</script>
+  <style>
+    body { background: var(--color-surface); font-size: 17px; line-height: 1.55; }
+    .kap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+    @media (min-width: 1024px) { .kap { padding: 0 40px; } }
+    .ust { position: sticky; top: 0; z-index: 20; background: var(--color-surface); }
+    .ust .kap { display: flex; align-items: center; gap: 24px; height: 68px; }
+    .ust nav { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+    .ust nav a { color: var(--color-text); text-decoration: none; font-size: 15px; font-weight: 500; padding: 10px 12px; border-radius: var(--radius-control); }
+    .ust nav a:hover { background: var(--color-surface-active); }
+    .ust nav .dugme { margin-left: 8px; color: var(--color-on-primary); }
+    @media (max-width: 899px) { .ust nav .gizle-m { display: none; } }
+    h1.vitrin { font-size: clamp(2.25rem, 1.3rem + 3.6vw, 4.5rem); line-height: 1.04; letter-spacing: -0.035em; font-weight: 500; max-width: 22ch; }
+    .tk-dar { display: none; } @media (max-width: 639px) { .tk-genis { display: none; } .tk-dar { display: block; } }
+    h2.bolum { font-size: clamp(2rem, 1.4rem + 2.2vw, 3.25rem); line-height: 1.06; letter-spacing: -0.03em; font-weight: 500; max-width: 16ch; }
+    .giris-metni { font-size: clamp(18px, 1rem + .4vw, 21px); line-height: 1.5; color: var(--color-text-secondary); max-width: 46ch; }
+    .hero { padding: 40px 0 0; }
+    .hero__izgara { display: grid; gap: 40px; }
+    @media (min-width: 1024px) { .hero { padding: 72px 0 0; } .hero__izgara { grid-template-columns: 5fr 7fr; align-items: end; } }
+    .sahne { background: var(--ref-petrol-700); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; padding: 28px 20px 0; position: relative; }
+    @media (min-width: 1024px) { .sahne { padding: 40px 48px 0; } }
+    .parca { background: var(--color-surface); border-radius: 12px 12px 0 0; box-shadow: 0 -1px 0 rgba(255,255,255,.04); overflow: hidden; font-size: 14px; line-height: 20px; }
+    .etiket-ornek { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #DCE8EA; margin-bottom: 12px; }
+    .sahne__alt { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .sahne__alt .dugme { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.24); }
+    section.blok { padding: 72px 0; }
+    @media (min-width: 1024px) { section.blok { padding: 120px 0; } }
+    @media (max-width: 479px) { .hero .dugme-sirasi { flex-direction: column; align-items: stretch; } .hero .dugme-sirasi a:last-child { align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; } }
+    .alt a { display: inline-flex; align-items: center; min-height: 32px; }
+    .satir5-7 { display: grid; gap: 32px; align-items: center; }
+    @media (min-width: 1024px) { .satir5-7 { grid-template-columns: 5fr 7fr; gap: 64px; } .satir5-7--ters > :first-child { order: 2; } }
+    .satir5-7 + .satir5-7 { margin-top: 80px; }
+    .alan-pudra { background: var(--ref-powder-100); }
+    .alan-petrol { background: var(--ref-petrol-700); color: #fff; }
+    .alan-petrol .giris-metni { color: #DCE8EA; }
+    .alan-gri { background: var(--color-page); }
+    .is-listesi { display: grid; gap: 0; margin-top: 40px; }
+    @media (min-width: 900px) { .is-listesi { grid-template-columns: 1fr 1fr; column-gap: 64px; } }
+    .is { padding: 20px 0; border-top: 1px solid var(--color-border); display: grid; gap: 4px; }
+    .is h3 { font-size: 20px; line-height: 28px; font-weight: 600; display: flex; gap: 10px; align-items: center; }
+    .is p { color: var(--color-text-secondary); }
+    ol.adimlar-vitrin { list-style: none; counter-reset: a; padding: 0; margin: 40px 0 0; display: grid; gap: 32px; }
+    @media (min-width: 900px) { ol.adimlar-vitrin { grid-template-columns: repeat(4, 1fr); } }
+    ol.adimlar-vitrin li { counter-increment: a; display: grid; gap: 6px; }
+    ol.adimlar-vitrin li::before { content: counter(a); font-size: 48px; line-height: 1; font-weight: 500; color: var(--ref-powder-500); letter-spacing: -0.03em; }
+    ol.adimlar-vitrin h3 { font-size: 20px; font-weight: 600; }
+    details.sss { border-top: 1px solid var(--color-border); }
+    details.sss summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 16px; padding: 20px 0; font-size: 19px; font-weight: 500; }
+    details.sss summary::-webkit-details-marker { display: none; }
+    details.sss summary::after { content: "+"; font-size: 24px; line-height: 1; color: var(--color-text-muted); }
+    details.sss[open] summary::after { content: "−"; }
+    details.sss p { padding: 0 0 20px; color: var(--color-text-secondary); max-width: 68ch; }
+    .alt { background: var(--ref-petrol-900); color: #DCE8EA; padding: 64px 0 calc(32px + env(safe-area-inset-bottom)); font-size: 15px; }
+    .alt a { color: #fff; }
+    .alt__ad { font-size: clamp(56px, 10vw, 140px); line-height: .9; letter-spacing: -0.05em; font-weight: 500; color: #fff; margin-bottom: 40px; }
+    .alt__izgara { display: grid; gap: 24px; }
+    @media (min-width: 900px) { .alt__izgara { grid-template-columns: 2fr 1fr 1fr; } }
+    .alt ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .yapiskan { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--color-surface); border-top: 1px solid var(--color-border); z-index: 25; transform: translateY(110%); transition: transform var(--duration-base) var(--ease-out); }
+    .yapiskan[data-gorunur="true"] { transform: none; }
+    @media (min-width: 900px) { .yapiskan { display: none; } }
+    .fiyat-kutu { border: 1px dashed var(--color-border-control); border-radius: var(--radius-card); padding: 32px; max-width: 560px; }
+    .uzun { max-width: 70ch; }
+    .uzun h2 { font-size: 24px; margin: 32px 0 8px; font-weight: 600; }
+    .uzun p, .uzun li { color: var(--color-text-secondary); }
+    [data-ui] .satir { min-height: 52px; }
+    .ust nav a[aria-current="page"] { background: var(--color-surface-active); }
+  </style>
+  <link rel="stylesheet" href="tanitim-derinlik.css">
+</head>
+<body>
+  <a class="atla" href="#ana">İçeriğe geç</a>
+  <header class="ust" id="ust" data-kaydi="false" data-menu="false"><div class="kap"><span id="marka"></span><nav aria-label="Ana gezinme"><a class="gizle-m" href="#ozellikler">Özellikler</a><a class="gizle-m" href="#fiyat">Fiyat</a><a class="gizle-m" href="#sss">Sorular</a><a class="gizle-m" href="#iletisim">İletişim</a><a class="gizle-xs gizle-m-giris" href="giris.html#giris">Giriş</a><a class="dugme ust__cta" href="giris.html#kayit">Ücretsiz deneyin</a><button class="ust__menu" id="ust-dugme" type="button" aria-expanded="false" aria-controls="ust-panel"><span class="gizli-metin">Menü</span><i aria-hidden="true"></i></button></nav></div>
+    <div class="ust__panel" id="ust-panel" hidden><a href="#ozellikler">Özellikler</a><a href="#fiyat">Fiyat</a><a href="#sss">Sorular</a><a href="#iletisim">İletişim</a><a href="giris.html#giris">Giriş</a></div></header>
+  <main id="ana" tabindex="-1"></main>
+  <footer class="alt" id="alt"></footer>
+  <div class="yapiskan" id="yapiskan"><a class="dugme dugme--birincil dugme--tam" href="giris.html#kayit">Ücretsiz deneyin</a></div>
+  <script src="veri.js"></script>
+  <script src="prototip.js"></script>
+  <script src="tanitim-hareket.js"></script>
+  <script>
+  (function () {
+    const V = VERI, ik = P.ikon, para = P.para;
+    document.getElementById('marka').outerHTML = P.marka('#');
+    const yakinda = '<span class="durum durum--yakinda">Yakında</span>';
+    const onizleme = yakinda;
+    const maske = (t) => `0500 *** ** ${t.slice(-2)}`;
+    const per = (id) => V.PERSONEL.find((p) => p.id === id);
+    // Vitrin verisi: yalnız canlıda olan işlevler; online randevu, sağlık, gün sonu düğmesi, rol setleri yok; tarih yok ("Örnek gün")
+    const R = V.RANDEVULAR.filter((r) => r.kanal !== 'online' && r.durum !== 'iptal').sort((a, b) => P.dk(a.bas) - P.dk(b.bas));
+    const kart = (r) => `<div class="randevu-kart kisi-${per(r.p).ton}" style="cursor:default"><span class="randevu-kart__serit"></span><span class="randevu-kart__ana"><span class="randevu-kart__saat">${r.bas} – ${r.bit}</span><span class="orta">${r.musteri}</span><span class="metin-14 metin-soluk">${r.hizmet} · ${per(r.p).kisa}</span></span><span class="randevu-kart__sag">${P.durumEtiketi(r.durum)}</span></div>`;
+    const sirada = () => {
+      const s = R.filter((r) => ['suruyor', 'onayli'].includes(r.durum)).slice(0, 3);
+      return `<div data-ui class="parca" role="img" aria-label="BeautyOS Bugün ekranı: şimdi ve sırada olan randevular ve personelin günü (örnek, kurgusal veri)">
+        <div style="padding:16px 16px 8px;display:flex;justify-content:space-between;align-items:baseline"><span class="baslik-sayfa" style="font-size:20px">Bugün</span><span class="metin-kucuk metin-soluk">Örnek gün</span></div>
+        <ul class="liste" data-anim="satirlar">${s.map((r) => `<li><div class="satir" style="cursor:default">${P.avatar(per(r.p))}<span class="satir__ana"><span class="satir__ust"><span class="sayi">${r.bas}</span> · ${r.musteri}</span><span class="satir__alt">${r.hizmet} · ${per(r.p).kisa}</span></span>${P.durumEtiketi(r.durum)}</div></li>`).join('')}</ul>
+        <div style="padding:16px;border-top:1px solid var(--color-border-subtle)"><p class="metin-14" style="margin-bottom:10px"><strong>Şu an boş:</strong> ${simdiBos()}.</p>${seritHtml()}</div></div>`;
+    };
+    // Panelle aynı hesap: şu an (14:20) randevusu olmayan personel ve bir sonraki randevusuna kadar
+    function simdiBos() {
+      const s = 860;
+      return V.PERSONEL.filter((p) => !p.hizmetVermez).map((p) => {
+        const rr = V.RANDEVULAR.filter((r) => r.p === p.id && !['iptal', 'gelmedi'].includes(r.durum));
+        if (rr.some((r) => P.dk(r.bas) <= s && P.dk(r.bit) > s)) return null;
+        const n = rr.filter((r) => P.dk(r.bas) > s).sort((a, b) => P.dk(a.bas) - P.dk(b.bas))[0];
+        return `${p.kisa} (${n ? n.bas : '20:00'}’e kadar)`;
+      }).filter(Boolean).join(', ');
+    }
+    function seritHtml() {
+      const y = (d) => ((d - 540) / 660) * 100;
+      return `<div class="doluluk">${V.PERSONEL.filter((p) => !p.hizmetVermez).map((p) => `<div class="doluluk__satir kisi-${p.ton}"><span class="doluluk__ad">${P.avatar(p, 'avatar--kucuk')}<span>${p.kisa}</span></span><div class="doluluk__iz">${R.filter((r) => r.p === p.id).map((r) => `<span class="doluluk__blok ${r.durum === 'suruyor' ? 'doluluk__blok--suruyor' : ''} ${['bitti', 'gelmedi'].includes(r.durum) ? 'doluluk__blok--bitti' : ''}" style="left:${y(P.dk(r.bas))}%;width:${(r.sure / 660) * 100}%"></span>`).join('')}<span class="doluluk__simdi" style="left:${y(860)}%"></span></div></div>`).join('')}<div class="doluluk__eksen"><span></span><div><span>09</span><span>12</span><span>15</span><span>18</span><span>20</span></div></div></div>`;
+    }
+    const kasaParca = () => `<div data-ui class="parca" style="border-radius:12px" role="img" aria-label="Kasa özeti: tahsilat, nakit, kart ve gider (örnek, kurgusal veri)"><div style="padding:16px"><p class="baslik-bolum" style="margin-bottom:12px">Kasa · Örnek gün</p><div class="ozet ozet--yigilir" style="--sutun:4"><div class="ozet__oge"><span class="ozet__etiket">Tahsilat</span><span class="ozet__deger" data-roll>${para(V.KASA.ciro)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Nakit</span><span class="ozet__deger" data-roll>${para(V.KASA.nakit)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Kart</span><span class="ozet__deger" data-roll>${para(V.KASA.kart)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Gider</span><span class="ozet__deger" data-roll>${para(V.KASA.gider)}</span></div></div>
+      <ul class="liste" style="margin-top:12px" data-anim="satirlar">${R.filter((r) => r.durum === 'bitti').slice(0, 4).map((r) => `<li><div class="satir" style="cursor:default;padding-left:0;padding-right:0"><span class="satir__ana"><span class="satir__ust">${r.musteri}</span><span class="satir__alt">${r.hizmet}</span></span><span class="satir__sag"><span class="sayi orta">${para(r.tutar)}</span><span class="metin-kucuk metin-soluk">${r.odeme}</span></span></div></li>`).join('')}</ul></div></div>`;
+    const musteriParca = () => `<div data-ui class="parca" style="border-radius:12px" role="img" aria-label="Müşteri kartı: geçmiş randevular ve not (örnek, kurgusal veri)"><div style="padding:16px"><p class="baslik-sayfa" style="font-size:20px">Hande Polat</p><p class="metin-14 metin-soluk">${maske('27')} · 9 ziyaret</p><div class="ozet" style="--sutun:2;margin-top:12px"><div class="ozet__oge"><span class="ozet__etiket">Toplam harcama</span><span class="ozet__deger">${para(8650)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Son ziyaret</span><span class="ozet__deger" style="font-size:16px">12.09.2026</span></div></div><p class="metin-14" style="margin-top:12px"><span class="orta">Not:</span> Kahve sevmez, su ikram edin.</p><ul class="liste" style="margin-top:8px" data-anim="satirlar">${V.HANDE_GECMIS.filter((g) => g.durum === 'bitti').map((g) => `<li><div class="satir" style="cursor:default;padding-left:0;padding-right:0"><span class="satir__ana"><span class="satir__ust">${g.hizmet}</span><span class="satir__alt">${g.tarih} · ${per(g.p).kisa}</span></span><span class="sayi">${para(g.tutar)}</span></div></li>`).join('')}</ul></div></div>`;
+    const takvimParca = () => `<div class="tk-genis">${takvimGenis()}</div><div class="tk-dar"><div data-ui class="parca" style="border-radius:12px" role="img" aria-label="Telefonda takvim: saat sırasıyla randevular (örnek, kurgusal veri)"><div style="padding:16px" class="yigin yigin--8" data-anim="satirlar">${R.slice(0, 4).map(kart).join('')}</div></div></div>`;
+    const takvimGenis = () => { const pp = V.PERSONEL.filter((p) => !p.hizmetVermez).slice(0, 3); const SY = 44; return `<div data-ui class="parca" data-anim="dusme" style="border-radius:12px;overflow:auto" role="img" aria-label="Takvim: personel sütunlarında günün randevuları (örnek, kurgusal veri)"><div class="takvim" style="--sutun:3;--saat-y:${SY}px;border:0;max-height:none;min-width:520px"><div class="takvim__kose"></div>${pp.map((p) => `<div class="takvim__kisi">${P.avatar(p, 'avatar--kucuk')}${p.kisa}</div>`).join('')}<div class="takvim__eksen">${[9, 10, 11, 12, 13, 14, 15, 16, 17].map((s) => `<div>${String(s).padStart(2, '0')}:00</div>`).join('')}</div>${pp.map((p) => `<div class="takvim__sutun kisi-${p.ton}" style="height:${9 * SY}px">${R.filter((r) => r.p === p.id && P.dk(r.bas) < 1080).map((r) => `<span class="takvim__olay takvim__olay--${r.durum}" style="top:${((P.dk(r.bas) - 540) / 60) * SY + 1}px;height:${(r.sure / 60) * SY - 3}px"><strong>${r.sure > 30 ? r.musteri : r.bas + ' ' + r.musteri}</strong>${r.sure > 45 ? `<span>${r.hizmet}</span>` : ''}</span>`).join('')}<div class="takvim__simdi" style="top:${((860 - 540) / 60) * SY}px"></div></div>`).join('')}</div></div>`; };
+    const cta = (ters) => `<div class="dugme-sirasi" style="margin-top:32px;gap:16px"><a class="dugme dugme--birincil" style="min-height:52px;padding:0 24px;font-size:17px;${ters ? 'background:#fff;color:var(--ref-petrol-900)' : ''}" href="giris.html#kayit">Ücretsiz deneyin</a><a href="#iletisim/demo" style="${ters ? 'color:#fff' : ''};font-weight:500">Demo isteyin</a></div>`;
+
+    // ---- Hikâye ekranları (yapışkan telefon): bir randevunun günü. Kurgusal veri. ----
+    const ekranUst = (b, a = '') => `<div class="ek-ust"><span class="ek-baslik">${b}</span>${a}</div>`;
+    const EKRANLAR = [
+      ['Randevu oluştur', 'Telefon çalar: “Bugün saat dörtte yeriniz var mı?” Müşteriyi bulun, hizmeti ve boş saati seçin.', `${ekranUst('Randevu oluştur')}<div class="ek-govde"><p class="ek-etiket">Müşteri</p><div class="secim-kart" aria-checked="true" style="cursor:default"><span class="avatar avatar--kucuk">HP</span><span class="secim-kart__ana"><span class="orta">Hande Polat</span><span class="metin-kucuk metin-soluk">${maske('27')}</span></span></div>
+        <p class="ek-etiket">Hizmet</p><div class="secim-kart" aria-checked="true" style="cursor:default"><span class="secim-kart__ana"><span class="orta">Kadın saç kesimi</span><span class="metin-kucuk metin-soluk">45 dk</span></span><span class="sayi orta">${para(850)}</span></div>
+        <p class="ek-etiket">Saat · Elif</p><div class="saatler ek-saatler">${['15:15', '16:00', '16:15', '17:00', '17:15', '18:30'].map((t) => `<span class="saat" ${t === '16:15' ? 'aria-pressed="true" data-ek-sec' : ''} style="display:grid;place-items:center">${t}</span>`).join('')}</div></div><div class="ek-alt"><span class="dugme dugme--birincil dugme--tam">Randevu oluştur</span></div>`],
+      ['Hatırlatma', 'Randevudan önce müşteriye kısa bir hatırlatma gider.', `${ekranUst('Mesajlar', yakinda)}<div class="ek-govde ek-mesaj"><p class="metin-kucuk metin-soluk" style="text-align:center">Bugün 12:15</p><div class="ek-balon">Defne Güzellik Salonu: Bugün 16:15’te randevunuz var. Değişiklik için 0500 000 00 10.</div><p class="metin-kucuk metin-soluk" style="margin-top:12px">Hatırlatma SMS’i yakında.</p></div>`, 1],
+      ['Tamamla ve ödeme al', 'İş bitince tek ekranda: tutar hazır, nakit ya da kart, istenirse bahşiş. Prim kendiliğinden hesaplanır.', `${ekranUst('Tamamla ve ödeme al')}<div class="ek-govde"><p class="metin-14 metin-soluk">Hande Polat · Kadın saç kesimi · Elif</p><p class="ek-etiket">Tutar</p><p class="ek-tutar sayi">${para(850)}</p><p class="ek-etiket">Ödeme yöntemi</p><div class="parcali parcali--tam"><button tabindex="-1" aria-pressed="false">Nakit</button><button tabindex="-1" aria-pressed="true" data-ek-sec>Kart</button></div><div class="ek-tamam" data-ek-tamam>${ik('tamamDaire')}<span>Ödeme alındı.</span></div></div><div class="ek-alt"><span class="dugme dugme--birincil dugme--tam">Ödeme al · ${para(850)}</span></div>`],
+      ['Kasa', 'Akşam kasa hazır: tahsilat, nakit, kart ve gider tek ekranda.', `${ekranUst('Kasa')}<div class="ek-govde"><div class="ozet ozet--yigilir" style="--sutun:2"><div class="ozet__oge"><span class="ozet__etiket">Tahsilat</span><span class="ozet__deger" data-roll>${para(V.KASA.ciro)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Gider</span><span class="ozet__deger" data-roll>${para(V.KASA.gider)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Nakit</span><span class="ozet__deger" data-roll>${para(V.KASA.nakit)}</span></div><div class="ozet__oge"><span class="ozet__etiket">Kart</span><span class="ozet__deger" data-roll>${para(V.KASA.kart)}</span></div></div><ul class="liste" style="margin-top:12px">${R.filter((r) => r.durum === 'bitti').slice(0, 3).map((r) => `<li><div class="satir" style="cursor:default;padding:8px 0;min-height:0"><span class="satir__ana"><span class="satir__ust">${r.musteri}</span><span class="satir__alt">${r.hizmet}</span></span><span class="sayi">${para(r.tutar)}</span></div></li>`).join('')}</ul></div>`],
+    ];
+    const ETK = [['Müşteri', 'Hizmet', 'Boş saat'], ['Randevudan önce', 'Kısa mesaj'], ['Nakit', 'Kart', 'Bahşiş', 'Prim'], ['Tahsilat', 'Nakit', 'Kart', 'Gider']];
+    const etk = (a) => `<div class="etk" aria-hidden="true">${a.map((t) => `<span>${t}</span>`).join('')}</div>`;
+    const hikaye = () => `<section class="blok alan-pudra hikaye-bolum" aria-labelledby="h-tel"><div class="kap">
+      <div class="satir5-7" style="align-items:end"><h2 class="bolum" id="h-tel" data-anim="yaklas"><span class="maske"><span>Telefonda çalışır</span></span></h2><div><p class="giris-metni" style="color:var(--ref-powder-900)">Uygulama indirmeniz gerekmez; tarayıcıdan açılır. Bir randevunun günü dört ekranda, başparmakla.</p><p class="metin-14" style="margin-top:12px;color:var(--ref-powder-900)">BeautyOS internet bağlantısıyla çalışır. Ana veritabanınız Almanya’daki (Frankfurt) sunucularda tutulur.</p></div></div>
+      <div class="hikaye"><div class="hikaye__sahne" aria-hidden="true"><div class="telefon"><div class="telefon__ekran">${EKRANLAR.map(([, , e], i) => `<div class="ek ${i === 0 ? 'is-on' : ''}" data-ek="${i}">${e}</div>`).join('')}</div></div><p class="hikaye__sayac metin-14" data-sayac>4 adımdan 1</p><span class="hikaye__chip hikaye__chip--1">Tarayıcıdan açılır</span><span class="hikaye__chip hikaye__chip--2">Uygulama indirmeden</span></div>
+      <ol class="hikaye__adimlar">${EKRANLAR.map(([b, m, e, y], i) => `<li class="adim ${i === 0 ? 'is-active' : ''}" data-adim="${i}"><div class="adim__kart"><span class="adim__no" aria-hidden="true">${i + 1}</span><h3>${b}${y ? ` ${yakinda}` : ''}</h3><p>${m}</p><div class="etk" aria-hidden="true">${ETK[i].map((t) => `<span>${t}</span>`).join('')}</div><div class="adim__ekran" aria-hidden="true"><div class="telefon telefon--kucuk"><div class="telefon__ekran"><div class="ek is-on">${e}</div></div></div></div></div></li>`).join('')}</ol></div>
+      <p class="metin-kucuk" style="margin-top:24px;color:var(--ref-powder-900)">Ekranlar tasarım önizlemesidir; örnek salon, kurgusal veri.</p></div></section>`;
+    const SEKTORLER = [
+      ['kuafor', 'Kuaför', [['10:00', 'Kadın saç kesimi', 'Elif'], ['11:30', 'Dip boya', 'Derya'], ['14:30', 'Fön', 'Elif']]],
+      ['berber', 'Berber', [['09:30', 'Saç kesimi', 'Kerem'], ['10:00', 'Saç ve sakal', 'Kerem'], ['11:00', 'Sakal', 'Onur']]],
+      ['guzellik', 'Güzellik merkezi', [['10:00', 'Cilt bakımı (derin temizlik)', 'Merve'], ['11:30', 'Kalıcı oje', 'Zeynep'], ['13:00', 'Kirpik lifting', 'Merve']]],
+      ['estetik', 'Estetik kliniği', [['09:30', 'İlk görüşme', 'Dr. Elif Ş.'], ['10:15', 'Kontrol', 'Dr. Elif Ş.'], ['11:00', 'Bakım seansı', 'Dr. Zeynep A.']]],
+      ['dis', 'Diş hekimi', [['09:00', 'Kontrol muayenesi', 'Dt. Derya A.'], ['10:00', 'Temizlik randevusu', 'Dt. Derya A.'], ['11:30', 'Değerlendirme', 'Dt. Elif Ş.']]],
+    ];
+    const NE = { kuafor: 'Kesim, boya, fön: her hizmet kendi süresi ve fiyatıyla takvime oturur.', berber: 'Kısa ve sık randevular; kimin ne zaman boş olduğu bir bakışta.', guzellik: 'Paketli seanslar ve müşteri formları aynı kartta durur.', estetik: 'Hekim takvimi, seans takibi ve kasa aynı yerde.', dis: 'Hekim takvimi, kontrol randevuları ve kasa aynı yerde.' };
+    const sektorSekme = () => `<section class="blok alan-gri kimler" aria-labelledby="h-kim"><div class="kap"><div class="satir5-7" style="align-items:end"><h2 class="bolum" id="h-kim" data-anim="sil"><span class="maske"><span>Kimler için</span></span></h2><p class="giris-metni" style="color:var(--color-text)">BeautyOS randevuyla çalışan işletmeler için: kuaförler, berberler, güzellik merkezleri, estetik klinikleri ve diş hekimleri.</p></div>
+      <div class="sektor" style="margin-top:48px"><div class="sektor__sekmeler" role="tablist" aria-label="İşletme türü">${SEKTORLER.map(([k, a], i) => `<button role="tab" id="st-${k}" aria-controls="sp-${k}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${a}</button>`).join('')}<span class="sektor__iz" aria-hidden="true"></span></div>
+      ${SEKTORLER.map(([k, a, l], i) => `<div role="tabpanel" id="sp-${k}" aria-labelledby="st-${k}" ${i === 0 ? '' : 'hidden'} class="sektor__panel"><div class="sektor__kartlar">${l.map(([s, h, d], j) => `<div class="randevu-kart kisi-${(j % 3) + 1}" style="cursor:default;--j:${j}"><span class="randevu-kart__serit"></span><span class="randevu-kart__ana"><span class="randevu-kart__saat">${s}</span><span class="orta">${h}</span><span class="metin-14 metin-soluk">${d}</span></span><span class="randevu-kart__sag"><span class="durum durum--onayli">Onaylandı</span></span></div>`).join('')}</div>
+        <div class="sektor__yan"><h3 class="sektor__baslik">${a}</h3><p class="metin-ikincil">${NE[k]}</p>${etk(['Takvim', 'Müşteri kartı', 'Kasa'])}<p class="metin-ikincil">${['estetik', 'dis'].includes(k) ? 'BeautyOS bir muayene ya da tedavi kayıt programı değildir; e-Nabız bildirimleri ve yasal tıbbi kayıt yükümlülükleriniz için kullandığınız sistemin yerine geçmez. Randevu, kasa ve işletme işlerini düzenler.</p><p class="metin-ikincil">Klinik terimleri ve klinik ekranları yakında. Örnek klinik, kurgusal veri.' : 'Örnek işletme, kurgusal veri.'}</p><a class="dugme dugme--ikincil" href="#sektor/${k}">${a} sayfası</a></div></div>`).join('')}</div></div></section>`;
+
+    // ---- Bento: işletmedeki her iş. Küçük parçalar örnektir (kurgusal veri); "Yakında" olanlar henüz yok (#15). ----
+    const bento = () => {
+      const pp = V.PERSONEL.filter((p) => !p.hizmetVermez).slice(0, 3);
+      const y = (d) => ((d - 540) / 660) * 100;
+      const sure = pp.map((p) => `<div class="mini-sure__satir kisi-${p.ton}"><span>${p.kisa}</span><div class="mini-sure__iz">${R.filter((r) => r.p === p.id).map((r, j) => `<span class="mini-blok" style="--b:${j};left:${y(P.dk(r.bas))}%;width:${(r.sure / 660) * 100}%"></span>`).join('')}<span class="mini-simdi" style="left:${y(860)}%"></span></div></div>`).join('');
+      const cubuk = pp.map((p, j) => `<div class="mini-cubuk kisi-${p.ton}">${P.avatar(p, 'avatar--kucuk')}<b><i style="--b:${j};--w:${[82, 64, 46][j]}%"></i></b></div>`).join('');
+      const gecmis = V.HANDE_GECMIS.filter((g) => g.durum === 'bitti').slice(0, 3).map((g) => `<span>${g.hizmet}</span>`).join('');
+      const stok = [['Şampuan', 78, ''], ['Saç boyası', 52, ''], ['Tek kullanımlık havlu', 14, 'kritik']].map(([a, w, k], j) => `<div class="mini-stok__satir ${k ? 'mini-stok__satir--kritik' : ''}"><span>${a}</span>${k ? '<em>Kritik seviye</em>' : '<span></span>'}<b><i style="--b:${j};--w:${w}%"></i></b></div>`).join('');
+      return `<section class="blok bento-bolum" aria-labelledby="h-is"><div class="kap"><h2 class="bolum" id="h-is" data-anim="yaklas"><span class="maske"><span>İşletmenizdeki her iş için</span></span></h2>
+        <div class="bento" data-anim="satirlar">
+          <div class="bk bk--koyu bk--7 bk--genis"><h3>Randevu</h3><p>Personel bazında takvim ve bekleme listesi.</p><div class="mini-sure" aria-hidden="true">${sure}</div></div>
+          <div class="bk bk--beyaz bk--5"><div class="mini-kisi" aria-hidden="true"><span class="avatar avatar--buyuk">HP</span><span><span class="orta" style="display:block">Hande Polat</span><span class="metin-14 metin-soluk">${maske('27')}</span></span></div><div class="mini-gecmis" aria-hidden="true">${gecmis}</div><p class="mini-not" aria-hidden="true">Kahve sevmez, su ikram edin.</p><div class="bk__alt"><h3>Müşteri kartı</h3><p>Geçmiş, notlar ve müşteri formu.</p></div></div>
+          <div class="bk bk--pudra"><h3>Paket ve seans</h3><p>Paket satın alan müşterinin kalan seansı takip edilir.</p><div class="mini-nokta" aria-hidden="true">${[1, 1, 0, 0, 0, 0].map((k, j) => `<i class="${k ? 'kullanildi' : ''}" style="--b:${j}"></i>`).join('')}</div><p class="metin-14" aria-hidden="true" style="color:var(--ref-powder-900)">Örnek paket: 6 seans, 4’ü kaldı</p></div>
+          <div class="bk bk--koyu"><h3>Personel ve prim</h3><p>Yüzde ya da sabit prim; personel ödemesi ve bahşiş dağıtımı.</p><div class="mini-cubuklar" aria-hidden="true">${cubuk}</div></div>
+          <div class="bk bk--petrol"><h3>Kasa ve cari hesap</h3><p>Gelir-gider, cari hesaplar ve tedarikçi bakiyeleri.</p><div class="mini-kasa" aria-hidden="true"><span class="mini-kasa__buyuk" data-roll>${para(V.KASA.ciro)}</span><div class="mini-kasa__satir"><span>Nakit</span><span class="sayi">${para(V.KASA.nakit)}</span></div><div class="mini-kasa__satir"><span>Kart</span><span class="sayi">${para(V.KASA.kart)}</span></div></div></div>
+          <div class="bk bk--beyaz bk--5"><h3>Stok</h3><p>Ürün girişi, çıkışı ve alış faturası kaydı.</p><div class="mini-stok" aria-hidden="true">${stok}</div></div>
+          <div class="bk bk--kesik bk--3"><div><h3>Online randevu ${yakinda}</h3><p style="margin-top:8px">Müşterileriniz bağlantıdan kendi randevusunu alır.</p></div><div class="etk" aria-hidden="true"><span>15:15</span><span>16:00</span><span>17:00</span></div></div>
+          <div class="bk bk--sms"><h3>Hatırlatma SMS’i ${yakinda}</h3><p>Randevudan önce müşteriye hatırlatma.</p><div class="mini-balon" aria-hidden="true">Defne Güzellik Salonu: Bugün 16:15’te randevunuz var.</div></div>
+        </div>
+        <p class="bento-not">Kartlardaki küçük görünümler örnektir, veriler kurgusaldır. “Yakında” etiketli özellikler henüz hazır değildir.</p></div></section>`;
+    };
+    const fiyatKarti = () => `<div class="fiyat-kutu fiyat-kutu--ana" data-anim="yaklas"><div class="fiyat-kutu__bant"><p class="metin-kucuk metin-soluk">[PAKET ADI]</p><span class="durum durum--yakinda">Yer tutucu</span></div><p class="fiyat-kutu__sayi">₺[AYLIK FİYAT] <span class="metin-14 metin-soluk">/ay · [KDV DURUMU]</span></p><p class="metin-ikincil" style="margin-top:10px"><strong>Fiyat kararı bekleniyor.</strong> Paketler ve fiyatlar kurucu onayından sonra burada yer alır. Yayına bu kutuyla çıkılmaz.</p><p class="baslik-bolum" style="margin-top:20px">Neler dahil</p><ul class="tikli">${['Randevu ve takvim', 'Müşteri kartı', 'Paket ve seans', 'Personel ve prim', 'Kasa ve cari hesap', 'Stok'].map((x) => `<li>${x}</li>`).join('')}</ul><a class="dugme dugme--ikincil" style="margin-top:20px" href="#fiyat">Fiyat sayfası</a></div>`;
+    const kapanisKarti = () => `<section class="kapanis" aria-labelledby="h-son"><div class="kap"><div class="kapanis__kart"><div><h2 class="bolum" id="h-son" data-anim="cizgi"><span class="maske"><span>Denemeye başlayın</span></span></h2><p class="giris-metni" style="margin-top:20px">İşletmenizi kurmak kısa sürer. İlk 30&nbsp;gün ücretsiz.</p>${cta(true)}</div><div class="kapanis__urun" aria-hidden="true"><div class="kapanis__bildirim">${ik('tamamDaire', 'ikon--16')}<span>Randevu oluşturuldu · Elif, 16:15</span></div><div class="kapanis__bildirim kapanis__bildirim--2">${ik('tamamDaire', 'ikon--16')}<span>Ödeme alındı</span></div><p class="kapanis__not">Örnek salon, kurgusal veri.</p></div></div></div></section>`;
+
+    const SAYFALAR = {
+      '': () => ['BeautyOS: İşletmenizi telefondan yönetin', `
+        <section class="hero"><div class="hero__zemin" aria-hidden="true"><span class="isik isik--1"></span><span class="isik isik--2"></span><span class="isik isik--3"></span></div><div class="kap hero__izgara"><div class="hero__metin"><h1 class="vitrin satirli"><span class="maske"><span style="--i:0">İşletmenizi</span></span> <span class="maske"><span style="--i:1">telefondan yönetin</span></span></h1><p class="giris-metni" style="margin-top:24px" data-yuk>BeautyOS; kuaför, berber, güzellik merkezi ve klinikler için randevu, müşteri kartı, kasa ve personel takibini tek uygulamada toplar.</p><div data-yuk>${cta(true)}</div><p class="metin-14 metin-soluk" style="margin-top:16px" data-yuk>30&nbsp;gün ücretsiz. Kart bilgisi istenmez.</p></div>
+          <div class="sahne" data-sahne><div class="sahne__alt"><span class="etiket-ornek">${ik('bilgi', 'ikon--16')}Tasarım önizlemesi, yakında · örnek salon, kurgusal veri</span><span class="dugme-sirasi"><button class="dugme dugme--kucuk" data-hero-durdur hidden>Hareketi durdur</button><button class="dugme dugme--kucuk" data-demo>Canlı demoyu aç</button></span></div><div id="hero-parca">${sirada()}</div></div></div></section>
+        <section class="beyan" aria-label="Özet"><div class="kap"><p class="beyan__metin" data-fill>Randevu defteri, kasa defteri, telefon rehberi. Üçünün yerine tek ekran.</p></div></section>
+        ${hikaye()}
+        <section class="blok gun-bolum" aria-labelledby="h-gun"><div class="kap"><h2 class="bolum" id="h-gun" data-anim="cizgi"><span class="maske"><span>Günün tüm işi tek ekranda</span></span></h2><p class="giris-metni" style="margin-top:20px">Kim hangi saatte nerede, kasada ne var, hangi müşteri bugün geliyor.</p>
+          <div class="satir5-7" style="margin-top:64px"><div><h3 class="baslik-bolum" style="font-size:22px">Randevu takvimi</h3><p class="giris-metni" style="margin-top:8px;font-size:18px">Personel bazında renkli takvim. Randevuyu açın, taşıyın, iptal edin.</p>${etk(['Aç', 'Taşı', 'İptal et'])}</div><div class="sahne-kart sahne-kart--petrol">${takvimParca()}</div></div>
+          <div class="satir5-7 satir5-7--ters"><div><h3 class="baslik-bolum" style="font-size:22px">Müşteri kartı</h3><p class="giris-metni" style="margin-top:8px;font-size:18px">Geçmiş işlemler ve notlar müşterinin kartında durur. Randevu açılınca karşınıza gelir.</p>${etk(['Geçmiş işlemler', 'Notlar'])}</div><div class="sahne-kart sahne-kart--pudra" style="max-width:520px">${musteriParca()}</div></div>
+          <div class="satir5-7"><div><h3 class="baslik-bolum" style="font-size:22px">Kasa</h3><p class="giris-metni" style="margin-top:8px;font-size:18px">Tahsilat, nakit, kart ve giderler tek tabloda.</p><p class="metin-14 metin-ikincil" style="margin-top:12px">BeautyOS e-Fatura ya da e-Arşiv fatura kesmez ve yazarkasa yerine geçmez.</p></div><div class="sahne-kart sahne-kart--koyu">${kasaParca()}</div></div></div></section>
+        ${bento()}
+        ${sektorSekme()}
+        <section class="blok nasil" aria-labelledby="h-bas"><div class="kap"><h2 class="bolum" id="h-bas" data-anim="yaklas"><span class="maske"><span>Nasıl başlarsınız</span></span></h2><ol class="adimlar-vitrin" data-anim="satirlar">${[['Kayıt olun', 'E-posta ve işletme adıyla hesabınız açılır.'], ['İşletmenizi tanıtın', 'Çalışma saatleri, personel ve hizmetleri kurulum adımlarında girersiniz.'], ['Müşterilerinizi ekleyin', 'Tek tek ekleyin ya da listenizi gönderin, aktarıma ücretsiz yardım edelim.'], ['İlk randevuyu açın', 'Takvimden saate dokunun, müşteriyi ve hizmeti seçin.']].map(([a, b]) => `<li><h3>${a}</h3><p class="metin-ikincil">${b}</p></li>`).join('')}</ol></div></section>
+        <section class="blok fiyat" aria-labelledby="h-fiyat"><div class="kap satir5-7"><div><h2 class="bolum" id="h-fiyat" data-anim="yaklas">Fiyat</h2><p class="giris-metni" style="margin-top:16px">Önce 30&nbsp;gün ücretsiz deneyin. Paketler ve fiyatlar belli olunca burada, açıkça yazılacak.</p></div>${fiyatKarti()}</div></section>
+        <section class="blok yakinda-bolum" aria-labelledby="h-yak"><div class="kap satir5-7"><div><h2 class="bolum" id="h-yak" data-anim="sil"><span class="maske"><span>Yakında</span></span></h2><p class="giris-metni" style="margin-top:16px">Üzerinde çalıştığımız özellikler. Tarih vermiyoruz; hazır olunca burada ve hesabınızda duyururuz.</p></div><div class="yk-izgara" data-anim="satirlar">${[['Online randevu', 'Müşteriniz salonunuza özel bağlantıdan randevu alsın.'], ['Hatırlatma SMS’i', 'Randevudan önce müşteriye otomatik hatırlatma.'], ['Mesaj asistanı', 'Müşteriniz WhatsApp ya da Telegram’dan yazarak randevu alsın.'], ['Depozito', 'Randevu için ön ödeme alarak boşa giden randevuları azaltın.']].map(([a, b]) => `<div class="yk"><h3>${a}${yakinda}</h3><p>${b}</p></div>`).join('')}</div></div></section>
+        <section class="blok sss-bolum" aria-labelledby="h-sss"><div class="kap satir5-7" style="align-items:start"><div class="sss-yan"><div><h2 class="bolum" id="h-sss">Sık sorulan sorular</h2><a href="#sss" style="display:inline-block;margin-top:16px;font-weight:500">Tüm soruları görün</a></div><div class="sss-iletisim"><strong>Aradığınızı bulamadınız mı?</strong>Bize yazın, en kısa sürede dönelim.<br><a href="#iletisim">İletişime geçin</a></div></div><div>${SSS.slice(0, 5).map(sss).join('')}</div></div></section>`],
+      ozellikler: () => ['Özellikler', `<section class="blok" style="padding-top:64px"><div class="kap"><h1 class="vitrin" style="max-width:16ch;font-size:clamp(2.5rem,1.6rem+3vw,4rem)">Salonun günlük işi için neler var</h1><p class="giris-metni" style="margin-top:20px">Başlıca bölümlerde gerçek ekranı görürsünüz. Henüz hazır olmayanları ayrı işaretledik.</p><div class="is-listesi" style="margin-top:32px">${[['Paket ve seans', 'Paket tanımlayın, satın; kalan seans kartta görünür.'], ['Personel ve prim', 'Yüzde ya da sabit prim; personel ödemesi ve bahşiş dağıtımı.'], ['Stok', 'Ürün girişi, çıkışı, kritik seviye listesi ve hizmet başına malzeme.'], ['Bekleme listesi', 'Yer açılınca bekleyen müşteriye haber verin.']].map(([a, b]) => `<div class="is"><h3>${a}</h3><p>${b}</p></div>`).join('')}</div>
+        ${[['Randevu', 'Personelin gününü renklere ayrılmış tek takvimde görürsünüz.', takvimParca()], ['Müşteri kartı', 'Müşterinin geçmiş işlemleri ve notları kartında durur.', musteriParca()], ['Kasa ve cari hesap', 'Gelir-gider ve cari hesaplar aynı yerde. BeautyOS e-Fatura ya da e-Arşiv fatura kesmez ve yazarkasa yerine geçmez.', kasaParca()]].map(([a, b, c], i) => `<div class="satir5-7 ${i % 2 ? 'satir5-7--ters' : ''}" style="margin-top:80px"><div><h2 class="bolum" style="font-size:32px">${a}</h2><p class="giris-metni" style="margin-top:12px;font-size:18px">${b}</p></div><div class="sahne-kart sahne-kart--${['petrol', 'pudra', 'koyu'][i]}" style="max-width:${i === 1 ? '520px' : 'none'}">${c}</div></div>`).join('')}
+        <div style="margin-top:96px"><h2 class="bolum" style="font-size:32px">Yeni arayüzle gelecekler</h2><p class="giris-metni" style="margin-top:12px;font-size:18px">Bugün canlıda olmayan ekranlar. Görselleri tasarım önizlemesidir.</p><div class="is-listesi">${[['Personelin günü ve “Şu an boş”', 'Kimde boş yer olduğu ilk ekranda.'], ['Personelin kendi günü', 'Her personel yalnız kendi randevularını görür.'], ['Unvana göre yetki', 'Müdür, resepsiyon ve uzman için ayrı yetki.'], ['Gün sonu kasa sayımı', 'Beklenen nakit ve fark.']].map(([a, b]) => `<div class="is"><h3>${a}${onizleme}</h3><p>${b}</p></div>`).join('')}</div></div>${cta()}</div></section>`],
+      fiyat: () => ['Fiyat', `<section class="blok" style="padding-top:64px"><div class="kap"><h1 class="vitrin" style="font-size:clamp(2.5rem,1.6rem+3vw,4rem)">Fiyat</h1><p class="giris-metni" style="margin-top:20px">Önce 30&nbsp;gün ücretsiz deneyin. Neyin pakete dahil olduğunu, neyin ayrıca ücretlendirildiğini burada açıkça yazıyoruz.</p>
+        <div class="fiyat-kutu" style="margin-top:48px"><p class="metin-kucuk metin-soluk">[PAKET ADI]</p><p style="font-size:40px;font-weight:500;letter-spacing:-0.02em;margin-top:8px">₺[AYLIK FİYAT] <span class="metin-14 metin-soluk">/ay · [KDV DURUMU]</span></p><p class="metin-ikincil" style="margin-top:12px">Fiyat kararı bekleniyor. Bu kutu yayında yer almaz.</p><h2 class="baslik-bolum" style="margin-top:24px">Neler dahil</h2><ul style="padding-left:20px;margin-top:8px" class="metin-ikincil"><li>Randevu ve takvim</li><li>Müşteri kartı</li><li>Paket ve seans</li><li>Personel ve prim</li><li>Kasa ve cari hesap</li><li>Stok</li></ul><a class="dugme dugme--birincil" style="margin-top:20px" href="giris.html#kayit">Ücretsiz deneyin</a></div>
+        <p class="giris-metni" style="margin-top:32px;font-size:18px">Birden fazla şubeniz mi var? <a href="#iletisim/demo">Bize yazın.</a></p>
+        <h2 class="bolum" style="font-size:32px;margin-top:64px">Ayrıca ücretlendirilenler</h2><p class="giris-metni" style="margin-top:12px;font-size:18px">SMS hatırlatmaları: [KULLANIMA GÖRE / AYLIK KOTA]</p>
+        <h2 class="bolum" style="font-size:32px;margin-top:64px">Fiyat hakkında sorular</h2><div style="margin-top:16px;max-width:760px">${SSS.filter((s) => s[2] === 'fiyat').map(sss).join('')}</div></div></section>`],
+      sss: () => ['Sık sorulan sorular', `<section class="blok" style="padding-top:64px"><div class="kap"><h1 class="vitrin" style="font-size:clamp(2.5rem,1.6rem+3vw,4rem);max-width:14ch">Sık sorulan sorular</h1><p class="giris-metni" style="margin-top:20px">Aradığınız cevabı bulamazsanız <a href="mailto:[DESTEK_E-POSTASI]">[DESTEK_E-POSTASI]</a> adresine yazın.</p><div style="margin-top:48px;max-width:820px">${SSS.map(sss).join('')}</div></div></section>`],
+      iletisim: () => ['İletişim', `<section class="blok" style="padding-top:64px"><div class="kap satir5-7" style="align-items:start"><div><h1 class="vitrin" style="font-size:clamp(2.5rem,1.6rem+3vw,4rem)">İletişim</h1><p class="giris-metni" style="margin-top:20px">Demo, çok şubeli kullanım ya da herhangi bir soru için bize yazın. En kısa sürede döneriz.</p><h2 class="baslik-bolum" style="margin-top:40px">Doğrudan yazın</h2><p class="metin-ikincil" style="margin-top:6px">Sorular ve destek: <a href="mailto:[DESTEK_E-POSTASI]">[DESTEK_E-POSTASI]</a></p><h2 class="baslik-bolum" style="margin-top:32px">Künye</h2><p class="metin-ikincil metin-14" style="margin-top:6px">[TİCARİ UNVAN] · [ADRES] · [VERGİ DAİRESİ] · VKN: [VKN]</p></div>
+        <form class="kart" style="padding:24px" id="demo" novalidate aria-labelledby="h-demo"><h2 class="baslik-bolum" id="h-demo" style="font-size:22px">Demo isteyin</h2><p class="metin-ikincil metin-14" style="margin-top:4px">Ekranları sizinle birlikte gezelim. İşletmenizi ve ihtiyacınızı kısaca yazın.</p>
+          <div class="alan" style="margin-top:16px"><label class="alan__etiket" for="d-ad">Adınız</label><input class="alan__girdi" id="d-ad" autocomplete="name"></div><div class="alan-satir"><div class="alan"><label class="alan__etiket" for="d-tel">Telefon</label><input class="alan__girdi" id="d-tel" type="tel" autocomplete="tel" placeholder="5xx xxx xx xx" aria-describedby="d-bir"></div><div class="alan"><label class="alan__etiket" for="d-ep">E-posta</label><input class="alan__girdi" id="d-ep" type="email" autocomplete="email" spellcheck="false" aria-describedby="d-bir"></div></div><p class="alan__ipucu" id="d-bir">Birini yazmanız yeterli.</p><div class="alan"><label class="alan__etiket" for="d-is">İşletme adı <span class="istege-bagli">(isteğe bağlı)</span></label><input class="alan__girdi" id="d-is" autocomplete="organization"></div><div class="alan"><label class="alan__etiket" for="d-k">Kaç kişi çalışıyorsunuz?</label><select id="d-k"><option>1–2</option><option>3–5</option><option>6–8</option><option>9 ve üzeri</option></select></div><div class="alan"><label class="alan__etiket" for="d-n">Notunuz <span class="istege-bagli">(isteğe bağlı)</span></label><textarea id="d-n"></textarea></div>
+          <p class="metin-14 metin-ikincil" style="margin-top:12px">Bilgileriniz yalnız talebinize dönmek için kullanılır. Ayrıntı: <a href="#yasal/kvkk">KVKK aydınlatma metni</a>.</p><button class="dugme dugme--birincil dugme--tam" style="margin-top:16px" type="submit">Talebi gönder</button></form></div></section>`],
+      hakkimizda: () => ['Hakkımızda', `<section class="blok" style="padding-top:64px"><div class="kap uzun"><h1 class="vitrin" style="font-size:clamp(2.5rem,1.6rem+3vw,4rem);max-width:none">BeautyOS’u biz geliştiriyoruz</h1><h2>Neden yaptık</h2><p class="cerceve-bos">[KURUCU HİKÂYESİ: 3–4 gerçek cümle. Kurucu notu gelmeden yazılmaz.]</p><h2>Bize ulaşın</h2><p><a href="mailto:[DESTEK_E-POSTASI]">[DESTEK_E-POSTASI]</a></p></div></section>`],
+      sektor: (k = 'kuafor') => {
+        const S = { kuafor: ['Kuaför randevu programı', 'Kuaför salonunun günü saat saat ilerler. BeautyOS randevuyu, müşterinin geçmişini ve personelin primini aynı ekranda tutar.'], berber: ['Berber randevu programı', 'Defter, hesap makinesi ve telefon rehberi yerine tek uygulama.'], guzellik: ['Güzellik merkezi programı', 'Paketli seanslar, müşteri formları ve personel primi aynı yerde.'], klinik: ['Klinik randevu programı', 'Randevuyla çalışan kliniğinizde takvim, müşteri kartı, kasa ve personel işleri tek uygulamada.'], estetik: ['Estetik kliniği programı', 'Hekim takvimi, seans takibi ve kasa aynı yerde.'], dis: ['Diş hekimi randevu programı', 'Hekim takvimi, kontrol randevuları ve kasa aynı yerde.'] }[k] || ['', ''];
+        const kl = ['klinik', 'estetik', 'dis'].includes(k);
+        const ORN = { berber: [['09:30 – 10:00', 'Saç kesimi'], ['10:00 – 10:45', 'Saç ve sakal'], ['11:00 – 11:20', 'Sakal'], ['11:30 – 12:00', 'Saç kesimi']], guzellik: [['10:00 – 11:15', 'Cilt bakımı (derin temizlik)'], ['11:30 – 12:30', 'Kalıcı oje'], ['13:00 – 14:00', 'Kirpik lifting'], ['14:30 – 15:15', 'Epilasyon']] }[k];
+        const ornKart = (s, h, i) => `<div class="randevu-kart kisi-${(i % 3) + 1}" style="cursor:default"><span class="randevu-kart__serit"></span><span class="randevu-kart__ana"><span class="randevu-kart__saat">${s}</span><span class="orta">${['Ayla K.', 'Nevin D.', 'Seren T.', 'Gülay B.'][i]}</span><span class="metin-14 metin-soluk">${h}</span></span><span class="randevu-kart__sag"><span class="durum durum--onayli">Onaylandı</span></span></div>`;
+        return [S[0], `<section class="blok" style="padding-top:64px"><div class="kap satir5-7"><div><h1 class="vitrin" style="font-size:clamp(2.25rem,1.5rem+3vw,3.75rem)">${S[0]}</h1><p class="giris-metni" style="margin-top:20px">${S[1]}</p>${kl ? `<p style="margin-top:16px;font-size:18px;line-height:1.5;max-width:46ch">BeautyOS bir muayene ya da tedavi kayıt programı değildir; e-Nabız bildirimleri ve yasal tıbbi kayıt yükümlülükleriniz için kullandığınız sistemin yerine geçmez. Randevu, kasa ve işletme işlerini düzenler.</p><p style="margin-top:8px;font-size:18px">Tıbbi kayıtları yasal süre boyunca saklama yükümlülüğü kliniğinize aittir.</p><p style="margin-top:8px;font-size:18px">Klinik terimleri ve klinik ekranları yakında.</p>${k === 'klinik' ? `<p class="dugme-sirasi" style="margin-top:12px;gap:16px"><a href="#sektor/estetik" style="font-weight:500">Estetik klinikleri</a><a href="#sektor/dis" style="font-weight:500">Diş hekimleri</a></p>` : ''}` : ''}${cta()}</div>
+          <div class="sahne-kart sahne-kart--petrol"><div data-ui class="parca" style="border-radius:12px" role="img" aria-label="Takvim listesi (örnek, kurgusal veri)"><div style="padding:16px" class="yigin yigin--8" data-anim="satirlar">${(kl ? [['09:30 – 10:00', 'İlk görüşme', 'Dr. Elif Ş.'], ['10:15 – 10:45', 'Kontrol', 'Dr. Elif Ş.'], ['11:00 – 11:45', 'Bakım seansı', 'Dr. Zeynep A.'], ['13:30 – 14:00', 'Değerlendirme', 'Dr. Elif Ş.']].map(([s, h, d], i) => `<div class="randevu-kart kisi-${(i % 3) + 1}" style="cursor:default"><span class="randevu-kart__serit"></span><span class="randevu-kart__ana"><span class="randevu-kart__saat">${s}</span><span class="orta">${['Ayla K.', 'Nevin D.', 'Seren T.', 'Gülay B.'][i]}</span><span class="metin-14 metin-soluk">${h} · ${d}</span></span><span class="randevu-kart__sag"><span class="durum durum--onayli">Onaylandı</span></span></div>`).join('') : ORN ? ORN.map(([s, h], i) => ornKart(s, h, i)).join('') : R.slice(4, 8).map(kart).join(''))}</div></div><p class="metin-kucuk metin-soluk" style="margin-top:8px">${kl ? 'Örnek klinik, kurgusal veri.' : 'Örnek salon, kurgusal veri.'}</p></div></div></section>`];
+      },
+      yasal: (d = 'kvkk') => {
+        const A = { kvkk: 'KVKK aydınlatma metni', gizlilik: 'Gizlilik politikası', sartlar: 'Kullanım şartları', cerez: 'Çerez politikası', dpa: 'Veri işleme sözleşmesi' }[d] || 'Yasal metin';
+        return [A, `<section class="blok" style="padding-top:64px"><div class="kap uzun"><h1 style="font-size:40px;line-height:1.1;font-weight:500;letter-spacing:-0.02em">${A}</h1><p class="metin-14 metin-soluk" style="margin-top:12px">Sürüm v0 · Yürürlük: [GG.AA.YYYY] · Son güncelleme: [GG.AA.YYYY]</p><details style="margin-top:24px" open><summary class="orta" style="cursor:pointer">İçindekiler</summary><ol class="metin-ikincil" style="margin-top:8px"><li><a href="#">[Bölüm 1]</a></li><li><a href="#">[Bölüm 2]</a></li></ol></details><div class="cerceve-bos" style="margin-top:24px">[YASAL METİN — avukat onayından sonra eklenecek · Belge: ${A} · Sürüm: v0]</div><p class="metin-14" style="margin-top:24px"><a href="#">Önceki sürümler</a> · Sorularınız için: <a href="mailto:[DESTEK_E-POSTASI]">[DESTEK_E-POSTASI]</a></p></div></section>`];
+      },
+    };
+    const SSS = [
+      ['Deneme nasıl işler?', 'Kayıt olunca 30 günlük deneme kendiliğinden başlar. Kart bilgisi istenmez. Süre bittiğinde hesabınıza erişim durur; verileriniz 30 gün saklanır, bu sürede aboneliğe geçebilir ya da verilerinizi talep edebilirsiniz.', 'fiyat'],
+      ['Verilerim nerede tutuluyor?', 'Ana veritabanınız Almanya’daki (Frankfurt) sunucularda tutulur. Bağlantılarınız şifrelenir (HTTPS). Kullandığımız hizmet sağlayıcıların listesi Veri İşleme Sözleşmesi’nde yer alır.'],
+      ['Verilerimi dışa aktarabilir miyim?', 'Dışa aktarma aracı yakında. O zamana kadar talep ederseniz verilerinizi size iletiriz.'],
+      ['Hesabımı kapatırsam verilerime ne olur?', 'Hesabınız kapandıktan sonra verileriniz 30 gün saklanır; bu sürede talep edebilirsiniz. Süre sonunda kalıcı olarak silinir.'],
+      ['Hangi işletmeler için uygun?', 'Randevuyla çalışan işletmeler için: kuaförler, berberler, güzellik merkezleri, tırnak ve kirpik stüdyoları, estetik klinikleri ve diş hekimleri.'],
+      ['Telefondan kullanılır mı?', 'Evet. BeautyOS tarayıcıdan açılır; telefonda başparmakla kullanılacak şekilde tasarlandı. Tablet ve bilgisayarda da aynı hesapla çalışır.'],
+      ['BeautyOS e-Fatura keser mi?', 'Hayır. BeautyOS e-Fatura ya da e-Arşiv fatura kesmez ve yazarkasa yerine geçmez. Aldığınız alış faturalarını kaydeder, kasa ve cari hesaplarınızı tutar.'],
+      ['İnternet kesilirse ne olur?', 'BeautyOS internet bağlantısıyla çalışır; bağlantı yokken yeni kayıt açamazsınız. Bağlantı gelince kaldığınız yerden devam edersiniz.'],
+      ['Taahhüt var mı?', 'Deneme için taahhüt yoktur. Devam koşulları fiyat sayfasında yazar.', 'fiyat'],
+      ['KDV dahil mi?', '[KDV DURUMU: kurucu kararı]', 'fiyat'],
+      ['Mevcut müşteri listemi aktarabilir miyim?', 'Evet, aktarıma ücretsiz yardım ediyoruz. Listenizi e-postayla göndermeyin; size güvenli bir yükleme bağlantısı iletiriz.'],
+      ['Mesaj asistanı var mı?', 'Henüz değil. Üzerinde çalışıyoruz; hazır olunca burada duyururuz.'],
+    ];
+    function sss([s, c]) { return `<details class="sss"><summary>${s}</summary><p>${c}</p></details>`; }
+    document.getElementById('alt').innerHTML = `<div class="kap"><div class="alt__kartlar"><div class="alt__kart"><p class="alt__bas">BeautyOS</p><p>İşletmeler için randevu ve yönetim uygulaması.</p><p style="margin-top:8px"><a href="mailto:[DESTEK_E-POSTASI]">[DESTEK_E-POSTASI]</a></p></div><nav class="alt__kart" aria-label="Site"><p class="alt__bas">Site</p><ul class="iki"><li><a href="#ozellikler">Özellikler</a></li><li><a href="#fiyat">Fiyat</a></li><li><a href="#sss">SSS</a></li><li><a href="#iletisim">İletişim ve künye</a></li><li><a href="#hakkimizda">Hakkımızda</a></li><li><a href="#sektor/kuafor">Kuaförler için</a></li><li><a href="#sektor/berber">Berberler için</a></li><li><a href="#sektor/guzellik">Güzellik merkezleri için</a></li><li><a href="#sektor/klinik">Klinikler için</a></li><li><a href="#sektor/estetik">Estetik klinikleri için</a></li><li><a href="#sektor/dis">Diş hekimleri için</a></li></ul></nav><nav class="alt__kart" aria-label="Yasal"><p class="alt__bas">Yasal</p><ul><li><a href="#yasal/kvkk">KVKK aydınlatma metni</a></li><li><a href="#yasal/gizlilik">Gizlilik politikası</a></li><li><a href="#yasal/sartlar">Kullanım şartları</a></li><li><a href="#yasal/dpa">Veri işleme sözleşmesi</a></li><li><a href="#yasal/cerez">Çerez politikası</a></li></ul></nav></div><p class="alt__ad" aria-hidden="true">BeautyOS</p><p class="alt__yasal">© 2026 [TİCARİ UNVAN] · BeautyOS · [ADRES] · [VERGİ DAİRESİ] · VKN: [VKN]</p></div>`;
+    function ciz() {
+      const [ad, alt] = location.hash.slice(1).split('/');
+      const s = SAYFALAR[ad] || SAYFALAR[''];
+      const [b, h] = s(alt);
+      document.title = ad ? `${b} | BeautyOS` : 'BeautyOS: Salon ve Klinik Randevu Programı';
+      // Kapanış kartı ortak kabukta: iletişim ve yasal sayfalar hariç her sayfada altbilgiyi taşar
+      const kapanisVar = !['iletisim', 'yasal'].includes(ad);
+      document.getElementById('ana').innerHTML = h + (kapanisVar ? kapanisKarti() : '');
+      document.getElementById('alt').classList.toggle('alt--duz', !kapanisVar);
+      document.body.dataset.sayfa = SAYFALAR[ad] && ad ? 'alt' : 'ana';
+      ustGuncelle(); menuKapat();
+      document.querySelectorAll('.ust nav a').forEach((a) => a.toggleAttribute('aria-current', a.getAttribute('href') === '#' + ad && !!ad));
+      document.querySelector('[data-demo]')?.addEventListener('click', (e) => { window.HAREKET && HAREKET.dur(); const p = document.getElementById('hero-parca'); p.innerHTML = `<p class="metin-14" style="color:#DCE8EA;margin-bottom:8px">Demo: kayıtlar saklanmaz. <a href="#h-gun" style="color:#fff">Demoyu atla</a></p><iframe src="panel.html?yalin=1&vitrin=1&rol=sahip&tur=kuafor#bugun" title="BeautyOS canlı demo, örnek salon" loading="lazy" style="width:100%;height:640px;border:0;border-radius:12px 12px 0 0;background:#fff"></iframe>`; e.currentTarget.remove(); });
+      document.getElementById('demo')?.addEventListener('submit', (e) => { e.preventDefault(); P.isle(e.submitter, 'Gönderiliyor…', () => { e.target.innerHTML = `<div class="bos bos--orta"><span class="bos__ikon" style="background:var(--color-success-bg);color:var(--color-success)">${ik('tamam')}</span><p class="bos__baslik">Talebiniz bize ulaştı.</p><p class="bos__metin">En kısa sürede size dönüyoruz.</p></div>`; }); });
+      if (alt === 'demo') document.getElementById('demo')?.scrollIntoView();
+      window.HAREKET && HAREKET.kur(document.getElementById('ana'));
+    }
+    const yap = document.getElementById('yapiskan');
+    // Üst menü: ana sayfada hero üstünde saydam, kaydırınca cam; alt sayfalarda baştan cam
+    const ust = document.getElementById('ust'), mDugme = document.getElementById('ust-dugme'), mPanel = document.getElementById('ust-panel');
+    function ustGuncelle() { ust.dataset.kaydi = String(document.body.dataset.sayfa === 'alt' || window.scrollY > 24); }
+    function menuKapat(odak) { mPanel.hidden = true; mDugme.setAttribute('aria-expanded', 'false'); ust.dataset.menu = 'false'; if (odak) mDugme.focus(); }
+    mDugme.addEventListener('click', () => { const ac = mPanel.hidden; mPanel.hidden = !ac; mDugme.setAttribute('aria-expanded', String(ac)); ust.dataset.menu = String(ac); });
+    mPanel.addEventListener('click', (e) => { if (e.target.closest('a')) menuKapat(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !mPanel.hidden) menuKapat(true); });
+    window.addEventListener('scroll', () => { ustGuncelle(); yap.dataset.gorunur = String(window.scrollY > 640 && !location.hash.startsWith('#iletisim')); }, { passive: true });
+    window.addEventListener('hashchange', () => { ciz(); window.scrollTo(0, 0); });
+    ciz();
+  })();
+  </script>
+</body>
+</html>

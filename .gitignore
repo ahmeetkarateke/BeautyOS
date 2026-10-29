@@ -29,3 +29,9 @@ apps/api/test-*.ts
 
 # Claude Code MCP server config (API keys)
 .mcp.json
+
+# Taste skill çalışma dosyaları (brief metni, ekran görüntüleri)
+.taste-skill/
+
+# Tasarim ekran goruntuleri (buyuk, yerelde kalir)
+docs/tasarim-girdisi/ekran-goruntuleri/

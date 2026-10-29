@@ -32,6 +32,21 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0019 | Sunucu GitHub'dan çekmez: müdür onaylı commit'i `git archive` paketiyle aktarır | kabul edildi (müdür kararı) | 2026-10-28 |
 | ADR-0020 | Geçiş DNS'i müdür tarafından Cloudflare API ile, denetlenmiş bir betik ve Caddy'nin tek zonlu token'ıyla çevrilir; geri alma kayıttan | kabul edildi (müdür, 2026-10-28) | 2026-10-28 |
 | ADR-0021 | Geçişte kayıtlar gri (proxy kapalı) kalır; turuncu bulut, kurucu SSL modunu Full (strict) yaptıktan sonra ayrı adım | kabul edildi (müdür kararı) | 2026-10-28 |
+| ADR-0022 | Yeni arayüz ve güvenlik işi tek entegrasyon dalı `gelistirme`'de; birleştirme yerel, push yok | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0023 | Eski ve yeni arayüz bir arada: iki kök düzen, derleme anı yüzey bayrağı, `proxy.ts` eşlemesi | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0024 | Next 16 + React 19; imajlar Node 22 | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0025 | Tailwind v4 tek sürüm; tasarım tokenları üç katman, `@theme inline` | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0026 | Bileşenler: kendi tasarım sistemimiz, davranış için Radix Primitives | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0027 | Yazı tipi depodan `next/font/local`: Hanken Grotesk + yalnız ₺ için Inter | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0028 | İkon seti lucide-react | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0029 | Takvim: kendi CSS Grid bileşenimiz + `@dnd-kit/core`; zaman `date-fns` + `@date-fns/tz` | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0030 | Yetki: tek izin tablosu (`packages/shared`), sunucu `requirePermission` ile zorlar, ön yüz `/auth/me`'den gösterir | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0031 | Terim setleri: kiracıda `termSet` + `termOverrides`, isimler hâl ekleriyle | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0032 | v2 API istemcisi: erişim token'ı yalnız bellekte, tek yenileme sözü, hata kodundan metin | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0033 | Web testleri: Vitest + RTL birim, Playwright + axe E2E | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0034 | SMS sağlayıcısı yokken online randevu doğrulamasız, zorunlu salon onayıyla | kabul edildi (müdür, 2026-10-29; kurucu kararı 5) | 2026-10-29 |
+| ADR-0035 | Sürüm etiketleri gizli olmayan `surum.conf`'ta; yayın yalnız `yayinla.sh` ile | kabul edildi (müdür, 2026-10-29; kurucu kararı 3) | 2026-10-29 |
+| ADR-0036 | Eski arayüzün W1 sonrası gerçekten Inter ile çizilmesi kabul edildi | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
 
 ---
 
@@ -677,6 +692,406 @@ Betik yalnız `@`, `app`, `www`, `api` adlarını kabul eder (sabit liste). MX/T
 - **Riskler:**
   - Doğrudan saldırı. Önlem: DO Cloud Firewall + ufw (yalnız 22/80/443), uygulama hız sınırları, izleme. Turuncuya geçiş (G20) bu riski kapatır.
   - Turuncu adımın unutulması. Önlem: G20 görev listesinde, ilk gerçek müşteriden önce.
+
+---
+
+> **ADR-0022 – ADR-0035 için ortak not:** Kaynak `docs/kodlama-plani.md` §2'dir (taslak adları ADR-UI-01 … ADR-UI-14, sırayla). Öneriyi mimar yaptı, müdür 2026-10-29'da kabul etti; dayanak kurucunun kalıcı izni 4 (teknik kararlar kurucuya sorulmaz). Uygulamayı denetim döngüsü doğrular. Görev numaraları (S, A, W, T, D, L) planın §3'üne aittir.
+
+## ADR-0022: Yeni arayüz ve güvenlik işi tek entegrasyon dalı `gelistirme`'de; birleştirme yerel, push yok
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Üç ajan paralel çalışacak: gelistirici, frontend-gelistirici ve test-muhendisi. Push kurucu onayına bağlı. Sunucu yayını push'tan bağımsız, paket `git archive` ile aktarılıyor (ADR-0019). Canlı kod `tasima/docker` dalında, `master` ise taşıma öncesinden kaldı.
+
+### Alternatifler
+- **Doğrudan `master`:** `master` canlı kodu içermiyor. Birleştirmek kurucu kararı istiyor ve hızı ona bağlıyor.
+- **`tasima/docker`'da sürdürmek:** adı ve "master'a birleştirilmez" kuralı yanıltıcı olur.
+
+### Karar
+- `tasima/docker@e27e880`'den `gelistirme` açılır; `tasima/docker` dondurulur.
+- Görevler `gorev/<no>-<kisa-ad>` dallarında, her ajanın kendi worktree'sinde yürür.
+- Müdür, denetçinin ONAY verdiği dalı `--no-ff` ile yerelde birleştirir. Çakışma çıkarsa dal sahibi rebase eder ve dal kısa kontrol için yeniden incelenir.
+- `package-lock.json`'u değiştiren görevler sırayla yürür.
+- `gelistirme` → `master` birleştirmesi ve push kurucu kararıdır.
+
+### Sonuçlar
+- **Olumlu:** Kimse onay beklemez; her commit hem canlıya hem staging'e derlenebilir.
+- **Olumsuz:** GitHub CI çalışmaz. Eşdeğer kontroller (tip, lint, birim, E2E) birleştirmeden sonra test-muhendisi'nin yeşil kapısında koşar.
+- **Riskler:** Push yapılmadıkça kodun tek kopyası bu bilgisayarda ve sunucudaki paketlerde. Önlem: push kurucu karar listesinde ilk sırada.
+
+---
+
+## ADR-0023: Eski ve yeni arayüz bir arada: iki kök düzen, derleme anı yüzey bayrağı, `proxy.ts` eşlemesi
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Yeni arayüz ekran ekran yazılacak ve staging'de gösterilecek. Bu sürede canlıda eski arayüz kalmalı, güvenlik düzeltmeleri canlıya çıkabilmeli. Bir commit'ten `web-prod` ve `web-staging` imajları çıkıyor; ikisi yalnız `derleme.conf` değerleriyle ayrılıyor (ADR-0018). Eski ve yeni Tailwind temaları aynı adları taşıyor (`--color-primary`).
+
+### Alternatifler
+- **Uzun ömürlü arayüz dalı:** güvenlik düzeltmeleriyle sürekli ayrışır, staging her derlemede elle birleştirme ister.
+- **Çalışma anı bayrağı (kiracı başına):** gerçek kullanıcı yokken gereksiz; ölü kodu canlı pakete taşır.
+
+### Karar
+- **Yüzey bayrağı:** derleme anında okunan `NEXT_PUBLIC_UI_V2` değişkeni açık yüzeyleri virgülle ayrılmış liste olarak taşır (`site,auth,panel,book,admin`). `derleme.conf` iki değer verir: `NEXT_PUBLIC_UI_V2_PROD` (boş) ve `NEXT_PUBLIC_UI_V2_STAGING`.
+- **İki kök düzen:** eski rotalar `app/(legacy)/` altında, yeniler `app/(v2)/` altında durur. Her kök düzen yalnız kendi CSS'ini yükler.
+- **Yollar (`proxy.ts`):**
+  - Yeni panel `/panel/[slug]/…` adresindedir. Bayrak açıksa `/tenant/[slug]/*` buraya yönlendirilir, kapalıysa `/panel/*` 404 verir.
+  - Herkese açık yollar değişmez: `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/book/[slug]`, `/admin/*`. Bayrak açıksa bu yollar iç `/v2/*` yoluna yeniden yazılır.
+- **Ara dönem:** henüz yazılmamış ekran "Eski ekranda açın" bağlantısı gösterir. v2 kodu eski klasörlerden içe aktarma yapamaz (ESLint kuralı).
+- **Geçiş:** kurucu onayıyla canlı bayrak açılır. Sonraki sürümde `(legacy)` silinir ve `/tenant/*` → `/panel/*` yönlendirmesi kalıcı (308) olur.
+
+### Sonuçlar
+- **Olumlu:** Tek ana hat; aynı commit staging'de yeniyi, canlıda eskiyi gösterir. Eski kod tek hamlede silinir.
+- **Olumsuz:** Geçişe kadar iki CSS girişi var. Gruplar arası geçiş tam sayfa yüklemesi. Bayrak değişimi yeni derleme ister.
+- **Riskler:** Yanlış eşleme yüzünden canlıda v2'nin görünmesi. Önlem: tanımsız bayrak boş sayılır (kapalı başarısızlık); her eşleme testli.
+
+---
+
+## ADR-0024: Next 16 + React 19; imajlar Node 22
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Next 14'ün desteği bitti; 15.x'in iki yıllık bakım süresi 2026-10-21'de doldu. Canlı web herkese açık. Node 20 Nisan 2026'da destek dışı kaldı; yükseltme ADR-0014'te taşıma sonrasına bırakılmıştı. Yeni kodu eski çatıda yazıp sonra taşımak iki kez iş demek.
+
+### Alternatifler
+- **Next 15:** bakım süresi doldu.
+- **Yükseltmeyi geçişe bırakmak:** canlı web haftalarca yamasız kalır.
+
+### Karar
+- Next 16'nın güncel yamasına ve React 19'a çıkıyoruz. Async `params` ve `proxy.ts` dönüşümü resmî codemod'larla yapılır; eski sayfalar çalışır kalır.
+- Web ve API imajları Node 22 LTS'e geçer (S9).
+- **Uygulama:** W1 `5e734c9` (denetim `raporlar/denetim/beautyos-W1-1.md` ONAY) ile next 16.4.3 ve react/react-dom 19.3.1'e geçildi.
+
+### Sonuçlar
+- **Olumlu:** Desteklenen çatı; yeni kod son hâline göre yazılır.
+- **Olumsuz:** Codemod gereksiz biçim değişikliği üretebilir (W1'de bir sayfa tümüyle yeniden girintilendi). Kural: yalnız gereken satırlar değişir.
+- **Riskler:** Eski arayüzün kırılması. Önlem: eski arayüz dumanı kabul ölçütü. Görünür yazı tipi farkı için bkz. ADR-0036. İlk imaj derlemesi ONAY koşuludur.
+
+---
+
+## ADR-0025: Tailwind v4 tek sürüm; tasarım tokenları üç katman, `@theme inline`
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Derleme fiilen Tailwind v4 ile çalışıyordu. `tailwindcss@3` ve `tailwind.config.ts` ölü kalıntıydı. Tasarımın token kaynağı `docs/tasarim/prototip/tokens.css`. Koyu tema şimdi çizilmeyecek ama tokenlar ona hazır olmalı (kurucu 13).
+
+### Alternatifler
+- **Tailwind'siz düz CSS modülleri:** mevcut kodla iki stil sistemi olur.
+- **Tokenları doğrudan `@theme` değerine yazmak:** koyu tema derleme ister.
+
+### Karar
+- Yalnız Tailwind v4 kullanılır. `tailwindcss@3` ve `tailwind.config.ts` silindi (W1).
+- Tokenlar `apps/web/src/styles/tokens.css`'e taşınır. Ham (`--ref-*`) ve anlamsal (`--color-*`, `--status-*`, `--person-*` …) adlar **birebir** korunur. Türkçe takma adlar (`--renk-*`) taşınmaz.
+- `styles/app.css`: `@import "tailwindcss" source(none)`, yalnız v2 klasörleri `@source` ile taranır, eşleme `@theme inline` ile yapılır.
+- Koyu tema için kodda `[data-theme="dark"]` bloğu boş durur; tema anahtarı yok.
+- v2 klasörlerinde hex, `bg-white`, `text-gray-*`, `dark:` ve 12 px altı yazı kullanılmaz. Bunu `scripts/ui-lint` denetler.
+- Animasyon kendi `@keyframes`'imizle yapılır; `prefers-reduced-motion`'da süre 0.
+
+### Sonuçlar
+- **Olumlu:** Koyu tema yalnız bir anlamsal blok doldurmak demek. Tasarım ile kod aynı adları konuşur.
+- **Olumsuz:** Eski CSS geçişe kadar yan yana durur (ADR-0023).
+- **Riskler:** Token dışı renk sızması. Önlem: `ui-lint` her UI görevinde kabul ölçütü.
+
+---
+
+## ADR-0026: Bileşenler: kendi tasarım sistemimiz, davranış için Radix Primitives
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Tasarım kendi bileşen kurallarını tanımlıyor (`tasarim.md` §4). Odak tuzağı, klavye ve ARIA davranışını elle yazmak hata kaynağı. Radix zaten bağımlılıkta.
+
+### Alternatifler
+- **shadcn CLI:** kendi token adlarını ve `tailwindcss-animate`'i getirir; tasarım sistemimizle çakışır.
+- **vaul (alt sayfa):** bakımı durdu.
+- **Tümüyle elle yazmak:** erişilebilirlik yükü.
+
+### Karar
+- Davranış Radix ilkellerinden gelir: Dialog (diyalog ve alt sayfa), DropdownMenu, Tabs, Popover, Switch, Checkbox, RadioGroup, Toast, VisuallyHidden.
+- Görünüm tümüyle bizimdir: `src/ui/*`, `cva`.
+- Bileşen adları İngilizcedir. Prototip sınıf adı eşlemesi `src/ui/README.md`'de tutulur.
+
+### Sonuçlar
+- **Olumlu:** Erişilebilir davranış hazır, görünüm tek elde.
+- **Olumsuz:** Radix sürüm yükseltmeleri izlenir.
+- **Riskler:** Yok denecek kadar az; Radix başsız ve yaygın.
+
+---
+
+## ADR-0027: Yazı tipi depodan `next/font/local`: Hanken Grotesk + yalnız ₺ için Inter
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Tasarım yazı tipi olarak Hanken Grotesk'i seçti; bu ailede ₺ (U+20BA) glifi yok. Türkçe karakterler `latin-ext` alt kümesinde. Hukuk-uyum U7 üçüncü taraf istek istemiyor. `next/font/google` derlemede ağa çıkıyor.
+
+### Alternatifler
+- **`next/font/google`:** derleme ağa bağımlı ve belirlenimci değil.
+- **Tam Inter:** gereksiz ağırlık.
+
+### Karar
+- Hanken Grotesk değişken woff2 (latin + latin-ext, 400–600) ile yalnız ₺ glifini içeren küçük bir Inter dosyası (`unicode-range: U+20BA`) kullanılır.
+- Dosyalar ve `OFL.txt` `apps/web/src/fonts/` altında durur.
+
+### Sonuçlar
+- **Olumlu:** Derleme ağsız ve belirlenimci; dış istek yok; lisans OFL.
+- **Olumsuz:** Yazı tipi güncellemesi elle yapılır.
+- **Riskler:** Glifin sistem yazı tipine düşmesi. Önlem: Playwright'ta `document.fonts` ve ekran görüntüsü kontrolü (`İ ı Ş ş Ğ ğ Ç ç Ö ö Ü ü ₺`).
+
+---
+
+## ADR-0028: İkon seti lucide-react
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Prototip lucide çizgi diliyle çizildi (1,6 çizgi, 24'lük kutu). lucide-react zaten bağımlılıkta ve adlandırılmış içe aktarımla ağaç sarsmaya uygun.
+
+### Alternatifler
+- **Başka set:** prototiple dil farkı.
+- **Elle SVG:** bakım yükü.
+
+### Karar
+- lucide-react kullanılır. Tek `Icon` sarmalayıcısı boyutları 20 ve 24 px ile sınırlar.
+- Dekoratif ikon `aria-hidden` taşır; yalnız ikondan oluşan düğmede `aria-label` zorunludur.
+- Emoji kullanılmaz.
+
+### Sonuçlar
+- **Olumlu:** Prototiple aynı görsel dil.
+- **Olumsuz:** Yok.
+- **Riskler:** Yok.
+
+---
+
+## ADR-0029: Takvim: kendi CSS Grid bileşenimiz + `@dnd-kit/core`; zaman `date-fns` + `@date-fns/tz`
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Kurucu kararı T1: kendi takvim bileşenimiz olacak, sürükle-bırak ilk sürümde var, FullCalendar'ın ücretli paketi alınmaz. Takvim personel sütunlu. Gün sınırları bugün UTC'ye göre hesaplanıyor (ekran envanteri §0-10).
+
+### Alternatifler
+- **FullCalendar:** personel sütunu için ücretli paket gerekiyor.
+- **Elle işaretçi kodu:** erişilebilirlik ve kenar durumlarında bakım yükü.
+- **HTML5 sürükle-bırak:** dokunmatikte zayıf.
+
+### Karar
+- Gün ızgarası CSS Grid ile çizilir: saat başına 72 px, 15 dk'lık dilim, örtüşen randevular sütun içinde yan yana.
+- Sürükle-bırak yalnız masaüstünde ve işaretçiyle çalışır: `@dnd-kit/core`, 15 dk'ya yaslama.
+- Dokunmatik ekranda ve klavyede aynı iş "Saati değiştir" ile yapılır.
+- Tüm gün ve saat hesapları `Europe/Istanbul` ile yapılır (`date-fns` + `@date-fns/tz`).
+- FullCalendar geçişe kadar yalnız eski arayüzde kalır.
+
+### Sonuçlar
+- **Olumlu:** Lisans maliyeti yok, tasarıma birebir uyum.
+- **Olumsuz:** Yerleşim ve sürükle-bırak kodu bizde.
+- **Riskler:** Karmaşıklık. Önlem: yerleşim algoritması saf ve birim testli fonksiyon; W12, W13 ve W15 ayrı görevler.
+
+---
+
+## ADR-0030: Yetki: tek izin tablosu (`packages/shared`), sunucu `requirePermission` ile zorlar, ön yüz `/auth/me`'den gösterir
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Bugün rol kontrolü uç uç elle yazılmış ve tutarsız (denetim #2: personel kasaya ve primlere erişiyor). Kurucu R1 dört rol istedi: sahip, müdür, resepsiyon, uzman. Klinikte hekim ve sağlık personeli ekleniyor (K2). Menü ile sunucu kuralının ayrışmaması gerekiyor.
+
+### Alternatifler
+- **Kiracı başına özel izin seti:** şimdilik gereksiz karmaşıklık.
+- **Ön yüzde ayrı izin hesabı:** sunucuyla ayrışır.
+
+### Karar
+- **Roller:** `owner`, `manager`, `receptionist` (yeni) ve `staff` (arayüzde "Uzman"; veritabanı değeri değişmez). Klinikte `doctor` ve `health_staff` (Faz 6). Rolü yalnız sahip atar; unvan (`title`) yetki taşımaz.
+- **İzin tablosu:** tek kaynak `packages/shared/src/permissions.ts`. Anahtar biçimi `alan.eylem[.kapsam]`; her anahtar `roller-ve-akislar.md` §1.4 matris satırına bağlanır.
+- **Sunucu:** her rotada `requirePermission(key)` çalışır; "kendi kaydı" kapsamı sorguda uygulanır.
+- **Ön yüz:** etkin izinleri `/auth/me`'den alır (`useCan`, `RequirePermission`, `navConfig`). Rol dışı öğe gizlenir; adres çubuğundan girilirse "Yetkisiz" ekranı çıkar.
+
+### Sonuçlar
+- **Olumlu:** Matris tek yerden yönetilir; menü ile sunucu ayrışmaz.
+- **Olumsuz:** Paylaşılan paket imaj derlemesine eklendi (S0).
+- **Riskler:** Eksik anahtar yüzünden açık kalan uç. Önlem: her matris satırı için rol × uç tablo testi (izinli ve izinsiz rol).
+
+---
+
+## ADR-0031: Terim setleri: kiracıda `termSet` + `termOverrides`, isimler hâl ekleriyle
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Kurucu S1/K4: hazır terim setleri gelecek (Salon / Klinik-danışan / Klinik-hasta) ve sahip ana terimleri değiştirebilecek. Türkçe ekler terime göre değişir; parça birleştirme yanlış ek üretir (metin rehberi §2b).
+
+### Alternatifler
+- **Yalnız hazır setler:** K4'ü karşılamaz.
+- **Serbest metinle birleştirme:** ek uyumu bozulur.
+
+### Karar
+- Kiracıda `termSet` (`salon | clinic_client | clinic_patient`) ve zod ile doğrulanan `termOverrides` (jsonb) tutulur.
+- İsimler `packages/shared/src/terms.ts`'te beş biçimle durur: yalın, çoğul, belirtme, yönelme, tamlayan.
+- Cümleler `apps/web/src/content/tr.ts`'te set başına tam cümle olarak yazılır. Özel terimde biçim yer tutucusu kullanılır (`{client.dat}`).
+- Ayarlar ekranı ünlü uyumuna göre ek önerir, sahip düzeltir ve önizler.
+- İşletme türleri tek kaynaktan gelir (`packages/shared/src/business-types.ts`).
+
+### Sonuçlar
+- **Olumlu:** Doğru Türkçe; SMS şablonları da aynı kaynağı kullanabilir.
+- **Olumsuz:** Sahip özel terim girerken beş biçimi onaylar.
+- **Riskler:** Eksik biçim. Önlem: zod beş biçimi zorunlu tutar.
+
+---
+
+## ADR-0032: v2 API istemcisi: erişim token'ı yalnız bellekte, tek yenileme sözü, hata kodundan metin
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Bugün erişim token'ı `localStorage`'da iki kopya tutuluyor (denetim #4). Eşzamanlı 401'ler yenileme yarışı yaratıyor. Üç ayrı fetch sarmalayıcısı var. Sunucu mesajı olduğu gibi gösteriliyor.
+
+### Alternatifler
+- **Eski istemciyi onarmak:** eski kod geçişte silinecek; iki kez iş olur.
+
+### Karar
+- Tek `apiClient` kullanılır; erişim token'ı yalnız bellekte durur, açılışta `/auth/refresh` çağrılır.
+- Eşzamanlı 401'ler tek `refreshPromise`'i bekler. 401'de `?next=` ile giriş sayfasına yönlendirilir.
+- 402 ve 429 `error.code` ile ayrılır; 429'da `retryAfterSec` kullanılır.
+- Hata metinleri `content/errors.ts`'ten gelir (metin rehberi §6).
+- Eski `lib/api.ts` geçişe kadar dokunulmadan kalır. Sunucu oturumu (S6) iki istemciyle de uyumludur.
+
+### Sonuçlar
+- **Olumlu:** XSS ile token çalınma yüzeyi daralır; rastgele "Bir sorun oluştu" hataları kalkar.
+- **Olumsuz:** Her sayfa açılışında bir yenileme isteği.
+- **Riskler:** Yenileme döngüsü. Önlem: yarış için birim testi (5 eşzamanlı 401 → tek yenileme).
+
+---
+
+## ADR-0033: Web testleri: Vitest + RTL birim, Playwright + axe E2E
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** mimar (öneri), müdür (kabul)
+
+### Bağlam
+Web'de test altyapısı yok, E2E yok (test-muhendisi incelemesi). Hedef WCAG 2.2 AA (kurucu 18). Bu makinede node ve docker yok; testlerin nerede koşacağı ayrıca belirlenecek (T1).
+
+### Alternatifler
+- **Jest:** API zaten Vitest kullanıyor; iki koşucu gereksiz.
+- **Cypress:** Playwright çoklu genişlik ve axe entegrasyonunda daha sade.
+
+### Karar
+- **Birim testleri:** Vitest + React Testing Library + jsdom; testler dosyanın yanında durur. Kapsam: izin, terim, biçim (Türk I'sı dahil), `apiClient` yarışı, formlar, takvim yerleşimi.
+- **E2E:** Playwright + `@axe-core/playwright`, `apps/web/e2e/` altında; hedef staging ya da yerel yığın.
+  - axe'ta "serious" ve "critical" ihlal sayısı 0 olmalı.
+  - 390, 768 ve 1440 px ekran görüntüleri yalnız artefakttır, doğrulama değildir.
+- Seçiciler tasarımın `data-testid`'leri ile rol/ad sorgularıdır.
+
+### Sonuçlar
+- **Olumlu:** Erişilebilirlik ve davranış otomatik kapıda.
+- **Olumsuz:** E2E'nin çalıştığı ortam bellek ister.
+- **Riskler:** Sunucuda koşarsa canlıyı etkilemesi. Önlem: T1 bellek ölçümü ve yoğun olmayan saat.
+
+---
+
+## ADR-0034: SMS sağlayıcısı yokken online randevu doğrulamasız, zorunlu salon onayıyla
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29; kurucu kararı 5)
+- **Karar verenler:** kurucu (karar), mimar (tasarım), müdür (kabul)
+
+### Bağlam
+NetGSM kapalı ve ne zaman açılacağı belirsiz. `e27e880`'de sağlayıcı yokken `/verify/send` 503 döndüğü için online randevu fiilen kapalı. Kurucu kararı: sağlayıcı yokken doğrulama olmadan, Turnstile + hız sınırı + zorunlu salon onayıyla çalışılacak. T3 (salonda otomatik onay) yalnız doğrulanmış telefonla güvenli.
+
+### Alternatifler
+- **Online randevuyu kapalı tutmak:** kurucu kararına aykırı.
+- **E-posta ile doğrulama:** müşteri için sürtünme yaratır; Resend henüz hazır değil.
+
+### Karar
+- **Mod:** API açılışta `phoneVerification = 'sms' | 'none'` belirler ve log'a yazar. `GET /public/tenants/:slug` `bookingMode` döndürür (`verified` / `approval_required`); akış baştan buna göre çizilir.
+- **`none` iken:** kod adımı yoktur. Talep, T3 ne olursa olsun `pending` ve `phoneVerified=false` düşer, slotu tutar. Panelde "Telefon doğrulanmadı" işareti görünür.
+- **Tavanlar:**
+  - Turnstile zorunlu; üretimde gizli anahtar yoksa `/book` 503 döner.
+  - IP başına saatte 3 talep.
+  - Kiracıda normalize edilmiş aynı telefonla en çok 1 bekleyen talep.
+  - Kiracı başına günde en çok 20 bekleyen talep.
+- **Süre dolumu:** onaylanmayan talep, talepten 24 saat sonra ya da randevudan 2 saat önce (hangisi önceyse) iptal olur. Belirlenimci iş kimliği: `online-expire-<id>`.
+- **Salon tarafı:** onay ve ret uçları sahip, müdür ve resepsiyona açık. Ret, `rejected` nedenli iptaldir. Müşteriye otomatik bildirim gitmez; ekran metni dürüsttür (teknik-yazar).
+- **`sms` olunca:** doğrulama kendiliğinden devreye girer ve T3 uygulanır; tavanlar sürer. OTP sağlamlaştırılır: `crypto.randomInt`, kodun hash'i, atomik sayaç, telefon + IP sınırı.
+
+### Sonuçlar
+- **Olumlu:** Online randevu SMS'siz açılır; sağlayıcı gelince kod değişikliği gerekmez.
+- **Olumsuz:** Doğrulanmamış talepler salona onay yükü getirir.
+- **Riskler:** Sahte talep ve slot işgali. Önlem: tavanlar, Turnstile, süre dolumu, işaret.
+
+---
+
+## ADR-0035: Sürüm etiketleri gizli olmayan `surum.conf`'ta; yayın yalnız `yayinla.sh` ile
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29; kurucu kararı 3)
+- **Karar verenler:** kurucu (sorun), mimar (öneri), devops (uygulama, D1), müdür (kabul)
+
+### Bağlam
+`BEAUTYOS_VERSION` ve `BEAUTYOS_STAGING_VERSION` `.env`'deydi. Ajanlar `.env`'e dokunamadığı için her yayında kurucunun elle değişiklik yapması gerekiyordu; bu bir darboğazdı.
+
+### Alternatifler
+- **`.env`'de bırakmak:** darboğaz sürer.
+- **Etiketi compose dosyasına yazmak:** her yayında depo değişikliği gerekir.
+
+### Karar
+- Etiketler gizli olmayan `/srv/beautyos/surum.conf`'ta durur. Compose `--env-file .env --env-file surum.conf` ile çalışır.
+- Yayın yalnız `deploy/betikler/yayinla.sh` ile yapılır: önce api, sonra web; sağlık kontrolü; hata olursa ikisi birlikte geri alınır.
+- **Uygulamada sıkılaştırma (D1):** taslaktaki "çakışmada `surum.conf` kazanır" yerine, `.env`'de `BEAUTYOS_*VERSION` satırı kalırsa betik durur.
+- Canlı yayın kurucunun açık onayıyla yapılır. TEST GEÇTİ almış güvenlik düzeltmeleri kalıcı izin 4 kapsamındadır.
+
+### Sonuçlar
+- **Olumlu:** Staging yayını kurucusuz; etiket gizli dosyada değil.
+- **Olumsuz:** Elle compose komutu iki env dosyası ister.
+- **Riskler:** Düz `docker compose up` canlıyı eski sürüme döndürebilir. Önlem: proje `CLAUDE.md` kuralı ve betik zorunluluğu.
+
+---
+
+## ADR-0036: Eski arayüzün W1 sonrası gerçekten Inter ile çizilmesi kabul edildi
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** müdür (kabul); denetçi (kayıt isteği); mimar (kayıt)
+
+### Bağlam
+W1 (`5e734c9`) sonrası Next 16 Turbopack ile derleniyor. Eski arayüz `Inter`'i istiyordu, ama webpack'in hash'li yazı tipi adı yüzünden önceden fiilen sistem yazı tipiyle çiziliyordu. Turbopack'te Inter gerçekten uygulanıyor ve metinler %3–5 genişledi. Yerleşim aynı kaldı; mobil "Bugünün Geliri" taşması düzeldi, metin artık alt satıra iniyor. Denetçi bu görünür değişikliğin kayda geçmesini istedi (`raporlar/denetim/beautyos-W1-1.md`, Önemli 2).
+
+### Alternatifler
+- **Eski görünümü korumak için sistem yazı tipine zorlamak:** amaçlanmayan önceki davranışı geri getirir; eski arayüz zaten geçişte silinecek.
+
+### Karar
+Eski arayüzdeki Inter görünümü olduğu gibi kabul edilir; ek düzeltme yapılmaz.
+
+### Sonuçlar
+- **Olumlu:** Eski arayüz tasarlandığı yazı tipiyle çiziliyor; bir taşma kendiliğinden düzeldi.
+- **Olumsuz:** Canlıya çıkınca kullanıcılar küçük bir görsel fark görür.
+- **Riskler:** Başka bir ekranda taşma. Önlem: eski arayüz dumanı ve ekran görüntüleri (T1).
 
 ---
 
