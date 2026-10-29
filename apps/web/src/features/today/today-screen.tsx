@@ -37,6 +37,7 @@ import { EmptyState, ErrorState } from '@/ui/states'
 import { StatusBadge } from '@/ui/status-badge'
 import { useToast } from '@/ui/toast'
 import { CompleteSheet } from '@/features/payment/complete-sheet'
+import { QuickSaleSheet } from '@/features/payment/quick-sale-sheet'
 import { ApprovalSheet } from './approval-sheet'
 import { DaySummary } from './day-summary'
 import { FirstSetup } from './first-setup'
@@ -86,6 +87,8 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
   const [filter, setFilter] = useState('')
   const [reviewing, setReviewing] = useState<DayAppointment | null>(null)
   const [completing, setCompleting] = useState<DayAppointment | null>(null)
+  const [quickSale, setQuickSale] = useState(false)
+  const canQuickSale = useCan('finance.revenue.create')
   const [startingId, setStartingId] = useState<string | null>(null)
 
   const dayQuery = useApiQuery(isExpert ? null : `day:${today}`, (c, signal) => fetchDayAppointments(c, slug, today, signal))
@@ -145,9 +148,16 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
           {formatDate(clock, 'weekday')}, {formatDate(clock, 'long')} · Saat {minutesLabel(nowMin)}
         </p>
       </div>
-      <Link href={`${base}/takvim?yeni=1`} className={cn(buttonClassName(), 'max-lg:hidden')}>
-        Randevu oluştur
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        {canQuickSale ? (
+          <Button variant="secondary" onClick={() => setQuickSale(true)}>
+            Randevusuz işlem
+          </Button>
+        ) : null}
+        <Link href={`${base}/takvim?yeni=1`} className={cn(buttonClassName(), 'max-lg:hidden')}>
+          Randevu oluştur
+        </Link>
+      </div>
     </div>
   )
 
@@ -177,6 +187,15 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
           dayQuery.refetch()
           pendingQuery.refetch()
         }} />
+      {quickSale ? (
+        <QuickSaleSheet
+          onClose={() => setQuickSale(false)}
+          onDone={() => {
+            setQuickSale(false)
+            dayQuery.refetch()
+          }}
+        />
+      ) : null}
       {completing ? (
         <CompleteSheet
           appointment={completing}

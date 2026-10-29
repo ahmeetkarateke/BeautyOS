@@ -20,3 +20,9 @@ export async function completeAppointment(client: ApiClient, slug: string, id: s
   const parsed = z.object({ payment: paymentSchema.nullish() }).parse(response)
   return parsed.payment ?? null
 }
+
+/** Randevusuz işlem: kasaya bağımsız gelir kaydı (A6, finance.revenue.create). */
+export async function createQuickRevenue(client: ApiClient, slug: string, body: Record<string, unknown>): Promise<{ id: string }> {
+  const response = await client.request<unknown>(`/api/v1/tenants/${encodeURIComponent(slug)}/revenues`, { method: 'POST', body })
+  return z.object({ id: z.string() }).parse(response)
+}
