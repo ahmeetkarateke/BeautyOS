@@ -8,10 +8,11 @@ import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
 import { normalizePhoneTR } from '../lib/sms'
 import { scheduleReminders } from '../lib/queue'
 import { initialAppointmentStatus } from '../lib/appointment-status'
+import { manageLink, newManageToken, showPricesOnline } from '../lib/booking-link'
 import { isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { logger } from '../lib/logger'
 import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
-import { resolveBookingMode } from '../lib/booking-mode'
+import { resolveBookingMode, resolveApprovalMode } from '../lib/booking-mode'
 import { ONLINE_LIMITS, computeExpiryAt, phoneVariants, scheduleOnlineExpiry } from '../lib/online-booking'
 import { resolveCustomerByPhone } from '../lib/customer-phone'
 
@@ -25,15 +26,6 @@ function applyApprovalLead<T extends { id: string; available: boolean }>(slots: 
   if (resolveBookingMode().phoneVerification === 'sms') return slots
   const limit = Date.now() + MIN_LEAD_FOR_APPROVAL_MS
   return slots.map((s) => (new Date(s.id.includes('Z') || s.id.includes('+') ? s.id : `${s.id}Z`).getTime() < limit ? { ...s, available: false } : s))
-}
-
-const MANUAL_BY_DEFAULT: ReadonlySet<string> = new Set(['dentist', 'aesthetic_clinic'])
-
-/** T3: salon ayarı varsa o; yoksa klinik türleri elle onay, diğerleri otomatik. Yalnız sms (doğrulanmış) modunda geçerlidir. */
-export function resolveApprovalMode(tenant: { settings: unknown; businessType: string }): 'auto' | 'manual' {
-  const configured = (tenant.settings as { onlineBookingApproval?: unknown } | null)?.onlineBookingApproval
-  if (configured === 'auto' || configured === 'manual') return configured
-  return MANUAL_BY_DEFAULT.has(tenant.businessType) ? 'manual' : 'auto'
 }
 
 /**
@@ -173,10 +165,11 @@ export function createPublicRouter(): Router {
         return res.status(403).json({ error: { code: 'BOOKING_DISABLED', message: 'Bu salon şu anda online rezervasyon kabul etmiyor.' } })
       }
 
+      const showPrice = showPricesOnline(tenant.settings, tenant.businessType)
       const services = await db.service.findMany({
         where: { tenantId: tenant.id, isActive: true, isOnlineBookable: true },
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, durationMinutes: true, category: true },
+        select: { id: true, name: true, durationMinutes: true, category: true, ...(showPrice ? { price: true } : {}) },
       })
 
       return res.json({
@@ -185,6 +178,8 @@ export function createPublicRouter(): Router {
           name: s.name,
           durationMinutes: s.durationMinutes,
           category: s.category ?? null,
+          // Kapalıyken alan hiç bulunmaz (ADR-0043); klinik türlerinde varsayılan kapalı.
+          ...(showPrice && 'price' in s ? { price: Number((s as { price: unknown }).price) } : {}),
         })),
       })
     } catch (err) {
@@ -495,6 +490,8 @@ export function createPublicRouter(): Router {
       const approvalRequired = customerId === null || resolveApprovalMode(tenant) === 'manual'
       const status = initialAppointmentStatus('web', { approvalRequired })
       const referenceCode = newReferenceCode(nowMs)
+      // Müşteri bağlantısı: token yalnız bu yanıtta döner, veritabanında yalnız özeti durur (ADR-0043, ADR-0046).
+      const manage = newManageToken()
 
       const appointment = await db.appointment.create({
         data: {
@@ -503,6 +500,7 @@ export function createPublicRouter(): Router {
           staffId,
           serviceId,
           referenceCode,
+          manageTokenHash: manage.tokenHash,
           requestedName: customerId ? null : customerName,
           requestedPhone: customerId ? null : normalizedPhone,
           status,
@@ -528,6 +526,8 @@ export function createPublicRouter(): Router {
         status,
         approvalRequired,
         phoneVerified: verifiedMode,
+        manageLink: manageLink(manage.token),
+        ...(showPricesOnline(tenant.settings, tenant.businessType) ? { price: Number(service.price) } : {}),
       })
     } catch (err) {
       respondSlotTakenOr(err, res, next)

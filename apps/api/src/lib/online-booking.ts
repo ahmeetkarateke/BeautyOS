@@ -119,7 +119,7 @@ export async function anonymizeStaleRequests(now: Date = new Date()): Promise<nu
   return result.count
 }
 
-async function removeExpiryJob(appointmentId: string): Promise<void> {
+export async function removeExpiryJob(appointmentId: string): Promise<void> {
   try {
     await remindersQueue.remove(expiryJobId(appointmentId))
   } catch (err) {

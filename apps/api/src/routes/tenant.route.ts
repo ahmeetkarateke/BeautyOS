@@ -1264,6 +1264,7 @@ export function createTenantRouter(): Router {
     botFaqs: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })).max(20).optional(),
     botHidePrices: z.boolean().optional(),
     publicBookingEnabled: z.boolean().optional(),
+    showPricesOnline: z.boolean().optional(),
     onlineBookingApproval: z.enum(['auto', 'manual']).optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir hex renk (ör. #6B48FF)').optional(),
     logoUrl: httpsOnlyUrl().optional().or(z.literal('')),

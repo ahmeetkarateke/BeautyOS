@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { createAuthRouter } from './routes/auth.route'
+import { createBookingManageRouter } from './routes/bookings-public.route'
 import { createMeRouter } from './routes/me.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { createPublicRouter } from './routes/public.route'
@@ -77,6 +78,8 @@ export function createApp(options?: { rateLimitMax?: number }) {
   // /auth/me hiz siniri disinda: arayuz her acilista cagirir (A1)
 
   app.use('/api/v1/auth/me', createMeRouter())
+  // Musteri randevu baglantisi (ADR-0043/0046): kiracisiz, token govdede; kendi hiz siniri var.
+  app.use('/api/v1/public/bookings', createBookingManageRouter())
 
   app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax }))
   app.use('/api/v1/admin', createAdminRouter())
