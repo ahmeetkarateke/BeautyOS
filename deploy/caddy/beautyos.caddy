@@ -8,6 +8,9 @@ beautyossapp.com, www.beautyossapp.com, app.beautyossapp.com {
 	import cf_dns
 	import ortak
 
+	# Acil önlem (kurucu onayı 2026-10-29): Next 14.2.35 Image Optimization API (/_next/image) kimlik doğrulamasız RCE; eski arayüz
+	# next/image kullanmıyor. Web konteynerine İLETİLMEZ.
+	respond /_next/image* 404
 	reverse_proxy beautyos-web:3000 {
 		header_up X-Forwarded-For {client_ip}
 	}
@@ -42,6 +45,9 @@ yeni.beautyossapp.com {
 	route {
 		@bos expression "{$BEAUTYOS_STAGING_BASIC_HASH}" == "" || "{$BEAUTYOS_STAGING_BASIC_USER}" == ""
 		respond @bos 503
+
+		# Aynı önlem staging için de (web konteynerine iletilmez; kimlik sormadan 404).
+		respond /_next/image* 404
 
 		basic_auth {
 			{$BEAUTYOS_STAGING_BASIC_USER} {$BEAUTYOS_STAGING_BASIC_HASH}
