@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "npm run build --workspace=@beautyos/shared && tsc --noEmit",
-    "test": "vitest run",
+    "test": "npm run build --workspace=@beautyos/shared && vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"
   },
