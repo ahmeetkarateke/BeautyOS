@@ -189,7 +189,7 @@ export function MyDayScreen({ now: fixedNow }: { now?: Date }) {
                   </Button>
                 ) : null}
                 {next.customerPhone ? (
-                  <a href={telHref(next.customerPhone)} aria-label={`${next.customerName}’yi ara`} className={cn(buttonClassName({ variant: 'secondary' }), next.status !== 'confirmed' && 'flex-1')}>
+                  <a href={telHref(next.customerPhone)} aria-label={`Ara: ${next.customerName}`} className={cn(buttonClassName({ variant: 'secondary' }), next.status !== 'confirmed' && 'flex-1')}>
                     <Phone aria-hidden="true" className="size-4" />
                     Ara
                   </a>

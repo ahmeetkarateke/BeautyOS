@@ -87,7 +87,7 @@ describe('W11 Günüm (uzman)', () => {
   it('K-ara: müşteriyi arama bağlantısı tel: adresidir ve boşluksuzdur', async () => {
     mount()
     const card = await screen.findByTestId('gunum-siradaki')
-    expect(within(card).getByRole('link', { name: 'Müşteri a2’yi ara' }).getAttribute('href')).toBe('tel:05321112233')
+    expect(within(card).getByRole('link', { name: 'Ara: Müşteri a2' }).getAttribute('href')).toBe('tel:05321112233')
   })
 
   it('K-başlat: Başlat durumu devam ediyor yapar ve listeyi yeniler', async () => {

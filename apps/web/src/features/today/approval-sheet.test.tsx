@@ -113,6 +113,14 @@ describe('W10 onay katmanı (S2 uçları)', () => {
     expect(callTo('customer-candidates')).toBeUndefined()
   })
 
+  it('W10-3 Ö1: telefonu doğrulanmış ama müşterisi bağlanamamış (customerId null) talep de eşleştirme ister', async () => {
+    route({ '/customer-candidates': () => candidates, '/approve': () => ({}) })
+    mount(pending({ unverified: false, customerId: null }))
+    expect(await screen.findByRole('radio', { name: /Ayşe Demir$/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: /Yeni müşteri olarak kaydet/ })).toBeTruthy()
+    expect(callTo('customer-candidates')).toBeDefined()
+  })
+
   it('K-hata: NOT_PENDING anlaşılır metin gösterir ve listeyi yeniler, katman açık kalır', async () => {
     route({ '/customer-candidates': () => ({ data: [] }), '/approve': () => { throw new ApiError({ status: 409, code: 'NOT_PENDING' }) } })
     mount(pending())

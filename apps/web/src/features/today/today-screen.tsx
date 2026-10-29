@@ -149,6 +149,33 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
     </div>
   )
 
+  // Bekleyen online talepler gün boş olsa da görünür: ileri tarihli talepler süresi dolunca sessizce düşmesin.
+  const pendingBanners = (
+    <>
+      {canApprove && pendingQuery.error && !pendingQuery.data ? (
+        <div data-testid="bugun-bulgu">
+          <Banner tone="error" action={{ label: 'Yeniden dene', onClick: pendingQuery.refetch }}>
+            Bekleyen online talepler yüklenemedi.
+          </Banner>
+        </div>
+      ) : null}
+
+      {canApprove && pending.length > 0 ? (
+        <div data-testid="bugun-bulgu">
+          <Banner tone="warning" action={{ label: 'Gözden geçir', onClick: () => setReviewing(pending[0]) }}>
+            <strong>{pending.length} online randevu onay bekliyor.</strong> {pending.map((r) => `${r.customerName} ${requestLabel(r)}`).join(', ')}.
+          </Banner>
+        </div>
+      ) : null}
+    </>
+  )
+  const approvalSheet = (
+    <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={() => {
+        dayQuery.refetch()
+        pendingQuery.refetch()
+      }} />
+  )
+
   if (dayQuery.error && !dayLoaded) {
     return (
       <div className="grid gap-4">
@@ -202,6 +229,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
     return (
       <div className="grid gap-4">
         {header}
+        {pendingBanners}
         {showSetup ? <FirstSetup steps={steps} onCreateAppointment={createAppointment} /> : null}
         <Card labelledBy="bugun-liste-baslik">
           <h2 id="bugun-liste-baslik" className="text-base leading-6 font-semibold">
@@ -215,6 +243,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
             className="px-0"
           />
         </Card>
+        {approvalSheet}
       </div>
     )
   }
@@ -229,21 +258,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
     <div className="grid gap-4">
       {header}
 
-      {canApprove && pendingQuery.error && !pendingQuery.data ? (
-        <div data-testid="bugun-bulgu">
-          <Banner tone="error" action={{ label: 'Yeniden dene', onClick: pendingQuery.refetch }}>
-            Bekleyen online talepler yüklenemedi.
-          </Banner>
-        </div>
-      ) : null}
-
-      {canApprove && pending.length > 0 ? (
-        <div data-testid="bugun-bulgu">
-          <Banner tone="warning" action={{ label: 'Gözden geçir', onClick: () => setReviewing(pending[0]) }}>
-            <strong>{pending.length} online randevu onay bekliyor.</strong> {pending.map((r) => `${r.customerName} ${requestLabel(r)}`).join(', ')}.
-          </Banner>
-        </div>
-      ) : null}
+      {pendingBanners}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="grid gap-4">
@@ -327,10 +342,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
         <div className="grid gap-4">{canRevenue ? <DaySummary appointments={appointments} occupancy={occupancy} /> : null}</div>
       </div>
 
-      <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={() => {
-          dayQuery.refetch()
-          pendingQuery.refetch()
-        }} />
+      {approvalSheet}
     </div>
   )
 }
