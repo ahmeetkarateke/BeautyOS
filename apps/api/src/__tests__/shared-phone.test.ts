@@ -55,6 +55,14 @@ describe('resolveCustomerByPhone', () => {
     expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toEqual(['123456789'])
   })
 
+  it('K-helper: exact kipinde telefon gibi gorunen kanal kimligi normalize edilip gercek telefonla eslesmez (905321234567 !~ +905321234567)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await resolveCustomerByPhone(dbMock, 't1', '905321234567', { exact: true })
+    expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toEqual(['905321234567'])
+    await resolveCustomerByPhone(dbMock, 't1', '905321234567')
+    expect(dbMock.customer.findMany.mock.calls[1][0].where.phone.in).toContain('+905321234567')
+  })
+
   it('K-izolasyon: B kiracisinda ayni telefon varken A icin sorgu tenantId=A ile yapilir (sonuc B kartini icermez)', async () => {
     dbMock.customer.findMany.mockImplementation(async ({ where }: { where: { tenantId: string } }) =>
       where.tenantId === 'tB' ? [{ id: 'cB' }] : [],
@@ -80,6 +88,14 @@ describe('bot createAppointment (ADR-0038)', () => {
     expect(r.status).toBe('confirmed')
     expect(r.referenceCode).toMatch(/^RDV-/)
     expect(dbMock.appointment.create.mock.calls[0][0].data).toMatchObject({ customerId: 'c-new', status: 'confirmed' })
+  })
+
+  it('K-bot: Telegram kanalinda sohbet no telefon gibi normalize edilmez; WhatsApp kanalinda normalize aranir', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await createAppointment({ ...input, customerPhone: '905321234567', channel: 'telegram' })
+    expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toEqual(['905321234567'])
+    await createAppointment({ ...input, customerPhone: '905321234567', channel: 'whatsapp' })
+    expect(dbMock.customer.findMany.mock.calls[1][0].where.phone.in).toContain('+905321234567')
   })
 
   it('K-bot: single -> var olan karta baglanir, yeni musteri olusmaz', async () => {
