@@ -283,3 +283,15 @@ describe('W10 Bugün ekranı', () => {
     expect(callTo('/appointments')).toBeUndefined()
   })
 })
+
+describe('ADR-0045: panel randevusu onay listesine girmez', () => {
+  it('K-adr45: manual pending randevuda Gözden geçir/onay şeridi yok; web pending talepte var', async () => {
+    const manual = row('m1', 'p1', 'Derya Aksoy', '14:00', '14:45', 'pending', { bookingChannel: 'manual' })
+    appointments = [manual]
+    pendingRows = [manual]
+    mount()
+    await screen.findByTestId('doluluk-seridi')
+    expect(screen.queryByTestId('bugun-bulgu')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Gözden geçir' })).toBeNull()
+  })
+})
