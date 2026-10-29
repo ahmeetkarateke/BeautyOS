@@ -67,3 +67,39 @@ describe('Toast', () => {
     spy.mockRestore()
   })
 })
+
+describe('Toast süresi gerçekten işler (W3 denetim önerisi)', () => {
+  it('W3: 4 sn dolunca kendiliğinden kapanır; 3 sn dolmadan kapanmaz', async () => {
+    vi.useFakeTimers()
+    try {
+      setup({ message: 'Müşteri eklendi.' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000)
+      })
+      expect(screen.queryByText('Müşteri eklendi.')).not.toBeNull()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500)
+      })
+      expect(screen.queryByText('Müşteri eklendi.')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('W3: geri al varsa 5 sn sonra hâlâ görünür, 8 sn sonra kapanır', async () => {
+    vi.useFakeTimers()
+    try {
+      setup({ message: 'Müşteri silindi.', undo: () => {} })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(screen.queryByText('Müşteri silindi.')).not.toBeNull()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3500)
+      })
+      expect(screen.queryByText('Müşteri silindi.')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

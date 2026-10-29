@@ -85,7 +85,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ))}
         <RadixToast.Viewport
           label="Bildirimler ({hotkey})"
-          className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--size-bottombar)+12px+env(safe-area-inset-bottom))] z-(--z-toast) m-0 flex list-none flex-col items-center gap-2 px-3 outline-none lg:inset-x-auto lg:right-6 lg:bottom-6 lg:items-end lg:px-0"
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--size-bottombar)+12px+env(safe-area-inset-bottom))] z-(--z-toast) m-0 flex list-none flex-col items-center gap-2 px-3 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:items-end lg:px-0"
         />
       </RadixToast.Provider>
     </ToastContext>
