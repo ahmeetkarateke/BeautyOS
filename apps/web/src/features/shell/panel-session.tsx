@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { ApiError, createApiClient } from '@/lib/v2/api-client'
@@ -108,7 +108,9 @@ export function PanelSession({
     }
   }, [client, attempt])
 
-  useEffect(() => {
+  // Düzen efekti: ekran "offline" çizildiği anda ref de güncel olmalı. Pasif efekt geç kalırsa
+  // hemen ardından gelen "online" olayı eski durumu görüp yeniden denemeyi sessizce atlar.
+  useLayoutEffect(() => {
     stateRef.current = state
   })
 
