@@ -14,22 +14,23 @@ import {
 } from '../yardimcilar/panel'
 
 // W14 görsel kabul: Randevu ayrıntısı. İptal, Gelmedi ve Sil onay penceresiyle; kilitli (kapanmış/başlamış) randevuda eylem yok;
-// uzman silemez ve ücret görmez. Randevular "bugün" (İstanbul), şimdiden sonra kurulur: 21:00'den sonra atlanır.
+// uzman confirmed randevuda İptal görür, Sil ve ücret görmez. Randevular "bugün" (İstanbul) 09:00'dan itibaren 35 dk arayla
+// sabit saatlere kurulur (günün saatinden bağımsız; gece yarısı sınırı sorunu ve atlama yok).
 // Bütçe: /auth 10 istek/15 dk: bu dosya 1 kayıt + 2 giriş yapar.
 test.skip(!PANEL_ACIK || !ayniSiteHazir(), ATLAMA_NEDENI)
 test.describe.configure({ mode: 'serial', timeout: 120_000 })
 
 const TZ = 'Europe/Istanbul'
-const istanbulSaati = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
-test.skip(istanbulSaati >= 21, 'İstanbul saati 21:00 sonrası: "bugün" randevuları gün sınırını aşabilir')
-
-const dakikaSonra = (dk: number) => new Date(Date.now() + dk * 60_000).toISOString()
+const bugunTarihi = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+// Türkiye yıl boyu UTC+3: İstanbul 09:00 = 06:00Z.
+const bugunSaat09 = (dk: number) => new Date(Date.parse(`${bugunTarihi}T06:00:00Z`) + dk * 60_000).toISOString()
 const telefon = () => `0555${Math.floor(1000000 + Math.random() * 8999999)}`
 
 let k: TestKiraci
 let o: Oturum
 let uzman: Oturum
 let uzmanEposta: string
+let uzmanParola: string
 const ids: Record<string, string> = {}
 const axeBulgulari: string[] = []
 
@@ -63,21 +64,22 @@ test.beforeAll(async ({ browser }, info) => {
   k = await kiraciKur('w14')
   const veri = await randevuVerisiKur(k)
   uzmanEposta = veri.uzmanEposta
+  uzmanParola = veri.uzmanParola
   const randevu = async (ad: string, dk: number, uzmanId: string, hedef: string) => {
     const m = await json<{ id: string }>(await k.api.post(k.yol('/customers'), { data: { fullName: ad, phone: telefon() } }))
     const a = await json<{ id: string }>(
-      await k.api.post(k.yol('/appointments'), { data: { customerId: m.id, serviceId: veri.hizmet.id, staffId: uzmanId, startAt: dakikaSonra(dk) } }),
+      await k.api.post(k.yol('/appointments'), { data: { customerId: m.id, serviceId: veri.hizmet.id, staffId: uzmanId, startAt: bugunSaat09(dk) } }),
     )
     const onay = await k.api.patch(k.yol(`/appointments/${a.id}/status`), { data: { status: 'confirmed' } })
     expect(onay.status(), await onay.text()).toBeLessThan(300)
     ids[hedef] = a.id
   }
   // Aynı uzmanda çakışmasın diye 35 dk arayla.
-  await randevu('Müşteri İptal', 10, veri.uzman.id, 'iptal')
-  await randevu('Müşteri Gelmedi', 45, veri.uzman.id, 'gelmedi')
-  await randevu('Müşteri Sil', 80, veri.uzman.id, 'sil')
-  await randevu('Müşteri Başlat', 115, veri.uzman.id, 'baslat')
-  await randevu('Müşteri Kilitli', 150, veri.uzman.id, 'kilitli')
+  await randevu('Müşteri İptal', 0, veri.uzman.id, 'iptal')
+  await randevu('Müşteri Gelmedi', 35, veri.uzman.id, 'gelmedi')
+  await randevu('Müşteri Sil', 70, veri.uzman.id, 'sil')
+  await randevu('Müşteri Başlat', 105, veri.uzman.id, 'baslat')
+  await randevu('Müşteri Kilitli', 140, veri.uzman.id, 'kilitli')
   // Kilitli: tamamlanmış randevu (doğrudan ya da başlatıp tamamlayarak).
   let tamam = await k.api.patch(k.yol(`/appointments/${ids.kilitli}/status`), { data: { status: 'completed' } })
   if (tamam.status() >= 300) {
@@ -167,6 +169,25 @@ test('W14 sil: onay penceresi çıkar, onaylayınca randevu takvimden ve listede
   await expect(page.getByRole('group', { name: 'Günlük takvim' }).getByRole('button', { name: /Müşteri Sil/ })).toHaveCount(0)
 })
 
+// Uzman kontrolü, eylemlerin göründüğü "confirmed" randevuda (Müşteri Başlat henüz başlamadı) yapılır: aksi halde başlamış/kilitli randevuda
+// eylem listesi herkese boş döner ve "Sil yok" rol kuralını değil durumu sınar (T4-4 Kritik 1). Önce olumlu kontrol, sonra Sil yokluğu.
+test('W14 yetki: uzman, eylemleri görünen randevuda İptal et görür ama Sil ve ücret görmez', async () => {
+  const { page } = uzman
+  await genislikAyarla(page, 1440, 900)
+  await girisYap(page, uzmanEposta, uzmanParola, new RegExp(`/panel/${k.slug}/gunum`))
+  await page.goto(`/panel/${k.slug}/takvim`)
+  const izgara = page.getByRole('group', { name: 'Günlük takvim' })
+  await expect(izgara).toBeVisible()
+  await izgara.getByRole('button', { name: /Müşteri Başlat/ }).click()
+  const d = detay(page)
+  await expect(d).toBeVisible()
+  expect(await durum('baslat'), 'kontrol randevusu henüz başlamamış olmalı').toBe('confirmed')
+  await expect(d.getByRole('button', { name: 'İptal et', exact: true }), 'uzman eylem görür (eylem yok ile yetki yok ayrılır)').toBeVisible()
+  await expect(d.getByRole('button', { name: 'Başlat', exact: true }), 'uzman Başlat görür').toBeVisible()
+  await expect(d.getByRole('button', { name: 'Sil', exact: true }), 'uzman silemez').toHaveCount(0)
+  await expect(d.getByText('Ücret'), 'uzman ücret görmez').toHaveCount(0)
+})
+
 test('W14 başlat: randevu "in_progress" olur; başlamış randevuda eylem görünmez', async () => {
   const { page } = o
   const d = await ac(page, 'Müşteri Başlat')
@@ -174,7 +195,7 @@ test('W14 başlat: randevu "in_progress" olur; başlamış randevuda eylem gör�
   await expect(page.getByText('Randevu başladı.', { exact: true }).last()).toBeVisible()
   expect(await durum('baslat')).toBe('in_progress')
   const tekrar = await ac(page, 'Müşteri Başlat')
-  for (const ad of ['Başlat', 'Gelmedi', 'İptal et', 'Sil']) {
+  for (const ad of ['Başlat', 'Saati değiştir', 'Gelmedi', 'İptal et', 'Sil']) {
     await expect(tekrar.getByRole('button', { name: ad, exact: true }), `başlamış randevuda ${ad}`).toHaveCount(0)
   }
   await page.keyboard.press('Escape')
@@ -203,21 +224,6 @@ test('W14 telefon (390 px): ayrıntı katmanı sığar, taşma yok', async () =>
   await expectNoSeriousA11yViolations(page, 'W14 ayrıntı 390').catch((e: Error) => {
     axeBulgulari.push(e.message.split('\n').filter((s) => /kural|etki|dugumSayisi|ornek|\.|\[|axe ihlalleri/.test(s)).slice(0, 30).join('\n'))
   })
-})
-
-test('W14 yetki: uzman kendi randevusunun ayrıntısında Sil ve ücret görmez', async () => {
-  // Bu salondaki tüm randevular bu uzmanındır; "Müşteri Başlat" başlamış olduğundan eylem düğmesi yoktur, yetki sınırı Sil ve Ücret satırıdır.
-  const { page } = uzman
-  await genislikAyarla(page, 1440, 900)
-  await girisYap(page, uzmanEposta, 'TestPass12!', new RegExp(`/panel/${k.slug}/gunum`))
-  await page.goto(`/panel/${k.slug}/takvim`)
-  const izgara = page.getByRole('group', { name: 'Günlük takvim' })
-  await expect(izgara).toBeVisible()
-  await izgara.getByRole('button', { name: /Müşteri Başlat/ }).click()
-  const d = detay(page)
-  await expect(d).toBeVisible()
-  await expect(d.getByText('Ücret'), 'uzman ücret görmez').toHaveCount(0)
-  await expect(d.getByRole('button', { name: 'Sil', exact: true }), 'uzman silemez').toHaveCount(0)
 })
 
 // Serinin son testi: birikmiş ölçümler birlikte hükme bağlanır.
