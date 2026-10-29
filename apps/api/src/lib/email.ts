@@ -46,11 +46,17 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
   })
 }
 
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+/** E-posta başlığına satır sonu girerse ek başlık (Bcc vb.) enjekte edilebilir. */
+const singleLine = (text: string): string => text.replace(/[\r\n]+/g, ' ').trim()
+
 export async function sendWelcomeEmail(email: string, salonName: string, trialEndsAt: Date): Promise<boolean> {
-  const trialEndStr = trialEndsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const trialEndStr = trialEndsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
   return deliver('welcome', {
     to: email,
-    subject: `BeautyOS'a hoş geldin, ${salonName}!`,
-    html: `<p>Merhaba,</p><p><strong>${salonName}</strong> adına BeautyOS'a hoş geldiniz! 30 günlük ücretsiz deneme süreniz başladı.</p><p>Deneme süreniz <strong>${trialEndStr}</strong> tarihinde sona erecek.</p>`,
+    subject: `BeautyOS'a hoş geldin, ${singleLine(salonName)}!`,
+    html: `<p>Merhaba,</p><p><strong>${escapeHtml(salonName)}</strong> adına BeautyOS'a hoş geldiniz! 30 günlük ücretsiz deneme süreniz başladı.</p><p>Deneme süreniz <strong>${trialEndStr}</strong> tarihinde sona erecek.</p>`,
   })
 }
