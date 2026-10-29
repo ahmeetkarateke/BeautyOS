@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { canOpen, phoneLine, searchMode, searchPhase, visitLine, type CustomerRow } from './logic'
 
-const row = (over: Partial<CustomerRow> = {}): CustomerRow => ({ id: 'c1', fullName: 'Ayşe Demir', phone: '+90 532 111 22 33', phoneMasked: false, isOwn: true, totalVisits: 3, lastVisitDate: '2026-10-20T09:00:00.000Z', ...over })
+const row = (over: Partial<CustomerRow> = {}): CustomerRow => ({
+  id: 'c1',
+  fullName: 'Ayşe Demir',
+  phone: '+90 532 111 22 33',
+  phoneMasked: false,
+  isOwn: true,
+  totalVisits: 3,
+  lastVisitDate: '2026-10-20T09:00:00.000Z',
+  ...over,
+})
 
 describe('W17 searchPhase', () => {
   it('K1: sahip/müdür/resepsiyon listesi aramasız da yüklenir (idle değil, list)', () => {
