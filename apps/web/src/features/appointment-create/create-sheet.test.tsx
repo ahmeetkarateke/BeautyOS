@@ -271,8 +271,8 @@ describe('W13 Randevu oluştur', () => {
     fireEvent.click(submit())
     await screen.findByRole('alert')
     fireEvent.click(screen.getByRole('button', { name: 'Kayıtlı müşteriyi seç' }))
-    expect((screen.getByRole('searchbox', { name: /Müşteri ara/ }) as HTMLInputElement).value).toBe('05321234567')
-    await waitFor(() => expect(calls('/customers', undefined).some(([, i]) => (i as Init).query?.search === '05321234567')).toBe(true))
+    expect((screen.getByRole('searchbox', { name: /Müşteri ara/ }) as HTMLInputElement).value).toBe('5321234567')
+    await waitFor(() => expect(calls('/customers', undefined).some(([, i]) => (i as Init).query?.search === '5321234567')).toBe(true))
   })
 
   it('K-uzman: uzman kendi adına açar; personel seçimi ve fiyat görünmez, personel olarak kendi kimliği gönderilir', async () => {

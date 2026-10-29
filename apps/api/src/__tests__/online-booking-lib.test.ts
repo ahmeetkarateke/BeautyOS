@@ -8,6 +8,7 @@ const dbMock = vi.hoisted(() => ({
   appointment: { updateMany: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   customer: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   tenant: { findUnique: vi.fn() },
+  user: { findFirst: vi.fn() },
   $transaction: vi.fn(),
 }))
 const queueMock = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
@@ -40,6 +41,7 @@ beforeEach(() => {
   dbMock.$transaction.mockReset().mockImplementation(async (fn: (tx: typeof dbMock) => unknown) => fn(dbMock))
   dbMock.appointment.findMany.mockReset().mockResolvedValue([])
   dbMock.tenant.findUnique.mockReset().mockResolvedValue({ isActive: true, trialEndsAt: null })
+  dbMock.user.findFirst.mockReset().mockResolvedValue({ id: 'u1' }) // S6: authenticateJWT kullanici aktifligini her istekte sorar
   queueMock.add.mockReset().mockResolvedValue({})
   queueMock.remove.mockReset().mockResolvedValue(1)
 })
@@ -92,7 +94,7 @@ describe('S2: sure dolumu isi', () => {
     const ok = await expireOnlineRequest('a1')
     expect(ok).toBe(true)
     expect(dbMock.appointment.updateMany).toHaveBeenCalledWith({
-      where: { id: 'a1', status: 'pending', bookingChannel: 'web' },
+      where: { id: 'a1', status: 'pending', OR: [{ bookingChannel: 'web' }, { customerId: null }] },
       data: { status: 'cancelled', cancelReason: 'expired' },
     })
   })
@@ -108,10 +110,15 @@ describe('S2: sure dolumu isi', () => {
     const count = await sweepExpiredOnlineRequests(now)
     expect(count).toBe(3)
     const args = dbMock.appointment.updateMany.mock.calls[0][0]
-    expect(args.where).toMatchObject({ status: 'pending', bookingChannel: 'web' })
-    expect(args.where.OR).toEqual([
-      { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * H) } },
-      { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * H) } },
+    expect(args.where.status).toBe('pending')
+    expect(args.where.AND).toEqual([
+      { OR: [{ bookingChannel: 'web' }, { customerId: null }] },
+      {
+        OR: [
+          { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * H) } },
+          { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * H) } },
+        ],
+      },
     ])
     expect(args.data).toEqual({ status: 'cancelled', cancelReason: 'expired' })
   })
@@ -192,6 +199,25 @@ describe('S2: onay ve ret', () => {
   })
 })
 
+describe('ADR-0038 Onemli 1: sure dolumu kanaldan bagimsiz (musterisiz bekleyen talep dahil)', () => {
+  const onlineScope = [{ bookingChannel: 'web' }, { customerId: null }]
+
+  it('expireOnlineRequest web talebini ve musterisiz (bot) bekleyen talebi kapsar; musterili panel/bot randevusunu kapsamaz', async () => {
+    await expireOnlineRequest('a1')
+    const where = dbMock.appointment.updateMany.mock.calls[0][0].where
+    expect(where).toMatchObject({ id: 'a1', status: 'pending', OR: onlineScope })
+  })
+
+  it('gece taramasi ayni kapsami kullanir (web ya da musterisiz) ve sure kosulunu korur', async () => {
+    await sweepExpiredOnlineRequests(new Date('2026-11-01T00:00:00Z'))
+    const where = dbMock.appointment.updateMany.mock.calls[0][0].where
+    expect(where.status).toBe('pending')
+    expect(JSON.stringify(where)).toContain('"customerId":null')
+    expect(JSON.stringify(where)).toContain('"bookingChannel":"web"')
+    expect(JSON.stringify(where)).toContain('createdAt')
+  })
+})
+
 describe('S2 Kritik 2: dogrulanmamis talepte musteri eslestirme (onayda)', () => {
   const PHONE = '+905551112233'
   const unverified = { status: 'pending', customerId: null, requestedName: 'Ayse Yilmaz', requestedPhone: PHONE }
@@ -217,6 +243,17 @@ describe('S2 Kritik 2: dogrulanmamis talepte musteri eslestirme (onayda)', () =>
     expect(q.where.tenantId).toBe('t1')
     expect(q.where.phone.in).toEqual(expect.arrayContaining([PHONE, '05551112233']))
     expect(q.take).toBe(5)
+  })
+
+  it('ADR-0038 create: telefon baska kartta kayitliyken bile aday kontrolu yapilmadan yeni musteri olusur (eski kart degismez)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([{ id: 'c9', fullName: 'Baska Ad' }])
+    expect(await approveOnlineRequest('t1', 'a1', { customerAction: 'create' })).toBe('ok')
+    expect(dbMock.customer.findMany).not.toHaveBeenCalled()
+    expect(dbMock.customer.create).toHaveBeenCalledTimes(1)
+    expect(dbMock.appointment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'a1', tenantId: 't1', status: 'pending', customerId: null, isDeleted: false },
+      data: { customerId: 'new-cust', status: 'confirmed' },
+    })
   })
 
   it('create: iki es zamanli onaydan ikincisi (guncellenen satir 0) not_pending alir ve islem geri alinir', async () => {

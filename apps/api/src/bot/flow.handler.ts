@@ -8,6 +8,7 @@ import {
   createAppointment,
   cancelAppointmentByRef,
   ServiceNotFoundError,
+  SlotTooSoonForApprovalError,
   type AvailableSlot,
 } from './booking.service'
 
@@ -513,8 +514,9 @@ export class FlowHandler {
     const displayTime = ((session.entities as Record<string, unknown>)['_selectedTime'] as string) ?? ''
 
     let ref: string
+    let pendingApproval = false
     try {
-      ref = await createAppointment({
+      const created = await createAppointment({
         tenantId: session.tenantId,
         customerPhone: session.from,
         customerName: session.from,
@@ -522,11 +524,17 @@ export class FlowHandler {
         slotId,
         channel: session.channelType === 'telegram' ? 'telegram' : 'whatsapp',
       })
+      ref = created.referenceCode
+      pendingApproval = created.status === 'pending'
     } catch (error) {
       if (error instanceof ServiceNotFoundError) {
         session.entities.service = undefined
         session.step = 'awaiting_service'
         await channel.sendText(msg.from, 'Hizmeti doğrulayamadım, lütfen hizmeti yeniden seçin.')
+        return
+      }
+      if (error instanceof SlotTooSoonForApprovalError) {
+        await channel.sendText(msg.from, 'Bu saat çok yakın olduğu için talebinizi onaya gönderemiyorum. Lütfen salonu arayın ya da daha ileri bir saat seçin.')
         return
       }
       if (error instanceof SlotTakenError) {
@@ -540,7 +548,9 @@ export class FlowHandler {
 
     const dateStr = formatDateTR(slotId.split('__')[0].split('T')[0])
     const reply =
-      `✅ Randevunuz oluşturuldu!\n\n` +
+      (pendingApproval
+        ? `✅ Randevu talebiniz alındı! Salonumuz sizinle iletişime geçecek; 24 saat içinde onay almazsanız lütfen salonu arayın.\n\n`
+        : `✅ Randevunuz oluşturuldu!\n\n`) +
       `📋 *${service}*\n` +
       `📅 ${dateStr} saat ${displayTime}\n` +
       `👤 ${staffName}\n` +
@@ -574,7 +584,7 @@ export class FlowHandler {
     salon: SalonContext,
   ): Promise<void> {
     const refCode = msg.text.trim().toUpperCase()
-    const result = await cancelAppointmentByRef(session.tenantId, refCode, session.from)
+    const result = await cancelAppointmentByRef(session.tenantId, refCode, session.from, { exact: session.channelType === 'telegram' })
 
     if (result.ok) {
       const reply = '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'

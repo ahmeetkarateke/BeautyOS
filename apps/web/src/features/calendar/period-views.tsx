@@ -88,11 +88,14 @@ export function MonthView({ appointments, date, today, dayHref }: { appointments
           <Link
             key={day}
             href={dayHref(day)}
-            aria-label={`${dayMonth.format(noon(day))}, ${count === 0 ? 'randevu yok' : `${count} randevu`}`}
             className={cn('grid min-h-19 content-between border-t border-l border-border-subtle p-2 text-text no-underline hover:bg-surface-subtle', day === today && 'bg-primary-soft')}
           >
-            <span className={cn('tabular-nums', day === today && 'font-semibold')}>{dayNo.format(noon(day))}</span>
-            <span className="text-xs text-text-muted tabular-nums">{count === 0 ? '' : `${count} randevu`}</span>
+            {/* aria-label yok: görünür metin adın parçası olsun (axe label-content-name-mismatch). Ay adı ve boş gün gizli metindir. */}
+            <span className={cn('tabular-nums', day === today && 'font-semibold')}>
+              <span aria-hidden="true">{dayNo.format(noon(day))}</span>
+              <span className="sr-only">{dayMonth.format(noon(day))}</span>
+            </span>
+            <span className="text-xs text-text-muted tabular-nums">{count === 0 ? <span className="sr-only">randevu yok</span> : `${count} randevu`}</span>
           </Link>
         )
       })}

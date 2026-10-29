@@ -10,6 +10,7 @@ import { seedDefaultAnamnesisQuestions } from '../lib/anamnesis-seeder'
 import crypto from 'crypto'
 import { comparePassword, normalizeEmail } from '../lib/credentials'
 import { strongPassword } from '../lib/password-policy'
+import { createSession, rotateSession, revokeByToken, revokeFamily, revokeUserSessions, SESSION_TTL_MS } from '../lib/sessions'
 
 // E-posta şemada küçük harfe çevrilir ve TAM eşitlikle aranır. 'insensitive' (ILIKE) kullanılmaz: '_' ve '%' joker olur,
 // a_b@x.com adresi a.b@x.com hesabına eşleşirdi. Eski karışık harfli kayıtlar migration ile küçük harfe çevrildi.
@@ -30,9 +31,9 @@ const registerSchema = z.object({
   businessType: z.nativeEnum(BusinessType).optional(),
 })
 
+// Erişim token'ı herkes için (süper yönetici dahil) 15 dakika; oturumu `sid` (aile kimliği) taşır ve sunucuda iptal edilebilir (S6).
 const ACCESS_EXPIRY = '15m'
-const REFRESH_EXPIRY = '30d'
-const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
+const COOKIE_MAX_AGE = SESSION_TTL_MS
 
 function requireJwtSecret(): string {
   const s = process.env.JWT_SECRET
@@ -52,15 +53,17 @@ function parseCookies(header: string | undefined): Record<string, string> {
   )
 }
 
+// SameSite=Lax: web (app.) ve API (api.) aynı site olduğundan çapraz site gönderimi gerekmez (S6 K4); yol yalnız /api/v1/auth.
+function refreshCookieOptions() {
+  return { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api/v1/auth' }
+}
+
 function setRefreshCookie(res: Response, token: string) {
-  const isProd = process.env.NODE_ENV === 'production'
-  res.cookie('refreshToken', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    maxAge: COOKIE_MAX_AGE,
-    path: '/api/v1/auth',
-  })
+  res.cookie('refreshToken', token, { ...refreshCookieOptions(), maxAge: COOKIE_MAX_AGE })
+}
+
+function signAccessToken(secret: string, claims: { userId: string; tenantId?: string; tenantSlug?: string; role: string }, sid: string): string {
+  return jwt.sign({ ...claims, sid }, secret, { expiresIn: ACCESS_EXPIRY })
 }
 
 export function createAuthRouter(options?: { registerLimitMax?: number }): Router {
@@ -139,11 +142,10 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       }
 
       const jwtSecret = requireJwtSecret()
-      const payload = { userId: user.id, tenantId: tenant.id, tenantSlug: tenant.slug, role: user.role }
-      const token = jwt.sign(payload, jwtSecret, { expiresIn: ACCESS_EXPIRY })
-      const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
+      const session = await createSession(user.id, tenant.id)
+      const token = signAccessToken(jwtSecret, { userId: user.id, tenantId: tenant.id, tenantSlug: tenant.slug, role: user.role }, session.familyId)
 
-      setRefreshCookie(res, refreshToken)
+      setRefreshCookie(res, session.refreshToken)
 
       void sendWelcomeEmail(email, salonName, trialEndsAt)
 
@@ -189,17 +191,14 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Tenant bulunamadı.' } })
       }
 
-      const payload = {
-        userId: user.id,
-        tenantId: user.tenantId ?? undefined,
-        tenantSlug: user.tenant.slug,
-        role: user.role,
-      }
+      const session = await createSession(user.id, user.tenantId)
+      const token = signAccessToken(
+        jwtSecret,
+        { userId: user.id, tenantId: user.tenantId ?? undefined, tenantSlug: user.tenant.slug, role: user.role },
+        session.familyId,
+      )
 
-      const token = jwt.sign(payload, jwtSecret, { expiresIn: ACCESS_EXPIRY })
-      const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
-
-      setRefreshCookie(res, refreshToken)
+      setRefreshCookie(res, session.refreshToken)
 
       return res.json({
         token,
@@ -218,46 +217,38 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
 
   router.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const cookies = parseCookies(req.headers.cookie)
-      const refreshToken = cookies['refreshToken']
-
+      const refreshToken = parseCookies(req.headers.cookie)['refreshToken']
       if (!refreshToken) {
         return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Refresh token bulunamadı.' } })
       }
 
       const jwtSecret = requireJwtSecret()
 
-      let decoded: { userId: string; type: string }
-      try {
-        decoded = jwt.verify(refreshToken, jwtSecret) as { userId: string; type: string }
-      } catch {
+      // Opak token döndürülür; kullanılmış token tekrar gelirse aile iptal edilir (S6 K1). Eski imzalı JWT çerezleri geçersizdir.
+      const rotated = await rotateSession(refreshToken)
+      if (!rotated.ok) {
         return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Refresh token geçersiz veya süresi dolmuş.' } })
       }
 
-      if (decoded.type !== 'refresh') {
-        return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Geçersiz token türü.' } })
-      }
-
+      // Pasifleştirilmiş kullanıcı yenileyemez (K3): ailesi de kapatılır.
       const user = await db.user.findFirst({
-        where: { id: decoded.userId, isActive: true },
+        where: { id: rotated.userId, isActive: true },
         include: { tenant: { select: { slug: true } } },
       })
-
       if (!user) {
+        await revokeFamily(rotated.familyId)
         return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Kullanıcı bulunamadı veya devre dışı.' } })
       }
 
-      const payload = {
-        userId: user.id,
-        tenantId: user.tenantId ?? undefined,
-        tenantSlug: user.tenant?.slug,
-        role: user.role,
-      }
+      const newToken = signAccessToken(
+        jwtSecret,
+        user.role === 'superadmin'
+          ? { userId: user.id, role: user.role }
+          : { userId: user.id, tenantId: user.tenantId ?? undefined, tenantSlug: user.tenant?.slug, role: user.role },
+        rotated.familyId,
+      )
 
-      const newToken = jwt.sign(payload, jwtSecret, { expiresIn: ACCESS_EXPIRY })
-      const newRefreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
-
-      setRefreshCookie(res, newRefreshToken)
+      setRefreshCookie(res, rotated.refreshToken)
 
       return res.json({ token: newToken })
     } catch (err) {
@@ -284,11 +275,11 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       }
 
       const jwtSecret = requireJwtSecret()
-      const payload = { userId: user.id, role: 'superadmin' }
-      const token = jwt.sign(payload, jwtSecret, { expiresIn: '7d' })
-      const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, jwtSecret, { expiresIn: REFRESH_EXPIRY })
+      // Süper yönetici erişimi de 15 dakika (K5); yenileme çerezi ve iptal edilebilir oturum ile.
+      const session = await createSession(user.id, null)
+      const token = signAccessToken(jwtSecret, { userId: user.id, role: 'superadmin' }, session.familyId)
 
-      setRefreshCookie(res, refreshToken)
+      setRefreshCookie(res, session.refreshToken)
 
       return res.json({
         token,
@@ -366,6 +357,8 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         db.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
         db.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: now } }),
       ])
+      // Şifre sıfırlanınca tüm cihazlardaki oturumlar kapanır (K2).
+      await revokeUserSessions(resetToken.userId)
 
       return res.json({ ok: true })
     } catch (err) {
@@ -373,14 +366,15 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     }
   })
 
-  router.post('/logout', (req: Request, res: Response) => {
-    const isProd = process.env.NODE_ENV === 'production'
-    res.clearCookie('refreshToken', {
-      path: '/api/v1/auth',
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax',
-    })
-    return res.json({ ok: true })
+  router.post('/logout', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const refreshToken = parseCookies(req.headers.cookie)['refreshToken']
+      if (refreshToken) await revokeByToken(refreshToken)
+      res.clearCookie('refreshToken', refreshCookieOptions())
+      return res.json({ ok: true })
+    } catch (err) {
+      next(err)
+    }
   })
 
   return router

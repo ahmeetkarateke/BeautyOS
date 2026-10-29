@@ -204,8 +204,10 @@ describe('W12 Takvim', () => {
     search = 'gorunum=ay'
     mount()
     const month = await screen.findByRole('group', { name: 'Ay görünümü' })
-    const cell = within(month).getByRole('link', { name: /28 Ekim, 3 randevu/ })
+    const cell = within(month).getByRole('link', { name: /28 Ekim.*3 randevu/ })
     expect(cell.getAttribute('href')).toContain('tarih=2026-10-28')
+    // axe label-content-name-mismatch: aria-label görünür metinle çelişmesin; ad içerikten gelir.
+    expect(within(month).getAllByRole('link').every((link) => !link.hasAttribute('aria-label'))).toBe(true)
   })
 
   it('K-gezinme: sonraki gün ve bugün düğmeleri adresi günceller', async () => {
@@ -284,6 +286,19 @@ describe('W13 takvimden randevu oluşturma', () => {
     mount()
     await screen.findByTestId('randevu-a1')
     expect(screen.queryByRole('dialog', { name: 'Randevu oluştur' })).toBeNull()
+  })
+})
+
+
+describe('W12 erişilebilirlik (kabul H1/H2)', () => {
+  it('gün şeridi düğmeleri aria-label taşımaz; ad gizli metinden gelir ve görünür metin soluk opaklıkla çizilmez', async () => {
+    mount()
+    await screen.findByTestId('randevu-a1')
+    const strip = screen.getByRole('group', { name: 'Gün seçin' })
+    const buttons = within(strip).getAllByRole('button')
+    expect(buttons.every((b) => !b.hasAttribute('aria-label'))).toBe(true)
+    expect(within(strip).getByRole('button', { name: 'Çar 28' })).toBeTruthy()
+    expect(strip.innerHTML).not.toContain('opacity-75')
   })
 })
 

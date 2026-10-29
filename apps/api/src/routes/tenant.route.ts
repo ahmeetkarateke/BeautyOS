@@ -13,6 +13,9 @@ import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission, ensurePermission } from '../middleware/permission'
 import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
+import { phoneInUse } from '../lib/customer-phone'
+import { normalizePhoneTR } from '../lib/sms/types'
+import { revokeUserSessions } from '../lib/sessions'
 import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
@@ -742,6 +745,8 @@ export function createTenantRouter(): Router {
     phone: z.string().trim().min(7).max(20),
     email: z.string().trim().email().optional(),
     birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    // ADR-0038: ayni telefon bilincli olarak paylasilabilir (aile). Bayrak yoksa eski 409 davranisi.
+    allowSharedPhone: z.boolean().optional(),
   })
 
   router.post('/customers', async (req: Request, res: Response, next: NextFunction) => {
@@ -753,41 +758,43 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz müşteri verisi.' } })
       }
 
-      const { fullName, phone, email, birthDate } = parsed.data
-
-      try {
-        const customer = await db.customer.create({
-          data: {
-            tenantId,
-            fullName,
-            phone,
-            email,
-            birthDate: birthDate ? new Date(birthDate) : undefined,
-          },
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-            totalVisits: true,
-            createdAt: true,
-          },
-        })
-
-        return res.status(201).json({
-          id: customer.id,
-          fullName: customer.fullName,
-          phone: customer.phone,
-          email: customer.email,
-          totalVisits: customer.totalVisits,
-          createdAt: customer.createdAt.toISOString(),
-        })
-      } catch (dbErr: unknown) {
-        if ((dbErr as { code?: string }).code === 'P2002') {
-          return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
-        }
-        throw dbErr
+      const { fullName, email, birthDate, allowSharedPhone } = parsed.data
+      // Telefon her yerde normalize saklanır (ADR-0038); biçimi tanınmayan numara reddedilir.
+      const phone = normalizePhoneTR(parsed.data.phone)
+      if (!phone) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir telefon numarası girin.' } })
       }
+
+      if (!allowSharedPhone && (await phoneInUse(db, tenantId, phone))) {
+        return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
+      }
+
+      const customer = await db.customer.create({
+        data: {
+          tenantId,
+          fullName,
+          phone,
+          email,
+          birthDate: birthDate ? new Date(birthDate) : undefined,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          totalVisits: true,
+          createdAt: true,
+        },
+      })
+
+      return res.status(201).json({
+        id: customer.id,
+        fullName: customer.fullName,
+        phone: customer.phone,
+        email: customer.email,
+        totalVisits: customer.totalVisits,
+        createdAt: customer.createdAt.toISOString(),
+      })
     } catch (err) {
       next(err)
     }
@@ -1389,6 +1396,8 @@ export function createTenantRouter(): Router {
 
       const newHash = await bcrypt.hash(newPassword, 12)
       await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } })
+      // Şifre değişince kullanıcının tüm oturumları kapanır (S6 K2).
+      await revokeUserSessions(userId)
 
       return res.json({ ok: true })
     } catch (err) {
@@ -1664,6 +1673,8 @@ export function createTenantRouter(): Router {
       }
 
       await db.user.update({ where: { id: profile.userId }, data: { isActive: false } })
+      // Pasifleştirilen kullanıcının oturumları hemen kapanır (S6 K2).
+      await revokeUserSessions(profile.userId)
 
       return res.json({ ok: true })
     } catch (err) {
@@ -1680,6 +1691,7 @@ export function createTenantRouter(): Router {
     birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
     allergyNotes: noXss(500).optional().nullable(),
     preferenceNotes: noXss(500).optional().nullable(),
+    allowSharedPhone: z.boolean().optional(),
   })
 
   router.patch('/customers/:customerId', requirePermission('customer.write'), async (req: Request, res: Response, next: NextFunction) => {
@@ -1697,40 +1709,50 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
       }
 
-      const { birthDate, ...rest } = parsed.data
+      const { birthDate, allowSharedPhone, ...rest } = parsed.data
       // Sağlık verisi (alerji notu) yalnız health.write ile yazılır (R9).
       if (rest.allergyNotes !== undefined && !can(req.user!.role, 'health.write')) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
-      try {
-        const updated = await db.customer.update({
-          where: { id: customerId },
-          data: {
-            ...rest,
-            ...(birthDate !== undefined ? { birthDate: birthDate ? new Date(birthDate) : null } : {}),
-          },
-          select: {
-            id: true, fullName: true, phone: true, email: true,
-            birthDate: true, allergyNotes: true, preferenceNotes: true,
-            totalVisits: true, segment: true, lastVisitAt: true, createdAt: true,
-          },
-        })
-
-        const { allergyNotes, ...updatedPublic } = updated
-        return res.json({
-          ...updatedPublic,
-          ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
-          birthDate: updated.birthDate?.toISOString() ?? null,
-          lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
-          createdAt: updated.createdAt.toISOString(),
-        })
-      } catch (dbErr: unknown) {
-        if ((dbErr as { code?: string }).code === 'P2002') {
-          return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
-        }
-        throw dbErr
+      // Telefon her yerde normalize saklanır (ADR-0038); biçimi tanınmayan numara reddedilir.
+      // Telefon değişmiyorsa (Telegram sohbet no, sabit hat gibi normalize edilemeyen mevcut kayıtlar dahil) doğrulama ve yazma yok.
+      if (rest.phone !== undefined && rest.phone === existing.phone) {
+        delete rest.phone
       }
+      if (rest.phone !== undefined) {
+        const normalized = normalizePhoneTR(rest.phone)
+        if (!normalized) {
+          return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir telefon numarası girin.' } })
+        }
+        rest.phone = normalized === existing.phone ? undefined : normalized
+      }
+
+      if (rest.phone !== undefined && rest.phone !== existing.phone && !allowSharedPhone && (await phoneInUse(db, tenantId, rest.phone, customerId))) {
+        return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
+      }
+
+      const updated = await db.customer.update({
+        where: { id: customerId },
+        data: {
+          ...rest,
+          ...(birthDate !== undefined ? { birthDate: birthDate ? new Date(birthDate) : null } : {}),
+        },
+        select: {
+          id: true, fullName: true, phone: true, email: true,
+          birthDate: true, allergyNotes: true, preferenceNotes: true,
+          totalVisits: true, segment: true, lastVisitAt: true, createdAt: true,
+        },
+      })
+
+      const { allergyNotes, ...updatedPublic } = updated
+      return res.json({
+        ...updatedPublic,
+        ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
+        birthDate: updated.birthDate?.toISOString() ?? null,
+        lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
+        createdAt: updated.createdAt.toISOString(),
+      })
     } catch (err) {
       next(err)
     }
