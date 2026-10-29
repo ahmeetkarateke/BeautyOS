@@ -76,13 +76,20 @@ fi
 while IFS='=' read -r anahtar deger; do
   case "$anahtar" in
     '' | \#*) continue ;;
-    NEXT_PUBLIC_API_URL_PROD | NEXT_PUBLIC_API_URL_STAGING | NEXT_PUBLIC_TURNSTILE_SITE_KEY | NEXT_PUBLIC_BOT_FEATURES_ENABLED)
+    NEXT_PUBLIC_API_URL_PROD | NEXT_PUBLIC_API_URL_STAGING | NEXT_PUBLIC_TURNSTILE_SITE_KEY | NEXT_PUBLIC_BOT_FEATURES_ENABLED | NEXT_PUBLIC_UI_V2_PROD | NEXT_PUBLIC_UI_V2_STAGING)
       DEGER[$anahtar]="$deger" ;;
     *) hata "derleme.conf içinde bilinmeyen anahtar: $anahtar"; exit 1 ;;
   esac
 done <"$AGAC/deploy/derleme.conf"
 for zorunlu in NEXT_PUBLIC_API_URL_PROD NEXT_PUBLIC_API_URL_STAGING; do
   [ -n "${DEGER[$zorunlu]:-}" ] || { hata "derleme.conf: $zorunlu boş"; exit 1; }
+done
+# Yüzey bayrağı: boş ya da tanımsız geçerlidir (v2 kapalı); doluysa yalnız [a-z,] (docker build-arg'a güvenli girer).
+for bayrak in NEXT_PUBLIC_UI_V2_PROD NEXT_PUBLIC_UI_V2_STAGING; do
+  if ! [[ "${DEGER[$bayrak]:-}" =~ ^[a-z,]*$ ]]; then
+    hata "derleme.conf: $bayrak yalnız küçük harf ve virgül içerebilir"
+    exit 1
+  fi
 done
 
 # ─── K4: sınırlı builder (olmazsa gerekçesiyle varsayılan builder) ────────────────
@@ -134,17 +141,18 @@ insa() { # ad etiket dockerfile [ek argümanlar...]
   SURELER+=("$ad $((SECONDS - t0)) sn")
 }
 
-web_argumanlari() { # api_url
+web_argumanlari() { # api_url ui_v2
   printf '%s\n' --build-arg "NEXT_PUBLIC_API_URL=$1" \
+    --build-arg "NEXT_PUBLIC_UI_V2=${2:-}" \
     --build-arg "NEXT_PUBLIC_TURNSTILE_SITE_KEY=${DEGER[NEXT_PUBLIC_TURNSTILE_SITE_KEY]:-}" \
     --build-arg "NEXT_PUBLIC_BOT_FEATURES_ENABLED=${DEGER[NEXT_PUBLIC_BOT_FEATURES_ENABLED]:-false}" \
     --build-arg "NODE_HEAP_MB=$WEB_HEAP_MB"
 }
 
 insa api "beautyos-api:$SHA12" apps/api/Dockerfile
-mapfile -t ARG_PROD < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_PROD]}")
+mapfile -t ARG_PROD < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_PROD]}" "${DEGER[NEXT_PUBLIC_UI_V2_PROD]:-}")
 insa web-prod "beautyos-web:${SHA12}-prod" apps/web/Dockerfile "${ARG_PROD[@]}"
-mapfile -t ARG_STAGING < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_STAGING]}")
+mapfile -t ARG_STAGING < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_STAGING]}" "${DEGER[NEXT_PUBLIC_UI_V2_STAGING]:-}")
 insa web-staging "beautyos-web:${SHA12}-staging" apps/web/Dockerfile "${ARG_STAGING[@]}"
 
 # ─── K3: etiket doğrulaması ──────────────────────────────────────────────────────
