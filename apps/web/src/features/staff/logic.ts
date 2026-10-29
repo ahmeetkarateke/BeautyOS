@@ -43,6 +43,9 @@ export function validateHours(rows: readonly HourRow[]): Record<string, string> 
   return errors
 }
 
+export const usesSalonHours = (_rows: readonly HourRow[]): boolean => false
+export const salonRows = (_value: unknown): HourRow[] => []
+
 export function hoursBody(rows: readonly HourRow[]): Record<string, unknown> {
   return Object.fromEntries(rows.map((row) => [row.key, row.open ? { start: row.start, end: row.end } : null]))
 }
