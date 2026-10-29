@@ -289,7 +289,6 @@ describe('W13 takvimden randevu oluşturma', () => {
   })
 })
 
-describe('W12-1 Önemli: sessiz randevu kaybı olmaz', () => {
 
 describe('W12 erişilebilirlik (kabul H1/H2)', () => {
   it('gün şeridi düğmeleri aria-label taşımaz; ad gizli metinden gelir ve görünür metin soluk opaklıkla çizilmez', async () => {
@@ -303,7 +302,7 @@ describe('W12 erişilebilirlik (kabul H1/H2)', () => {
   })
 })
 
-describe('W13 takvimden: sessiz randevu kaybı olmaz', () => {
+describe('W12-1 Önemli: sessiz randevu kaybı olmaz', () => {
   it('masaüstünde personel listesi hata verirse hata ve Yeniden dene görünür; boş ızgara çizilmez', async () => {
     desktop = true
     staffError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
