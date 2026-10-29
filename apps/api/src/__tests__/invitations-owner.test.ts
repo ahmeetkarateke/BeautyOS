@@ -13,6 +13,7 @@ const emailMock = vi.hoisted(() => ({ sendInvitationEmail: vi.fn(), isEmailConfi
 
 vi.mock('../lib/db', () => ({ db: dbMock }))
 vi.mock('../lib/email', () => emailMock)
+vi.mock('../lib/queue', () => ({ remindersQueue: { add: vi.fn(), remove: vi.fn() } }))
 vi.mock('../middleware/auth.middleware', () => ({
   authenticateJWT: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = { userId: 'u1', tenantId: 't1', tenantSlug: 'salon', role: String(req.headers['x-role']) } as never
@@ -141,12 +142,12 @@ describe('POST /invitations', () => {
 describe('GET /invitations', () => {
   it('bekleyenleri token ve ozet olmadan listeler; sorgu kiraciya baglidir', async () => {
     dbMock.invitation.findMany.mockResolvedValue([
-      { id: ID, email: 'a@x.com', fullName: 'A', role: 'staff', title: null, expiresAt: new Date(Date.now() + 1000), createdAt: new Date(), tokenHash: 'gizli' },
+      { id: ID, email: 'a@x.com', fullName: 'A', role: 'staff', title: null, expiresAt: new Date(Date.now() + 1000), createdAt: new Date() },
     ])
     const res = await request(app).get(BASE).set(as('owner'))
     expect(res.status).toBe(200)
-    expect(JSON.stringify(res.body)).not.toContain('gizli')
     expect(JSON.stringify(res.body)).not.toContain('tokenHash')
+    expect(dbMock.invitation.findMany.mock.calls[0][0].select).not.toHaveProperty('tokenHash')
     expect(dbMock.invitation.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: 't1', acceptedAt: null, revokedAt: null })
   })
 

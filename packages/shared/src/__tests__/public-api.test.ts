@@ -57,3 +57,10 @@ describe('izin tablosu', () => {
     )
   })
 })
+
+describe('staff.invite izni (ADR-0042)', () => {
+  it('yalniz owner davet acabilir', () => {
+    expect(shared.can('owner', 'staff.invite')).toBe(true)
+    for (const role of ['manager', 'receptionist', 'staff', 'superadmin']) expect(shared.can(role, 'staff.invite')).toBe(false)
+  })
+})

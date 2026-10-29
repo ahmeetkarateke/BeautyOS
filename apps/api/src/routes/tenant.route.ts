@@ -46,7 +46,7 @@ function httpsOnlyUrl() {
 type DaySchedule = { start: string; end: string } | null
 type WorkingHoursMap = { monday: DaySchedule; tuesday: DaySchedule; wednesday: DaySchedule; thursday: DaySchedule; friday: DaySchedule; saturday: DaySchedule; sunday: DaySchedule }
 
-function resolveTenantWorkingHours(value: unknown): WorkingHoursMap {
+export function resolveTenantWorkingHours(value: unknown): WorkingHoursMap {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>
     if ('monday' in obj || 'sunday' in obj) {
