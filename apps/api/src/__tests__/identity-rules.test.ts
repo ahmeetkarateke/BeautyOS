@@ -77,6 +77,16 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
     expect(ok.status).toBe(200)
   })
 
+  it('K2 (ILIKE joker): % iceren adres hicbir hesapla eslesmez; giris 200 olmaz, sifirlama token olusturmaz', async () => {
+    const real = await createTestOwner(tenantA.id, tenantA.slug, `pct${suffix}`)
+    const wild = `%${suffix}@test.local`
+    const login = await request(app).post('/api/v1/auth/login').send({ email: wild, password: real.password })
+    expect(login.status).not.toBe(200)
+    const forgot = await request(app).post('/api/v1/auth/forgot-password').send({ email: wild })
+    expect(forgot.status).not.toBe(500)
+    expect(await db.passwordResetToken.count({ where: { userId: real.user.id } })).toBe(0)
+  })
+
   it('K2: kayit e-postayi kucuk harfle saklar; farkli harf bicimiyle giris ve ikinci kayit denemesi (409) calisir', async () => {
     const email = `Kayit.Karma-${suffix}@Test.LOCAL`
     const register = await request(app)

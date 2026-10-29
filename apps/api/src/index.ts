@@ -28,6 +28,7 @@ import { TenantRegistry } from './lib/tenant.registry'
 import { startReminderWorker } from './lib/queue'
 import { db } from './lib/db'
 import { logger } from './lib/logger'
+import { getDummyHash } from './lib/credentials'
 export { createApp } from './app'
 
 
@@ -140,6 +141,9 @@ async function bootstrap(): Promise<void> {
   })
 
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
+
+  // Sahte bcrypt özeti açılışta üretilir: ilk "kullanıcı yok" isteği ek ~250 ms ile ayırt edilmesin.
+  void getDummyHash()
 
   startReminderWorker()
   logger.info('BullMQ hatırlatma worker başlatıldı')
