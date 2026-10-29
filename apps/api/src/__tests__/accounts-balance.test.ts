@@ -142,6 +142,15 @@ describe('POST /transactions/transfer pasif hesap', () => {
     expect(T()).toHaveLength(0)
   })
 
+  it('baska kiracinin (aktif, var olan) hesabi KAYNAK olarak gonderilirse 400 INVALID_ACCOUNT, hareket yazilmaz', async () => {
+    seed(true, true)
+    A().find((a) => a.id === U1)!.tenantId = 't2'
+    const res = await request(app).post(`${BASE}/transactions/transfer`).send(body)
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_ACCOUNT')
+    expect(T()).toHaveLength(0)
+  })
+
   it('pasif hedef hesap 400 INVALID_ACCOUNT, hareket yazilmaz', async () => {
     seed(true, false)
     const res = await request(app).post(`${BASE}/transactions/transfer`).send(body)
