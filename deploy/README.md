@@ -42,6 +42,7 @@ Sunucuda `git` kurulu olmalıdır (yalnız commit kimliğini okumak için; ağa 
 Üretilen imajlar: `beautyos-api:<sha12>`, `beautyos-web:<sha12>-prod`, `beautyos-web:<sha12>-staging`.
 Web değerleri paketteki `deploy/derleme.conf` dosyasından gelir. Yeni arayüz yüzey bayrağı `NEXT_PUBLIC_UI_V2_PROD` / `_STAGING` ilgili
 web imajına `NEXT_PUBLIC_UI_V2` olarak geçer; boş ya da tanımsız = v2 kapalı, değer yalnız `[a-z,]` olabilir (aksi halde derleme başlamadan durur).
+Staging'de şu an yalnız `panel` açıktır; yüzeyler (auth, book, site, admin) HAZIR oldukça eklenir. Yer tutucu sayfalı bir yüzeyin açılması staging'i kullanılamaz yapar (2e551d6'da görüldü).
 Tasarım sistemi vitrini (`/v2/tasarim-sistemi`) için `NEXT_PUBLIC_UI_V2_SHOWCASE_STAGING=1` yalnız staging imajına `NEXT_PUBLIC_UI_V2_SHOWCASE` olarak geçer;
 canlı için `..._SHOWCASE_PROD` ya da `..._SHOWCASE` anahtarı tanımlanamaz (derle.sh derlemeyi durdurur). İlk canlı yayından sonra `/v2/tasarim-sistemi` adresinin 404 döndüğü yayın kaydına yazılır.. Derleme sırasında tepe bellek, swap ve canlı api sağlığı raporlanır.
 Aynı sürümü yeniden derlemek için o paketin `agac/` dizininin önce temizlenmesi gerekir (betik dolu `agac/` üzerine yazmaz).
