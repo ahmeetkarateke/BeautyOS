@@ -2,7 +2,7 @@
 #   docker build -f apps/api/Dockerfile -t beautyos-api:<surum> .
 # Taban imaj sabit etiketlidir; güvenlik yamaları için düzenli olarak yükseltilir.
 
-FROM node:20.20.2-bookworm-slim AS base
+FROM node:22.22.3-bookworm-slim AS base
 # Prisma motoru openssl 3 ister; slim imajda yoktur.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
