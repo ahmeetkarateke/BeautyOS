@@ -25,10 +25,14 @@ vi.mock('../lib/online-booking', () => ({
 
 import { createBookingManageRouter } from '../routes/bookings-public.route'
 
-const app = express().use(express.json()).use('/api/v1/public/bookings', createBookingManageRouter())
+const app = express().use(express.json()).use('/api/v1/public/bookings', createBookingManageRouter({ limitMax: 10_000 }))
 const TOKEN = 'M'.repeat(43)
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const H = 3_600_000
+// findFirst iki sorguya hizmet eder: token ile randevu aramasi ve cakisma aramasi (token yok).
+let conflictResult: unknown = null
+const setBooking = (b: unknown) =>
+  m.db.appointment.findFirst.mockImplementation(async ({ where }: { where: { manageTokenHash?: string } }) => (where.manageTokenHash ? b : conflictResult))
 const post = (path: string, body: object = { token: TOKEN }) => request(app).post(`/api/v1/public/bookings/${path}`).send(body)
 
 function booking(over: Record<string, unknown> = {}) {
@@ -45,7 +49,8 @@ function booking(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  m.db.appointment.findFirst.mockResolvedValue(booking())
+  conflictResult = null
+  setBooking(booking())
   m.db.appointment.updateMany.mockResolvedValue({ count: 1 })
   m.db.appointment.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'a1', ...data }))
   m.db.staffProfile.findFirst.mockResolvedValue({ id: 's1' })
@@ -74,34 +79,34 @@ describe('POST /public/bookings/lookup', () => {
   })
 
   it('bilinmeyen / suresi dolmus token tek yanit: 404 BOOKING_NOT_FOUND', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(null)
+    setBooking(null)
     const res = await post('lookup', { token: 'X'.repeat(43) })
     expect(res.status).toBe(404)
     expect(res.body.error.code).toBe('BOOKING_NOT_FOUND')
   })
 
   it('2 saatten az kalmis randevu: canModify false', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ startAt: new Date(Date.now() + 1 * H), endAt: new Date(Date.now() + 2 * H) }))
+    setBooking(booking({ startAt: new Date(Date.now() + 1 * H), endAt: new Date(Date.now() + 2 * H) }))
     expect((await post('lookup')).body.canModify).toBe(false)
   })
 
   it('iptal edilmis randevu: canModify false', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ status: 'cancelled' }))
+    setBooking(booking({ status: 'cancelled' }))
     expect((await post('lookup')).body.canModify).toBe(false)
   })
 
   it('fiyat: klinik turunde (dentist) varsayilan kapali, `price` anahtari hic yok', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: {} } }))
+    setBooking(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: {} } }))
     const res = await post('lookup')
     expect(res.body.appointment).not.toHaveProperty('price')
   })
 
   it('fiyat: klinik ayari acarsa gorunur; klinik olmayan tur varsayilan acik; ayar kapatirsa yok', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: { showPricesOnline: true } } }))
+    setBooking(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: { showPricesOnline: true } } }))
     expect((await post('lookup')).body.appointment.price).toBe(250)
-    m.db.appointment.findFirst.mockResolvedValue(booking())
+    setBooking(booking())
     expect((await post('lookup')).body.appointment.price).toBe(250)
-    m.db.appointment.findFirst.mockResolvedValue(booking({ tenant: { name: 'S', slug: 's', businessType: 'hair_salon', settings: { showPricesOnline: false } } }))
+    setBooking(booking({ tenant: { name: 'S', slug: 's', businessType: 'hair_salon', settings: { showPricesOnline: false } } }))
     const hidden = await post('lookup')
     expect(hidden.body.appointment).not.toHaveProperty('price')
   })
@@ -142,7 +147,7 @@ describe('POST /public/bookings/cancel', () => {
   })
 
   it('2 saatten az kalmis: 409 MODIFY_WINDOW_CLOSED, iptal yazilmaz', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ startAt: new Date(Date.now() + 1 * H), endAt: new Date(Date.now() + 2 * H) }))
+    setBooking(booking({ startAt: new Date(Date.now() + 1 * H), endAt: new Date(Date.now() + 2 * H) }))
     const res = await post('cancel')
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('MODIFY_WINDOW_CLOSED')
@@ -151,15 +156,15 @@ describe('POST /public/bookings/cancel', () => {
 
   it('2 saat sinirinin 1 dakika oncesi gecer, 1 dakika sonrasi kapali', async () => {
     const before = new Date(Date.now() + 2 * H + 60_000)
-    m.db.appointment.findFirst.mockResolvedValue(booking({ startAt: before, endAt: new Date(before.getTime() + H) }))
+    setBooking(booking({ startAt: before, endAt: new Date(before.getTime() + H) }))
     expect((await post('cancel')).status).toBe(200)
     const after = new Date(Date.now() + 2 * H - 60_000)
-    m.db.appointment.findFirst.mockResolvedValue(booking({ startAt: after, endAt: new Date(after.getTime() + H) }))
+    setBooking(booking({ startAt: after, endAt: new Date(after.getTime() + H) }))
     expect((await post('cancel')).status).toBe(409)
   })
 
   it.each(['completed', 'cancelled', 'no_show', 'in_progress'])('%s durumundaki randevu: 409 BOOKING_NOT_MODIFIABLE', async (status) => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ status }))
+    setBooking(booking({ status }))
     const res = await post('cancel')
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('BOOKING_NOT_MODIFIABLE')
@@ -167,7 +172,7 @@ describe('POST /public/bookings/cancel', () => {
   })
 
   it('gecersiz token 404 BOOKING_NOT_FOUND', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(null)
+    setBooking(null)
     const res = await post('cancel')
     expect(res.status).toBe(404)
     expect(res.body.error.code).toBe('BOOKING_NOT_FOUND')
@@ -199,7 +204,7 @@ describe('POST /public/bookings/reschedule', () => {
   })
 
   it('elle onay modunda (klinik varsayilani) yeniden pending olur, onay suresi dolumu kurulur, hatirlatma kurulmaz', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: {} } }))
+    setBooking(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: {} } }))
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(200)
     expect(m.db.appointment.update.mock.calls[0][0].data.status).toBe('pending')
@@ -208,13 +213,13 @@ describe('POST /public/bookings/reschedule', () => {
   })
 
   it('musterisiz (dogrulanmamis) talep her zaman pending kalir', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ customerId: null, status: 'pending' }))
+    setBooking(booking({ customerId: null, status: 'pending' }))
     await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(m.db.appointment.update.mock.calls[0][0].data.status).toBe('pending')
   })
 
   it('cakisma (ayni personelde dolu saat): 409 SLOT_TAKEN, yazilmaz', async () => {
-    m.db.appointment.findFirst.mockResolvedValueOnce(booking()).mockResolvedValueOnce({ id: 'baska' })
+    conflictResult = { id: 'baska' }
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('SLOT_TAKEN')
@@ -228,7 +233,7 @@ describe('POST /public/bookings/reschedule', () => {
   })
 
   it('2 saatten az kalmis randevu: 409 MODIFY_WINDOW_CLOSED', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ startAt: new Date(Date.now() + 1 * H), endAt: new Date(Date.now() + 2 * H) }))
+    setBooking(booking({ startAt: new Date(Date.now() + 1 * H), endAt: new Date(Date.now() + 2 * H) }))
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('MODIFY_WINDOW_CLOSED')
@@ -251,7 +256,7 @@ describe('POST /public/bookings/reschedule', () => {
   })
 
   it('tamamlanmis randevu: 409 BOOKING_NOT_MODIFIABLE', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ status: 'completed' }))
+    setBooking(booking({ status: 'completed' }))
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('BOOKING_NOT_MODIFIABLE')
@@ -272,14 +277,14 @@ describe('POST /public/bookings/calendar', () => {
   })
 
   it('klinikte ozet yalniz "Randevu": hizmet adi gecmez', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(booking({ tenant: { name: 'K', slug: 'k', businessType: 'aesthetic_clinic', settings: {} } }))
+    setBooking(booking({ tenant: { name: 'K', slug: 'k', businessType: 'aesthetic_clinic', settings: {} } }))
     const res = await post('calendar')
     expect(res.text).toContain('SUMMARY:Randevu')
     expect(res.text).not.toContain('Sac Boyama')
   })
 
   it('gecersiz token 404 BOOKING_NOT_FOUND', async () => {
-    m.db.appointment.findFirst.mockResolvedValue(null)
+    setBooking(null)
     expect((await post('calendar')).status).toBe(404)
   })
 })
@@ -287,7 +292,7 @@ describe('POST /public/bookings/calendar', () => {
 describe('hiz siniri', () => {
   it('IP basina 15 dakikada 30 istek: 31. istek 429', async () => {
     const limited = express().use(express.json()).use('/b', createBookingManageRouter({ limitMax: 30 }))
-    m.db.appointment.findFirst.mockResolvedValue(null)
+    setBooking(null)
     let last = 0
     for (let i = 0; i < 31; i++) last = (await request(limited).post('/b/lookup').send({ token: TOKEN })).status
     expect(last).toBe(429)

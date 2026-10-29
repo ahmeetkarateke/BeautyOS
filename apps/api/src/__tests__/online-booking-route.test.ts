@@ -5,7 +5,7 @@ import express from 'express'
 // Bu dosya veritabani ve Redis gerektirmez: db, kuyruk, Turnstile ve SMS sahtelenir.
 const dbMock = vi.hoisted(() => ({
   tenant: { findUnique: vi.fn() },
-  service: { findFirst: vi.fn() },
+  service: { findFirst: vi.fn(), findMany: vi.fn() },
   staffProfile: { findFirst: vi.fn() },
   appointment: { count: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
   customer: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -420,5 +420,57 @@ describe('S2 sms modu: dogrulama ve T3 devrede', () => {
   it('GET /tenant bookingMode=verified doner', async () => {
     const res = await request(makeApp()).get('/api/v1/tenants/salon/public/tenant')
     expect(res.body.bookingMode).toBe('verified')
+  })
+})
+
+describe('A7 (ADR-0043): online fiyat ve musteri baglantisi', () => {
+  const svcRow = { id: SERVICE_ID, name: 'Sac', durationMinutes: 60, category: null, price: 150 }
+  const services = (app: express.Express) => request(app).get('/api/v1/tenants/salon/public/services')
+
+  beforeEach(() => {
+    dbMock.service.findMany.mockReset().mockResolvedValue([svcRow])
+  })
+
+  it('klinik olmayan tur varsayilan: /public/services fiyat dondurur', async () => {
+    const res = await services(makeApp())
+    expect(res.status).toBe(200)
+    expect(res.body.data[0].price).toBe(150)
+  })
+
+  it('klinik turu (dentist) varsayilan: fiyat anahtari hic yok (null da degil)', async () => {
+    setTenant({}, 'dentist')
+    const res = await services(makeApp())
+    expect(res.body.data[0]).not.toHaveProperty('price')
+  })
+
+  it('klinik ayari showPricesOnline:true acarsa fiyat gorunur; klinik olmayan tur ayarla kapatabilir', async () => {
+    setTenant({ showPricesOnline: true }, 'dentist')
+    expect((await services(makeApp())).body.data[0].price).toBe(150)
+    setTenant({ showPricesOnline: false }, 'beauty_center')
+    expect((await services(makeApp())).body.data[0]).not.toHaveProperty('price')
+  })
+
+  it('veritabanindan fiyat yalniz gosterilecekse secilir', async () => {
+    setTenant({}, 'dentist')
+    await services(makeApp())
+    expect(dbMock.service.findMany.mock.calls[0][0].select).not.toHaveProperty('price')
+  })
+
+  it('/book: yanitta manageLink (FRONTEND_URL/book/manage#token) doner, veritabanina yalniz sha-256 ozeti yazilir', async () => {
+    process.env.FRONTEND_URL = 'https://app.example.com'
+    const res = await book(makeApp())
+    expect(res.status).toBe(201)
+    expect(res.body.manageLink.startsWith('https://app.example.com/book/manage#')).toBe(true)
+    const token = res.body.manageLink.split('#')[1]
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const data = dbMock.appointment.create.mock.calls[0][0].data
+    expect(data.manageTokenHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(JSON.stringify(data)).not.toContain(token)
+  })
+
+  it('/book yanitinda fiyat: klinik olmayan turde var, klinikte anahtar yok', async () => {
+    expect((await book(makeApp())).body.price).toBe(150)
+    setTenant({}, 'dentist')
+    expect(await book(makeApp()).then((r) => r.body)).not.toHaveProperty('price')
   })
 })
