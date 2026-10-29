@@ -104,5 +104,6 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
       .post('/api/v1/auth/register')
       .send({ salonName: `Karma2 ${suffix}`, slug: `tst-karma2-${suffix.replace(/\W/g, '').slice(0, 9)}`, ownerFullName: 'Sahip Kisi', email: email.toUpperCase(), password: 'Guclu1234' })
     expect(again.status).toBe(409)
+    expect(again.body.error.code).toBe('DUPLICATE_EMAIL')
   })
 })
