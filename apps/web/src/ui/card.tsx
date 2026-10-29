@@ -3,8 +3,12 @@ import { Button } from './button'
 import { cn } from './cn'
 
 // Prototip karşılığı: .kart. 1 px kenar, 8 köşe, gölge yok; iç içe kart yok. Başlık 16/600 solda, ikincil eylem sağda metin düğme.
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cn('rounded-card border border-border bg-surface p-4', className)}>{children}</section>
+export function Card({ children, className, labelledBy }: { children: ReactNode; className?: string; labelledBy?: string }) {
+  return (
+    <section aria-labelledby={labelledBy} className={cn('rounded-card border border-border bg-surface p-4', className)}>
+      {children}
+    </section>
+  )
 }
 
 export function CardHeader({

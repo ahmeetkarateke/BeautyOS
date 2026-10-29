@@ -78,4 +78,13 @@ describe('hata kodu -> metin (W5-K4, metin-rehberi §6)', () => {
     expect(NETWORK_ERROR).toBe('Bağlantı kurulamadı. Değişiklikler kaydedilmedi. Bağlantınızı kontrol edip tekrar deneyin.')
     expect(errorText('NOT_FOUND')).toBe('Bu kayıt bulunamadı. Silinmiş olabilir.')
   })
+
+  it('W10: online talep onayı hata kodlarının metni vardır ve genel metne düşmez', () => {
+    for (const code of ['NOT_PENDING', 'CUSTOMER_MATCH_REQUIRED', 'CUSTOMER_PHONE_MISMATCH', 'CUSTOMER_NOT_FOUND', 'TENANT_DAILY_LIMIT', 'TOO_SOON_FOR_APPROVAL', 'RANGE_TOO_LARGE', 'INVALID_RANGE']) {
+      expect(errorText(code), code).not.toBe(GENERIC_ERROR)
+    }
+    expect(errorText('NOT_PENDING')).toBe('Bu talep artık onay beklemiyor. Listeyi yenileyin.')
+    expect(errorText('TOO_SOON_FOR_APPROVAL')).toBe('Bu saat için online randevu alınamıyor. En az 3 saat sonrasını seçin ya da salonu arayın.')
+    expect(errorText('TENANT_DAILY_LIMIT')).toBe('Online randevu şu an alınamıyor. Salonu arayarak randevu alın.')
+  })
 })
