@@ -38,6 +38,7 @@ export function isDraftComplete(draft: CreateDraft): boolean {
   return true
 }
 
-export function futureSlots<T extends { id: string }>(slots: readonly T[], _nowMs: number): T[] {
-  return [...slots]
+/** Başlangıcı şimdiden önce (ya da şimdi) olan saatler sunulmaz; geçmişe dönük kayıt "tamamla" akışındadır (W13-G1). */
+export function futureSlots<T extends { id: string }>(slots: readonly T[], nowMs: number): T[] {
+  return slots.filter((s) => Date.parse(slotStartAt(s.id)) > nowMs)
 }

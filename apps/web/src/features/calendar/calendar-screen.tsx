@@ -313,6 +313,7 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
           if (!open) go(view, date === today ? null : date)
         }}
         today={today}
+        now={clock}
         onCreated={list.refetch}
         initial={{ staffId: params.get('personel') ?? undefined, time: params.get('saat') ?? undefined, date: params.get('tarih') ? date : undefined }}
       />
