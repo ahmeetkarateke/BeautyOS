@@ -77,13 +77,14 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
     expect(ok.status).toBe(200)
   })
 
-  it('K2 (ILIKE joker): % iceren adres hicbir hesapla eslesmez; giris 200 olmaz, sifirlama token olusturmaz', async () => {
+  it('K2: % iceren adres zod e-posta dogrulamasinda reddedilir (400 VALIDATION_ERROR); sorguya hic ulasmaz, token olusmaz', async () => {
     const real = await createTestOwner(tenantA.id, tenantA.slug, `pct${suffix}`)
     const wild = `%${suffix}@test.local`
     const login = await request(app).post('/api/v1/auth/login').send({ email: wild, password: real.password })
-    expect(login.status).not.toBe(200)
+    expect(login.status).toBe(400)
+    expect(login.body.error.code).toBe('VALIDATION_ERROR')
     const forgot = await request(app).post('/api/v1/auth/forgot-password').send({ email: wild })
-    expect(forgot.status).not.toBe(500)
+    expect(forgot.status).toBe(400)
     expect(await db.passwordResetToken.count({ where: { userId: real.user.id } })).toBe(0)
   })
 

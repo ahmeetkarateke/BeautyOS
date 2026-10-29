@@ -46,6 +46,8 @@ describe('S7: e-posta kucuk harf migration (gercek PG)', () => {
     const mixed = `Clash.${suffix}@Test.LOCAL`
     const lower = mixed.toLowerCase()
     await inRolledBackTx(async (tx) => {
+      // On kosul: baslangicta kuresel tekrar yok; durma yalniz bu iki satirdan gelir.
+      await expect(tx.$executeRawUnsafe(checkBlock)).resolves.toBeDefined()
       await insertUser(tx, tenantA.id, mixed)
       await insertUser(tx, tenantB.id, lower)
       await expect(tx.$executeRawUnsafe(checkBlock)).rejects.toThrow(/cakisiyor/)
