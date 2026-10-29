@@ -7,7 +7,7 @@ CREATE TABLE "invitations" (
   "fullName" TEXT NOT NULL,
   "role" "UserRole" NOT NULL,
   "title" TEXT,
-  "invitedById" UUID NOT NULL,
+  "invitedById" UUID,
   "tokenHash" TEXT NOT NULL,
   "expiresAt" TIMESTAMP(3) NOT NULL,
   "acceptedAt" TIMESTAMP(3),
@@ -21,4 +21,4 @@ CREATE UNIQUE INDEX "invitations_tokenHash_key" ON "invitations"("tokenHash");
 CREATE INDEX "invitations_tenantId_createdAt_idx" ON "invitations"("tenantId", "createdAt");
 CREATE INDEX "invitations_tenantId_email_idx" ON "invitations"("tenantId", "email");
 ALTER TABLE "invitations" ADD CONSTRAINT "invitations_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "invitations" ADD CONSTRAINT "invitations_invitedById_fkey" FOREIGN KEY ("invitedById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "invitations" ADD CONSTRAINT "invitations_invitedById_fkey" FOREIGN KEY ("invitedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

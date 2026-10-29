@@ -1202,7 +1202,7 @@ model Invitation {
   fullName       String
   role           UserRole
   title          String?
-  invitedById    String    @db.Uuid
+  invitedById    String?   @db.Uuid // davet eden silinirse davet kalir (SET NULL)
   tokenHash      String    @unique // sha-256 hex; token'in kendisi saklanmaz
   expiresAt      DateTime
   acceptedAt     DateTime?
@@ -1211,7 +1211,7 @@ model Invitation {
   createdAt      DateTime  @default(now())
 
   tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  invitedBy User   @relation("InvitedBy", fields: [invitedById], references: [id])
+  invitedBy User?  @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([tenantId, email])

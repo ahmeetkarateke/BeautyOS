@@ -116,6 +116,12 @@ export function createInvitationsRouter(): Router {
       })
       if (!existing) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Davet bulunamadı.' } })
 
+      // Yeniden gönderme de günlük tavana tabidir (kiracının son 24 saatteki davet sayısı); sınırsız e-posta tetiklenemez.
+      const sentToday = await db.invitation.count({ where: { tenantId, createdAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
+      if (sentToday >= INVITES_PER_DAY) {
+        return res.status(429).json({ error: { code: 'INVITE_LIMIT', message: 'Günlük davet sınırına ulaşıldı. Yarın tekrar deneyin.' } })
+      }
+
       // Yeni token eskisini geçersiz kılar (hash değişir); süre yeniden 7 gün.
       const { token, tokenHash } = newInviteToken()
       const expiresAt = new Date(Date.now() + INVITE_TTL_MS)
@@ -149,7 +155,12 @@ export function createInvitationsRouter(): Router {
   return router
 }
 
+const tokenField = z.string().min(20).max(200)
+const lookupSchema = z.object({ token: tokenField })
+const BAD_BODY = { error: { code: 'VALIDATION_ERROR', message: 'Geçersiz istek.' } }
+
 const acceptSchema = z.object({
+  token: tokenField,
   password: strongPassword,
   fullName: z.string().trim().min(2).max(100).optional(),
   phone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin.').optional(),
@@ -170,7 +181,7 @@ export function createPublicInvitationsRouter(options?: { limitMax?: number }): 
       message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla istek gönderildi, lütfen biraz sonra tekrar deneyin.' } },
     }),
   )
-  // Bağlantı adreste token taşır: yönlendirme başlığı ve önbellek kapalı.
+  // Token gövdede gelir; yanıtlar önbelleğe alınmaz, yönlendirme başlığı kapalı.
   router.use((_req, res, next) => {
     res.setHeader('Referrer-Policy', 'no-referrer')
     res.setHeader('Cache-Control', 'no-store')
@@ -183,9 +194,12 @@ export function createPublicInvitationsRouter(options?: { limitMax?: number }): 
       include: { tenant: { select: { name: true, slug: true, settings: true } } },
     })
 
-  router.get('/:token', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/lookup', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const invite = await findValid(req.params.token)
+      // ADR-0046: token gövdede gelir (URL yolunda ve sorgusunda değil); hata iletisi değeri içermez.
+      const parsed = lookupSchema.safeParse(req.body)
+      if (!parsed.success) return res.status(400).json(BAD_BODY)
+      const invite = await findValid(parsed.data.token)
       if (!invite) return res.status(404).json(INVALID)
       return res.json({ tenantName: invite.tenant.name, role: invite.role, email: invite.email, fullName: invite.fullName, expiresAt: invite.expiresAt })
     } catch (err) {
@@ -193,13 +207,17 @@ export function createPublicInvitationsRouter(options?: { limitMax?: number }): 
     }
   })
 
-  router.post('/:token/accept', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/accept', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = acceptSchema.safeParse(req.body)
       if (!parsed.success) {
-        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' } })
+        // Alan adına göre genel ileti; ham gövde ya da token yanıta girmez.
+        const bad = parsed.error.errors[0]
+        const message = bad?.path[0] === 'password' ? bad.message : BAD_BODY.error.message
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } })
       }
-      const invite = await findValid(req.params.token)
+      const { token } = parsed.data
+      const invite = await findValid(token)
       if (!invite) return res.status(404).json(INVALID)
 
       // Giriş e-postayla ve kiracısız yapılır: başka kiracıdaki aynı adres hesap karışmasına yol açar (S7).
@@ -209,7 +227,7 @@ export function createPublicInvitationsRouter(options?: { limitMax?: number }): 
       }
 
       const passwordHash = await bcrypt.hash(parsed.data.password, 12)
-      const tokenHash = hashInviteToken(req.params.token)
+      const tokenHash = hashInviteToken(token)
       const settings = invite.tenant.settings as { workingHours?: unknown } | null
 
       let user
@@ -257,13 +275,13 @@ export function createPublicInvitationsRouter(options?: { limitMax?: number }): 
 
       // Kabul oturumu açar; yanıt girişle aynıdır (S6).
       const session = await createSession(user.id, user.tenantId)
-      const token = signAccessToken(
+      const accessToken = signAccessToken(
         requireJwtSecret(),
         { userId: user.id, tenantId: user.tenantId ?? undefined, tenantSlug: invite.tenant.slug, role: user.role },
         session.familyId,
       )
       setRefreshCookie(res, session.refreshToken)
-      return res.json({ token, user: { id: user.id, email: user.email, name: user.fullName, role: user.role, tenantSlug: invite.tenant.slug } })
+      return res.json({ token: accessToken, user: { id: user.id, email: user.email, name: user.fullName, role: user.role, tenantSlug: invite.tenant.slug } })
     } catch (err) {
       next(err)
     }
