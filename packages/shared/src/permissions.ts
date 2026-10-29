@@ -27,6 +27,7 @@ export const PERMISSIONS = {
   'customer.write': OWNER_MANAGER_RECEPTION, // 15 (uzman duzenleyemez; kendi musterisinde not duzenleme acilirsa kapsam + alan beyaz listesi gerekir)
   'appointment.approve': OWNER_MANAGER_RECEPTION, // online talep onay/ret
   'appointment.reschedule': OWNER_MANAGER_RECEPTION, // 6
+  'staff.invite': ['owner'], // 31 (personel daveti, ADR-0042)
   'tip.record': OWNER_MANAGER_RECEPTION, // 33
   'tip.view': OWNER_MANAGER_STAFF, // 35 (bahsis listesi ve ozeti; uzman yalniz kendi bahsisini gorur, resepsiyon gormez)
   'waitlist.view': OWNER_MANAGER_RECEPTION, // 11 (liste musteri adi ve telefonu tasir)
