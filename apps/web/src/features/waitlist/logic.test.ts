@@ -2,8 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { canNotify, createBody, notifyMessage, preferenceLine, sortEntries, statusLabel, validateAdd, type WaitEntry } from './logic'
 
 const entry = (over: Partial<WaitEntry> = {}): WaitEntry => ({
-  id: 'w1', customerId: 'c1', customerName: 'Ayşe Demir', customerPhone: '+905321234567', serviceName: 'Fön', staffName: 'Derya Aksoy', preferredDate: '2026-11-03',
-  preferredTimeRange: 'Öğleden sonra', status: 'waiting', notes: null, notifiedAt: null, createdAt: '2026-10-29T08:00:00.000Z', ...over,
+  id: 'w1',
+  customerId: 'c1',
+  customerName: 'Ayşe Demir',
+  customerPhone: '+905321234567',
+  serviceName: 'Fön',
+  staffName: 'Derya Aksoy',
+  preferredDate: '2026-11-03',
+  preferredTimeRange: 'Öğleden sonra',
+  status: 'waiting',
+  notes: null,
+  notifiedAt: null,
+  createdAt: '2026-10-29T08:00:00.000Z',
+  ...over,
 })
 
 describe('W22 statusLabel', () => {
@@ -55,10 +66,14 @@ describe('W22 canNotify', () => {
 
 describe('W22 notifyMessage', () => {
   it('K5: mesaj müşterinin ilk adıyla başlar; hizmet varsa adı geçer; salon adı yazılır', () => {
-    expect(notifyMessage(entry(), 'Defne Güzellik')).toBe('Merhaba Ayşe, Defne Güzellik: Fön için beklediğiniz saat müsait oldu. Uygunsanız bize yazın ya da arayın.')
+    expect(notifyMessage(entry(), 'Defne Güzellik')).toBe(
+      'Merhaba Ayşe, Defne Güzellik: Fön için beklediğiniz saat müsait oldu. Uygunsanız bize yazın ya da arayın.',
+    )
   })
   it('K5: hizmet yoksa genel cümle', () => {
-    expect(notifyMessage(entry({ serviceName: null }), 'Defne Güzellik')).toBe('Merhaba Ayşe, Defne Güzellik: beklediğiniz saat müsait oldu. Uygunsanız bize yazın ya da arayın.')
+    expect(notifyMessage(entry({ serviceName: null }), 'Defne Güzellik')).toBe(
+      'Merhaba Ayşe, Defne Güzellik: beklediğiniz saat müsait oldu. Uygunsanız bize yazın ya da arayın.',
+    )
   })
   it('K5: Türk İ/ı: ad "İpek" büyük harfle bozulmadan yazılır', () => {
     expect(notifyMessage(entry({ customerName: 'İpek Yılmaz' }), 'Salon')).toContain('Merhaba İpek,')
@@ -77,6 +92,12 @@ describe('W22 validateAdd / createBody', () => {
   })
   it('K6: gövde yalnız dolu alanları taşır', () => {
     expect(createBody(values)).toEqual({ customerId: 'c1' })
-    expect(createBody({ ...values, serviceId: 's1', date: '2026-11-03', timeRange: ' Sabah ', notes: ' Not ' })).toEqual({ customerId: 'c1', serviceId: 's1', preferredDate: '2026-11-03', preferredTimeRange: 'Sabah', notes: 'Not' })
+    expect(createBody({ ...values, serviceId: 's1', date: '2026-11-03', timeRange: ' Sabah ', notes: ' Not ' })).toEqual({
+      customerId: 'c1',
+      serviceId: 's1',
+      preferredDate: '2026-11-03',
+      preferredTimeRange: 'Sabah',
+      notes: 'Not',
+    })
   })
 })
