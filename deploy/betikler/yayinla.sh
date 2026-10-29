@@ -110,7 +110,7 @@ function norm(v,    q, e, rest) {
     e = index(substr(v, 2), q)
     if (e > 0) {
       rest = substr(v, e + 2); sub(/^[ \t]+/, "", rest)
-      if (rest == "" || substr(rest, 1, 1) == "#") return substr(v, 2, e - 1)
+      if (rest == "" || substr(rest, 1, 1) == "#") v = substr(v, 2, e - 1)
     }
   } else sub(/(^|[ \t])#.*$/, "", v)
   sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
