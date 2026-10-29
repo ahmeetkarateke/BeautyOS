@@ -19,7 +19,7 @@ if (!/^(demo|tst)-/.test(SLUG)) throw new Error(`Kiracı slug'ı demo- ya da tst
 // İzin listesi (kara liste değil): sondaki nokta ('api.beautyossapp.com.') ve büyük harf kara listeyi atlatırdı.
 const host = new URL(API).hostname.toLowerCase().replace(/\.$/, '')
 const IZINLI_HOSTLAR = new Set(['yeni-api.beautyossapp.com', 'localhost', '127.0.0.1'])
-if (!IZINLI_HOSTLAR.has(host) && !/^bostest-[a-z0-9-]+$/.test(host)) {
+if (!IZINLI_HOSTLAR.has(host) && !/^bostest-[a-z0-9-]+(\.bostest\.test)?$/.test(host)) {
   throw new Error(`Demo verisi yalnız geçici test yığınına ya da staging API'sine kurulur; gelen: ${host}`)
 }
 
