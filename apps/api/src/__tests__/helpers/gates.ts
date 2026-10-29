@@ -56,4 +56,10 @@ export const GATES: Gate[] = [
   { file: 'tenant', method: 'patch', route: '/customers/:customerId', url: `/customers/${ID}`, permission: 'customer.write' },
 
   { file: 'waitlist', method: 'get', route: '/', url: '/waitlist', permission: 'waitlist.view' },
+  { file: 'waitlist', method: 'post', route: '/', url: '/waitlist', permission: 'waitlist.write' },
+  { file: 'waitlist', method: 'patch', route: '/:id', url: `/waitlist/${ID}`, permission: 'waitlist.write' },
+  { file: 'waitlist', method: 'delete', route: '/:id', url: `/waitlist/${ID}`, permission: 'waitlist.write' },
+  { file: 'waitlist', method: 'post', route: '/:id/notify', url: `/waitlist/${ID}/notify`, permission: 'waitlist.write' },
+  { file: 'waitlist', method: 'post', route: '/:id/book', url: `/waitlist/${ID}/book`, permission: 'waitlist.write' },
+  { file: 'waitlist', method: 'post', route: '/:id/expire', url: `/waitlist/${ID}/expire`, permission: 'waitlist.write' },
 ]
