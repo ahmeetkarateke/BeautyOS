@@ -31,6 +31,7 @@ const UZMAN_PAROLA = 'TestPass12!'
 
 let k: TestKiraci
 let o: Oturum
+const axeBulgulari: string[] = []
 let uzmanApi: APIRequestContext
 let digerUzmanId: string
 let uzmanEposta: string
@@ -97,7 +98,7 @@ test('W11: Sıradaki kartı en yakın randevuyu, kalan süreyi ve aranabilir tel
   await expect(kart).toContainText('Müşteri Bir')
   await expect(kart).toContainText(/\d+ dk sonra/)
   await expect(kart.getByRole('button', { name: 'Başlat' })).toBeVisible()
-  const ara = kart.getByRole('link', { name: /Ara/ })
+  const ara = kart.getByRole('link', { name: /\bara$/ })
   const href = (await ara.getAttribute('href')) ?? ''
   expect(href.startsWith('tel:'), `tel bağlantısı: ${href}`).toBe(true)
   expect(href.replace(/\D/g, '').endsWith(birinciTelefon.slice(-10)), `telefon hanesi: ${href}`).toBe(true)
@@ -139,7 +140,10 @@ for (const g of [
     await expect(page.getByTestId('gunum-siradaki')).toBeVisible()
     await ekranGoruntusu(page, `w11-gunum-${g.ad}`)
     expect(await yatayTasma(page), 'yatay taşma (px)').toBeLessThanOrEqual(0)
-    await expectNoSeriousA11yViolations(page, `W11 Günüm ${g.ad} px`)
+    // İhlal hemen fırlatılmaz (serial kip kalan testleri atlatır); kaydedilir ve serinin sonunda ayrı testle hükme bağlanır.
+    await expectNoSeriousA11yViolations(page, `W11 Günüm ${g.ad} px`).catch((e: Error) => {
+      axeBulgulari.push(e.message.split('\n').slice(0, 14).join('\n'))
+    })
   })
 }
 
@@ -148,7 +152,7 @@ test('W11: Başlat randevuyu başlatır; kart "Şimdi" olur ve sunucuda durum in
   await genislikAyarla(page, 390, 844)
   const kart = page.getByTestId('gunum-siradaki')
   await kart.getByRole('button', { name: 'Başlat' }).click()
-  await expect(page.getByText('Randevu başladı.')).toBeVisible()
+  await expect(page.getByText('Randevu başladı.', { exact: true }).last()).toBeVisible()
   await expect(kart.getByRole('heading', { name: 'Şimdi' })).toBeVisible()
   await expect(kart).toContainText('Devam ediyor')
   await expect(kart.getByRole('button', { name: 'Başlat' })).toHaveCount(0)
@@ -164,6 +168,8 @@ test('W11: uzman Bugün adresine giderse Günüm\'e yönlenir ve sahip ekranı (
   expect(await page.locator('body').innerText()).not.toContain('Kasa özeti')
 })
 
-test('W11 UI-DoD: gezinti boyunca tarayıcı konsolunda hata yok', async () => {
-  expect(o.konsol, 'konsol hataları').toEqual([])
+// Serinin son testi: birikmiş ölçümler birlikte hükme bağlanır (soft: biri kalsa da diğeri raporlanır).
+test('W11 UI-DoD: Günüm iki genişlikte ciddi axe ihlali yok ve gezinti boyunca konsolda hata yok', () => {
+  expect.soft(axeBulgulari, 'axe ihlalleri').toEqual([])
+  expect.soft(o.konsol, 'konsol hataları').toEqual([])
 })
