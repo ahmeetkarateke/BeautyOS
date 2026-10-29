@@ -2,8 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { availableTabs, formatAnswer, summaryItems, type CardDetail } from './card-logic'
 
 const detail = (over: Partial<CardDetail> = {}): CardDetail => ({
-  id: 'c1', fullName: 'Ayşe Demir', phone: '+905321234567', email: null, birthDate: null, preferenceNotes: null, totalVisits: 4, lifetimeValue: 3400,
-  segment: null, lastVisitAt: '2026-10-20T09:00:00.000Z', marketingConsentSms: false, marketingConsentEmail: false, appointments: [], ...over,
+  id: 'c1',
+  fullName: 'Ayşe Demir',
+  phone: '+905321234567',
+  email: null,
+  birthDate: null,
+  preferenceNotes: null,
+  totalVisits: 4,
+  lifetimeValue: 3400,
+  segment: null,
+  lastVisitAt: '2026-10-20T09:00:00.000Z',
+  marketingConsentSms: false,
+  marketingConsentEmail: false,
+  appointments: [],
+  ...over,
 })
 
 describe('W18 availableTabs', () => {
