@@ -67,6 +67,7 @@ Silindikten sonra surum.conf'suz sıradan compose "tanımlı olmalı" hatasıyla
 
 - Sıra her zaman api, sonra web; her adımdan sonra konteyner `healthy` ve dış adres (`/health` 200, staging web 401, canlı web 200) beklenir.
 - Hata olursa `surum.conf` eski haline döner ve api + web BİRLİKTE yeniden oluşturulur (çıkış 1). Geri alma da başarısızsa çıkış 3: elle müdahale.
+- `api` ve `api-staging` için `stop_grace_period: 15s` (D6): uygulamanın kapanış süresi 10 sn olduğundan docker'ın 10 sn'lik varsayılanı payı bırakmıyordu. Ayar compose.yml sunucuya kurulduktan sonra konteyner yeniden oluşturulunca geçerli olur: staging, staging yayınıyla birlikte; CANLI api yalnızca yeni canlı yayında (kurucu onayıyla) yeniden oluştuğunda uygulanır. Bunun için tek başına canlı api yeniden oluşturulmaz.
 - Canlı yayında eski `BEAUTYOS_VERSION`, `BEAUTYOS_PREVIOUS_VERSION` olur (`imaj-temizle.sh` onu ve kaynak paketini korur).
 - Migration yalnız açık `--migrate` ile çalışır (canlı için `[ONAY]`, `--onayli` beyanına dahildir): `migrate`/`migrate-staging` YENİ imajla, api yeniden oluşturulmadan ÖNCE koşar.
   Başarısızsa hiçbir şey değişmez (çıkış 1); kısmi uygulanmış olabilir, veri geri yükleme elle ve `[ONAY]`'lıdır. Elle: `BEAUTYOS_VERSION=<yeni> docker compose ... --profile migrate run --rm migrate`.
