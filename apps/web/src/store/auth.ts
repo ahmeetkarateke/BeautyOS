@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { Role } from '@beautyos/shared'
 
 interface User {
   id: string
   email: string
   name: string
-  role: string
+  role: Role
   tenantSlug: string
 }
 

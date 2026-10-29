@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { MouseOrbs } from '@/components/ui/mouse-orbs'
+import type { Role } from '@beautyos/shared'
 
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta adresi girin'),
@@ -23,7 +24,7 @@ type LoginForm = z.infer<typeof loginSchema>
 
 interface LoginResponse {
   token: string
-  user: { id: string; email: string; name: string; role: string; tenantSlug: string }
+  user: { id: string; email: string; name: string; role: Role; tenantSlug: string }
 }
 
 const features = [

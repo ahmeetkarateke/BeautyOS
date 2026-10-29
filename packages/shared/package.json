@@ -1,0 +1,18 @@
+{
+  "name": "@beautyos/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API ve web arasinda paylasilan saf (bagimliliksiz) tipler ve sabitler",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "vitest": "^2.0.3"
+  }
+}

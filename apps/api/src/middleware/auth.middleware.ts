@@ -1,12 +1,13 @@
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { db } from '../lib/db'
+import type { Role } from '@beautyos/shared'
 
 export interface JwtPayload {
   userId: string
   tenantId?: string
   tenantSlug?: string
-  role: string
+  role: Role
 }
 
 declare global {
