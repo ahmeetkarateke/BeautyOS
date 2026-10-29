@@ -1,26 +1,15 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { db } from '../../lib/db'
+import { assertSafeTestDatabaseUrl } from './hedef-koruma'
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret'
 
 // ─── DB güvenlik kontrolleri ─────────────────────────────────────────────────
 // Hem production hem staging DB'ye test çalıştırmayı engelle.
 // Veri kaybı riski: test cleanup tenant'lar siler; bug olursa real veriyi alır.
-const dbUrl = process.env.DATABASE_URL ?? ''
-const FORBIDDEN_DB_IDENTIFIERS = [
-  'kpoqwdamkmdjntbgjbxy', // production Supabase ref
-  'lnrobattysyfoljalndu', // staging Supabase ref
-  '.supabase.co',         // herhangi bir paylaşılan Supabase host
-  '.pooler.supabase.com', // Supabase pooler (staging dahil)
-]
-if (FORBIDDEN_DB_IDENTIFIERS.some((id) => dbUrl.includes(id))) {
-  throw new Error(
-    'Tests cannot run against production/staging DATABASE_URL. ' +
-    'Use an ephemeral test database (CI service container or local Postgres). ' +
-    `Got host: ${dbUrl.replace(/:[^@]+@/, ':***@').replace(/\/[^?]+/, '/***')}`,
-  )
-}
+// Beyaz liste: yalnız adı `_test` ile biten veritabanı kabul edilir (bkz. hedef-koruma.ts).
+assertSafeTestDatabaseUrl(process.env.DATABASE_URL ?? '')
 
 // ─── Sadece test slug'lı tenant'lar silinebilir ─────────────────────────────
 // cleanupTenant yanlış bir ID alırsa veya bug nedeniyle gerçek bir tenant'ı

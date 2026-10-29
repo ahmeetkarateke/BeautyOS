@@ -4,6 +4,11 @@ import { expect, request, type APIRequestContext } from '@playwright/test'
 // slug her zaman `tst-` önekli (test temizliği yalnız bu öneki tanır).
 const API = process.env.E2E_API_URL
 if (!API) throw new Error('E2E_API_URL tanımlı değil (örn. http://api:3001).')
+// Beyaz liste: yalnız geçici yığının iç adı (noktasız, örn. api) ya da yerel adres. Canlı ve staging adresleri reddedilir.
+const apiHost = new URL(API).hostname.toLowerCase()
+if (apiHost.includes('.') && apiHost !== '127.0.0.1') {
+  throw new Error(`E2E_API_URL yalnız geçici test yığınına işaret edebilir; gelen ana bilgisayar: ${apiHost}`)
+}
 
 export interface TestKiraci {
   slug: string
@@ -34,7 +39,11 @@ export async function kiraciKur(onek = 'e2e'): Promise<TestKiraci> {
     baseURL: API,
     extraHTTPHeaders: { Authorization: `Bearer ${token}` },
   })
-  return { slug, email, password, token, api, yol: (alt) => `/api/v1/tenants/${slug}${alt}` }
+  const k: TestKiraci = { slug, email, password, token, api, yol: (alt) => `/api/v1/tenants/${slug}${alt}` }
+  // Giriş sonrası onboarding sihirbazına düşülmesin: kurulum tamamlanmış kiracı kurulur.
+  const ayar = await api.patch(k.yol('/settings'), { data: { onboardingCompleted: true } })
+  expect(ayar.status(), await ayar.text()).toBe(200)
+  return k
 }
 
 async function olustur<T>(k: TestKiraci, alt: string, data: object): Promise<T> {
