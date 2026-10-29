@@ -67,3 +67,9 @@ export async function fetchPendingRequests(client: ApiClient, slug: string, from
   const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { dateFrom: from, dateTo: to, status: 'pending' }, signal })
   return z.array(z.unknown()).parse(body.data).map(parseDayAppointment)
 }
+
+// Takvim: gün/hafta/ay aralığı (A4: dateFrom/dateTo İstanbul günü, iki uç dahil, en çok 31 gün, satır sınırı yok).
+export async function fetchRangeAppointments(client: ApiClient, slug: string, from: string, to: string, staffId?: string, signal?: AbortSignal): Promise<DayAppointment[]> {
+  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { dateFrom: from, dateTo: to, staffId }, signal })
+  return z.array(z.unknown()).parse(body.data).map(parseDayAppointment)
+}
