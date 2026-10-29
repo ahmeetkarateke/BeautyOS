@@ -172,8 +172,12 @@ async function confirmUnverifiedRequest(
     return 'ok'
   }
 
-  const candidates = await findCustomerCandidates(tenantId, requested.phone)
-  if (candidates.length > 0) return { result: 'match_required', candidates }
+  // 'create' bilinçli karardır (ADR-0038: aynı telefon birden çok kişide olabilir): aday kontrolü yapılmaz.
+  // Eylem verilmediyse eski güvenlik ağı sürer: aday varsa salon önce seçsin.
+  if (input.customerAction !== 'create') {
+    const candidates = await findCustomerCandidates(tenantId, requested.phone)
+    if (candidates.length > 0) return { result: 'match_required', candidates }
+  }
   try {
     const outcome = await db.$transaction(async (tx) => {
       const created = await tx.customer.create({
@@ -191,10 +195,6 @@ async function confirmUnverifiedRequest(
     return outcome
   } catch (err) {
     if (err instanceof RequestNotPendingError) return explainNoChange(tenantId, appointmentId)
-    // Eş zamanlı bir kayıt aynı telefonla müşteri oluşturdu (unique tenantId+phone): salon yeniden seçsin.
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      return { result: 'match_required', candidates: await findCustomerCandidates(tenantId, requested.phone) }
-    }
     throw err
   }
 }

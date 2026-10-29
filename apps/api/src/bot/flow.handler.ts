@@ -513,8 +513,9 @@ export class FlowHandler {
     const displayTime = ((session.entities as Record<string, unknown>)['_selectedTime'] as string) ?? ''
 
     let ref: string
+    let pendingApproval = false
     try {
-      ref = await createAppointment({
+      const created = await createAppointment({
         tenantId: session.tenantId,
         customerPhone: session.from,
         customerName: session.from,
@@ -522,6 +523,8 @@ export class FlowHandler {
         slotId,
         channel: session.channelType === 'telegram' ? 'telegram' : 'whatsapp',
       })
+      ref = created.referenceCode
+      pendingApproval = created.status === 'pending'
     } catch (error) {
       if (error instanceof ServiceNotFoundError) {
         session.entities.service = undefined
@@ -540,7 +543,9 @@ export class FlowHandler {
 
     const dateStr = formatDateTR(slotId.split('__')[0].split('T')[0])
     const reply =
-      `✅ Randevunuz oluşturuldu!\n\n` +
+      (pendingApproval
+        ? `✅ Randevu talebiniz alındı! Salonumuz kaydınızı eşleştirip onayladığında size bilgi verilecek.\n\n`
+        : `✅ Randevunuz oluşturuldu!\n\n`) +
       `📋 *${service}*\n` +
       `📅 ${dateStr} saat ${displayTime}\n` +
       `👤 ${staffName}\n` +

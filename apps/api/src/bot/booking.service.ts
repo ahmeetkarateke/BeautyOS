@@ -2,6 +2,7 @@ import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { getSlots } from '../lib/slots'
 import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
+import { resolveCustomerByPhone } from '../lib/customer-phone'
 import type { BookingChannel } from '@prisma/client'
 
 /** Hizmet adı bu kiracıdaki aktif hizmetlerle eşleşmedi: akış netleştirme sorusu sorar, sahte yanıt üretmez (S5 K2). */
@@ -167,7 +168,13 @@ export interface CreateAppointmentInput {
   channel: BookingChannel
 }
 
-export async function createAppointment(input: CreateAppointmentInput): Promise<string> {
+export interface CreatedAppointment {
+  referenceCode: string
+  /** pending: ayni telefonda birden cok kart var, salon eslestirip onaylayacak (ADR-0038). */
+  status: 'confirmed' | 'pending'
+}
+
+export async function createAppointment(input: CreateAppointmentInput): Promise<CreatedAppointment> {
   const { tenantId, customerPhone, customerName, serviceName, slotId, channel } = input
 
   // slotId'den başlangıç zamanı ve personeli ayır
@@ -179,12 +186,15 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 
   const endAt = new Date(startAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)
 
-  // Müşteriyi bul ya da oluştur (upsert by phone)
-  const customer = await db.customer.upsert({
-    where: { tenantId_phone: { tenantId, phone: customerPhone } },
-    create: { tenantId, phone: customerPhone, fullName: customerName },
-    update: {},
-  })
+  // ADR-0038: telefon -> none (oluştur) | single (bağla) | multiple (bağlama, requested* ile pending)
+  const found = await resolveCustomerByPhone(db, tenantId, customerPhone)
+  const customerId =
+    found.kind === 'single'
+      ? found.id
+      : found.kind === 'none'
+        ? (await db.customer.create({ data: { tenantId, phone: customerPhone, fullName: customerName }, select: { id: true } })).id
+        : null
+  const status = customerId ? 'confirmed' : 'pending'
 
   const referenceCode = `RDV-${Date.now().toString(36).toUpperCase()}`
 
@@ -192,11 +202,13 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     await db.appointment.create({
       data: {
         tenantId,
-        customerId: customer.id,
+        customerId,
+        requestedName: customerId ? null : customerName,
+        requestedPhone: customerId ? null : customerPhone,
         staffId,
         serviceId: service.id,
         referenceCode,
-        status: 'confirmed',
+        status,
         bookingChannel: channel,
         startAt,
         endAt,
@@ -209,13 +221,15 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     throw err
   }
 
-  // Müşteri ziyaret sayısını artır
-  await db.customer.update({
-    where: { id: customer.id },
-    data: { totalVisits: { increment: 1 }, lastVisitAt: new Date() },
-  })
+  // Müşteri ziyaret sayısını artır (bağlanmamış talepte kart yoktur)
+  if (customerId) {
+    await db.customer.update({
+      where: { id: customerId },
+      data: { totalVisits: { increment: 1 }, lastVisitAt: new Date() },
+    })
+  }
 
-  return referenceCode
+  return { referenceCode, status }
 }
 
 // ─── Referans kodu ile randevu iptal et ───────────────────────────────────────

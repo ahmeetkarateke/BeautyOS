@@ -357,7 +357,7 @@ model Customer {
   messageDeliveries MessageDelivery[]
   phoneVerifications PhoneVerification[]
 
-  @@unique([tenantId, phone])
+  @@index([tenantId, phone]) // ADR-0038: ayni telefonla birden cok musteri olabilir
   @@index([tenantId])
   @@map("customers")
 }
