@@ -59,7 +59,7 @@ fi
 uret() { openssl rand -hex 32; }
 DB_ROOT="$(uret)"; REDIS="$(uret)"
 OWNER="$(uret)"; UYG="$(uret)"; STG_OWNER="$(uret)"; STG_UYG="$(uret)"
-JWT="$(uret)"; JWT_STG="$(uret)"; SEED="$(uret)"; SEED_STG="$(uret)"
+JWT="$(uret)"; JWT_STG="$(uret)"
 BASIC_PAROLA="$(openssl rand -hex 16)"
 
 # Basic auth özeti: parola stdin'den verilir (argümanda ya da ps'te görünmez). Dosyalar yazılmadan ÖNCE alınır; başarısızsa hiçbir şey yazılmaz.
@@ -109,7 +109,6 @@ DATABASE_URL=postgresql://app_user:$UYG@postgres:5432/beautyos
 DIRECT_URL=postgresql://app_user:$UYG@postgres:5432/beautyos
 REDIS_URL=redis://:$REDIS@redis:6379/0
 JWT_SECRET=$JWT
-ADMIN_SEED_SECRET=$SEED
 TURNSTILE_SECRET_KEY=
 SENTRY_DSN=
 RESEND_API_KEY=
@@ -135,7 +134,6 @@ DATABASE_URL=postgresql://stg_user:$STG_UYG@postgres:5432/beautyos_staging
 DIRECT_URL=postgresql://stg_user:$STG_UYG@postgres:5432/beautyos_staging
 REDIS_URL=redis://:$REDIS@redis:6379/1
 JWT_SECRET=$JWT_STG
-ADMIN_SEED_SECRET=$SEED_STG
 TURNSTILE_SECRET_KEY=
 SENTRY_DSN=
 RESEND_API_KEY=
