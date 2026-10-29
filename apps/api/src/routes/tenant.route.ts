@@ -831,6 +831,8 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Müşteri bulunamadı.' } })
       }
 
+      // Tutar alanları (tasarim.md 8.1): müşterileri tümüyle görebilen roller (sahip, müdür, resepsiyon) görür; uzman görmez.
+      const showMoney = can(req.user!.role, 'customer.view_all')
       const customer = await db.customer.findFirst({
         where: { id: customerId, tenantId, ...accessFilter },
         select: {
@@ -842,7 +844,7 @@ export function createTenantRouter(): Router {
           allergyNotes: true,
           preferenceNotes: true,
           totalVisits: true,
-          lifetimeValue: true,
+          ...(showMoney ? { lifetimeValue: true } : {}),
           segment: true,
           lastVisitAt: true,
           phoneVerifiedAt: true,
@@ -857,7 +859,7 @@ export function createTenantRouter(): Router {
               startAt: true,
               endAt: true,
               status: true,
-              priceCharged: true,
+              ...(showMoney ? { priceCharged: true } : {}),
               service: { select: { name: true } },
               staff: { select: { user: { select: { fullName: true } } } },
             },
@@ -879,7 +881,7 @@ export function createTenantRouter(): Router {
         ...(can(req.user!.role, 'health.view') ? { allergyNotes: customer.allergyNotes } : {}),
         preferenceNotes: customer.preferenceNotes,
         totalVisits: customer.totalVisits,
-        lifetimeValue: Number(customer.lifetimeValue),
+        ...(showMoney ? { lifetimeValue: Number(customer.lifetimeValue) } : {}),
         segment: customer.segment,
         lastVisitAt: customer.lastVisitAt?.toISOString() ?? null,
         phoneVerifiedAt: customer.phoneVerifiedAt?.toISOString() ?? null,
@@ -891,7 +893,7 @@ export function createTenantRouter(): Router {
           startTime: a.startAt.toISOString(),
           endTime: a.endAt.toISOString(),
           status: a.status,
-          priceCharged: Number(a.priceCharged),
+          ...(showMoney ? { priceCharged: Number(a.priceCharged) } : {}),
           serviceName: a.service.name,
           staffName: a.staff.user.fullName,
         })),
