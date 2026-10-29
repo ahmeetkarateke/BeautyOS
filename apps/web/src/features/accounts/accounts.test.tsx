@@ -203,7 +203,7 @@ describe('W24 Hesaplar', () => {
 })
 
 describe('W24-1 öneriler ve kritik', () => {
-  it('K11 (Kritik): eksi açılış bakiyesi istek atmaz ve nedenini yazar', async () => {
+  it('K11: eksi açılış bakiyesi (borçlu hesap) geçerlidir: istek atılır, gövdede openingBalance -5000 (S-hesap-bakiye)', async () => {
     mount()
     await screen.findByRole('list', { name: 'Hesaplar' })
     fireEvent.click(screen.getByRole('button', { name: 'Hesap ekle' }))
@@ -211,8 +211,9 @@ describe('W24-1 öneriler ve kritik', () => {
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Hesap adı' }), { target: { value: 'Kredi kartı' } })
     fireEvent.change(within(dialog).getByRole('textbox', { name: /Açılış bakiyesi/ }), { target: { value: '-5000' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hesap ekle' }))
-    expect(await within(dialog).findByText(/Açılış bakiyesi 0 ya da artı olmalı/)).toBeTruthy()
-    expect(writes()).toHaveLength(0)
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    expect((writes()[0][1] as Init).body).toMatchObject({ openingBalance: -5000 })
+    expect(screen.queryByText(/Açılış bakiyesi 0 ya da artı olmalı/)).toBeNull()
   })
 
   it('K12: yalnız okuma izninde hesap satırı düğme değil düz metindir; yazma izninde düğmedir', async () => {
