@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   'appointment.approve': OWNER_MANAGER_RECEPTION, // online talep onay/ret
   'appointment.reschedule': ALL_STAFF_ROLES, // 6 (kurucu karari R3: uzman yalniz kendi randevusunu ve yalniz saat/gun; kapsam rotada)
   'appointment.reassign_staff': OWNER_MANAGER_RECEPTION, // 6 (randevuyu baska personele tasima; bu izni olmayan rol yalniz kendi randevusunu tasir)
+  'finance.correction': OWNER_MANAGER, // R5 (tamamlanmis odeme duzeltmesi, gunu yeniden acma ve duzeltme gecmisi; resepsiyon yapamaz)
   'tip.record': OWNER_MANAGER_RECEPTION, // 33
   'tip.view': OWNER_MANAGER_STAFF, // 35 (bahsis listesi ve ozeti; uzman yalniz kendi bahsisini gorur, resepsiyon gormez)
   'waitlist.view': OWNER_MANAGER_RECEPTION, // 11 (liste musteri adi ve telefonu tasir)

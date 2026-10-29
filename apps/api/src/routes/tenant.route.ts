@@ -84,6 +84,28 @@ function getIstanbulDateStr(date: Date = new Date()): string {
   }).format(date)
 }
 
+/** Kasa günü anahtarı (cash_day_closures.date, DATE): yerel takvim günü UTC gece yarısı olarak saklanır. */
+function dayKey(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00.000Z`)
+}
+
+/** A6b: kasa günü kapalı mı? Kayıt yoksa ya da yeniden açıldıysa false. */
+async function isDayClosed(
+  client: { cashDayClosure: { findUnique(args: any): Promise<{ isClosed: boolean } | null> } },
+  tenantId: string,
+  dateStr: string,
+): Promise<boolean> {
+  const row = await client.cashDayClosure.findUnique({
+    where: { tenantId_date: { tenantId, date: dayKey(dateStr) } },
+    select: { isClosed: true },
+  })
+  return row?.isClosed === true
+}
+
+class DayClosedError extends Error {}
+
+const DAY_CLOSED_BODY = { error: { code: 'DAY_CLOSED', message: 'Bu günün kasası kapatılmış. Önce günü yeniden açın.' } } as const
+
 function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().split('T')[0]
@@ -951,6 +973,8 @@ export function createTenantRouter(): Router {
       // eş zamanlı iki istekten yalnız biri kazanır, ikincisi STATUS_LOCKED alır (çift ödeme olmaz).
       const method = parsed.data.paymentMethod ?? 'cash'
       const outcome = await db.$transaction(async (tx) => {
+        // Ödeme bugünün kasasına yazılır; kapalıysa hiçbir şey değişmez (işlem geri alınır).
+        if (status === 'completed' && (await isDayClosed(tx, tenantId, getIstanbulDateStr()))) throw new DayClosedError()
         const claimed = await tx.appointment.updateMany({
           where: { id: appointmentId, tenantId, status: { notIn: TERMINAL_STATUSES as AppointmentStatus[] } },
           data: { status, ...(cancellationReason ? { cancellationReason } : {}) },
@@ -989,7 +1013,11 @@ export function createTenantRouter(): Router {
             completedAt: txn.completedAt?.toISOString() ?? null,
           },
         }
+      }).catch((err: unknown) => {
+        if (err instanceof DayClosedError) return 'day_closed' as const
+        throw err
       })
+      if (outcome === 'day_closed') return res.status(409).json(DAY_CLOSED_BODY)
       if (!outcome) {
         return res.status(409).json({
           error: { code: 'STATUS_LOCKED', message: 'Tamamlanan veya iptal edilen randevunun durumu değiştirilemez.' },
@@ -1787,6 +1815,166 @@ export function createTenantRouter(): Router {
     }
   })
 
+  const closeDaySchema = z.object({
+    countedCash: z.number().min(0).max(100_000_000).optional(),
+    note: noXss(300).optional(),
+  })
+
+  // POST /api/v1/tenants/:slug/finance/reopen-day  { date, reason }   (R5: yalniz owner/manager, duzeltme kaydi tutulur)
+  const reopenDaySchema = z.object({
+    date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
+    reason: z.string().trim().min(3).max(500),
+  })
+  router.post('/finance/reopen-day', requirePermission('finance.correction'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.tenantId!
+      const parsed = reopenDaySchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tarih ve gerekçe (en az 3 karakter) zorunludur.' } })
+      }
+      const { date, reason } = parsed.data
+      const reopened = await db.$transaction(async (tx) => {
+        const closure = await tx.cashDayClosure.findUnique({ where: { tenantId_date: { tenantId, date: dayKey(date) } } })
+        if (!closure || !closure.isClosed) return false
+        await tx.cashDayClosure.update({
+          where: { tenantId_date: { tenantId, date: dayKey(date) } },
+          data: { isClosed: false, reopenedById: req.user!.userId, reopenedAt: new Date() },
+        })
+        await tx.correction.create({
+          data: {
+            tenantId,
+            kind: 'day_reopen',
+            date: dayKey(date),
+            oldValue: { isClosed: true, closedAt: closure.closedAt?.toISOString() ?? null },
+            newValue: { isClosed: false },
+            reason,
+            createdById: req.user!.userId,
+          },
+        })
+        return true
+      })
+      if (!reopened) {
+        return res.status(409).json({ error: { code: 'DAY_NOT_CLOSED', message: 'Bu gün kapatılmamış.' } })
+      }
+      return res.json({ date, isClosed: false })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // GET /api/v1/tenants/:slug/finance/corrections?date=YYYY-MM-DD  (duzeltme gecmisi; yalniz owner/manager)
+  router.get('/finance/corrections', requirePermission('finance.correction'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.tenantId!
+      const dateParam = typeof req.query.date === 'string' ? req.query.date : undefined
+      if (dateParam !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+      const rows = await db.correction.findMany({
+        where: { tenantId, ...(dateParam ? { date: dayKey(dateParam) } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      })
+      return res.json({
+        data: rows.map((c) => ({
+          id: c.id,
+          kind: c.kind,
+          appointmentId: c.appointmentId,
+          transactionId: c.transactionId,
+          date: c.date ? c.date.toISOString().slice(0, 10) : null,
+          oldValue: c.oldValue,
+          newValue: c.newValue,
+          reason: c.reason,
+          createdById: c.createdById,
+          createdAt: c.createdAt.toISOString(),
+        })),
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
+  // POST /api/v1/tenants/:slug/appointments/:appointmentId/correction  (R5: tamamlanmis odeme duzeltmesi)
+  const paymentCorrectionSchema = z
+    .object({
+      grossAmount: z.number().positive().max(100_000_000).optional(),
+      paymentMethod: z.enum(['cash', 'card']).optional(),
+      reason: z.string().trim().min(3).max(500),
+    })
+    .refine((v) => v.grossAmount !== undefined || v.paymentMethod !== undefined)
+  router.post('/appointments/:appointmentId/correction', requirePermission('finance.correction'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.tenantId!
+      const { appointmentId } = req.params
+      const parsed = paymentCorrectionSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tutar ya da yöntem ve gerekçe (en az 3 karakter) zorunludur.' } })
+      }
+      const input = parsed.data
+      const result = await db.$transaction(async (tx) => {
+        const txn = await tx.transaction.findFirst({
+          where: { tenantId, appointmentId, status: 'completed' },
+          orderBy: { completedAt: 'desc' },
+        })
+        if (!txn) return 'not_completed' as const
+        const txnDay = getIstanbulDateStr(txn.completedAt ?? new Date())
+        if (await isDayClosed(tx, tenantId, txnDay)) return 'day_closed' as const
+
+        const gross = new Prisma.Decimal(input.grossAmount ?? txn.grossAmount).toDecimalPlaces(2)
+        const method = input.paymentMethod ?? (txn.paymentMethod === 'card' ? 'card' : 'cash')
+        const rate = new Prisma.Decimal(txn.commissionRate)
+        const updated = {
+          grossAmount: gross,
+          paymentMethod: method,
+          cashAmount: method === 'cash' ? gross : new Prisma.Decimal(0),
+          cardAmount: method === 'card' ? gross : new Prisma.Decimal(0),
+          commissionAmount: gross.mul(rate).toDecimalPlaces(2),
+        }
+        await tx.transaction.update({
+          where: { id: txn.id },
+          data: {
+            grossAmount: updated.grossAmount,
+            paymentMethod: updated.paymentMethod,
+            commissionAmount: updated.commissionAmount,
+            cashAmount: method === 'cash' ? gross : 0,
+            cardAmount: method === 'card' ? gross : 0,
+          },
+        })
+        if (input.grossAmount !== undefined) {
+          await tx.appointment.update({ where: { id: appointmentId }, data: { priceCharged: gross } })
+        }
+        const snapshot = (v: { grossAmount: unknown; paymentMethod: string; cashAmount: unknown; cardAmount: unknown; commissionAmount: unknown }) => ({
+          grossAmount: Number(v.grossAmount),
+          paymentMethod: v.paymentMethod,
+          cashAmount: Number(v.cashAmount),
+          cardAmount: Number(v.cardAmount),
+          commissionAmount: Number(v.commissionAmount),
+        })
+        await tx.correction.create({
+          data: {
+            tenantId,
+            kind: 'payment',
+            transactionId: txn.id,
+            appointmentId,
+            date: dayKey(txnDay),
+            oldValue: snapshot(txn),
+            newValue: snapshot(updated),
+            reason: input.reason,
+            createdById: req.user!.userId,
+          },
+        })
+        return { transactionId: txn.id, ...snapshot(updated) }
+      })
+      if (result === 'not_completed') {
+        return res.status(409).json({ error: { code: 'NOT_COMPLETED', message: 'Bu randevu için tamamlanmış ödeme kaydı yok.' } })
+      }
+      if (result === 'day_closed') return res.status(409).json(DAY_CLOSED_BODY)
+      return res.json({ appointmentId, payment: result })
+    } catch (err) {
+      next(err)
+    }
+  })
+
   // POST /api/v1/tenants/:slug/finance/close-day?date=YYYY-MM-DD
   router.post('/finance/close-day', requirePermission('finance.close_day'), async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -1873,8 +2061,36 @@ export function createTenantRouter(): Router {
         commissionMap.set(t.staffId, entry)
       }
 
+      // A6b: kapanış kaydedilir (gün yeniden açılana kadar o güne ödeme yazılamaz); sayım isteğe bağlıdır.
+      const closeBody = closeDaySchema.safeParse(req.body ?? {})
+      if (!closeBody.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz kasa sayımı.' } })
+      }
+      const countedCash = closeBody.data.countedCash ?? null
+      const closedAt = new Date()
+      const closureFields = {
+        isClosed: true,
+        closedById: req.user!.userId,
+        closedAt,
+        expectedCash: cashRevenue,
+        countedCash,
+        note: closeBody.data.note ?? null,
+      }
+      await db.cashDayClosure.upsert({
+        where: { tenantId_date: { tenantId, date: dayKey(dateStr) } },
+        create: { tenantId, date: dayKey(dateStr), ...closureFields },
+        update: closureFields,
+      })
+
       return res.json({
         date: dateStr,
+        closure: {
+          isClosed: true,
+          closedAt: closedAt.toISOString(),
+          expectedCash: cashRevenue,
+          countedCash,
+          difference: countedCash === null ? null : Number((countedCash - cashRevenue).toFixed(2)),
+        },
         totalRevenue,
         cashRevenue,
         cardRevenue,
@@ -2116,6 +2332,7 @@ export function createTenantRouter(): Router {
       if (revenueDate !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
+      if (await isDayClosed(db, tenantId, revenueDate)) return res.status(409).json(DAY_CLOSED_BODY)
       const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
 
       const revenue = await db.transaction.create({

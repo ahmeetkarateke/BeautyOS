@@ -7,6 +7,7 @@ const dbMock = vi.hoisted(() => {
   const tx = {
     appointment: { updateMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     transaction: { create: vi.fn() },
+    cashDayClosure: { findUnique: vi.fn() },
   }
   return {
     ...tx,
@@ -49,6 +50,7 @@ beforeEach(() => {
   dbMock.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx))
   dbMock.staffProfile.findFirst.mockResolvedValue({ id: SP_ME })
   tx.appointment.updateMany.mockResolvedValue({ count: 1 })
+  tx.cashDayClosure.findUnique.mockReset().mockResolvedValue(null)
   tx.transaction.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'tx1', completedAt: new Date('2026-11-20T10:00:00Z'), ...data }))
   firstExisting()
 })
