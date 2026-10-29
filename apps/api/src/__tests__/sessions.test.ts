@@ -83,6 +83,16 @@ describe('K1: yenileme token ozeti ve dondurme', () => {
     expect((await rotateSession(retry.refreshToken)).ok).toBe(true)
   })
 
+  it('S6-1 Oneri 1: tolerans icinde ayni eski token yalniz bir kez yeniden basilir; ucuncu kullanim aileyi iptal eder', async () => {
+    const first = await createSession('u1', 't1')
+    const second = await rotateSession(first.refreshToken)
+    expect((await rotateSession(first.refreshToken)).ok).toBe(true)
+    expect(store.rows).toHaveLength(3)
+    expect(await rotateSession(first.refreshToken)).toEqual({ ok: false, reason: 'reused' })
+    expect(store.rows.every((x) => x.revokedAt !== null)).toBe(true)
+    expect(second.ok).toBe(true)
+  })
+
   it('S6-1 Onemli 1: iptal edilmis (cikis) ailenin token\'i tolerans icinde bile reddedilir', async () => {
     const first = await createSession('u1', 't1')
     await rotateSession(first.refreshToken)

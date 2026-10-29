@@ -20,6 +20,7 @@ function matchValue(actual: unknown, cond: Cond): boolean {
   const c = cond as Record<string, unknown>
   if ('gt' in c) return (actual as Date).getTime() > (c.gt as Date).getTime()
   if ('lt' in c) return (actual as Date).getTime() < (c.lt as Date).getTime()
+  if ('gte' in c) return (actual as Date).getTime() >= (c.gte as Date).getTime()
   if ('lte' in c) return (actual as Date).getTime() <= (c.lte as Date).getTime()
   if ('not' in c) return actual !== c.not
   if ('in' in c) return (c.in as unknown[]).includes(actual)
@@ -49,6 +50,7 @@ export function createFakeSessionDb() {
       hit.forEach((r) => Object.assign(r, data))
       return { count: hit.length }
     },
+    count: async ({ where }: { where: Record<string, Cond> }) => rows.filter((r) => matches(r as never, where)).length,
     deleteMany: async ({ where }: { where: Record<string, Cond> }) => {
       const hit = rows.filter((r) => matches(r as never, where))
       hit.forEach((r) => rows.splice(rows.indexOf(r), 1))

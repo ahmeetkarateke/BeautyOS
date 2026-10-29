@@ -43,6 +43,14 @@ describe('S6: durumlu oturum (gercek PG)', () => {
     const c2 = refreshCookie(second)
     expect(c2).not.toBe(c1)
 
+    // S6-1: 30 sn tolerans icinde eski cerez tekrar gelirse (yaniti kaybolan yenileme) oturum dusmez
+    expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)).status).toBe(200)
+    expect(
+      (await db.session.findMany({ where: { userId: owner.user.id, revokedAt: { not: null } } })).length,
+    ).toBe(0)
+
+    // Tolerans disinda (kullanim tarihi geri cekilir) ayni cerez calinma sayilir: 401 ve tum aile iptal
+    await db.session.updateMany({ where: { userId: owner.user.id, usedAt: { not: null } }, data: { usedAt: new Date(Date.now() - 60_000) } })
     expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)).status).toBe(401)
     expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c2)).status).toBe(401)
     // iptal edilen ailenin erisim token'i da hemen duser
