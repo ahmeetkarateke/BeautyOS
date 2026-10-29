@@ -88,6 +88,26 @@ if [ -f "$BASE/.env" ] && awk -F= '$1 ~ /^[[:space:]]*(export[[:space:]]+)?BEAUT
   fi
 fi
 
+# Hedef ortamın dosyasında uygulamanın ZORUNLU değişkenleri dolu mu? Yalnız "AD=" sonrasında en az bir karakter var/yok bakılır
+# (awk çıkış kodu); değer okunmaz, yazdırılmaz. Eksik varsa yalnız ADI yazılır, yayın (ve --kuru) çıkış 2 ile durur.
+# LİSTE apps/api/src/lib/env.ts içindeki REQUIRED_IN_PRODUCTION ile SENKRON kalmalıdır (test-yayinla.sh karşılaştırır).
+ZORUNLU_ORTAM=(DATABASE_URL REDIS_URL JWT_SECRET ALLOWED_ORIGINS PUBLIC_URL FRONTEND_URL)
+if [ "$ORTAM" = "canli" ]; then ORTAM_DOSYASI="$BASE/.env"; else ORTAM_DOSYASI="$BASE/.env.staging"; fi
+EKSIK_ORTAM=""
+if [ ! -f "$ORTAM_DOSYASI" ]; then
+  hata "hedef ortam dosyası yok: $ORTAM_DOSYASI"
+  exit 2
+fi
+for ad in "${ZORUNLU_ORTAM[@]}"; do
+  if ! awk -v k="$ad" 'index($0, k "=") == 1 && length($0) > length(k) + 1 { f = 1 } END { exit !f }' "$ORTAM_DOSYASI"; then
+    EKSIK_ORTAM="$EKSIK_ORTAM $ad"
+  fi
+done
+if [ -n "$EKSIK_ORTAM" ]; then
+  hata "$ORTAM ortam dosyasında zorunlu değişken(ler) boş ya da yok:$EKSIK_ORTAM (kurucu doldurmalı; adlar .env.example'da). Yayın başlamadı"
+  exit 2
+fi
+
 # surum.conf'tan yalnız ANAHTAR=değer okunur (source edilmez).
 oku() { awk -F= -v k="$1" '$1 == k { print substr($0, length(k) + 2); exit }' "$CONF"; }
 CANLI_ESKI="$(oku BEAUTYOS_VERSION)"
