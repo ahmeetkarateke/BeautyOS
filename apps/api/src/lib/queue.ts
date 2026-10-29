@@ -14,11 +14,20 @@ export type ReminderJobData =
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 
+const connections: IORedis[] = []
+
 function createConnection() {
-  return new IORedis(REDIS_URL, {
+  const connection = new IORedis(REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
   })
+  connections.push(connection)
+  return connection
+}
+
+/** SIGTERM kapanışı: bu modülün açtığı tüm Redis bağlantılarını kapatır (kuyruk ve işçi kapandıktan sonra çağrılır). */
+export async function closeRedisConnections(): Promise<void> {
+  await Promise.all(connections.map((c) => c.quit().catch(() => c.disconnect())))
 }
 
 export const remindersQueue = new Queue<ReminderJobData>('reminders', {

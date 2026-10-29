@@ -27,7 +27,9 @@ import { createWaitlistRouter } from './routes/waitlist.route'
 import { apiErrorHandler } from './lib/error-handler'
 import { createAppointmentApprovalRouter } from './routes/appointment-approval.route'
 import { TenantRegistry } from './lib/tenant.registry'
-import { startReminderWorker } from './lib/queue'
+import { startReminderWorker, remindersQueue, closeRedisConnections } from './lib/queue'
+import { checkEnv, describeEnvProblems, OPTIONAL_CHANNELS } from './lib/env'
+import { createShutdown } from './lib/shutdown'
 import { resolveBookingMode } from './lib/booking-mode'
 import { db } from './lib/db'
 import { logger } from './lib/logger'
@@ -37,6 +39,18 @@ export { createApp } from './app'
 const startedAt = Date.now()
 
 async function bootstrap(): Promise<void> {
+  // ─── Ortam kontrolü (G5-K1, K2): yalnız değişken adları yazılır ───────────
+  const envReport = checkEnv(process.env, process.env.NODE_ENV === 'production')
+  const envProblems = describeEnvProblems(envReport)
+  if (envProblems) {
+    logger.error(`Ortam değişkenleri geçersiz — ${envProblems}`)
+    process.exit(1)
+  }
+  for (const variable of envReport.disabled) {
+    const channel = OPTIONAL_CHANNELS.find((c) => c.variable === variable)?.channel
+    logger.warn(`${channel} kapalı: ${variable} tanımlı değil`)
+  }
+
   // ─── Bağımlılıkları başlat ─────────────────────────────────────────────────
 
   // ─── DB bağlantı testi ────────────────────────────────────────────────────
@@ -143,11 +157,11 @@ async function bootstrap(): Promise<void> {
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
 
   logger.info({ phoneVerification: resolveBookingMode().phoneVerification }, 'Online randevu telefon doğrulama modu')
-  startReminderWorker()
+  const reminderWorker = startReminderWorker()
   logger.info('BullMQ hatırlatma worker başlatıldı')
 
   const port = Number(process.env.PORT ?? 3001)
-  app.listen(port, async () => {
+  const server = app.listen(port, async () => {
     logger.info({ port }, 'BeautyOS API sunucusu başlatıldı')
 
     if (process.env.WHATSAPP_360DIALOG_API_KEY && process.env.PUBLIC_URL) {
@@ -174,6 +188,22 @@ async function bootstrap(): Promise<void> {
       logger.warn('PUBLIC_URL veya TELEGRAM_BOT_TOKEN eksik — webhook kaydedilmedi')
     }
   })
+
+  // ─── Düzgün kapanış (G5-K3): HTTP -> işçi -> kuyruk -> Redis -> Prisma, en çok 10 sn ───
+  const shutdown = createShutdown({
+    closers: [
+      { name: 'http', close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))) },
+      { name: 'worker', close: () => reminderWorker.close() },
+      { name: 'queue', close: () => remindersQueue.close() },
+      { name: 'redis', close: () => closeRedisConnections() },
+      { name: 'prisma', close: () => db.$disconnect() },
+    ],
+    timeoutMs: 10_000,
+    exit: (code) => process.exit(code),
+    log: logger,
+  })
+  process.on('SIGTERM', () => void shutdown())
+  process.on('SIGINT', () => void shutdown())
 }
 
 bootstrap().catch((error) => {
