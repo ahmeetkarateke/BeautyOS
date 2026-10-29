@@ -12,6 +12,8 @@ set -euo pipefail
 
 SRC="${1:?kaynak dizini gerekli}"
 shift || true
+# CI push olmadan calismadigi icin surum hatti kontrolu her sunucu kosusunda da yapilir (S9).
+(cd "$SRC" && bash tests/sunucu/node-surum-kontrol.sh)
 RUN="bostest-$$"
 NET="${RUN}-net"
 IMG="bostest-api:$$"

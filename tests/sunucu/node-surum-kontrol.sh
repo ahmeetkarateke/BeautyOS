@@ -4,18 +4,19 @@
 set -euo pipefail
 
 hata=0
-beklenen='^FROM node:22\.[0-9]+\.[0-9]+-bookworm-slim( AS [a-z-]+)?$'
+bul='^[[:space:]]*FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?node[:@]'
+beklenen='^[[:space:]]*FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?node:22[.][0-9]+[.][0-9]+-bookworm-slim([[:space:]]+AS[[:space:]]+[A-Za-z0-9_-]+)?[[:space:]]*$'
 
 for dosya in apps/api/Dockerfile apps/web/Dockerfile tests/sunucu/Dockerfile.api-test tests/sunucu/Dockerfile.web-test; do
   if [ ! -f "$dosya" ]; then
     echo "EKSIK: $dosya"; hata=1; continue
   fi
-  satirlar=$(grep -E '^FROM node:' "$dosya" || true)
+  satirlar=$(grep -Ei "$bul" "$dosya" || true)
   if [ -z "$satirlar" ]; then
     echo "HATA: $dosya icinde node tabanli FROM yok"; hata=1; continue
   fi
   while IFS= read -r satir; do
-    if ! printf '%s\n' "$satir" | grep -Eq "$beklenen"; then
+    if ! printf '%s\n' "$satir" | grep -Eiq "$beklenen"; then
       echo "HATA: $dosya -> $satir (node:22.x.y-bookworm-slim bekleniyor)"; hata=1
     fi
   done <<< "$satirlar"
