@@ -1914,29 +1914,29 @@ export function createTenantRouter(): Router {
 
       // groupBy=day yalnız toplam ve günlük döküm döner: müşteri/hizmet/not alanları hiç çekilmez (veri en aza indirme).
       const aggregateOnly = groupBy === 'day'
-      const [transactions, expenses] = await Promise.all([
+      const amountSelect = {
+        id: true,
+        grossAmount: true,
+        paymentMethod: true,
+        cashAmount: true,
+        cardAmount: true,
+        completedAt: true,
+      } as const
+      const listSelect = {
+        ...amountSelect,
+        notes: true,
+        appointment: {
+          select: {
+            startAt: true,
+            customer: { select: { fullName: true } },
+            service: { select: { name: true, category: true } },
+          },
+        },
+      } as const
+      const [rawTransactions, expenses] = await Promise.all([
         db.transaction.findMany({
           where: { tenantId, status: 'completed', completedAt: { gte: rangeStart, lte: rangeEnd } },
-          select: {
-            id: true,
-            grossAmount: true,
-            paymentMethod: true,
-            cashAmount: true,
-            cardAmount: true,
-            completedAt: true,
-            ...(aggregateOnly
-              ? {}
-              : {
-                  notes: true,
-                  appointment: {
-                    select: {
-                      startAt: true,
-                      customer: { select: { fullName: true } },
-                      service: { select: { name: true, category: true } },
-                    },
-                  },
-                }),
-          },
+          select: aggregateOnly ? amountSelect : listSelect,
           orderBy: { completedAt: 'asc' },
         }),
         db.expense.findMany({
@@ -1945,30 +1945,14 @@ export function createTenantRouter(): Router {
         }),
       ])
 
+      // aggregateOnly iken liste alanları (appointment, notes) çekilmediği için aşağıda yalnız tutar alanları ve erken dönüş kullanılır.
+      const transactions = rawTransactions as unknown as Array<Prisma.TransactionGetPayload<{ select: typeof listSelect }>>
       const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.grossAmount), 0)
       const cashRevenue = transactions.reduce((sum, t) => sum + Number(t.cashAmount), 0)
       const cardRevenue = transactions.reduce((sum, t) => sum + Number(t.cardAmount), 0)
       const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
-      const txMapped = transactions.map((t) => ({
-        id: t.id,
-        time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
-        customerName: t.appointment?.customer?.fullName ?? null,
-        serviceName: t.appointment?.service.name ?? null,
-        serviceCategory: t.appointment?.service.category ?? 'Diğer',
-        amount: Number(t.grossAmount),
-        paymentMethod: t.paymentMethod,
-        notes: t.notes ?? null,
-      }))
-
-      const expensesMapped = expenses.map((e) => ({
-        id: e.id,
-        title: e.title,
-        category: e.category,
-        amount: Number(e.amount),
-      }))
-
-      const base = {
+      const summary = {
         from: fromParam,
         to: toParam,
         totalRevenue,
@@ -1976,11 +1960,9 @@ export function createTenantRouter(): Router {
         cardRevenue,
         completedCount: transactions.length,
         netRevenue: totalRevenue - totalExpenses,
-        transactions: txMapped,
-        expenses: expensesMapped,
       }
 
-      if (groupBy === 'day') {
+      if (aggregateOnly) {
         const dayMap = new Map<string, {
           date: string
           revenue: number
@@ -2011,10 +1993,28 @@ export function createTenantRouter(): Router {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([, v]) => ({ ...v, netRevenue: v.revenue - v.expenses }))
 
-        return res.json({ ...base, daily })
+        return res.json({ ...summary, daily })
       }
 
-      return res.json(base)
+      const txMapped = transactions.map((t) => ({
+        id: t.id,
+        time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
+        customerName: t.appointment?.customer?.fullName ?? null,
+        serviceName: t.appointment?.service.name ?? null,
+        serviceCategory: t.appointment?.service.category ?? 'Diğer',
+        amount: Number(t.grossAmount),
+        paymentMethod: t.paymentMethod,
+        notes: t.notes ?? null,
+      }))
+
+      const expensesMapped = expenses.map((e) => ({
+        id: e.id,
+        title: e.title,
+        category: e.category,
+        amount: Number(e.amount),
+      }))
+
+      return res.json({ ...summary, transactions: txMapped, expenses: expensesMapped })
     } catch (err) {
       next(err)
     }
