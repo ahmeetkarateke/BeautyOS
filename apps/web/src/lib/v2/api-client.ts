@@ -50,8 +50,12 @@ export type ApiClientConfig = {
 }
 
 const REFRESH_PATH = '/api/v1/auth/refresh'
-// Bu uçlarda 401 "yanlış şifre/geçersiz bağlantı" demektir; oturum yenilemesi denenmez.
-const isAuthPath = (path: string) => path.startsWith('/api/v1/auth/')
+// Bu uçlarda 401 "yanlış şifre / geçersiz bağlantı / çıkış" demektir; oturum yenilemesi denenmez.
+// Açık liste: /auth/me burada DEĞİLDİR (süresi dolan token ile çağrılır, yenilenmesi gerekir).
+const NO_REFRESH_PATHS: readonly string[] = ['login', 'register', 'refresh', 'forgot-password', 'reset-password', 'admin-login', 'logout'].map(
+  (name) => `/api/v1/auth/${name}`,
+)
+const isAuthPath = (path: string) => NO_REFRESH_PATHS.some((p) => path === p || path.startsWith(`${p}?`))
 
 export function createApiClient(config: ApiClientConfig) {
   const doFetch = config.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
@@ -110,7 +114,7 @@ export function createApiClient(config: ApiClientConfig) {
     let code = envelope && typeof envelope.code === 'string' ? envelope.code : 'UNKNOWN'
     let retryAfterSec = envelope && typeof envelope.retryAfterSec === 'number' ? envelope.retryAfterSec : undefined
     if (res.status === 429) {
-      code = 'RATE_LIMIT'
+      if (code === 'UNKNOWN') code = 'RATE_LIMIT'
       const header = Number(res.headers.get('retry-after'))
       if (retryAfterSec === undefined && Number.isFinite(header) && header > 0) retryAfterSec = header
     }
