@@ -360,7 +360,6 @@ function HoursEditor({ person, initial, onSaved }: { person: StaffProfile; initi
   const patch = (key: string, change: Partial<HourRow>) => {
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
     // Tüm hatalar (genel "en az bir gün açık" şeridi dahil) düzenlemeyle temizlenir.
-    void key
     setErrors({})
   }
 
@@ -527,7 +526,7 @@ function LeavesTab({ staffId, canWrite }: { staffId: string; canWrite: boolean }
             if (!open && !busy) setRemovingLeave(null)
           }}
           title="İzin silinsin mi?"
-          description={`${formatDate(`${removingLeave.leaveDate}T12:00:00+03:00`, 'long')} tarihli ${leaveTypeLabel(removingLeave.leaveType).toLowerCase()} kaydı silinir; o gün uzmana yeniden randevu verilebilir.`}
+          description={`${formatDate(`${removingLeave.leaveDate}T12:00:00+03:00`, 'long')} tarihli ${leaveTypeLabel(removingLeave.leaveType).toLocaleLowerCase('tr-TR')} kaydı silinir; o gün uzmana yeniden randevu verilebilir.`}
           actionLabel="İzni sil"
           loading={busy}
           loadingText="Siliniyor…"
