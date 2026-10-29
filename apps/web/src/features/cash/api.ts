@@ -8,7 +8,7 @@ const dayStatusSchema = z.object({
   date: z.string(),
   isClosed: z.boolean(),
   closedAt: z.string().nullish(),
-  expectedCash: z.number(),
+  expectedCash: z.number().nullish(),
   countedCash: z.number().nullish(),
   difference: z.number().nullish(),
 })
