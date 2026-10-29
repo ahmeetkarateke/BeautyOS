@@ -104,6 +104,10 @@ describe('W25 hareket', () => {
     expect(Object.keys(validateMovement({ type: 'in', quantityText: '0', notes: '' }, 3))).toEqual(['quantityText'])
     expect(validateMovement({ type: 'out', quantityText: '5', notes: '' }, 3).quantityText).toBe('Mevcut stok 3; bundan fazlasını çıkaramazsınız.')
     expect(validateMovement({ type: 'waste', quantityText: '3', notes: '' }, 3)).toEqual({})
+    // Fire de çıkıştır: mevcut stoktan fazlası ve sayım eksiği de reddedilir (W25 denetim Önemli 2).
+    expect(validateMovement({ type: 'waste', quantityText: '4', notes: '' }, 3).quantityText).toBe('Mevcut stok 3; bundan fazlasını çıkaramazsınız.')
+    expect(validateMovement({ type: 'adjustment_out', quantityText: '4', notes: '' }, 3).quantityText).toBe('Mevcut stok 3; bundan fazlasını çıkaramazsınız.')
+    expect(validateMovement({ type: 'return', quantityText: '40', notes: '' }, 3)).toEqual({})
     expect(validateMovement({ type: 'in', quantityText: '999999', notes: '' }, 3)).toEqual({})
   })
   it('K5: not 500 karakteri geçemez', () => {

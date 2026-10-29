@@ -130,7 +130,7 @@ describe('W25 Stok', () => {
   it('K6: hareket ekle: adet 0 istek atmaz; çıkışta mevcut stoktan fazlası reddedilir; geçerli hareket POST edilir; son hareketler listelenir', async () => {
     mount()
     const row = (await screen.findByRole('list', { name: 'Ürünler' })).querySelectorAll('li')[2] as HTMLElement
-    fireEvent.click(within(row).getByRole('button', { name: 'Hareket ekle' }))
+    fireEvent.click(within(row).getByRole('button', { name: 'Hareket ekle · Şampuan' }))
     const dialog = await screen.findByRole('dialog', { name: 'Stok hareketi ekle' })
     expect((await within(dialog).findByRole('list', { name: 'Son hareketler' })).textContent).toContain('Alım')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hareketi kaydet' }))

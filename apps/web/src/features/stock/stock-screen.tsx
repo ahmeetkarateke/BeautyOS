@@ -103,7 +103,7 @@ function StockBody() {
                   </span>
                 </button>
                 <Button size="sm" variant="secondary" onClick={() => setMoving(item)}>
-                  Hareket ekle
+                  Hareket ekle<span className="sr-only"> · {item.name}</span>
                 </Button>
               </li>
             )
