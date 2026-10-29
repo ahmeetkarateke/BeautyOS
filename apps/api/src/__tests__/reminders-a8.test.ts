@@ -46,7 +46,7 @@ import { isHealthRegulated } from '@beautyos/shared'
 
 function appt(over: Record<string, unknown> = {}) {
   return {
-    id: 'a1', tenantId: 't1', status: 'confirmed', isDeleted: false,
+    id: 'a1', tenantId: 't1', status: 'confirmed', isDeleted: false, updatedAt: new Date('2026-10-29T10:00:00Z'),
     startAt: new Date('2026-10-30T09:00:00Z'),
     customer: { id: 'c1', fullName: 'Ayse Yilmaz', phone: '05321234567', email: 'ayse@example.com', marketingConsentSms: true },
     service: { name: 'Dis Beyazlatma' },
@@ -305,7 +305,8 @@ describe('A8 cift gonderim onlemi (ADR-0044 risk)', () => {
     expect(m.sendReminderEmail).not.toHaveBeenCalled()
     const where = m.messageDelivery.findFirst.mock.calls[0][0].where
     expect(where).toMatchObject({ appointmentId: 'a1', purpose: 'reminder_24h', status: { in: ['sent', 'delivered'] } })
-    expect(where.createdAt.gte).toBeInstanceOf(Date)
+    // Pencere randevunun son degisikliginden sonraki kayitlardir: saati degisen randevunun yeni hatirlatmasi eski kayitla engellenmez.
+    expect(where.createdAt).toEqual({ gt: new Date('2026-10-29T10:00:00Z') })
   })
 
   it('farkli tur (2 saat) icin 24 saat kaydi engel degildir: sorgu turu icerir', async () => {
