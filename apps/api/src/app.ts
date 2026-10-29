@@ -16,6 +16,8 @@ import { createFinancialAccountsRouter } from './routes/financial-accounts.route
 import { createStaffPayoutsRouter } from './routes/staff-payouts.route'
 import { createStockRouter } from './routes/stock.route'
 import { createWaitlistRouter } from './routes/waitlist.route'
+import { apiErrorHandler } from './lib/error-handler'
+import { logger } from './lib/logger'
 
 export function createApp(options?: { rateLimitMax?: number }) {
   const app = express()
@@ -89,9 +91,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
   app.use('/api/v1/tenants/:slug', createStockRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
-  app.use((_err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Sunucu hatası.' } })
-  })
+  app.use(apiErrorHandler((err) => logger.error({ err }, 'Unhandled error')))
 
   return app
 }
