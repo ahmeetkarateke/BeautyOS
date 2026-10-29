@@ -107,7 +107,7 @@ describe('A4: randevu listesi sozlesmesi (gercek PG)', () => {
     expect(res.body.data).toEqual([])
   })
 
-  it('kiraci izolasyonu: B kiracisinin tokeni A kiracisinin slug'iyla istek atarsa reddedilir ve randevu sizmaz', async () => {
+  it('kiraci izolasyonu: B kiracisinin tokeni A kiracisinin slug ile istek atarsa reddedilir ve randevu sizmaz', async () => {
     const otherOwner = await createTestOwner(otherTenant.id, otherTenant.slug, `${suffixB}x`)
     const res = await request(app)
       .get(`/api/v1/tenants/${tenant.slug}/appointments?date=2031-03-10`)
