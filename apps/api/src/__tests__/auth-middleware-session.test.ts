@@ -50,11 +50,30 @@ describe('authenticateJWT: durumlu dogrulama', () => {
     expect(res.body.error.code).toBe('SESSION_REVOKED')
   })
 
-  it('K6: sid tasimayan (gecis donemi) token yalniz kullanici aktifligiyle gecer; oturum sorgulanmaz', async () => {
+  it('S6-1 Onemli 2: sid tasimayan token (iptal edilemez, eski 7 gunluk superadmin token\'i dahil) test disi her ortamda 401 SESSION_REQUIRED; DB sorgulanmaz', async () => {
+    for (const env of ['production', 'development', '']) {
+      vi.stubEnv('NODE_ENV', env)
+      dbMock.user.findFirst.mockClear()
+      const res = await request(makeApp()).get('/p').set('Authorization', `Bearer ${sign()}`)
+      expect(res.status).toBe(401)
+      expect(res.body.error.code).toBe('SESSION_REQUIRED')
+      expect(dbMock.user.findFirst).not.toHaveBeenCalled()
+    }
+    vi.unstubAllEnvs()
+  })
+
+  it('S6-1 Onemli 2: sid\'li token ayni ortamlarda gecer (reddin tek nedeni sid yoklugu)', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    const res = await request(makeApp()).get('/p').set('Authorization', `Bearer ${sign({ sid: 'fam-1' })}`)
+    expect(res.status).toBe(200)
+    vi.unstubAllEnvs()
+  })
+
+  it('K6: yalniz NODE_ENV=test\'te sid\'siz test yardimci token\'i kullanici aktifligiyle gecer', async () => {
+    expect(process.env.NODE_ENV).toBe('test')
     const res = await request(makeApp()).get('/p').set('Authorization', `Bearer ${sign()}`)
     expect(res.status).toBe(200)
     expect(dbMock.session.findFirst).not.toHaveBeenCalled()
-    expect(dbMock.user.findFirst).toHaveBeenCalledTimes(1)
   })
 
   it('superadmin (tenantId yok) da aktiflik denetiminden gecer', async () => {

@@ -134,11 +134,19 @@ describe('K1: yenileme', () => {
     expect((jwt.decode(res.body.token) as Record<string, unknown>).sid).toBe((jwt.decode(first.body.token) as Record<string, unknown>).sid)
   })
 
-  it('K1: eski token yeniden kullanilirsa 401 ve yeni token da olur (aile iptali)', async () => {
+  it('S6-1: yenileme yaniti kaybolup ayni cerez tolerans icinde tekrar gelirse 200 (oturum dusmez)', async () => {
+    const app = makeApp()
+    const t1 = tokenFrom(cookieOf(await login(app)))
+    expect((await request(app).post('/api/v1/auth/refresh').set(withCookie(t1))).status).toBe(200)
+    expect((await request(app).post('/api/v1/auth/refresh').set(withCookie(t1))).status).toBe(200)
+  })
+
+  it('K1: eski token tolerans disinda yeniden kullanilirsa 401 ve yeni token da olur (aile iptali)', async () => {
     const app = makeApp()
     const t1 = tokenFrom(cookieOf(await login(app)))
     const second = await request(app).post('/api/v1/auth/refresh').set(withCookie(t1))
     const t2 = tokenFrom(cookieOf(second))
+    store().rows.filter((r) => r.usedAt).forEach((r) => { r.usedAt = new Date(Date.now() - 31_000) })
     expect((await request(app).post('/api/v1/auth/refresh').set(withCookie(t1))).status).toBe(401)
     expect((await request(app).post('/api/v1/auth/refresh').set(withCookie(t2))).status).toBe(401)
   })

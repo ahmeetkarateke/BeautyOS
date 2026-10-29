@@ -3,6 +3,9 @@ import { db } from './db'
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
+/** Yeniden kullanım toleransı: kullanılmış token bu süre içinde gelirse çalınma sayılmaz (S6-1 Önemli 1). */
+export const REUSE_GRACE_MS = 30 * 1000
+
 export type RotateResult =
   | { ok: true; userId: string; familyId: string; refreshToken: string }
   | { ok: false; reason: 'invalid' | 'reused' }
@@ -40,11 +43,8 @@ export async function rotateSession(refreshToken: string): Promise<RotateResult>
   if (!row) return { ok: false, reason: 'invalid' }
 
   if (row.revokedAt) return { ok: false, reason: 'invalid' }
-  if (row.usedAt) {
-    await revokeFamily(row.familyId)
-    return { ok: false, reason: 'reused' }
-  }
   if (row.expiresAt.getTime() <= Date.now()) return { ok: false, reason: 'invalid' }
+  if (row.usedAt) return reuseOrRevoke(row)
 
   const next = newRefreshToken()
   const claimed = await db.$transaction(async (tx) => {
@@ -65,10 +65,30 @@ export async function rotateSession(refreshToken: string): Promise<RotateResult>
     return true
   })
   if (!claimed) {
-    await revokeFamily(row.familyId)
-    return { ok: false, reason: 'reused' }
+    // Eş zamanlı yarışı kaybeden: kazanan usedAt'i yazdı; aynı tolerans kuralı uygulanır.
+    const fresh = await db.session.findUnique({ where: { tokenHash: row.tokenHash } })
+    return fresh?.usedAt ? reuseOrRevoke(fresh) : { ok: false, reason: 'invalid' }
   }
   return { ok: true, userId: row.userId, familyId: row.familyId, refreshToken: next }
+}
+
+type SessionRow = NonNullable<Awaited<ReturnType<typeof db.session.findUnique>>>
+
+/**
+ * Kullanılmış token yeniden geldi. Tolerans içinde (yanıtı kaybolan yenileme, iki sekmenin yarışı) aynı ailede yeni token verilir;
+ * eski satıra dokunulmaz, kendi kullanım zamanı tolerans penceresini belirler. Dışında çalınma varsayılır: aile iptal edilir.
+ */
+async function reuseOrRevoke(row: SessionRow): Promise<RotateResult> {
+  if (row.revokedAt) return { ok: false, reason: 'invalid' }
+  if (row.usedAt && Date.now() - row.usedAt.getTime() <= REUSE_GRACE_MS) {
+    const next = newRefreshToken()
+    await db.session.create({
+      data: { userId: row.userId, tenantId: row.tenantId, familyId: row.familyId, tokenHash: hashToken(next), expiresAt: new Date(Date.now() + SESSION_TTL_MS) },
+    })
+    return { ok: true, userId: row.userId, familyId: row.familyId, refreshToken: next }
+  }
+  await revokeFamily(row.familyId)
+  return { ok: false, reason: 'reused' }
 }
 
 /** Çıkış: çerezdeki token'ın ailesini kapatır; bilinmeyen token sessizce geçilir. */

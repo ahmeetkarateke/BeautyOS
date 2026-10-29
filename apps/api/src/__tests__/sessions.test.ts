@@ -27,6 +27,7 @@ import {
   isSessionLive,
   hashToken,
   purgeExpiredSessions,
+  REUSE_GRACE_MS,
 } from '../lib/sessions'
 
 let store: ReturnType<typeof createFakeSessionDb>
@@ -59,23 +60,41 @@ describe('K1: yenileme token ozeti ve dondurme', () => {
     expect(store.rows.every((x) => x.familyId === first.familyId && x.revokedAt === null)).toBe(true)
   })
 
-  it('K1: kullanilmis token yeniden gelirse reused doner ve TUM aile (yeni token dahil) iptal edilir', async () => {
+  it('K1: tolerans suresi DISINDA kullanilmis token yeniden gelirse reused doner ve TUM aile (yeni token dahil) iptal edilir', async () => {
     const first = await createSession('u1', 't1')
     const second = await rotateSession(first.refreshToken)
     if (!second.ok) throw new Error('beklenmeyen')
+    store.rows[0].usedAt = new Date(Date.now() - REUSE_GRACE_MS - 1000)
     expect(await rotateSession(first.refreshToken)).toEqual({ ok: false, reason: 'reused' })
     expect(store.rows.every((x) => x.revokedAt !== null)).toBe(true)
     expect(await rotateSession(second.refreshToken)).toEqual({ ok: false, reason: 'invalid' })
     expect(await isSessionLive(first.familyId)).toBe(false)
   })
 
-  it('K1: ayni token ayni anda iki kez gelirse yalniz biri basarili olur, digeri aileyi iptal eder', async () => {
+  it('S6-1 Onemli 1: tolerans icinde (yaniti kaybolan yenileme) ayni token yeniden gelirse oturum dusmez, yeni token ayni ailede verilir', async () => {
+    const first = await createSession('u1', 't1')
+    const second = await rotateSession(first.refreshToken)
+    const retry = await rotateSession(first.refreshToken)
+    if (!second.ok || !retry.ok) throw new Error('tolerans icinde basarili olmaliydi')
+    expect(retry.familyId).toBe(first.familyId)
+    expect(retry.refreshToken).not.toBe(second.refreshToken)
+    expect(store.rows.every((x) => x.revokedAt === null)).toBe(true)
+    expect(await isSessionLive(first.familyId)).toBe(true)
+    expect((await rotateSession(retry.refreshToken)).ok).toBe(true)
+  })
+
+  it('S6-1 Onemli 1: iptal edilmis (cikis) ailenin token\'i tolerans icinde bile reddedilir', async () => {
+    const first = await createSession('u1', 't1')
+    await rotateSession(first.refreshToken)
+    await revokeByToken(first.refreshToken)
+    expect(await rotateSession(first.refreshToken)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('K1/S6-1: ayni token ayni anda iki kez gelirse (iki sekme) ikisi de tolerans icinde basarili olur, aile canli kalir', async () => {
     const first = await createSession('u1', 't1')
     const [a, b] = await Promise.all([rotateSession(first.refreshToken), rotateSession(first.refreshToken)])
-    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1)
-    const loser = a.ok ? b : a
-    expect(loser).toEqual({ ok: false, reason: 'reused' })
-    expect(await isSessionLive(first.familyId)).toBe(false)
+    expect(a.ok && b.ok).toBe(true)
+    expect(await isSessionLive(first.familyId)).toBe(true)
   })
 
   it('K1: bilinmeyen token invalid; baska ailelere dokunmaz', async () => {

@@ -24,7 +24,7 @@ declare global {
 
 /**
  * Erişim token'ı imzayla birlikte her istekte durumla doğrulanır (S6 K3): kullanıcı hâlâ aktif mi ve (sid varsa) oturum ailesi iptal edilmemiş mi.
- * sid taşımayan (geçiş dönemi) token yalnız kullanıcı aktifliğine bakılarak geçer; en çok 15 dakika yaşar.
+ * sid taşımayan token test dışında reddedilir (iptal edilemez); istemci /auth/refresh ile sid'li token alır.
  */
 export async function authenticateJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization
@@ -50,6 +50,12 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
     verified = payload
   } catch {
     res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Token geçersiz veya süresi dolmuş.' } })
+    return
+  }
+
+  // sid'siz token sunucuda iptal edilemez; yalnız birim/entegrasyon testlerinin yardımcı token'ı için açık yol vardır (NODE_ENV=test).
+  if (!verified.sid && process.env.NODE_ENV !== 'test') {
+    res.status(401).json({ error: { code: 'SESSION_REQUIRED', message: 'Oturum yenilenmeli, lütfen yeniden giriş yapın.' } })
     return
   }
 
