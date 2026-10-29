@@ -18,7 +18,7 @@ export function newInviteToken(): { token: string; tokenHash: string } {
 
 export function inviteLink(token: string): string {
   const base = (process.env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
-  return `${base}/invite/${token}`
+  return `${base}/invite#${token}`
 }
 
 /** Gece işi: süresi dolmuş ya da iptal edilmiş davetlerin 30 gün sonra silinmesi. Kabul edilmiş davetler kalır (kayıt izi). */

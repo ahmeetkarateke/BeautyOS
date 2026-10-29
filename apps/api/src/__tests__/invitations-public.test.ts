@@ -36,7 +36,8 @@ const invite = (over: Record<string, unknown> = {}) => ({
   tenant: { name: 'Salon', slug: 'salon', settings: {} },
   ...over,
 })
-const accept = (body: object = {}) => request(app).post(`/api/v1/auth/invitations/${TOKEN}/accept`).send({ password: 'Sifre1234', ...body })
+const accept = (body: object = {}) => request(app).post('/api/v1/auth/invitations/accept').send({ token: TOKEN, password: 'Sifre1234', ...body })
+const lookup = (token: unknown = TOKEN) => request(app).post('/api/v1/auth/invitations/lookup').send({ token })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -51,9 +52,9 @@ beforeEach(() => {
   m.createSession.mockResolvedValue({ refreshToken: 'refresh-opak', familyId: 'fam1' })
 })
 
-describe('GET /auth/invitations/:token', () => {
+describe('POST /auth/invitations/lookup (ADR-0046: token govdede)', () => {
   it('gecerli bag: davet ozeti doner, token ozet olarak sorgulanir, Referrer-Policy no-referrer', async () => {
-    const res = await request(app).get(`/api/v1/auth/invitations/${TOKEN}`)
+    const res = await lookup()
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({ tenantName: 'Salon', role: 'staff', email: 'ayse@example.com', fullName: 'Ayse Yilmaz' })
     expect(res.body.expiresAt).toBeTruthy()
@@ -65,15 +66,15 @@ describe('GET /auth/invitations/:token', () => {
 
   it('gecersiz, suresi dolmus, kullanilmis ya da iptal: hepsi ayni 404 INVITATION_INVALID govdesi', async () => {
     m.db.invitation.findFirst.mockResolvedValue(null)
-    const a = await request(app).get(`/api/v1/auth/invitations/${'A'.repeat(43)}`)
-    const b = await request(app).get(`/api/v1/auth/invitations/${'B'.repeat(43)}`)
+    const a = await lookup('A'.repeat(43))
+    const b = await lookup('B'.repeat(43))
     expect(a.status).toBe(404)
     expect(a.body.error.code).toBe('INVITATION_INVALID')
     expect(b.body).toEqual(a.body)
   })
 })
 
-describe('POST /auth/invitations/:token/accept', () => {
+describe('POST /auth/invitations/accept', () => {
   it('mutlu yol: kullanici davetteki rol ve e-postayla olusur, uzman profili unvanla, oturum acilir (girisle ayni yanit)', async () => {
     const res = await accept()
     expect(res.status).toBe(200)
@@ -144,5 +145,44 @@ describe('POST /auth/invitations/:token/accept', () => {
     const res = await accept()
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('INVITATION_EMAIL_IN_USE')
+  })
+})
+
+describe('ADR-0046: gizli token URL yolunda tasinmaz', () => {
+  it('eski GET /:token yolu 404 doner (route yok), veritabani sorgulanmaz', async () => {
+    const res = await request(app).get(`/api/v1/auth/invitations/${TOKEN}`)
+    expect(res.status).toBe(404)
+    expect(m.db.invitation.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('eski POST /:token/accept yolu da calismaz: kullanici olusmaz', async () => {
+    const res = await request(app).post(`/api/v1/auth/invitations/${TOKEN}/accept`).send({ password: 'Sifre1234' })
+    expect(res.status).toBe(404)
+    expect(m.tx.user.create).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['token eksik', {}],
+    ['token string degil', { token: 123 }],
+    ['token cok kisa', { token: 'kisa' }],
+  ])('lookup: %s -> 400 ve yanit gövdesi gonderilen degeri icermez', async (_n, body) => {
+    const res = await request(app).post('/api/v1/auth/invitations/lookup').send(body)
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    expect(m.db.invitation.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('accept: token eksikse 400 (sifre gecerli), hata iletisi gonderilen tokeni icermez', async () => {
+    const res = await request(app).post('/api/v1/auth/invitations/accept').send({ password: 'Sifre1234' })
+    expect(res.status).toBe(400)
+    expect(m.db.$transaction).not.toHaveBeenCalled()
+    const bad = await request(app).post('/api/v1/auth/invitations/accept').send({ token: TOKEN, password: 'zayif' })
+    expect(bad.status).toBe(400)
+    expect(JSON.stringify(bad.body)).not.toContain(TOKEN)
+  })
+
+  it('sorgu dizgisiyle gonderilen token yok sayilir (gövde esas)', async () => {
+    const res = await request(app).post(`/api/v1/auth/invitations/lookup?token=${TOKEN}`).send({})
+    expect(res.status).toBe(400)
   })
 })

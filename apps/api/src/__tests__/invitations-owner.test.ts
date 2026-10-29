@@ -36,7 +36,7 @@ const valid = { email: 'ayse@example.com', fullName: 'Ayse Yilmaz', role: 'staff
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 
 function tokenFromLink(link: string): string {
-  return link.split('/invite/')[1]
+  return link.split('/invite#')[1]
 }
 
 beforeEach(() => {
@@ -56,7 +56,7 @@ describe('POST /invitations', () => {
     const res = await request(app).post(BASE).set(as('owner')).send(valid)
     expect(res.status).toBe(201)
     expect(Object.keys(res.body).sort()).toEqual(['emailSent', 'expiresAt', 'id', 'link'])
-    expect(res.body.link.startsWith('https://app.example.com/invite/')).toBe(true)
+    expect(res.body.link.startsWith('https://app.example.com/invite#')).toBe(true)
     const token = tokenFromLink(res.body.link)
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
     const data = dbMock.invitation.create.mock.calls[0][0].data
@@ -193,5 +193,16 @@ describe('DELETE /invitations/:id', () => {
   it('manager iptal edemez: 403', async () => {
     expect((await request(app).delete(`${BASE}/${ID}`).set(as('manager'))).status).toBe(403)
     expect(dbMock.invitation.updateMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('yeniden gonderme gunluk tavana tabidir', () => {
+  it('kiracida son 24 saatte 20 davet varsa resend 429 INVITE_LIMIT, token degismez', async () => {
+    dbMock.invitation.findFirst.mockResolvedValue({ id: ID, tokenHash: 'eski', email: 'a@x.com', fullName: 'A', role: 'staff' })
+    dbMock.invitation.count.mockResolvedValue(20)
+    const res = await request(app).post(`${BASE}/${ID}/resend`).set(as('owner'))
+    expect(res.status).toBe(429)
+    expect(res.body.error.code).toBe('INVITE_LIMIT')
+    expect(dbMock.invitation.update).not.toHaveBeenCalled()
   })
 })

@@ -19,7 +19,7 @@ describe('A3: personel daveti (gercek PG)', () => {
 
   const invite = (slug: string, token: string, body: object) =>
     request(app).post(`/api/v1/tenants/${slug}/invitations`).set('Authorization', `Bearer ${token}`).send(body)
-  const tokenOf = (link: string) => link.split('/invite/')[1]
+  const tokenOf = (link: string) => link.split('/invite#')[1]
 
   beforeAll(async () => {
     a = await createTestTenant(`${suffix}a`)
@@ -43,7 +43,7 @@ describe('A3: personel daveti (gercek PG)', () => {
     expect(stored.tokenHash).not.toBe(token)
     expect(stored.tokenHash).toMatch(/^[0-9a-f]{64}$/)
 
-    const accepted = await request(app).post(`/api/v1/auth/invitations/${token}/accept`).send({ password: 'DavetSifre12' })
+    const accepted = await request(app).post('/api/v1/auth/invitations/accept').send({ token, password: 'DavetSifre12' })
     expect(accepted.status).toBe(200)
     expect(accepted.body.user).toMatchObject({ email, role: 'staff', tenantSlug: a.slug })
 
@@ -59,8 +59,8 @@ describe('A3: personel daveti (gercek PG)', () => {
     const second = `ikinci-${suffix}@test.local`
     const created = await invite(a.slug, ownerA, { email: second, fullName: 'Ikinci Kisi', role: 'manager' })
     const token = tokenOf(created.body.link)
-    expect((await request(app).post(`/api/v1/auth/invitations/${token}/accept`).send({ password: 'DavetSifre12' })).status).toBe(200)
-    const again = await request(app).post(`/api/v1/auth/invitations/${token}/accept`).send({ password: 'DavetSifre12' })
+    expect((await request(app).post('/api/v1/auth/invitations/accept').send({ token, password: 'DavetSifre12' })).status).toBe(200)
+    const again = await request(app).post('/api/v1/auth/invitations/accept').send({ token, password: 'DavetSifre12' })
     expect(again.status).toBe(404)
     expect(again.body.error.code).toBe('INVITATION_INVALID')
   })
@@ -70,8 +70,8 @@ describe('A3: personel daveti (gercek PG)', () => {
     const created = await invite(a.slug, ownerA, { email: racer, fullName: 'Yaris Kisi', role: 'receptionist' })
     const token = tokenOf(created.body.link)
     const results = await Promise.all([
-      request(app).post(`/api/v1/auth/invitations/${token}/accept`).send({ password: 'DavetSifre12' }),
-      request(app).post(`/api/v1/auth/invitations/${token}/accept`).send({ password: 'DavetSifre12' }),
+      request(app).post('/api/v1/auth/invitations/accept').send({ token, password: 'DavetSifre12' }),
+      request(app).post('/api/v1/auth/invitations/accept').send({ token, password: 'DavetSifre12' }),
     ])
     expect(results.map((r) => r.status).sort()).toEqual([200, 404].sort())
     expect(await db.user.count({ where: { email: racer } })).toBe(1)
@@ -83,9 +83,9 @@ describe('A3: personel daveti (gercek PG)', () => {
     const revoked = await invite(a.slug, ownerA, { email: `iptal-${suffix}@test.local`, fullName: 'Iptal Kisi', role: 'staff' })
     expect((await request(app).delete(`/api/v1/tenants/${a.slug}/invitations/${revoked.body.id}`).set('Authorization', `Bearer ${ownerA}`)).status).toBe(200)
 
-    const unknown = await request(app).get(`/api/v1/auth/invitations/${'Z'.repeat(43)}`)
+    const unknown = await request(app).post('/api/v1/auth/invitations/lookup').send({ token: 'Z'.repeat(43) })
     for (const link of [expired.body.link, revoked.body.link]) {
-      const res = await request(app).get(`/api/v1/auth/invitations/${tokenOf(link)}`)
+      const res = await request(app).post('/api/v1/auth/invitations/lookup').send({ token: tokenOf(link) })
       expect(res.status).toBe(404)
       expect(res.body).toEqual(unknown.body)
     }
@@ -112,7 +112,7 @@ describe('A3: personel daveti (gercek PG)', () => {
     const shared = `ortak-${suffix}@test.local`
     const created = await invite(a.slug, ownerA, { email: shared, fullName: 'Ortak Kisi', role: 'staff' })
     await db.user.create({ data: { tenantId: b.id, email: shared, passwordHash: 'x', fullName: 'Baska Kiraci', role: 'staff' } })
-    const res = await request(app).post(`/api/v1/auth/invitations/${tokenOf(created.body.link)}/accept`).send({ password: 'DavetSifre12' })
+    const res = await request(app).post('/api/v1/auth/invitations/accept').send({ token: tokenOf(created.body.link), password: 'DavetSifre12' })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('INVITATION_EMAIL_IN_USE')
   })
