@@ -203,6 +203,19 @@ describe('W10 Bugün ekranı', () => {
     expect(await screen.findByRole('dialog', { name: 'Online randevu talebi' })).toBeTruthy()
   })
 
+  it('W10-4 Ö: randevu listesi ya da personel listesi hata verse de bekleyen talep şeridi görünür', async () => {
+    appointmentsError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+    mount()
+    expect(await screen.findByText('Bugünün randevuları yüklenemedi.')).toBeTruthy()
+    expect((await screen.findByTestId('bugun-bulgu')).textContent).toContain('1 online randevu onay bekliyor.')
+    cleanup()
+    appointmentsError = null
+    staffError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+    mount()
+    expect(await screen.findByText('Personel listesi yüklenemedi.')).toBeTruthy()
+    expect((await screen.findByTestId('bugun-bulgu')).textContent).toContain('1 online randevu onay bekliyor.')
+  })
+
   it('K-boş: kurulum tamamsa liste gösterilmez, yalnız boş durum görünür', async () => {
     appointments = []
     mount()
