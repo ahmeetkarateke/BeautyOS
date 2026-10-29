@@ -1430,21 +1430,26 @@ export function createTenantRouter(): Router {
     label: z.string().trim().max(100),
   })
 
+  // Uç değerler slot hesabını bozar (ör. 99999 dk); sunucu tavanları bunlardır, arayüz aynı değerlere çekilecek (W20'de süre tavanı 1440 idi).
+  const MAX_SERVICE_DURATION_MINUTES = 720
+  const MAX_SERVICE_BUFFER_MINUTES = 240
+
   const createServiceSchema = z.object({
     name: z.string().trim().min(1).max(100),
     category: z.string().trim().max(50).optional(),
-    durationMinutes: z.number().int().min(5),
+    durationMinutes: z.number().int().min(5).max(MAX_SERVICE_DURATION_MINUTES),
     price: z.number().min(0),
-    bufferMinutes: z.number().int().min(0).optional().default(0),
+    bufferMinutes: z.number().int().min(0).max(MAX_SERVICE_BUFFER_MINUTES).optional().default(0),
+    isOnlineBookable: z.boolean().optional(),
     followUpSchedule: z.array(followUpEntrySchema).max(10).optional().nullable(),
   })
 
   const updateServiceSchema = z.object({
     name: z.string().trim().min(1).max(100).optional(),
     category: z.string().trim().max(50).optional(),
-    durationMinutes: z.number().int().min(5).optional(),
+    durationMinutes: z.number().int().min(5).max(MAX_SERVICE_DURATION_MINUTES).optional(),
     price: z.number().min(0).optional(),
-    bufferMinutes: z.number().int().min(0).optional(),
+    bufferMinutes: z.number().int().min(0).max(MAX_SERVICE_BUFFER_MINUTES).optional(),
     isActive: z.boolean().optional(),
     isOnlineBookable: z.boolean().optional(),
     followUpSchedule: z.array(followUpEntrySchema).max(10).optional().nullable(),
@@ -1469,7 +1474,7 @@ export function createTenantRouter(): Router {
           tenantId: req.tenantId!,
           ...(fuSchedule !== undefined ? { followUpSchedule: fuSchedule ?? Prisma.DbNull } : {}),
         },
-        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, followUpSchedule: true },
+        select: { id: true, name: true, durationMinutes: true, price: true, category: true, bufferMinutes: true, isActive: true, isOnlineBookable: true, followUpSchedule: true },
       })
 
       return res.status(201).json({ ...service, price: Number(service.price), followUpSchedule: service.followUpSchedule ?? null })
