@@ -188,8 +188,8 @@ describe('W15 sürükle-bırak', () => {
     expect(alert.textContent).toContain('Bu saat doldu. Başka bir saat seçin.')
     expect(screen.queryByText(/taşındı\./)).toBeNull()
     await waitFor(() =>
-      expect((screen.getByRole('group', { name: 'Günlük takvim' }).querySelector('[data-event-id="a1"]') as HTMLElement).getAttribute('aria-label')).toMatch(
-        /^14:00 – 14:45/,
+      expect((screen.getByRole('group', { name: 'Günlük takvim' }).querySelector('[data-event-id="a1"]') as HTMLElement).textContent).toMatch(
+        /14:00 – 14:45/,
       ),
     )
   })
@@ -253,7 +253,7 @@ describe('W15 sürükle-bırak', () => {
     drag(el, 72)
     await screen.findByText('Randevu 15:00’e taşındı.')
     await act(async () => {})
-    const now = (screen.getByRole('group', { name: 'Günlük takvim' }).querySelector('[data-event-id="a1"]') as HTMLElement).getAttribute('aria-label')
-    expect(now).toMatch(/^15:00 – 15:45/)
+    const now = (screen.getByRole('group', { name: 'Günlük takvim' }).querySelector('[data-event-id="a1"]') as HTMLElement).textContent
+    expect(now).toMatch(/15:00 – 15:45/)
   })
 })

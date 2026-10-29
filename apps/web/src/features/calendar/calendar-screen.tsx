@@ -428,6 +428,7 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
           if (!open) go(view, date === today ? null : date)
         }}
         today={today}
+        now={clock}
         onCreated={list.refetch}
         initial={{
           staffId: params.get('personel') ?? undefined,
@@ -435,7 +436,7 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
           date: params.get('tarih') ? date : undefined,
         }}
       />
-      <AppointmentDetailSheet appointment={peeking} today={today} onClose={() => setPeeking(null)} onChanged={list.refetch} />
+      <AppointmentDetailSheet appointment={peeking} today={today} now={clock} onClose={() => setPeeking(null)} onChanged={list.refetch} />
     </div>
   )
 }

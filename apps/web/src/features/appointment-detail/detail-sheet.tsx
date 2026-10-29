@@ -20,7 +20,7 @@ import { RescheduleSheet } from './reschedule-sheet'
 
 // Randevu ayrıntısı (tasarim.md §5): bilgi + iletişim + duruma göre eylemler. Tamamlama ve ödeme W16'dadır.
 // Sunucu her eylemi yine doğrular; arayüz yalnız izinli ve duruma uygun eylemi gösterir.
-export function AppointmentDetailSheet({ appointment, today, onClose, onChanged }: { appointment: DayAppointment | null; today: string; onClose: () => void; onChanged: () => void }) {
+export function AppointmentDetailSheet({ appointment, today, now, onClose, onChanged }: { appointment: DayAppointment | null; today: string; now?: Date; onClose: () => void; onChanged: () => void }) {
   return (
     <Sheet
       open={appointment !== null}
@@ -29,7 +29,7 @@ export function AppointmentDetailSheet({ appointment, today, onClose, onChanged 
       }}
       title="Randevu ayrıntısı"
     >
-      {appointment ? <DetailBody key={appointment.id} appointment={appointment} today={today} onClose={onClose} onChanged={onChanged} /> : null}
+      {appointment ? <DetailBody key={appointment.id} appointment={appointment} today={today} now={now} onClose={onClose} onChanged={onChanged} /> : null}
     </Sheet>
   )
 }
@@ -60,7 +60,7 @@ const CONFIRM: Record<Exclude<Pending, null>, { title: string; description: (a: 
   },
 }
 
-function DetailBody({ appointment, today, onClose, onChanged }: { appointment: DayAppointment; today: string; onClose: () => void; onChanged: () => void }) {
+function DetailBody({ appointment, today, now, onClose, onChanged }: { appointment: DayAppointment; today: string; now?: Date; onClose: () => void; onChanged: () => void }) {
   const client = useApiClient()
   const me = useMe()
   const slug = me.tenant.slug
@@ -192,6 +192,7 @@ function DetailBody({ appointment, today, onClose, onChanged }: { appointment: D
         <RescheduleSheet
           appointment={appointment}
           today={today}
+          now={now}
           onClose={() => setRescheduling(false)}
           onDone={() => {
             setRescheduling(false)

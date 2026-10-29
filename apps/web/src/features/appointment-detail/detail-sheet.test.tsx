@@ -32,7 +32,7 @@ function mount(a: DayAppointment | null = appt(), me: Me = makeMe('owner')) {
     <ApiClientProvider client={client}>
       <MeProvider me={me}>
         <ToastProvider>
-          <AppointmentDetailSheet appointment={a} today="2026-10-29" onClose={onClose} onChanged={onChanged} />
+          <AppointmentDetailSheet appointment={a} today="2026-10-29" now={new Date("2026-10-29T06:00:00Z")} onClose={onClose} onChanged={onChanged} />
         </ToastProvider>
       </MeProvider>
     </ApiClientProvider>,
@@ -183,5 +183,23 @@ describe('W14 Randevu ayrıntısı', () => {
   it('K-hizmetsiz: hizmet kimliği olmayan randevuda Saati değiştir çıkmaz (eksik veriyle istek atılmaz)', () => {
     mount(appt({ serviceId: null }))
     expect(screen.queryByRole('button', { name: 'Saati değiştir' })).toBeNull()
+  })
+})
+
+describe('W13-G1 saati değiştirmede geçmiş saatler', () => {
+  it('K-geçmiş: şimdiden önceki boş saatler sunulmaz (şimdi 12:30 TR; 12:00 yok, 14:00 var)', async () => {
+    render(
+      <ApiClientProvider client={client}>
+        <MeProvider me={makeMe('owner')}>
+          <ToastProvider>
+            <AppointmentDetailSheet appointment={appt()} today="2026-10-29" now={new Date('2026-10-29T09:30:00Z')} onClose={onClose} onChanged={onChanged} />
+          </ToastProvider>
+        </MeProvider>
+      </ApiClientProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Saati değiştir' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Saati değiştir' })
+    expect(await within(dialog).findByRole('button', { name: '14:00' })).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: '12:00' })).toBeNull()
   })
 })

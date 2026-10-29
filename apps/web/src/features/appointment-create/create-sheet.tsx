@@ -18,7 +18,7 @@ import { Skeleton, SkeletonGroup } from '@/ui/skeleton'
 import { ErrorState } from '@/ui/states'
 import { useToast } from '@/ui/toast'
 import { createAppointment, createCustomer, fetchServices, fetchSlots, searchCustomers } from './api'
-import { isDraftComplete, newCustomerIssue, slotStartAt, staffForService, type CustomerChoice } from './create-logic'
+import { futureSlots, isDraftComplete, newCustomerIssue, slotStartAt, staffForService, type CustomerChoice } from './create-logic'
 
 // Randevu oluştur katmanı (tasarim.md §5 akış): müşteri -> hizmet -> personel -> tarih (14 gün) -> saat -> not.
 // Saat dolarsa (SLOT_TAKEN) hata saat bölümünde görünür, saatler yenilenir, seçim temizlenir; katman açık kalır.
@@ -31,6 +31,8 @@ export type CreateSheetProps = {
   onOpenChange: (open: boolean) => void
   /** Salon günü (YYYY-MM-DD). */
   today: string
+  /** Geçmiş saatleri elemek için şimdi; verilmezse form açıldığındaki an. */
+  now?: Date
   onCreated: () => void
   /** Takvimden gelen ön seçimler (boş dilime dokunma). */
   initial?: { staffId?: string; time?: string; date?: string }
@@ -41,7 +43,9 @@ export function CreateAppointmentSheet(props: CreateSheetProps) {
   return props.open ? <CreateForm {...props} /> : null
 }
 
-function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProps) {
+function CreateForm({ onOpenChange, today, now, onCreated, initial }: CreateSheetProps) {
+  const [openedAt] = useState(() => new Date())
+  const nowMs = (now ?? openedAt).getTime()
   const client = useApiClient()
   const me = useMe()
   const slug = me.tenant.slug
@@ -85,7 +89,7 @@ function CreateForm({ onOpenChange, today, onCreated, initial }: CreateSheetProp
         : ''
 
   const slots = useApiQuery(serviceId && staffId ? `slots:${serviceId}:${staffId}:${date}` : null, (c, signal) => fetchSlots(c, slug, serviceId, staffId, date, signal))
-  const freeSlots = useMemo(() => (slots.data ?? []).filter((s) => s.available), [slots.data])
+  const freeSlots = useMemo(() => futureSlots((slots.data ?? []).filter((s) => s.available), nowMs), [slots.data, nowMs])
   const slotId =
     slotChoice !== null
       ? freeSlots.some((s) => s.id === slotChoice)
