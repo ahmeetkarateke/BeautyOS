@@ -27,7 +27,7 @@ const cashReportSchema = z.object({
 export type CashReport = z.infer<typeof cashReportSchema>
 
 export async function fetchCashReport(client: ApiClient, slug: string, from: string, to: string, signal?: AbortSignal): Promise<CashReport> {
-  return cashReportSchema.parse(await client.request<unknown>(`${base(slug)}/reports/daily`, { query: { from, to, groupBy: 'day' }, signal }))
+  return cashReportSchema.parse(await client.request<unknown>(`${base(slug)}/reports/daily`, { query: { from, to, groupBy: 'day', fields: 'summary' }, signal }))
 }
 
 const commissionSchema = z.object({
