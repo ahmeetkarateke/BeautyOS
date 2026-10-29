@@ -48,6 +48,7 @@ test.describe('bayrak açık (staging)', () => {
   test.skip(KAPALI, 'yalnız bayrak açık derlemede')
 
   test('K2: eski panel yolu yeni panele yönlenir, sorgu dizesi korunur', async ({ request }) => {
+    test.skip(!BAYRAK.toLowerCase().split(',').map((p) => p.trim()).includes('panel'), 'panel yüzeyi kapalıysa eski yol yönlenmez')
     const yanit = await git(request, '/tenant/defne/dashboard?x=1')
     expect(yanit.status()).toBe(307)
     const hedef = new URL(yanit.headers()['location'], 'http://web:3000')
@@ -56,6 +57,7 @@ test.describe('bayrak açık (staging)', () => {
   })
 
   test('K2: ayrıntı yolu kimliği taşır', async ({ request }) => {
+    test.skip(!BAYRAK.toLowerCase().split(',').map((p) => p.trim()).includes('panel'), 'panel yüzeyi kapalıysa eski yol yönlenmez')
     const yanit = await git(request, '/tenant/defne/customers/abc123')
     expect(yanit.status()).toBe(307)
     expect(new URL(yanit.headers()['location'], 'http://web:3000').pathname).toBe('/panel/defne/musteri/abc123')
