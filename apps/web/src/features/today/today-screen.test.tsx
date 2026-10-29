@@ -160,6 +160,15 @@ describe('W10 Bugün ekranı', () => {
     expect(screen.queryByRole('button', { name: 'Gözden geçir' })).toBeNull()
   })
 
+  it('W16b-1 Ö: Randevusuz işlem düğmesi yalnız finance.revenue.create izni olanda çıkar', async () => {
+    mount()
+    await screen.findByTestId('doluluk-seridi')
+    expect(screen.getByRole('button', { name: 'Randevusuz işlem' })).toBeTruthy()
+    cleanup()
+    mount({ ...makeMe('owner'), permissions: permissionsFor('owner').filter((p) => p !== 'finance.revenue.create') })
+    await screen.findByTestId('doluluk-seridi')
+    expect(screen.queryByRole('button', { name: 'Randevusuz işlem' })).toBeNull()
+  })
   it('K-başlat: onaylı randevuda Başlat durumu devam ediyor yapar ve listeyi yeniler', async () => {
     mount()
     const next = await screen.findByRole('region', { name: 'Şimdi ve sırada' })
