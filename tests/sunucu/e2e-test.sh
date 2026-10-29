@@ -13,18 +13,18 @@ SRC="${1:?kaynak dizini gerekli}"
 OUT="${2:?çıktı dizini gerekli}"
 shift 2 || true
 # Çıktı dizini root olarak chown -R edilir: yalnız /tmp altındaki gerçek (symlink çözülmüş) bir alt dizine izin ver.
-mkdir -p "$OUT"
-OUT="$(realpath "$OUT")"
+# Doğrulama önce: realpath -m dizini oluşturmadan sembolik bağlantıları çözer; mkdir yalnız kabulden sonra.
+OUT="$(realpath -m "$OUT")"
 case "$OUT" in
   /tmp/?*) ;;
   *) echo "çıktı dizini /tmp altında olmalı (gerçek yol: $OUT)" >&2; exit 2 ;;
 esac
+mkdir -p "$OUT"
 RUN="bostest-e2e-$$"
 NET="${RUN}-net"
 API_IMG="bostest-api:$$"
 WEB_IMG="bostest-web:$$"
 E2E_IMG="bostest-e2e:$$"
-mkdir -p "$OUT"
 MIN_AVAIL_MB=600
 
 avail_mb() { awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo; }
@@ -82,8 +82,14 @@ docker build -q --memory 1g --memory-swap 1g -f "$SRC/tests/sunucu/Dockerfile.ap
 WEBSRC="$(mktemp -d /tmp/bostest-websrc.XXXXXX)"
 tar -C "$SRC" --exclude=./apps/web/e2e --exclude=./apps/web/playwright.config.ts \
   --exclude='./apps/web/vitest.*' -cf - . | tar -C "$WEBSRC" -xf -
+# Vitrin bayrağı (NEXT_PUBLIC_UI_V2_SHOWCASE) web Dockerfile'ında build arg değildir; yalnız test kopyasında ENV olarak verilir,
+# uygulama dosyalarına dokunulmaz. Değer yalnız "1" olabilir.
+if [ "${E2E_UI_V2_SHOWCASE:-}" = "1" ]; then
+  sed -i 's|^RUN npm run build --workspace=apps/web|ENV NEXT_PUBLIC_UI_V2_SHOWCASE=1\n&|' "$WEBSRC/apps/web/Dockerfile"
+  grep -q '^ENV NEXT_PUBLIC_UI_V2_SHOWCASE=1' "$WEBSRC/apps/web/Dockerfile" || { echo "vitrin bayrağı Dockerfile'a eklenemedi" >&2; exit 4; }
+fi
 docker build -q --memory 1536m --memory-swap 1536m -f "$WEBSRC/apps/web/Dockerfile" \
-  --build-arg NEXT_PUBLIC_API_URL=http://api:3001 --build-arg NEXT_PUBLIC_UI_V2="${E2E_UI_V2:-}" --build-arg NODE_HEAP_MB=1280 \
+  --build-arg NEXT_PUBLIC_API_URL=http://bostest-api:3001 --build-arg NEXT_PUBLIC_UI_V2="${E2E_UI_V2:-}" --build-arg NODE_HEAP_MB=1280 \
   -t "$WEB_IMG" "$WEBSRC" >/dev/null
 rm -rf "$WEBSRC"
 docker build -q --memory 512m --memory-swap 512m -f "$SRC/tests/sunucu/Dockerfile.e2e" -t "$E2E_IMG" "$SRC" >/dev/null
@@ -98,7 +104,7 @@ docker run -d --name "${RUN}-redis" --network "$NET" --network-alias redis \
   redis:7.4-alpine redis-server --save "" --appendonly no >/dev/null
 
 DBURL="postgresql://postgres:${PGPASS}@postgres:5432/beautyos_test"
-docker run -d --name "${RUN}-api" --network "$NET" --network-alias api --memory 384m --memory-swap 384m \
+docker run -d --name "${RUN}-api" --network "$NET" --network-alias bostest-api --memory 384m --memory-swap 384m \
   -e TZ=UTC -e NODE_ENV=test -e PORT=3001 \
   -e DATABASE_URL="$DBURL" -e DIRECT_URL="$DBURL" -e REDIS_URL="redis://redis:6379" \
   -e JWT_SECRET="$JWT" -e CORS_ORIGIN="http://web:3000" -e ALLOWED_ORIGINS="http://web:3000" \
@@ -110,8 +116,8 @@ docker run -d --name "${RUN}-web" --network "$NET" --network-alias web --memory 
 
 docker run --rm --name "${RUN}-e2e" --network "$NET" --memory 512m --memory-swap 512m --shm-size=256m \
   -v "$OUT:/out" -v "$SRC/tests/sunucu/bekle.cjs:/opt/bekle.cjs:ro" \
-  -e E2E_UI_V2="${E2E_UI_V2:-}" -e E2E_BASE_URL=http://web:3000 -e E2E_API_URL=http://api:3001 \
+  -e E2E_UI_V2="${E2E_UI_V2:-}" -e E2E_UI_V2_SHOWCASE="${E2E_UI_V2_SHOWCASE:-}" -e E2E_BASE_URL=http://web:3000 -e E2E_API_URL=http://bostest-api:3001 \
   -e E2E_OUT_DIR=/out/cikti -e E2E_SHOT_DIR=/out/ekran -e DEMO_SEED_PASSWORD="$(openssl rand -hex 12)" -e DEMO_SEED_GUN=1 \
-  "$E2E_IMG" sh -c 'node /opt/bekle.cjs api:3001 web:3000 \
+  "$E2E_IMG" sh -c 'node /opt/bekle.cjs bostest-api:3001 web:3000 \
     && node e2e/seed/defne.mjs && node e2e/seed/defne.mjs \
     && npx playwright test "$@"' sh "$@"

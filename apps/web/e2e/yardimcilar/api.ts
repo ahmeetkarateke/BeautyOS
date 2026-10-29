@@ -3,10 +3,10 @@ import { expect, request, type APIRequestContext } from '@playwright/test'
 // E2E verisi API üzerinden kurulur (arayüz sürücüsü değil). Adlar anonim ve uydurmadır;
 // slug her zaman `tst-` önekli (test temizliği yalnız bu öneki tanır).
 const API = process.env.E2E_API_URL
-if (!API) throw new Error('E2E_API_URL tanımlı değil (örn. http://api:3001).')
-// Beyaz liste: yalnız geçici yığının iç adı (noktasız, örn. api) ya da yerel adres. Canlı ve staging adresleri reddedilir.
+if (!API) throw new Error('E2E_API_URL tanımlı değil (örn. http://bostest-api:3001).')
+// Beyaz liste: yalnız geçici yığının iç adı (bostest-api) ya da yerel adres. Canlı ve staging adresleri reddedilir.
 const apiHost = new URL(API).hostname.toLowerCase()
-if (apiHost.includes('.') && apiHost !== '127.0.0.1') {
+if (!apiHost.startsWith('bostest-') && apiHost !== '127.0.0.1' && apiHost !== 'localhost') {
   throw new Error(`E2E_API_URL yalnız geçici test yığınına işaret edebilir; gelen ana bilgisayar: ${apiHost}`)
 }
 
