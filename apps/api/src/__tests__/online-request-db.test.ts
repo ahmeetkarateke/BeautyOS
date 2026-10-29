@@ -173,18 +173,80 @@ describe('S2 Kritik 2: dogrulanmamis talep ve onayda musteri eslestirme (gercek 
     expect(await db.appointment.findUniqueOrThrow({ where: { id: appt.id } })).toMatchObject({ status: 'cancelled', cancelReason: 'rejected' })
   })
 
-  it('eski durum ucu: musterisiz talebi completed yapmak 409, confirmed telefon kayitliysa 409 CUSTOMER_MATCH_REQUIRED', async () => {
+  it('eski durum ucu: uzman musterisiz talebi onaylayamaz/iptal edemez (403), talep pending kalir, govdede aday yok', async () => {
     const appt = await unverifiedRequest()
-    const completed = await request(app)
+    const res = await request(app)
       .patch(`/api/v1/tenants/${slug}/appointments/${appt.id}/status`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ status: 'completed' })
-    expect(completed.status).toBe(409)
-    const confirmed = await request(app)
-      .patch(`/api/v1/tenants/${slug}/appointments/${appt.id}/status`)
-      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('Authorization', `Bearer ${staffToken}`)
       .send({ status: 'confirmed' })
-    expect(confirmed.status).toBe(409)
-    expect(confirmed.body.error.code).toBe('CUSTOMER_MATCH_REQUIRED')
+    expect(res.status).toBe(403)
+    expect(JSON.stringify(res.body)).not.toContain('candidates')
+    expect((await db.appointment.findUniqueOrThrow({ where: { id: appt.id } })).status).toBe('pending')
+  })
+
+  it('eski durum ucu: yetkili de musterisiz talebi confirmed/completed yapamaz (409 CUSTOMER_MATCH_REQUIRED, aday yok); iptal edebilir', async () => {
+    const appt = await unverifiedRequest()
+    const patchStatus = (status: string) =>
+      request(app)
+        .patch(`/api/v1/tenants/${slug}/appointments/${appt.id}/status`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ status })
+    for (const status of ['confirmed', 'completed']) {
+      const res = await patchStatus(status)
+      expect(res.status).toBe(409)
+      expect(res.body.error.code).toBe('CUSTOMER_MATCH_REQUIRED')
+      expect(res.body.candidates).toBeUndefined()
+    }
+    expect((await db.appointment.findUniqueOrThrow({ where: { id: appt.id } })).customerId).toBeNull()
+    expect((await patchStatus('cancelled')).status).toBe(200)
+  })
+
+  it('S2 Kritik 1: dogrulamasiz modda ayni telefondan ikinci gecerli talep de gercekten olusur ve ayni yaniti verir (DB de 2 kayit)', async () => {
+    await db.tenant.update({ where: { id: tenantId }, data: { settings: { publicBookingEnabled: true } } })
+    await db.staffProfile.update({ where: { id: staffId }, data: { acceptsOnlineBooking: true } })
+    await db.staffServiceAssignment.create({ data: { staffId, serviceId, tenantId, isActive: true } })
+    await db.service.update({ where: { id: serviceId }, data: { isOnlineBookable: true, isActive: true } })
+
+    const phone = '0555 777 66 55'
+    const book = (hours: number) =>
+      request(app)
+        .post(`/api/v1/tenants/${slug}/public/book`)
+        .send({
+          serviceId,
+          staffId,
+          startAt: new Date(Date.now() + (40 * 24 + hours) * H).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+          customerName: 'Aynı Telefon',
+          customerPhone: phone,
+        })
+    const first = await book(1)
+    const second = await book(3)
+    expect([first.status, second.status]).toEqual([201, 201])
+    expect(Object.keys(second.body).sort()).toEqual(Object.keys(first.body).sort())
+    expect(second.body).toMatchObject({ status: 'pending', approvalRequired: true, phoneVerified: false })
+    expect(await db.appointment.count({ where: { tenantId, requestedPhone: '+905557776655', customerId: null } })).toBe(2)
+    // ikinci talep slotu gercekten tutar: ayni saate baska telefon 409
+    const clash = await request(app)
+      .post(`/api/v1/tenants/${slug}/public/book`)
+      .send({
+        serviceId,
+        staffId,
+        startAt: new Date(Date.now() + (40 * 24 + 3) * H).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        customerName: 'Baska Kisi',
+        customerPhone: '0555 111 00 99',
+      })
+    expect(clash.status).toBe(409)
+    expect(clash.body.error.code).toBe('SLOT_TAKEN')
+  })
+
+  it('saklama: 30 gunden eski iptal edilmis musterisiz talebin ad ve telefonu gece taramasinda anonimlesir; yeni olan ve baglanmis kayit korunur', async () => {
+    const old = await unverifiedRequest('+905553334455')
+    const fresh = await unverifiedRequest('+905553334466')
+    await db.appointment.update({ where: { id: old.id }, data: { status: 'cancelled', cancelReason: 'expired' } })
+    await db.appointment.update({ where: { id: fresh.id }, data: { status: 'cancelled', cancelReason: 'rejected' } })
+    await db.$executeRaw`UPDATE appointments SET "updatedAt" = now() - interval '31 days' WHERE id = ${old.id}::uuid`
+    const { anonymizeStaleRequests } = await import('../lib/online-booking')
+    expect(await anonymizeStaleRequests()).toBeGreaterThanOrEqual(1)
+    expect(await db.appointment.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({ requestedName: '-', requestedPhone: '-' })
+    expect(await db.appointment.findUniqueOrThrow({ where: { id: fresh.id } })).toMatchObject({ requestedName: 'Talep Eden', requestedPhone: '+905553334466' })
   })
 })

@@ -13,7 +13,6 @@ import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
-import { approveOnlineRequest } from '../lib/online-booking'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -867,14 +866,15 @@ export function createTenantRouter(): Router {
         })
       }
 
-      // Müşterisi henüz eşleşmemiş (doğrulanmamış) online talep: onay müşteri eşleştirmesi gerektirir (S2).
-      if (!existing.customerId && status !== 'cancelled' && status !== 'no_show') {
-        const outcome = status === 'confirmed' ? await approveOnlineRequest(tenantId, appointmentId, { customerAction: 'create' }) : 'not_pending'
-        if (outcome === 'ok') return res.json({ id: appointmentId, status: 'confirmed', cancellationReason: existing.cancellationReason })
-        if (typeof outcome === 'object' && outcome.result === 'match_required') {
-          return res.status(409).json({ error: { code: 'CUSTOMER_MATCH_REQUIRED', message: 'Bu telefonla kayıtlı bir müşteri var; eşleştirmeyi yeni panelden yapın.' }, candidates: outcome.candidates })
+      // Müşterisi henüz eşleşmemiş (doğrulanmamış) online talep: onay/ret yalnız appointment.approve ile ve yeni onay ucundan
+      // (müşteri eşleştirmesiyle) yapılır. Eski uçtan yalnız iptal / gelmedi, o da yetkiliyle; aday müşteri adları bu uçta dönmez.
+      if (!existing.customerId) {
+        if (!can(req.user!.role, 'appointment.approve')) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
         }
-        return res.status(409).json({ error: { code: 'CUSTOMER_MATCH_REQUIRED', message: 'Önce talebi onaylayıp müşteriyle eşleştirin.' } })
+        if (status !== 'cancelled' && status !== 'no_show') {
+          return res.status(409).json({ error: { code: 'CUSTOMER_MATCH_REQUIRED', message: 'Bu talep müşteri eşleştirmesiyle onaylanmalı; onay ekranını kullanın.' } })
+        }
       }
 
       const updated = await db.appointment.update({

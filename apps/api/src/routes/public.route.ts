@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import { db } from '../lib/db'
@@ -33,13 +33,11 @@ function resolveApprovalMode(tenant: { settings: unknown; businessType: string }
   return MANUAL_BY_DEFAULT.has(tenant.businessType) ? 'manual' : 'auto'
 }
 
-type PhoneCap = 'active' | 'pending'
-
 /**
- * Telefon başına tavanlar. Sonuç telefonun salonda randevusu olup olmadığını söyler; bu yüzden doğrulanmamış
- * (none) modda çağıran bunu ayırt edilemez başarı yanıtıyla gizler (KVKK: sağlık verisi çıkarımı).
+ * Telefon başına aktif randevu tavanı yalnız doğrulanmış (sms) modda uygulanır: telefonun sahibi doğrulamayla kanıtlanmıştır.
+ * Doğrulamasız modda telefona özgü hiçbir tavan yoktur; yanıt, süre ve slot davranışı telefon durumundan bağımsızdır (KVKK).
  */
-async function checkPhoneCaps(tenantId: string, variants: string[], verifiedMode: boolean): Promise<PhoneCap | null> {
+async function isActiveBookingCapReached(tenantId: string, variants: string[]): Promise<boolean> {
   const activeCount = await db.appointment.count({
     where: {
       tenantId,
@@ -49,15 +47,7 @@ async function checkPhoneCaps(tenantId: string, variants: string[], verifiedMode
       startAt: { gte: new Date() },
     },
   })
-  if (activeCount >= MAX_ACTIVE_PER_PHONE) return 'active'
-
-  if (!verifiedMode) {
-    const phonePending = await db.appointment.count({
-      where: { tenantId, bookingChannel: 'web', status: 'pending', isDeleted: false, OR: [{ customer: { phone: { in: variants } } }, { requestedPhone: { in: variants } }] },
-    })
-    if (phonePending >= ONLINE_LIMITS.pendingPerPhone) return 'pending'
-  }
-  return null
+  return activeCount >= MAX_ACTIVE_PER_PHONE
 }
 
 /** Kiracı geneli günlük tavan; telefona özgü bilgi taşımaz, ayrı kodla dönebilir. */
@@ -66,18 +56,6 @@ async function isTenantDailyCapReached(tenantId: string): Promise<boolean> {
     where: { tenantId, bookingChannel: 'web', status: 'pending', isDeleted: false, createdAt: { gte: new Date(Date.now() - DAY_MS) } },
   })
   return tenantPending >= ONLINE_LIMITS.pendingPerTenantPerDay
-}
-
-/** Tavana takılan doğrulamasız talebe başarılı talebin aynısı döner; kayıt oluşturulmaz. */
-function acceptedLookalike(startDate: Date) {
-  return {
-    id: randomUUID(),
-    referenceCode: newReferenceCode(Date.now()),
-    startAt: startDate,
-    status: 'pending' as const,
-    approvalRequired: true,
-    phoneVerified: false,
-  }
 }
 
 function newReferenceCode(nowMs: number): string {
@@ -508,13 +486,11 @@ export function createPublicRouter(): Router {
         verifiedAt = recent.consumedAt
       }
 
-      // Tavanlar servis, personel, saat ve (sms modunda) doğrulamadan sonra denetlenir: geçerli veri olmadan sorgulanamaz.
+      // Tavanlar servis, personel, saat ve (sms modunda) doğrulamadan sonra denetlenir.
       if (await isTenantDailyCapReached(tenant.id)) {
         return res.status(429).json({ error: { code: 'TENANT_DAILY_LIMIT', message: 'Online randevu şu an alınamıyor, lütfen salonu arayın.' } })
       }
-      const phoneCap = await checkPhoneCaps(tenant.id, variants, verifiedMode)
-      if (phoneCap) {
-        if (!verifiedMode) return res.status(201).json(acceptedLookalike(startDate))
+      if (verifiedMode && (await isActiveBookingCapReached(tenant.id, variants))) {
         return res.status(429).json({
           error: { code: 'TOO_MANY_BOOKINGS', message: `Bu telefon için aktif ${MAX_ACTIVE_PER_PHONE} randevu sınırına ulaşıldı. Mevcut randevularınızı tamamladıktan sonra yeni randevu alabilirsiniz.` },
         })

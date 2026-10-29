@@ -9,7 +9,6 @@ const HOUR_MS = 60 * 60 * 1000
 /** ADR-0034: SMS dogrulamasi yokken online talebi sinirlayan tavanlar ve sure dolumu. */
 export const ONLINE_LIMITS = {
   ipPerHour: 3,
-  pendingPerPhone: 1,
   pendingPerTenantPerDay: 20,
   expiryHours: 24,
   expiryLeadHours: 2,
@@ -90,6 +89,24 @@ export async function sweepExpiredOnlineRequests(now: Date = new Date()): Promis
       ],
     },
     data: { status: 'cancelled', cancelReason: 'expired' },
+  })
+  return result.count
+}
+
+/** Reddedilen/süresi dolan doğrulanmamış talebin ad ve telefonu bu süre sonra anonimleştirilir (hukuk-uyum: en geç 30 gün). */
+export const REQUEST_RETENTION_DAYS = 30
+export const ANONYMIZED = '-'
+
+/** Gece taraması: iptal olmuş musterisiz taleplerde requestedName/requestedPhone silinir (CHECK için '-' ile doldurulur). */
+export async function anonymizeStaleRequests(now: Date = new Date()): Promise<number> {
+  const result = await db.appointment.updateMany({
+    where: {
+      customerId: null,
+      status: 'cancelled',
+      updatedAt: { lte: new Date(now.getTime() - REQUEST_RETENTION_DAYS * 24 * HOUR_MS) },
+      NOT: { requestedPhone: ANONYMIZED },
+    },
+    data: { requestedName: ANONYMIZED, requestedPhone: ANONYMIZED },
   })
   return result.count
 }

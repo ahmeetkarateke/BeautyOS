@@ -4,7 +4,7 @@ import { DeliveryPurpose } from '@prisma/client'
 import { db } from './db'
 import { logger } from './logger'
 import { sendSms, normalizePhoneTR } from './sms'
-import { expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
+import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
 
 export type ReminderJobData =
   | { type: 'reminder_24h'; appointmentId: string }
@@ -34,6 +34,7 @@ export const remindersQueue = new Queue<ReminderJobData>('reminders', {
 export async function processReminderJob(data: ReminderJobData): Promise<void> {
   if (data.type === 'nightly_noshow') {
     await sweepExpiredOnlineRequests()
+    await anonymizeStaleRequests()
     await processNightlyNoShow()
     return
   }
