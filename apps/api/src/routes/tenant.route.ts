@@ -12,7 +12,8 @@ import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission, ensurePermission } from '../middleware/permission'
-import { customerAccessFilter } from '../lib/customer-scope'
+import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
+import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
 import { istanbulDayRange } from '../lib/time'
@@ -405,6 +406,56 @@ export function createTenantRouter(): Router {
     }
   })
 
+  async function respondStaffCustomerSearch(req: Request, res: Response, rawSearch: string | undefined) {
+    const tenantId = req.tenantId!
+    const term = rawSearch?.trim() ?? ''
+    if (term.length < STAFF_SEARCH_MIN_LENGTH) {
+      return res.status(400).json({
+        error: { code: 'SEARCH_REQUIRED', message: `Müşteri aramak için en az ${STAFF_SEARCH_MIN_LENGTH} karakter yazın.` },
+      })
+    }
+    const profileId = await ownStaffProfileId(req)
+    if (!profileId) return res.json({ data: [], nextCursor: null })
+
+    // Telefon yalniz kendi musterilerinde aranir: baska musterinin numarasi rakam rakam sorgulanarak cikarilamaz.
+    const own = ownCustomerWhere(tenantId, profileId)
+    const pattern = escapeLike(term)
+    const rows = await db.customer.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { fullName: { contains: pattern, mode: 'insensitive' as const } },
+          { AND: [own, { phone: { contains: pattern, mode: 'insensitive' as const } }] },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: STAFF_SEARCH_MAX_RESULTS,
+      select: { id: true, fullName: true, phone: true, email: true, totalVisits: true, lastVisitAt: true, createdAt: true },
+    })
+    const ownRows = rows.length
+      ? await db.customer.findMany({ where: { tenantId, id: { in: rows.map((r) => r.id) }, ...own }, select: { id: true } })
+      : []
+    const ownIds = new Set(ownRows.map((r) => r.id))
+
+    return res.json({
+      data: rows.map((c) => {
+        const isOwn = ownIds.has(c.id)
+        return {
+          id: c.id,
+          fullName: c.fullName,
+          phone: isOwn ? c.phone : maskPhone(c.phone),
+          phoneMasked: !isOwn,
+          isOwn,
+          email: isOwn ? c.email : null,
+          totalVisits: isOwn ? c.totalVisits : null,
+          lastVisitDate: isOwn ? (c.lastVisitAt?.toISOString() ?? null) : null,
+          createdAt: c.createdAt.toISOString(),
+        }
+      }),
+      nextCursor: null,
+    })
+  }
+
   // GET /api/v1/tenants/:slug/customers?search=TEXT&cursor=ID&limit=20
   router.get('/customers', searchLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -425,6 +476,11 @@ export function createTenantRouter(): Router {
       }
 
       const { search, cursor, limit } = parsed.data
+
+      // R4: uzman icin liste yok; yalniz arama kipi (>=3 karakter, <=10 sonuc, maskeli telefon).
+      if (!can(req.user?.role, 'customer.view_all')) {
+        return respondStaffCustomerSearch(req, res, search)
+      }
 
       const searchFilter = search
         ? {
@@ -857,6 +913,8 @@ export function createTenantRouter(): Router {
       }
 
       const { status, cancellationReason } = parsed.data
+      // R3: uzman fiyati degistiremez; gonderirse sessizce yok sayilir (randevu fiyati gecerli).
+      const priceOverride = req.user!.role === 'staff' ? undefined : parsed.data.priceCharged
 
       const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId } })
       if (!existing) {
@@ -914,7 +972,7 @@ export function createTenantRouter(): Router {
         })
         if (appt) {
           const rate = Number(appt.service.commissionRate)
-          const gross = parsed.data.priceCharged ?? Number(appt.priceCharged)
+          const gross = priceOverride ?? Number(appt.priceCharged)
           const method = parsed.data.paymentMethod ?? 'cash'
           const completedAt = new Date()
           await db.transaction.create({
@@ -932,7 +990,7 @@ export function createTenantRouter(): Router {
               completedAt,
             },
           })
-          if (parsed.data.priceCharged) {
+          if (priceOverride) {
             await db.appointment.update({
               where: { id: appointmentId },
               data: { priceCharged: gross },

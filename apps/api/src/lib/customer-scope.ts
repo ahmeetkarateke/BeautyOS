@@ -6,6 +6,30 @@ import { db } from './db'
 // "Kendi musterisi": uzmanin gelecekteki ya da son 12 ay icindeki, iptal edilmemis randevusu olan musteri.
 const OWN_CUSTOMER_WINDOW_MS = 365 * 24 * 60 * 60 * 1000
 
+/** Uzmanin "kendi musterisi" kosulu (musteri secimi icin); cagiran tenantId'yi ayrica koyar. */
+export function ownCustomerWhere(tenantId: string, staffProfileId: string): Prisma.CustomerWhereInput {
+  return {
+    appointments: {
+      some: {
+        tenantId,
+        staffId: staffProfileId,
+        isDeleted: false,
+        status: { not: 'cancelled' },
+        startAt: { gte: new Date(Date.now() - OWN_CUSTOMER_WINDOW_MS) },
+      },
+    },
+  }
+}
+
+/** Istegi yapan kullanicinin uzman profili (yoksa null). */
+export async function ownStaffProfileId(req: Request): Promise<string | null> {
+  const profile = await db.staffProfile.findFirst({
+    where: { tenantId: req.tenantId!, userId: req.user!.userId },
+    select: { id: true },
+  })
+  return profile?.id ?? null
+}
+
 /**
  * Isteği yapan kullanicinin gorebilecegi musterileri sinirlayan Prisma kosulu.
  * - Tum musterileri gorme izni olan rol: bos kosul ({}).
@@ -16,23 +40,9 @@ const OWN_CUSTOMER_WINDOW_MS = 365 * 24 * 60 * 60 * 1000
 export async function customerAccessFilter(req: Request): Promise<Prisma.CustomerWhereInput | null> {
   if (can(req.user?.role, 'customer.view_all')) return {}
 
-  const profile = await db.staffProfile.findFirst({
-    where: { tenantId: req.tenantId!, userId: req.user!.userId },
-    select: { id: true },
-  })
-  if (!profile) return null
-
-  return {
-    appointments: {
-      some: {
-        tenantId: req.tenantId!,
-        staffId: profile.id,
-        isDeleted: false,
-        status: { not: 'cancelled' },
-        startAt: { gte: new Date(Date.now() - OWN_CUSTOMER_WINDOW_MS) },
-      },
-    },
-  }
+  const profileId = await ownStaffProfileId(req)
+  if (!profileId) return null
+  return ownCustomerWhere(req.tenantId!, profileId)
 }
 
 /** Musteri bu kiracida var mi ve isteği yapan kullanici ona erisebiliyor mu? */
