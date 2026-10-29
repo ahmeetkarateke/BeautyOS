@@ -10,6 +10,7 @@ import { Button, buttonClassName } from '@/ui/button'
 import { Sheet } from '@/ui/sheet'
 import { useToast } from '@/ui/toast'
 import { markNotified } from './api'
+import { hidesServiceInMessages } from '@/lib/v2/business-type'
 import { notifyMessage, type WaitEntry } from './logic'
 
 // Müşteriye haber ver: mesaj önizlenir, salon çalışanı WhatsApp ile kendisi gönderir, sonra "Haber verildi" işaretlenir.
@@ -20,7 +21,7 @@ export function NotifySheet({ entry, onClose, onDone }: { entry: WaitEntry; onCl
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
-  const message = notifyMessage(entry, me.tenant.name)
+  const message = notifyMessage(entry, me.tenant.name, hidesServiceInMessages(me.tenant.businessType))
   const wa = entry.customerPhone ? whatsappHref(entry.customerPhone) : null
 
   async function mark() {
