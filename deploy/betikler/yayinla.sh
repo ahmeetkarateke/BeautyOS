@@ -102,11 +102,17 @@ fi
 # değer BOŞ sayılır; "export AD=" kabul edilir; aynı ad birden çok kez yazılmışsa (sonuncu kazanır, gizli hata) reddedilir;
 # JWT_SECRET 32 karakterden kısaysa reddedilir. awk yalnız "AD neden" satırı yazar; DEĞER ASLA yazdırılmaz.
 read -r -d '' ORTAM_AWK <<'AWKEOF' || true
-function norm(v,    q) {
+function norm(v,    q, e, rest) {
   sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
   q = substr(v, 1, 1)
-  if ((q == "\"" || q == "\047") && length(v) >= 2 && substr(v, length(v), 1) == q) v = substr(v, 2, length(v) - 2)
-  else sub(/(^|[ \t])#.*$/, "", v)
+  if (q == "\"" || q == "\047") {
+    # tırnaklı değer: kapanış tırnağından sonra yalnız boşluk ya da "# yorum" olabilir
+    e = index(substr(v, 2), q)
+    if (e > 0) {
+      rest = substr(v, e + 2); sub(/^[ \t]+/, "", rest)
+      if (rest == "" || substr(rest, 1, 1) == "#") return substr(v, 2, e - 1)
+    }
+  } else sub(/(^|[ \t])#.*$/, "", v)
   sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
   return v
 }

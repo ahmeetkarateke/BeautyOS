@@ -269,7 +269,7 @@ ortam_dene() {
   local s; for s in "$@"; do printf '%b\n' "$s" >>"$T/base/.env.staging"; done
   OUT15="$(bash "$YAYIN" --kuru staging $C 2>&1)"; RC15=$?
 }
-RED=("PUBLIC_URL=\"\"" "PUBLIC_URL=''" "PUBLIC_URL=   " "PUBLIC_URL=\\r" "PUBLIC_URL=\"\"\\r" "PUBLIC_URL= # yorum" "PUBLIC_URL=\"  \"")
+RED=("PUBLIC_URL=\"\"" "PUBLIC_URL=''" "PUBLIC_URL=   " "PUBLIC_URL=\\r" "PUBLIC_URL=\"\"\\r" "PUBLIC_URL= # yorum" "PUBLIC_URL=\"  \"" "PUBLIC_URL=\"\" # yorum" "PUBLIC_URL='' #yorum" "PUBLIC_URL=\"\"   ")
 for satir in "${RED[@]}"; do
   ortam_dene PUBLIC_URL "$satir"
   dogru "boş sayılır, rc=2, ad yazılır, değer yok: $satir" "[ $RC15 -eq 2 ] && grep -q 'PUBLIC_URL bos' <<<\"\$OUT15\" && ! grep -q cok-gizli <<<\"\$OUT15\""
@@ -278,6 +278,12 @@ ortam_dene PUBLIC_URL "PUBLIC_URL=https://a" "PUBLIC_URL=https://b"
 dogru "aynı ad iki kez: rc=2, 'birden fazla' yazılır, değer yok" "[ $RC15 -eq 2 ] && grep -q 'PUBLIC_URL birden fazla kez tanimli' <<<\"\$OUT15\" && ! grep -q 'https://' <<<\"\$OUT15\""
 ortam_dene JWT_SECRET "JWT_SECRET=kisa-gizli-deger"
 dogru "JWT_SECRET kısa: rc=2, uzunluk nedeni yazılır, değer yok" "[ $RC15 -eq 2 ] && grep -q 'JWT_SECRET 32 karakterden kisa' <<<\"\$OUT15\" && ! grep -q kisa-gizli <<<\"\$OUT15\""
+ortam_dene JWT_SECRET "JWT_SECRET=\"kisa-gizli\" # yorum"
+dogru "tırnaklı kısa JWT + yorum: yine reddedilir, değer yok" "[ $RC15 -eq 2 ] && grep -q 'JWT_SECRET 32 karakterden kisa' <<<\"\$OUT15\" && ! grep -q kisa-gizli <<<\"\$OUT15\""
+ortam_dene JWT_SECRET "JWT_SECRET=\"12345678901234567890123456789012\" # yorum"
+dogru "tırnaklı 32 karakter + yorum geçer" "[ $RC15 -eq 0 ]"
+ortam_dene PUBLIC_URL "PUBLIC_URL=\"https://x\" # yorum"
+dogru "tırnaklı dolu değer + yorum geçer" "[ $RC15 -eq 0 ]"
 ortam_dene JWT_SECRET "JWT_SECRET=12345678901234567890123456789012"
 dogru "JWT_SECRET tam 32: geçer (rc=0)" "[ $RC15 -eq 0 ]"
 ortam_dene JWT_SECRET "JWT_SECRET=1234567890123456789012345678901"
