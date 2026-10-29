@@ -108,6 +108,7 @@ function ApprovalBody({ request, onClose, onChanged }: { request: DayAppointment
             <Radio key={c.id} value={c.id} label={c.fullName} description={c.phone} />
           ))}
           <Radio value={CREATE} label="Yeni müşteri olarak ekle" description="Listedeki kişilerden hiçbiri değilse." />
+          {choice === CREATE ? <p className="mt-1 text-sm text-text-muted">Bu telefon başka bir müşteride de kayıtlı kalacak.</p> : null}
         </RadioGroup>
       ) : null}
 
@@ -125,7 +126,7 @@ function ApprovalBody({ request, onClose, onChanged }: { request: DayAppointment
       <ConfirmDialog
         open={confirmReject}
         onOpenChange={setConfirmReject}
-        title="Talebi reddedelim mi?"
+        title="Talebi reddetmek istiyor musunuz?"
         description={`${request.customerName} için ${clockLabel(request.start)} randevusu iptal edilir. Bu işlem geri alınamaz.`}
         actionLabel="Talebi reddet"
         loading={busy === 'reject'}

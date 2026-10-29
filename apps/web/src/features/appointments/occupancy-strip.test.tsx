@@ -26,7 +26,7 @@ function mount(appointments: DayAppointment[], handlers: { open?: (id: string) =
 describe('W10 doluluk şeridi', () => {
   it('K-şerit: her kişi için durum cümlesi erişilebilir adda (meşgul / boş / mesai dışı)', () => {
     mount([appt('a', 'p1', '11:00', '12:00', 'in_progress'), appt('b', 'p2', '13:00', '14:00', 'confirmed')])
-    expect(screen.getByRole('group', { name: 'Derya Aksoy: şu an meşgul, 12:00’e kadar' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Derya Aksoy: şu an meşgul, 12:00’ye kadar' })).toBeTruthy()
     expect(screen.getByRole('group', { name: 'Elif Tan: şu an boş, 13:00’e kadar' })).toBeTruthy()
     cleanup()
     mount([], {}, 21 * 60)

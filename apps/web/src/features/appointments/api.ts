@@ -61,3 +61,9 @@ export async function fetchServiceCount(client: ApiClient, slug: string, signal?
   const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/services`, { signal })
   return z.array(z.unknown()).parse(body.data ?? []).length
 }
+
+// Onay bekleyen online talepler: herkese açık uç en az 3 saat sonrasını zorladığı için çoğu sonraki günlere düşer (A4 aralık sözleşmesi).
+export async function fetchPendingRequests(client: ApiClient, slug: string, from: string, to: string, signal?: AbortSignal): Promise<DayAppointment[]> {
+  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { dateFrom: from, dateTo: to, status: 'pending' }, signal })
+  return z.array(z.unknown()).parse(body.data).map(parseDayAppointment)
+}

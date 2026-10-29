@@ -33,16 +33,24 @@ const staffData = {
 
 let appointments: unknown[] = []
 let appointmentsError: ApiError | null = null
+let staffError: ApiError | null = null
+let weekDashboardError: ApiError | null = null
 let services: unknown[] = [{ id: 'sv1' }]
+let pendingRows: unknown[] = []
 
 function setupApi() {
   request.mockImplementation(async (path: string, init?: { query?: Record<string, string>; method?: string }) => {
     if (path.endsWith('/appointments') && !init?.method) {
+      if (init?.query?.status === 'pending') return { data: pendingRows }
       if (appointmentsError) throw appointmentsError
       return { data: appointments }
     }
-    if (path.endsWith('/staff')) return staffData
+    if (path.endsWith('/staff')) {
+      if (staffError) throw staffError
+      return staffData
+    }
     if (path.endsWith('/services')) return { data: services }
+    if (path.endsWith('/dashboard') && weekDashboardError && init?.query?.period === 'week') throw weekDashboardError
     if (path.endsWith('/dashboard')) return { todayAppointmentCount: 6, todayRevenue: 3200, revenueChange: 12, appointmentChange: null, occupancyRate: 48, totalCustomers: 100 }
     if (path.endsWith('/customer-candidates')) return { data: [] }
     if (path.endsWith('/status') || path.endsWith('/approve') || path.endsWith('/reject')) return {}
@@ -68,7 +76,10 @@ beforeEach(() => {
   push.mockReset()
   replace.mockReset()
   appointmentsError = null
+  staffError = null
+  weekDashboardError = null
   services = [{ id: 'sv1' }]
+  pendingRows = [row('a4', 'p2', 'Elif Tan', '15:00', '16:00', 'pending', { unverified: true, customerId: null })]
   appointments = [
     row('a1', 'p1', 'Derya Aksoy', '09:00', '10:00', 'completed'),
     row('a2', 'p1', 'Derya Aksoy', '11:00', '12:00', 'in_progress'),
@@ -91,7 +102,7 @@ describe('W10 Bugün ekranı', () => {
     await screen.findByTestId('doluluk-seridi')
     expect(callTo('/appointments')![1].query).toEqual({ date: '2026-10-28' })
     // 11:30: Derya meşgul (a2), Elif boş, 12:00'ye kadar.
-    expect(screen.getByTestId('simdi-bos').textContent).toBe('Şu an boş: Elif (12:00’e kadar).')
+    expect(screen.getByTestId('simdi-bos').textContent).toBe('Şu an boş: Elif (12:00’ye kadar).')
     expect(screen.getByTestId('randevu-a1')).toBeTruthy()
     expect(screen.getByTestId('randevu-a3')).toBeTruthy()
   })
@@ -113,6 +124,19 @@ describe('W10 Bugün ekranı', () => {
     expect(await screen.findByRole('dialog', { name: 'Online randevu talebi' })).toBeTruthy()
   })
 
+  it('W10-1 Ö6: bekleyen talepler yalnız bugünü değil önümüzdeki 14 günü sayar (en az 3 saat sonrası istendiği için çoğu sonraki günlerde)', async () => {
+    pendingRows = [
+      row('a4', 'p2', 'Elif Tan', '15:00', '16:00', 'pending', { unverified: true, customerId: null }),
+      { ...row('f1', 'p1', 'Derya Aksoy', '10:00', '11:00', 'pending', { unverified: true, customerId: null }), startTime: new Date('2026-10-30T10:00:00+03:00').toISOString(), endTime: new Date('2026-10-30T11:00:00+03:00').toISOString() },
+    ]
+    mount()
+    const banner = await screen.findByTestId('bugun-bulgu')
+    expect(banner.textContent).toContain('2 online randevu onay bekliyor.')
+    expect(banner.textContent).toContain('Müşteri f1')
+    const call = request.mock.calls.find(([p, i]) => String(p).endsWith('/appointments') && i?.query?.status === 'pending')!
+    expect(call[1].query).toEqual({ dateFrom: '2026-10-28', dateTo: '2026-11-11', status: 'pending' })
+  })
+
   it('K-yetki: onay izni olmayan kullanıcıda şerit ve onay eylemi çizilmez', async () => {
     const me = makeMe('owner')
     mount({ ...me, permissions: permissionsFor('owner').filter((p) => p !== 'appointment.approve') })
@@ -127,7 +151,7 @@ describe('W10 Bugün ekranı', () => {
     fireEvent.click(within(next).getByRole('button', { name: 'Başlat' }))
     await waitFor(() => expect(callTo('/a3/status')).toBeDefined())
     expect(callTo('/a3/status')![1]).toMatchObject({ method: 'PATCH', body: { status: 'in_progress' } })
-    await waitFor(() => expect(request.mock.calls.filter(([p, i]) => String(p).endsWith('/appointments') && !i?.method).length).toBe(2))
+    await waitFor(() => expect(request.mock.calls.filter(([p, i]) => String(p).endsWith('/appointments') && !i?.method && !i?.query?.status).length).toBe(2))
   })
 
   it('K-hata: randevular yüklenemezse blok içi hata, son başarılı yükleme ve sahte kasa sıfırı olmaz', async () => {
@@ -180,6 +204,25 @@ describe('W10 Bugün ekranı', () => {
     await screen.findByTestId('doluluk-seridi')
     expect(screen.queryByRole('region', { name: 'Günün özeti' })).toBeNull()
     expect(callTo('/dashboard')).toBeUndefined()
+  })
+
+  it('W10-1 K1: hafta özeti yüklenemezse bugünün tutarı hafta etiketiyle gösterilmez; blok içi hata çıkar', async () => {
+    weekDashboardError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+    mount()
+    const summary = await screen.findByRole('region', { name: 'Günün özeti' })
+    await within(summary).findByText('₺3.200')
+    fireEvent.click(within(summary).getByRole('radio', { name: 'Bu hafta' }))
+    expect(await within(summary).findByText('Günün özeti yüklenemedi.')).toBeTruthy()
+    expect(within(summary).queryByText('₺3.200')).toBeNull()
+  })
+
+  it('W10-1 Ö1: personel listesi yüklenemezse sonsuz iskelet yerine hata ve Yeniden dene çıkar', async () => {
+    staffError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+    mount()
+    expect(await screen.findByText('Personel listesi yüklenemedi.')).toBeTruthy()
+    staffError = null
+    fireEvent.click(screen.getByRole('button', { name: 'Yeniden dene' }))
+    await screen.findByTestId('doluluk-seridi')
   })
 
   it('K-uzman: uzman rolü Günüm ekranına yönlendirilir, Bugün verisi istenmez', async () => {

@@ -81,4 +81,48 @@ describe('W10: useApiQuery', () => {
     await act(async () => { resolveFirst('gec') })
     expect(result.current.data).toBe('yeni')
   })
+
+  it('W10-1 K1: anahtar değişince eski anahtarın verisi dönmez (yüklenirken data undefined)', async () => {
+    let resolveB: (v: string) => void = () => {}
+    const b = new Promise<string>((resolve) => { resolveB = resolve })
+    const { result, rerender } = renderHook(
+      ({ k }: { k: string }) => useApiQuery(k, () => (k === 'a' ? Promise.resolve('VERI-A') : b)),
+      { wrapper, initialProps: { k: 'a' } },
+    )
+    await waitFor(() => expect(result.current.data).toBe('VERI-A'))
+    rerender({ k: 'b' })
+    expect(result.current.loading).toBe(true)
+    expect(result.current.data).toBeUndefined()
+    expect(result.current.loadedAt).toBeUndefined()
+    await act(async () => { resolveB('VERI-B') })
+    expect(result.current.data).toBe('VERI-B')
+  })
+
+  it('W10-1 K1: yeni anahtar hata verirse data undefined ve error dolu (başka anahtarın verisi korunmaz)', async () => {
+    const { result, rerender } = renderHook(
+      ({ k }: { k: string }) => useApiQuery(k, async () => {
+        if (k === 'b') throw new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+        return 'VERI-A'
+      }),
+      { wrapper, initialProps: { k: 'a' } },
+    )
+    await waitFor(() => expect(result.current.data).toBe('VERI-A'))
+    rerender({ k: 'b' })
+    await waitFor(() => expect(result.current.error?.code).toBe('INTERNAL_ERROR'))
+    expect(result.current.data).toBeUndefined()
+    expect(result.current.loadedAt).toBeUndefined()
+  })
+
+  it('W10-1 K1: anahtara dönülünce hata yenilemesinde aynı anahtarın verisi korunur', async () => {
+    let calls = 0
+    const { result } = renderHook(() => useApiQuery('s', async () => {
+      calls += 1
+      if (calls === 2) throw new ApiError({ status: 0, code: 'NETWORK' })
+      return 'ilk'
+    }), { wrapper })
+    await waitFor(() => expect(result.current.data).toBe('ilk'))
+    act(() => result.current.refetch())
+    await waitFor(() => expect(result.current.error).toBeDefined())
+    expect(result.current.data).toBe('ilk')
+  })
 })

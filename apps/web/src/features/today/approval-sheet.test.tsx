@@ -85,13 +85,24 @@ describe('W10 onay katmanı (S2 uçları)', () => {
     expect(callTo('/approve')![1].body).toEqual({ customerAction: 'link', customerId: 'c2' })
   })
 
-  it('K-onay: "Yeni müşteri olarak ekle" seçilince create gönderilir', async () => {
+  it('W10-1 K2 (ADR-0038): aday varken "Yeni müşteri olarak ekle" create gönderir ve paylaşılan telefon uyarısı gösterilir', async () => {
     route({ '/customer-candidates': () => candidates, '/approve': () => ({}) })
     mount(pending())
     fireEvent.click(await screen.findByRole('radio', { name: /Yeni müşteri olarak ekle/ }))
+    expect(screen.getByText(/Bu telefon başka bir müşteride de kayıtlı kalacak/)).toBeTruthy()
     fireEvent.click(await readyApprove())
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
     expect(callTo('/approve')![1].body).toEqual({ customerAction: 'create' })
+  })
+
+  it('W10-1 K2: eski API aday varken create için 409 CUSTOMER_MATCH_REQUIRED dönerse hata bir kez gösterilir, katman açık kalır', async () => {
+    route({ '/customer-candidates': () => candidates, '/approve': () => { throw new ApiError({ status: 409, code: 'CUSTOMER_MATCH_REQUIRED' }) } })
+    mount(pending())
+    fireEvent.click(await screen.findByRole('radio', { name: /Yeni müşteri olarak ekle/ }))
+    fireEvent.click(await readyApprove())
+    expect((await screen.findByRole('alert')).textContent).toContain('kimle eşleşeceğini seçin')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(request.mock.calls.filter(([p]) => String(p).endsWith('/approve'))).toHaveLength(1)
   })
 
   it('K-onay: doğrulanmış (müşterisi bağlı) talep için aday sorgusu yapılmaz', async () => {

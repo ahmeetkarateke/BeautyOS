@@ -5,6 +5,7 @@ import { cn } from '@/ui/cn'
 import { clockLabel, istanbulMinutes, minutesLabel, percentOf, staffState, type DayAppointment, type StripRange } from './day-logic'
 import type { StaffMember } from './staff'
 import { toneClasses } from './tones'
+import { untilLabel } from './until-label'
 
 // İmza öğe (tasarim.md §2.1): "Personelin günü" doluluk şeridi. Her kişi için yatay şerit; dolu dilimler kişinin tonunda,
 // onay bekleyen kesikli, devam eden dolu işaret rengi, tamamlanan geçmiş tonu; pudra "şimdi" çizgisi.
@@ -20,8 +21,8 @@ function axisMinutes(range: StripRange): number[] {
 }
 
 function stateSentence(name: string, state: ReturnType<typeof staffState>): string {
-  if (state.kind === 'busy') return `${name}: şu an meşgul, ${state.until}’e kadar`
-  if (state.kind === 'free') return `${name}: şu an boş, ${state.until}’e kadar`
+  if (state.kind === 'busy') return `${name}: şu an meşgul, ${untilLabel(state.until)}`
+  if (state.kind === 'free') return `${name}: şu an boş, ${untilLabel(state.until)}`
   return `${name}: çalışma saati dışında`
 }
 

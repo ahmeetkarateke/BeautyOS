@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchDayAppointments, fetchServiceCount, fetchStaff, setAppointmentStatus } from '@/features/appointments/api'
+import { fetchDayAppointments, fetchPendingRequests, fetchServiceCount, fetchStaff, setAppointmentStatus } from '@/features/appointments/api'
 import { AppointmentCard } from '@/features/appointments/appointment-card'
 import {
+  addDaysToDateStr,
   clockLabel,
   istanbulDateStr,
   istanbulMinutes,
@@ -20,6 +21,7 @@ import {
 import { OccupancyStrip } from '@/features/appointments/occupancy-strip'
 import { attachStaff, type StaffMember } from '@/features/appointments/staff'
 import { toneClasses } from '@/features/appointments/tones'
+import { untilLabel } from '@/features/appointments/until-label'
 import { ApiError } from '@/lib/v2/api-client'
 import { useApiClient } from '@/lib/v2/api-context'
 import { useCan, useMe } from '@/lib/v2/session'
@@ -42,6 +44,7 @@ import { buildSetupSteps, needsSetup } from './setup-steps'
 // Bugün (tasarim.md §8.1 `bugun`): "Sırada kim var, kimde boş yer var?" Sahip ve müdür görür; uzman Günüm'e yönlenir.
 // Randevu ayrıntısı (W14) ve randevu oluşturma (W13) hazır olana dek ilgili adrese gidilir; o ekranlar "hazırlanıyor" bilgisini gösterir.
 const MINUTE = 60_000
+const PENDING_DAYS = 14
 
 function useClock(fixed?: Date): Date {
   const [now, setNow] = useState(() => fixed ?? new Date())
@@ -60,7 +63,7 @@ function firstWord(name: string): string {
 function freeSentence(staff: readonly StaffMember[], appointments: readonly DayAppointment[], nowMin: number, range: ReturnType<typeof stripRange>): string {
   const free = staff.flatMap((person) => {
     const state = staffState(appointments, person.id, nowMin, range)
-    return state.kind === 'free' ? [`${person.short} (${state.until}’e kadar)`] : []
+    return state.kind === 'free' ? [`${person.short} (${untilLabel(state.until)})`] : []
   })
   return free.length ? free.join(', ') : 'kimse yok'
 }
@@ -84,6 +87,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
   const [startingId, setStartingId] = useState<string | null>(null)
 
   const dayQuery = useApiQuery(isExpert ? null : `day:${today}`, (c, signal) => fetchDayAppointments(c, slug, today, signal))
+  const pendingQuery = useApiQuery(isExpert || !canApprove ? null : `pending:${today}`, (c, signal) => fetchPendingRequests(c, slug, today, addDaysToDateStr(today, PENDING_DAYS), signal))
   const staffQuery = useApiQuery(isExpert ? null : 'staff', (c, signal) => fetchStaff(c, slug, signal))
   const dayLoaded = dayQuery.data !== undefined
   const dayEmpty = dayQuery.data !== undefined && dayQuery.data.length === 0
@@ -105,7 +109,8 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
   if (isExpert) return null
 
   const range = stripRange(appointments)
-  const pending = pendingRequests(appointments)
+  const pending = pendingRequests(pendingQuery.data ?? [])
+  const requestLabel = (r: DayAppointment) => (istanbulDateStr(r.start) === today ? clockLabel(r.start) : `${formatDate(r.start, 'short')} ${clockLabel(r.start)}`)
   const occupancy = occupancyPercent(appointments, stripStaff.length, range)
 
   async function start(appointment: DayAppointment) {
@@ -157,6 +162,17 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
             <p className="text-sm text-text-secondary">Randevular yüklenmeden kasa özeti gösterilmez. Sıfır gibi görünen tutarlar yanıltıcı olur.</p>
           </Card>
         ) : null}
+      </div>
+    )
+  }
+
+  if (staffQuery.error && !staffQuery.data) {
+    return (
+      <div className="grid gap-4">
+        {header}
+        <Card>
+          <ErrorState subject="Personel listesi" onRetry={staffQuery.refetch} retrying={staffQuery.loading} lastLoadedAt={staffQuery.loadedAt} className="px-0" />
+        </Card>
       </div>
     )
   }
@@ -216,7 +232,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
       {canApprove && pending.length > 0 ? (
         <div data-testid="bugun-bulgu">
           <Banner tone="warning" action={{ label: 'Gözden geçir', onClick: () => setReviewing(pending[0]) }}>
-            <strong>{pending.length} online randevu onay bekliyor.</strong> {pending.map((r) => `${r.customerName} ${clockLabel(r.start)}`).join(', ')}.
+            <strong>{pending.length} online randevu onay bekliyor.</strong> {pending.map((r) => `${r.customerName} ${requestLabel(r)}`).join(', ')}.
           </Banner>
         </div>
       ) : null}
@@ -242,7 +258,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
                       </span>
                       <span className="truncate text-sm text-text-muted">
                         {a.serviceName} · {staffShort(a)}
-                        {a.status === 'in_progress' ? ` · ${clockLabel(a.end)}’e kadar` : ''}
+                        {a.status === 'in_progress' ? ` · ${untilLabel(clockLabel(a.end))}` : ''}
                       </span>
                     </button>
                     <div className="grid flex-none justify-items-end gap-1.5">
@@ -303,7 +319,10 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
         <div className="grid gap-4">{canRevenue ? <DaySummary appointments={appointments} occupancy={occupancy} /> : null}</div>
       </div>
 
-      <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={dayQuery.refetch} />
+      <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={() => {
+          dayQuery.refetch()
+          pendingQuery.refetch()
+        }} />
     </div>
   )
 }

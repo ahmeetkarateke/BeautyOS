@@ -84,5 +84,7 @@ describe('hata kodu -> metin (W5-K4, metin-rehberi §6)', () => {
       expect(errorText(code), code).not.toBe(GENERIC_ERROR)
     }
     expect(errorText('NOT_PENDING')).toBe('Bu talep artık onay beklemiyor. Listeyi yenileyin.')
+    expect(errorText('TOO_SOON_FOR_APPROVAL')).toBe('Bu saat için online randevu alınamıyor. En az 3 saat sonrasını seçin ya da salonu arayın.')
+    expect(errorText('TENANT_DAILY_LIMIT')).toBe('Online randevu şu an alınamıyor. Salonu arayarak randevu alın.')
   })
 })
