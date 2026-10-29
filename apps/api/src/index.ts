@@ -11,6 +11,7 @@ import { IntentService } from './ai/intent.service'
 import { FlowHandler } from './bot/flow.handler'
 import { createWebhookRouter } from './routes/webhook.route'
 import { createAuthRouter } from './routes/auth.route'
+import { createMeRouter } from './routes/me.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { createPublicRouter } from './routes/public.route'
 import { createAdminRouter } from './routes/admin.route'
@@ -89,6 +90,8 @@ async function bootstrap(): Promise<void> {
   app.set('trust proxy', 1)
 
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
+  // /auth/me hiz siniri disinda: arayuz her acilista cagirir (A1)
+  app.use('/api/v1/auth/me', createMeRouter())
   app.use('/api/v1/auth', authLimiter, createAuthRouter())
   app.use('/api/v1/admin', createAdminRouter())
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
