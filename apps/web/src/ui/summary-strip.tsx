@@ -9,7 +9,7 @@ export function SummaryStrip({ items, className }: { items: readonly SummaryItem
   return (
     <dl
       className={cn(
-        'grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border lg:grid-cols-4',
+        'grid grid-cols-2 gap-px overflow-hidden clip-safe rounded-card border border-border bg-border lg:grid-cols-4',
         className,
       )}
     >

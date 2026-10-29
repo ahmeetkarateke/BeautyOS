@@ -31,7 +31,7 @@ export function MenuScreen() {
                 {group.label}
               </h2>
             ) : null}
-            <ul className="m-0 list-none divide-y divide-border overflow-hidden rounded-card border border-border bg-surface p-0">
+            <ul className="m-0 list-none divide-y divide-border overflow-hidden [&_:focus-visible]:-outline-offset-2 rounded-card border border-border bg-surface p-0">
               {group.items.map((item) => (
                 <li key={item.id}>
                   <Link href={item.href} className={rowClass}>
@@ -45,7 +45,7 @@ export function MenuScreen() {
           </section>
         )
       })}
-      <ul className="m-0 list-none divide-y divide-border overflow-hidden rounded-card border border-border bg-surface p-0">
+      <ul className="m-0 list-none divide-y divide-border overflow-hidden [&_:focus-visible]:-outline-offset-2 rounded-card border border-border bg-surface p-0">
         <li>
           <Link href={account.href} className={rowClass}>
             <UserRound aria-hidden="true" className="size-5 flex-none text-text-secondary" strokeWidth={1.75} />

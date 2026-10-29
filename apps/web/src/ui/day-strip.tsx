@@ -28,7 +28,7 @@ export function DayStrip({
     <div
       role="group"
       aria-label="Tarih seçin"
-      className={cn('flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
+      className={cn('flex gap-2 overflow-x-auto [&_:focus-visible]:-outline-offset-2 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
     >
       {days.map(({ date, closed }) => {
         const isSelected = date === selected

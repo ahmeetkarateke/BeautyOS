@@ -71,7 +71,7 @@ export function SideNav({ className }: { className?: string }) {
   const homeHref = groups[0]?.items[0]?.href ?? base
 
   return (
-    <aside className={cn('sticky top-0 h-dvh flex-col gap-0.5 overflow-y-auto border-r border-border bg-page px-3 py-4', className)}>
+    <aside className={cn('sticky top-0 h-dvh flex-col gap-0.5 overflow-y-auto clip-safe border-r border-border bg-page px-3 py-4', className)}>
       <Link href={homeHref} aria-label="BeautyOS ana sayfa" className="flex items-center gap-2.5 px-2 pb-3 pt-1 text-text no-underline">
         <BrandMark />
         <span className="text-base font-semibold tracking-tight">BeautyOS</span>

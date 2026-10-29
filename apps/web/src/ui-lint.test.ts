@@ -123,3 +123,24 @@ describe('ui-lint: CSS @import yazım çeşitleri (denetim W3-2 Önemli)', () =>
     expect(found.map((f) => f.line)).toEqual([3])
   })
 })
+
+describe('ui-lint: kırpılan odak halkası (denetim W6-1 Kritik 1)', () => {
+  const INSET = '[&_:focus-visible]:-outline-offset-2'
+
+  it('W6-1: overflow-hidden/auto kabı içe dönük halka ya da clip-safe işareti olmadan yakalanır', () => {
+    expect(rules('features/a.tsx', '<ul className="list-none overflow-hidden rounded-card">')).toEqual(['kirpilan-odak'])
+    expect(rules('ui/a.tsx', '<div className="flex overflow-x-auto pb-0.5">')).toEqual(['kirpilan-odak'])
+    expect(rules('ui/a.tsx', '<div className="overflow-y-scroll">')).toEqual(['kirpilan-odak'])
+    expect(rules('ui/a.tsx', '<div className="overflow-clip">')).toEqual(['kirpilan-odak'])
+  })
+
+  it('W6-1: içe dönük halka sınıfı ya da clip-safe işareti olan kap serbest', () => {
+    expect(rules('features/a.tsx', `<ul className="overflow-hidden ${INSET}">`)).toEqual([])
+    expect(rules('ui/a.tsx', '<dl className="overflow-hidden clip-safe">')).toEqual([])
+  })
+
+  it('W6-1: overflow-visible ve alakasız sınıflar serbest', () => {
+    expect(rules('ui/a.tsx', '<div className="overflow-visible">')).toEqual([])
+    expect(rules('ui/a.tsx', '<div className="truncate text-ellipsis">')).toEqual([])
+  })
+})
