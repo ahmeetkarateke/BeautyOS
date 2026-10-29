@@ -27,9 +27,12 @@ export function SegmentedControl({
   className?: string
   'aria-label': string
 }) {
-  if (options.length < MIN_OPTIONS || options.length > MAX_OPTIONS) {
+  // Yalnız geliştirmede fırlatır: canlıda sayfayı hata sınırına düşürmek yerine olduğu gibi çizer.
+  if (process.env.NODE_ENV !== 'production' && (options.length < MIN_OPTIONS || options.length > MAX_OPTIONS)) {
     throw new Error(`SegmentedControl ${MIN_OPTIONS}-${MAX_OPTIONS} seçenek alır (verilen: ${options.length}).`)
   }
+  // Eşleşen seçenek yoksa ilk seçenek sekme sırasına girer; yoksa grup klavyeyle erişilemez olurdu.
+  const tabStop = options.some((option) => option.value === value) ? value : options[0]?.value
   const refs = useRef<Array<HTMLButtonElement | null>>([])
 
   function onKeyDown(event: KeyboardEvent, index: number) {
@@ -62,7 +65,7 @@ export function SegmentedControl({
             type="button"
             role="radio"
             aria-checked={selected}
-            tabIndex={selected ? 0 : -1}
+            tabIndex={option.value === tabStop ? 0 : -1}
             onClick={() => onValueChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(

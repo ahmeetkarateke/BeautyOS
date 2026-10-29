@@ -95,3 +95,19 @@ describe('Çip', () => {
     expect(screen.getByRole('group', { name: 'Süzgeç' }).className).toContain('overflow-x-auto')
   })
 })
+
+describe('Parçalı seçim: değer eşleşmezse (denetim W3-1 Önemli 1)', () => {
+  it('W3: value hiçbir seçenekle eşleşmezse ilk seçenek sekme sırasındadır (klavyeyle erişilebilir)', () => {
+    render(<SegmentedControl aria-label="Ödeme" options={options} value="" onValueChange={() => {}} />)
+    expect(screen.getByRole('radio', { name: 'Gün' }).getAttribute('tabindex')).toBe('0')
+    expect(screen.getByRole('radio', { name: 'Hafta' }).getAttribute('tabindex')).toBe('-1')
+    expect(screen.getByRole('radio', { name: 'Gün' }).getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('W3: değer eşleşmezken ok tuşu ilk/sonraki seçeneği seçer', () => {
+    const onValueChange = vi.fn()
+    render(<SegmentedControl aria-label="Ödeme" options={options} value="" onValueChange={onValueChange} />)
+    fireEvent.keyDown(screen.getByRole('radio', { name: 'Gün' }), { key: 'ArrowRight' })
+    expect(onValueChange).toHaveBeenLastCalledWith('hafta')
+  })
+})
