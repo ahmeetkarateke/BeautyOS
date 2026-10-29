@@ -155,21 +155,63 @@ describe('Public Slots & Services endpointleri', () => {
     expect(slot.label).toMatch(/^\d{2}:\d{2}$/)
   })
 
-  it('var olmayan serviceId → 200 ve boş slot listesi (kiracı kapsamlı)', async () => {
-    const fakeId = '00000000-0000-0000-0000-000000000000'
-    const res = await request(app)
-      .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${fakeId}&staffId=${staffProfileId}&date=${testDate}`)
+  // Kiracı kapsamı: başka kiracıya ait GERÇEK kimlikler. Sıfır UUID her koşulda boş döneceği için kapsamı sınamaz.
+  describe('başka kiracının hizmet/personel kimliği', () => {
+    let otherTenantId: string
+    let otherSlug: string
+    let otherServiceId: string
+    let otherStaffId: string
 
-    // Mimar kararı bekliyor: kod şu an 404 değil boş liste döner (başka kiracı verisi sızmaz). Karar 404 olursa burası değişir.
-    expect(res.status).toBe(200)
-    expect(res.body.slots).toEqual([])
+    beforeAll(async () => {
+      const otherSuffix = `${suffix}-b`
+      const tenant = await createTestTenant(otherSuffix)
+      otherTenantId = tenant.id
+      otherSlug = tenant.slug
+      await db.tenant.update({ where: { id: otherTenantId }, data: { settings: { publicBookingEnabled: true } } })
+      otherServiceId = (await createTestService(otherTenantId, otherSuffix)).id
+      const staff = await createTestStaff(otherTenantId, otherSlug, otherSuffix)
+      otherStaffId = staff.profile.id
+      const day = { start: '09:00', end: '18:00' }
+      await db.staffProfile.update({
+        where: { id: otherStaffId },
+        data: { workingHours: { monday: day, tuesday: day, wednesday: day, thursday: day, friday: day, saturday: null, sunday: null } },
+      })
+      await db.staffServiceAssignment.create({
+        data: { staffId: otherStaffId, serviceId: otherServiceId, tenantId: otherTenantId, isActive: true },
+      })
+    })
+
+    afterAll(async () => {
+      await cleanupTenant(otherTenantId)
+    })
+
+    // Mimar kararı bekliyor: kod şu an 404 değil boş liste döner (veri sızmaz). Karar 404 olursa burası değişir.
+    it('olumlu eşleme: aynı kimlikler kendi kiracısında slot döndürür (veri gerçekten var)', async () => {
+      const res = await request(app)
+        .get(`/api/v1/tenants/${otherSlug}/public/slots?serviceId=${otherServiceId}&staffId=${otherStaffId}&date=${testDate}`)
+      expect(res.status).toBe(200)
+      expect(res.body.slots.length).toBeGreaterThan(0)
+    })
+
+    it('A kiracısı yolunda B kiracısının serviceId değeri → boş liste', async () => {
+      const res = await request(app)
+        .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${otherServiceId}&staffId=${staffProfileId}&date=${testDate}`)
+      expect(res.status).toBe(200)
+      expect(res.body.slots).toEqual([])
+    })
+
+    it('A kiracısı yolunda B kiracısının staffId değeri → boş liste', async () => {
+      const res = await request(app)
+        .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${serviceId}&staffId=${otherStaffId}&date=${testDate}`)
+      expect(res.status).toBe(200)
+      expect(res.body.slots).toEqual([])
+    })
   })
 
-  it('var olmayan staffId → 200 ve boş slot listesi (kiracı kapsamlı)', async () => {
+  it('var olmayan serviceId ve staffId → 200 ve boş slot listesi', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
     const res = await request(app)
-      .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${serviceId}&staffId=${fakeId}&date=${testDate}`)
-
+      .get(`/api/v1/tenants/${tenantSlug}/public/slots?serviceId=${fakeId}&staffId=${fakeId}&date=${testDate}`)
     expect(res.status).toBe(200)
     expect(res.body.slots).toEqual([])
   })
