@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 import rateLimit from 'express-rate-limit'
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
-import { remindersQueue } from '../lib/queue'
+import { scheduleReminders, cancelReminders } from '../lib/queue'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
@@ -694,30 +694,8 @@ export function createTenantRouter(): Router {
       // Hatırlatma job'larını fire-and-forget olarak ekle
       void (async () => {
         try {
-          const now = Date.now()
-          const startMs = appointment.startAt.getTime()
-          const delay24h = startMs - 24 * 60 * 60 * 1000 - now
-          const delay2h = startMs - 2 * 60 * 60 * 1000 - now
-
-          if (delay24h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_24h', appointmentId: appointment.id },
-              { delay: delay24h, jobId: `reminder-24h-${appointment.id}` },
-            )
-          } else {
-            logger.info({ appointmentId: appointment.id }, '24h hatırlatma zamanı geçmiş, eklenmedi')
-          }
-
-          if (delay2h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_2h', appointmentId: appointment.id },
-              { delay: delay2h, jobId: `reminder-2h-${appointment.id}` },
-            )
-          } else {
-            logger.info({ appointmentId: appointment.id }, '2h hatırlatma zamanı geçmiş, eklenmedi')
-          }
+          // Bekleyen randevuda iş zamanı gelince durum kontrolü atlatır; onaylanmışsa hatırlatma gider (ADR-0044).
+          await scheduleReminders({ appointmentId: appointment.id, tenantId, startAt: appointment.startAt })
         } catch (err) {
           logger.warn({ err, appointmentId: appointment.id }, 'Hatırlatma job eklenemedi')
         }
@@ -1158,28 +1136,8 @@ export function createTenantRouter(): Router {
       // Eski reminder job'larını sil, yeni zamana göre yeniden planla
       void (async () => {
         try {
-          await remindersQueue.remove(`reminder-24h-${appointmentId}`)
-          await remindersQueue.remove(`reminder-2h-${appointmentId}`)
-
-          const now = Date.now()
-          const startMs = newStart.getTime()
-          const delay24h = startMs - 24 * 60 * 60 * 1000 - now
-          const delay2h = startMs - 2 * 60 * 60 * 1000 - now
-
-          if (delay24h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_24h', appointmentId },
-              { delay: delay24h, jobId: `reminder-24h-${appointmentId}` },
-            )
-          }
-          if (delay2h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_2h', appointmentId },
-              { delay: delay2h, jobId: `reminder-2h-${appointmentId}` },
-            )
-          }
+          await cancelReminders(appointmentId)
+          await scheduleReminders({ appointmentId, tenantId: updated.tenantId, startAt: newStart })
         } catch (err) {
           logger.warn({ err, appointmentId }, 'Reschedule sonrası hatırlatma job güncellenemedi')
         }

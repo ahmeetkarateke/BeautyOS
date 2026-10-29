@@ -15,7 +15,17 @@ const queueMock = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
 const turnstileMock = vi.hoisted(() => ({ verifyTurnstile: vi.fn(), isTurnstileUnavailable: vi.fn() }))
 
 vi.mock('../lib/db', () => ({ db: dbMock }))
-vi.mock('../lib/queue', () => ({ remindersQueue: queueMock }))
+// scheduleReminders gercek kuyruk modulunde tanimli; burada ayni is adlariyla queueMock.add'e yazar (kuyruk adlari K5'te sinanir).
+vi.mock('../lib/queue', () => ({
+  remindersQueue: queueMock,
+  scheduleReminders: async (i: { appointmentId: string; tenantId: string; startAt: Date; now?: Date }) => {
+    const nowMs = (i.now ?? new Date()).getTime()
+    for (const [kind, hours] of [['24h', 24], ['2h', 2]] as const) {
+      const delay = i.startAt.getTime() - hours * 3_600_000 - nowMs
+      if (delay > 0) await queueMock.add(`reminder-${kind}`, { appointmentId: i.appointmentId, tenantId: i.tenantId }, { delay })
+    }
+  },
+}))
 const slotsMock = vi.hoisted(() => ({ getSlots: vi.fn() }))
 vi.mock('../lib/slots', () => slotsMock)
 vi.mock('../lib/turnstile', () => turnstileMock)

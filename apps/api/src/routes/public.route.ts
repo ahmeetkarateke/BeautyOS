@@ -6,7 +6,7 @@ import { db } from '../lib/db'
 import { getSlots } from '../lib/slots'
 import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
 import { normalizePhoneTR } from '../lib/sms'
-import { remindersQueue } from '../lib/queue'
+import { scheduleReminders } from '../lib/queue'
 import { isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { logger } from '../lib/logger'
 import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
@@ -85,16 +85,9 @@ async function resolveCustomerId(
   return customer.id
 }
 
-async function scheduleReminders(appointmentId: string, startDate: Date, nowMs: number): Promise<void> {
-  const delay24h = startDate.getTime() - nowMs - 24 * 60 * 60 * 1000
-  const delay2h = startDate.getTime() - nowMs - 2 * 60 * 60 * 1000
+async function scheduleAppointmentReminders(tenantId: string, appointmentId: string, startDate: Date, nowMs: number): Promise<void> {
   try {
-    if (delay24h > 0) {
-      await remindersQueue.add('reminder-24h', { type: 'reminder_24h', appointmentId }, { delay: delay24h, jobId: `reminder-24h-${appointmentId}` })
-    }
-    if (delay2h > 0) {
-      await remindersQueue.add('reminder-2h', { type: 'reminder_2h', appointmentId }, { delay: delay2h, jobId: `reminder-2h-${appointmentId}` })
-    }
+    await scheduleReminders({ appointmentId, tenantId, startAt: startDate, now: new Date(nowMs) })
   } catch (err) {
     // Randevu oluştu; hatırlatma kurulamadıysa yalnız log (kişisel veri yok).
     logger.error({ err, appointmentId }, 'Hatırlatma zamanlanamadı')
@@ -525,7 +518,7 @@ export function createPublicRouter(): Router {
       if (approvalRequired) {
         await scheduleOnlineExpiry(appointment.id, computeExpiryAt(new Date(nowMs), startDate), new Date(nowMs))
       }
-      if (customerId) await scheduleReminders(appointment.id, startDate, nowMs)
+      if (customerId) await scheduleAppointmentReminders(tenant.id, appointment.id, startDate, nowMs)
 
       return res.status(201).json({
         id: appointment.id,
