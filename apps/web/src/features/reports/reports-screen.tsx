@@ -116,7 +116,7 @@ function CashReportTab() {
             { label: 'Net (gider düşülmüş)', value: formatMoney(report.netRevenue) },
           ]}
         />
-        <div className="overflow-x-auto">
+        <div className="clip-safe overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
             <caption className="sr-only">Günlük döküm</caption>
             <thead>
@@ -212,7 +212,7 @@ function CommissionTab() {
     body = <EmptyState title="Bu gün için prim yok." description="Tamamlanan hizmet olmayınca prim oluşmaz." centered />
   } else {
     body = (
-      <div className="overflow-x-auto">
+      <div className="clip-safe overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">Personel primleri</caption>
           <thead>
