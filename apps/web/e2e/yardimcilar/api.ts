@@ -6,7 +6,7 @@ const API = process.env.E2E_API_URL
 if (!API) throw new Error('E2E_API_URL tanımlı değil (örn. http://bostest-api:3001).')
 // Beyaz liste: yalnız geçici yığının iç adı (bostest-api) ya da yerel adres. Canlı ve staging adresleri reddedilir.
 const apiHost = new URL(API).hostname.toLowerCase()
-if (!apiHost.startsWith('bostest-') && apiHost !== '127.0.0.1' && apiHost !== 'localhost') {
+if (!/^bostest-[a-z0-9-]+$/.test(apiHost) && apiHost !== '127.0.0.1' && apiHost !== 'localhost') {
   throw new Error(`E2E_API_URL yalnız geçici test yığınına işaret edebilir; gelen ana bilgisayar: ${apiHost}`)
 }
 
