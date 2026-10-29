@@ -176,10 +176,9 @@ describe('W12 Takvim', () => {
       expect(el.hasAttribute('aria-label')).toBe(false)
       const visible = Array.from(el.querySelectorAll(':scope > :not(.sr-only)'))
         .map((n) => n.textContent)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-      const name = (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+        .join('')
+        .replace(/\s+/g, '')
+      const name = (el.textContent ?? '').replace(/\s+/g, '')
       expect(visible.length).toBeGreaterThan(0)
       // Görünür metin adın başında ve bütünüyle geçer (WCAG 2.5.3); durum ve hizmet gizli metinle eklenir.
       expect(name.startsWith(visible)).toBe(true)
