@@ -4,14 +4,15 @@ import { expect, request, type APIRequestContext } from '@playwright/test'
 // slug her zaman `tst-` önekli (test temizliği yalnız bu öneki tanır).
 const API = process.env.E2E_API_URL
 if (!API) throw new Error('E2E_API_URL tanımlı değil (örn. http://bostest-api:3001).')
-// Beyaz liste: yalnız geçici yığının iç adı (bostest-api) ya da yerel adres. Canlı ve staging adresleri reddedilir.
+// Beyaz liste: yalnız geçici yığının iç adı (bostest-api) ya da yerel adres; aynı-site çerezi için tek ek `bostest-api.bostest.test` (.test gerçek bir adrese çözülmez). Canlı ve staging adresleri reddedilir.
 const apiHost = new URL(API).hostname.toLowerCase()
-if (!/^bostest-[a-z0-9-]+$/.test(apiHost) && apiHost !== '127.0.0.1' && apiHost !== 'localhost') {
+if (!/^bostest-[a-z0-9-]+(\.bostest\.test)?$/.test(apiHost) && apiHost !== '127.0.0.1' && apiHost !== 'localhost') {
   throw new Error(`E2E_API_URL yalnız geçici test yığınına işaret edebilir; gelen ana bilgisayar: ${apiHost}`)
 }
 
 export interface TestKiraci {
   slug: string
+  salonAdi: string
   email: string
   password: string
   token: string
@@ -26,11 +27,12 @@ export function benzersiz(): string {
 export async function kiraciKur(onek = 'e2e'): Promise<TestKiraci> {
   const s = benzersiz()
   const slug = `tst-${onek}-${s}`.slice(0, 30)
+  const salonAdi = `Test Salon ${s}`
   const email = `sahip-${s}@e2e.test.local`
   const password = 'TestPass12!'
   const anon = await request.newContext({ baseURL: API })
   const kayit = await anon.post('/api/v1/auth/register', {
-    data: { salonName: `Test Salon ${s}`, slug, ownerFullName: 'Test Sahibi', email, password },
+    data: { salonName: salonAdi, slug, ownerFullName: 'Test Sahibi', email, password },
   })
   expect(kayit.status(), await kayit.text()).toBe(201)
   const { token } = (await kayit.json()) as { token: string }
@@ -39,7 +41,7 @@ export async function kiraciKur(onek = 'e2e'): Promise<TestKiraci> {
     baseURL: API,
     extraHTTPHeaders: { Authorization: `Bearer ${token}` },
   })
-  const k: TestKiraci = { slug, email, password, token, api, yol: (alt) => `/api/v1/tenants/${slug}${alt}` }
+  const k: TestKiraci = { slug, salonAdi, email, password, token, api, yol: (alt) => `/api/v1/tenants/${slug}${alt}` }
   // Giriş sonrası onboarding sihirbazına düşülmesin: kurulum tamamlanmış kiracı kurulur.
   const ayar = await api.patch(k.yol('/settings'), { data: { onboardingCompleted: true } })
   expect(ayar.status(), await ayar.text()).toBe(200)
@@ -71,5 +73,5 @@ export async function randevuVerisiKur(k: TestKiraci) {
     fullName: 'Test Müşterisi',
     phone: `0555${Math.floor(1000000 + Math.random() * 8999999)}`,
   })
-  return { hizmet, uzman, musteri }
+  return { hizmet, uzman, musteri, uzmanEposta: `uzman-${s}@e2e.test.local`, uzmanParola: 'TestPass12!' }
 }
