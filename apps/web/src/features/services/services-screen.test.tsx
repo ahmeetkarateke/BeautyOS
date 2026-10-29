@@ -41,7 +41,6 @@ function mount(me: Me = makeMe('owner')) {
   )
 }
 const writes = () => request.mock.calls.filter(([, init]) => (init as Init | undefined)?.method)
-const field = (name: RegExp | string) => screen.getByRole('textbox', { name }) as HTMLInputElement
 const fill = (el: HTMLElement, value: string) => fireEvent.change(el, { target: { value } })
 
 beforeEach(() => {
