@@ -90,7 +90,6 @@ export function DayGrid({
                   type="button"
                   data-event-id={a.id}
                   onClick={() => onOpen(a.id)}
-                  aria-label={`${clockLabel(a.start)} – ${clockLabel(a.end)}, ${a.customerName}, ${a.serviceName}, ${STATUS_LABELS[a.status]}`}
                   style={{
                     top: `${((startMin - range.startMin) / 60) * HOUR_PX + 1}px`,
                     height: `${Math.max((durationMin / 60) * HOUR_PX - 3, MIN_EVENT_PX)}px`,
@@ -99,17 +98,34 @@ export function DayGrid({
                   }}
                   className={cn('absolute z-[1] grid cursor-pointer content-start gap-0 overflow-hidden clip-safe focus-visible:-outline-offset-2 rounded-tag border px-1.5 py-0.5 text-left text-xs leading-4', eventClasses(a.status, person.tone))}
                 >
+                  {/* Erişilebilir ad görünür metinle başlar (WCAG 2.5.3, axe label-content-name-mismatch): aria-label yok; görünmeyen bilgi gizli metinle sonuna eklenir. */}
                   {short ? (
-                    <strong className="truncate font-semibold">
-                      {clockLabel(a.start)} {a.customerName}
-                    </strong>
+                    <>
+                      <strong className="truncate font-semibold">
+                        {clockLabel(a.start)} {a.customerName}
+                      </strong>
+                      <span className="sr-only">
+                        , {clockLabel(a.end)} bitiş, {a.serviceName}, {STATUS_LABELS[a.status]}
+                        {a.unverified ? ', Online' : ''}
+                      </span>
+                    </>
                   ) : (
                     <>
                       <strong className="truncate font-semibold">{a.customerName}</strong>
                       <span className="truncate">
                         {clockLabel(a.start)} – {clockLabel(a.end)} · {a.serviceName}
                       </span>
-                      {durationMin >= 75 ? <span className="truncate">{STATUS_LABELS[a.status]}{a.unverified ? ' · Online' : ''}</span> : null}
+                      {durationMin >= 75 ? (
+                        <span className="truncate">
+                          {STATUS_LABELS[a.status]}
+                          {a.unverified ? ' · Online' : ''}
+                        </span>
+                      ) : (
+                        <span className="sr-only">
+                          , {STATUS_LABELS[a.status]}
+                          {a.unverified ? ', Online' : ''}
+                        </span>
+                      )}
                     </>
                   )}
                 </button>
