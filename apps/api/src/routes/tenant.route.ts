@@ -802,7 +802,8 @@ export function createTenantRouter(): Router {
         phone: customer.phone,
         email: customer.email,
         birthDate: customer.birthDate?.toISOString() ?? null,
-        allergyNotes: customer.allergyNotes,
+        // Alerji notu sağlık verisidir (R9): yalnız health.view izni olan rol görür.
+        ...(can(req.user!.role, 'health.view') ? { allergyNotes: customer.allergyNotes } : {}),
         preferenceNotes: customer.preferenceNotes,
         totalVisits: customer.totalVisits,
         lifetimeValue: Number(customer.lifetimeValue),
@@ -1629,6 +1630,10 @@ export function createTenantRouter(): Router {
       }
 
       const { birthDate, ...rest } = parsed.data
+      // Sağlık verisi (alerji notu) yalnız health.write ile yazılır (R9).
+      if (rest.allergyNotes !== undefined && !can(req.user!.role, 'health.write')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
 
       try {
         const updated = await db.customer.update({
@@ -1644,8 +1649,10 @@ export function createTenantRouter(): Router {
           },
         })
 
+        const { allergyNotes, ...updatedPublic } = updated
         return res.json({
-          ...updated,
+          ...updatedPublic,
+          ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
           birthDate: updated.birthDate?.toISOString() ?? null,
           lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
           createdAt: updated.createdAt.toISOString(),
@@ -1669,6 +1676,10 @@ export function createTenantRouter(): Router {
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+      // Resepsiyon yalnız bugünü kapatır/görür (matris 36); geçmiş gün dökümü sahip ve müdüre aittir.
+      if (dateStr !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
       const { start: dayStart, end: dayEnd } = toTRBounds(dateStr)
@@ -1766,7 +1777,8 @@ export function createTenantRouter(): Router {
           category: e.category,
           amount: Number(e.amount),
         })),
-        staffCommissions: [...commissionMap.values()],
+        // Prim verisi yalnız prim raporu iznine sahip rollere döner (matris 42); resepsiyon kapanış dökümünde görmez.
+        ...(can(req.user!.role, 'finance.report.commissions') ? { staffCommissions: [...commissionMap.values()] } : {}),
       })
     } catch (err) {
       next(err)
@@ -1793,7 +1805,7 @@ export function createTenantRouter(): Router {
       }
 
       // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
-      if (req.user!.role === 'receptionist' && (fromParam !== today || toParam !== today)) {
+      if (!can(req.user!.role, 'finance.report.range') && (fromParam !== today || toParam !== today)) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
@@ -1981,6 +1993,10 @@ export function createTenantRouter(): Router {
       }
 
       const { description, amount, paymentMethod, revenueDate } = parsed.data
+      // Kapanmış güne gelir yazmak gün sonu sayımını bozar: resepsiyon yalnız bugüne yazar (matris 38).
+      if (revenueDate !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
       const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
 
       const revenue = await db.transaction.create({

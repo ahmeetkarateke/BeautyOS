@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   'finance.close_day': OWNER_MANAGER_RECEPTION, // 37
   'finance.report.daily': OWNER_MANAGER_RECEPTION, // 36 (resepsiyon yalniz bugun: rota sinirlar), 41
   'finance.report.commissions': OWNER_MANAGER, // 42
+  'finance.report.range': OWNER_MANAGER, // 36, 41 (gecmis gun / aralik raporu, gecmis tarihli kasa kaydi; resepsiyon yalniz bugun)
   'finance.revenue.create': OWNER_MANAGER_RECEPTION, // 38
   'finance.account.read': OWNER_MANAGER, // 43
   'finance.account.write': OWNER_MANAGER, // 43
@@ -27,6 +28,7 @@ export const PERMISSIONS = {
   'appointment.approve': OWNER_MANAGER_RECEPTION, // online talep onay/ret
   'appointment.reschedule': OWNER_MANAGER_RECEPTION, // 6
   'tip.record': OWNER_MANAGER_RECEPTION, // 33
+  'tip.view': OWNER_MANAGER_STAFF, // 35 (bahsis listesi ve ozeti; uzman yalniz kendi bahsisini gorur, resepsiyon gormez)
   'waitlist.view': OWNER_MANAGER_RECEPTION, // 11 (liste musteri adi ve telefonu tasir)
   'waitlist.write': OWNER_MANAGER_RECEPTION, // 11, 12 (bildirim yaniti telefon ve e-posta tasir)
   'health.view': OWNER_MANAGER_STAFF, // 17 (uzman yalniz kendi musterisinde)

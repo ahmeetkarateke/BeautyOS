@@ -19,6 +19,8 @@ const RECEPTION_ALLOWED: PermissionKey[] = [
 const RECEPTION_DENIED: PermissionKey[] = [
   'dashboard.revenue', // 2
   'finance.report.commissions', // 42
+  'finance.report.range', // 36, 41 (gecmis gun/aralik; resepsiyon yalniz bugun)
+  'tip.view', // 35 (bahsis listesi/ozeti)
   'finance.account.read', // 43
   'finance.account.write',
   'current_account.read', // 44

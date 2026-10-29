@@ -59,6 +59,8 @@ export const GATES: Gate[] = [
   { file: 'tenant', method: 'post', route: '/revenues', url: '/revenues', permission: 'finance.revenue.create' },
   { file: 'tenant', method: 'patch', route: '/appointments/:appointmentId/reschedule', url: `/appointments/${ID}/reschedule`, permission: 'appointment.reschedule' },
   { file: 'tips', method: 'post', route: '/tips', url: '/tips', permission: 'tip.record' },
+  { file: 'tips', method: 'get', route: '/tips', url: '/tips', permission: 'tip.view' },
+  { file: 'tips', method: 'get', route: '/tips/summary', url: '/tips/summary', permission: 'tip.view' },
   { file: 'tenant', method: 'patch', route: '/customers/:customerId', url: `/customers/${ID}`, permission: 'customer.write' },
 
   { file: 'waitlist', method: 'get', route: '/', url: '/waitlist', permission: 'waitlist.view' },
