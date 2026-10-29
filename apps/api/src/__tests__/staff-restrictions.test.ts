@@ -7,8 +7,9 @@ import express from 'express'
 const dbMock = vi.hoisted(() => ({
   staffProfile: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   customer: { findMany: vi.fn() },
-  appointment: { findFirst: vi.fn(), update: vi.fn() },
+  appointment: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   transaction: { create: vi.fn() },
+  $transaction: vi.fn(),
   tipEntry: { aggregate: vi.fn(), groupBy: vi.fn() },
   tipDistribution: { groupBy: vi.fn() },
 }))
@@ -208,6 +209,13 @@ describe('W13-API-1: arama terimi siniri ve karisik terim', () => {
 })
 
 describe('R3: uzman fiyati degistiremez', () => {
+  // A6: tamamlama tek islemde ($transaction) ve kosullu updateMany ile; sahte tx dbMock'un kendisidir.
+  function completionMocks() {
+    dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => fn(dbMock))
+    dbMock.appointment.updateMany.mockResolvedValue({ count: 1 })
+    dbMock.appointment.update.mockResolvedValue({})
+    dbMock.transaction.create.mockResolvedValue({ id: 'tx1', completedAt: new Date() })
+  }
   function setupCompletion() {
     dbMock.appointment.findFirst
       .mockResolvedValueOnce({ id: 'a1', status: 'confirmed', staffId: 'sp-me', customerId: 'c1' })
@@ -215,23 +223,25 @@ describe('R3: uzman fiyati degistiremez', () => {
         id: 'a1', staffId: 'sp-me', priceCharged: 500, customerId: 'c1',
         service: { commissionRate: 0.1, followUpSchedule: null }, customer: null, tenant: { settings: {}, telegramBotToken: null },
       })
-    dbMock.appointment.update.mockResolvedValue({ id: 'a1', status: 'completed', cancellationReason: null })
-    dbMock.transaction.create.mockResolvedValue({})
+    completionMocks()
   }
 
   it('K-R3: uzman priceCharged gonderse bile islem tutari randevu fiyatidir (yok sayilir)', async () => {
     setupCompletion()
     const res = await request(app).patch(`${URL}/appointments/a1/status`).set(as('staff')).send({ status: 'completed', priceCharged: 1 })
     expect(res.status).toBe(200)
-    expect(dbMock.transaction.create.mock.calls[0][0].data.grossAmount).toBe(500)
-    // randevu fiyati da degismez: tek update (durum) cagrisi
-    expect(dbMock.appointment.update).toHaveBeenCalledTimes(1)
+    expect(String(dbMock.transaction.create.mock.calls[0][0].data.grossAmount)).toBe('500')
+    // randevu fiyati da degismez: fiyat guncellemesi hic yapilmaz
+    expect(dbMock.appointment.update).not.toHaveBeenCalled()
   })
 
   it('K-R3: uzman odeme yontemini secebilir (yalniz fiyat kilitli)', async () => {
     setupCompletion()
     await request(app).patch(`${URL}/appointments/a1/status`).set(as('staff')).send({ status: 'completed', priceCharged: 1, paymentMethod: 'card' })
-    expect(dbMock.transaction.create.mock.calls[0][0].data).toMatchObject({ paymentMethod: 'card', cardAmount: 500, cashAmount: 0 })
+    const data = dbMock.transaction.create.mock.calls[0][0].data
+    expect(data.paymentMethod).toBe('card')
+    expect(String(data.cardAmount)).toBe('500')
+    expect(data.cashAmount).toBe(0)
   })
 
   it.each(['owner', 'manager', 'receptionist'])('K-R3: %s priceCharged ile tutari degistirebilir', async (role) => {
@@ -241,11 +251,10 @@ describe('R3: uzman fiyati degistiremez', () => {
         id: 'a1', staffId: 'sp-other', priceCharged: 500, customerId: 'c1',
         service: { commissionRate: 0.1, followUpSchedule: null }, customer: null, tenant: { settings: {}, telegramBotToken: null },
       })
-    dbMock.appointment.update.mockResolvedValue({ id: 'a1', status: 'completed', cancellationReason: null })
-    dbMock.transaction.create.mockResolvedValue({})
+    completionMocks()
     const res = await request(app).patch(`${URL}/appointments/a1/status`).set(as(role)).send({ status: 'completed', priceCharged: 450 })
     expect(res.status).toBe(200)
-    expect(dbMock.transaction.create.mock.calls[0][0].data.grossAmount).toBe(450)
+    expect(String(dbMock.transaction.create.mock.calls[0][0].data.grossAmount)).toBe('450')
   })
 })
 
