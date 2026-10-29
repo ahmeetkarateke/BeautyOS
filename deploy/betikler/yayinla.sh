@@ -88,23 +88,49 @@ if [ -f "$BASE/.env" ] && awk -F= '$1 ~ /^[[:space:]]*(export[[:space:]]+)?BEAUT
   fi
 fi
 
-# Hedef ortamın dosyasında uygulamanın ZORUNLU değişkenleri dolu mu? Yalnız "AD=" sonrasında en az bir karakter var/yok bakılır
-# (awk çıkış kodu); değer okunmaz, yazdırılmaz. Eksik varsa yalnız ADI yazılır, yayın (ve --kuru) çıkış 2 ile durur.
+# Hedef ortamın dosyasında uygulamanın ZORUNLU değişkenleri dolu mu? Değerin dolu olup olmadığına (ve JWT_SECRET uzunluğuna) bakılır;
+# değer hiçbir yere yazdırılmaz. Sorun varsa yalnız ADI ve nedeni yazılır, yayın (ve --kuru) çıkış 2 ile durur.
 # LİSTE apps/api/src/lib/env.ts içindeki REQUIRED_IN_PRODUCTION ile SENKRON kalmalıdır (test-yayinla.sh karşılaştırır).
 ZORUNLU_ORTAM=(DATABASE_URL REDIS_URL JWT_SECRET ALLOWED_ORIGINS PUBLIC_URL FRONTEND_URL)
 if [ "$ORTAM" = "canli" ]; then ORTAM_DOSYASI="$BASE/.env"; else ORTAM_DOSYASI="$BASE/.env.staging"; fi
-EKSIK_ORTAM=""
+JWT_EN_AZ=32   # env.ts: JWT_SECRET en az 32 karakter
 if [ ! -f "$ORTAM_DOSYASI" ]; then
   hata "hedef ortam dosyası yok: $ORTAM_DOSYASI"
   exit 2
 fi
-for ad in "${ZORUNLU_ORTAM[@]}"; do
-  if ! awk -v k="$ad" 'index($0, k "=") == 1 && length($0) > length(k) + 1 { f = 1 } END { exit !f }' "$ORTAM_DOSYASI"; then
-    EKSIK_ORTAM="$EKSIK_ORTAM $ad"
-  fi
-done
+# D9: değer biçimleri compose gibi çözülür: satır sonu CR, baştaki/sondaki boşluk, tırnaklı ("" ve '') ve yorumlu (# ...) boş
+# değer BOŞ sayılır; "export AD=" kabul edilir; aynı ad birden çok kez yazılmışsa (sonuncu kazanır, gizli hata) reddedilir;
+# JWT_SECRET 32 karakterden kısaysa reddedilir. awk yalnız "AD neden" satırı yazar; DEĞER ASLA yazdırılmaz.
+read -r -d '' ORTAM_AWK <<'AWKEOF' || true
+function norm(v,    q) {
+  sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+  q = substr(v, 1, 1)
+  if ((q == "\"" || q == "\047") && length(v) >= 2 && substr(v, length(v), 1) == q) v = substr(v, 2, length(v) - 2)
+  else sub(/(^|[ \t])#.*$/, "", v)
+  sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+  return v
+}
+BEGIN { n = split(adlar, A, " "); for (i = 1; i <= n; i++) K[A[i]] = 1 }
+{
+  s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s); sub(/^export[ \t]+/, "", s)
+  if (match(s, /^[A-Za-z_][A-Za-z0-9_]*[ \t]*=/)) {
+    k = substr(s, 1, RLENGTH - 1); sub(/[ \t]+$/, "", k)
+    if (k in K) { cnt[k]++; val[k] = norm(substr(s, RLENGTH + 1)) }
+  }
+}
+END {
+  for (i = 1; i <= n; i++) {
+    k = A[i]
+    if (!cnt[k]) print k " yok"
+    else if (cnt[k] > 1) print k " birden fazla kez tanimli"
+    else if (val[k] == "") print k " bos"
+    else if (k == "JWT_SECRET" && length(val[k]) < en_az) print k " " en_az " karakterden kisa"
+  }
+}
+AWKEOF
+EKSIK_ORTAM="$(awk -v adlar="${ZORUNLU_ORTAM[*]}" -v en_az="$JWT_EN_AZ" "$ORTAM_AWK" "$ORTAM_DOSYASI" | tr '\n' ';')"
 if [ -n "$EKSIK_ORTAM" ]; then
-  hata "$ORTAM ortam dosyasında zorunlu değişken(ler) boş ya da yok:$EKSIK_ORTAM (kurucu doldurmalı; adlar .env.example'da). Yayın başlamadı"
+  hata "$ORTAM ortam dosyasında zorunlu değişken sorunu (yalnız ad ve neden; değer yazılmaz): ${EKSIK_ORTAM%;} (kurucu düzeltmeli; adlar .env.example'da). Yayın başlamadı"
   exit 2
 fi
 

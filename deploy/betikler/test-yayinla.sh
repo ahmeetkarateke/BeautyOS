@@ -110,7 +110,7 @@ dogru() { if eval "$2"; then tamam "$1"; else kaldi "$1"; fi; }
 
 ZORUNLU="DATABASE_URL REDIS_URL JWT_SECRET ALLOWED_ORIGINS PUBLIC_URL FRONTEND_URL"
 zorunlu_yaz() { # zorunlu_yaz <dosya>   (sahte değerler; çıktıda görünmemeli)
-  for ad in $ZORUNLU; do printf '%s\n' "$ad=cok-gizli-$ad" >>"$1"; done
+  for ad in $ZORUNLU; do printf '%s\n' "$ad=cok-gizli-uzun-sahte-deger-0123456789-$ad" >>"$1"; done
 }
 hazirla() { # hazirla <canli> <staging> <onceki>   (ortam dosyasında sürüm anahtarı YOK: geçiş sonrası hâli)
   : >"$T/olay"; : >"$T/imajsiz"; : >"$T/bozuk"; rm -f "$T/curl_kod" "$T/curl_web200" "$T/migrate_hata"
@@ -259,6 +259,38 @@ if [ -f "$ENVTS" ]; then
 else
   echo "  atlandı: env.ts bulunamadı (senkron kontrolü yapılmadı)"
 fi
+
+echo "V15 D9: boş değer biçimleri, tekrar eden ad, JWT_SECRET uzunluğu (değer asla yazılmaz)"
+# ortam_dene <ad> <satır...>: staging dosyasında <ad> satırlarını verilenlerle değiştirir, yayinla.sh --kuru çalıştırır
+ortam_dene() {
+  local hedef="$1"; shift   # (hazirla içindeki döngü 'ad' değişkenini ezer: farklı ad kullan)
+  hazirla $A $B ""
+  grep -v "^$hedef=" "$T/base/.env.staging" >"$T/gec"; cp "$T/gec" "$T/base/.env.staging"
+  local s; for s in "$@"; do printf '%b\n' "$s" >>"$T/base/.env.staging"; done
+  OUT15="$(bash "$YAYIN" --kuru staging $C 2>&1)"; RC15=$?
+}
+RED=("PUBLIC_URL=\"\"" "PUBLIC_URL=''" "PUBLIC_URL=   " "PUBLIC_URL=\\r" "PUBLIC_URL=\"\"\\r" "PUBLIC_URL= # yorum" "PUBLIC_URL=\"  \"")
+for satir in "${RED[@]}"; do
+  ortam_dene PUBLIC_URL "$satir"
+  dogru "boş sayılır, rc=2, ad yazılır, değer yok: $satir" "[ $RC15 -eq 2 ] && grep -q 'PUBLIC_URL bos' <<<\"\$OUT15\" && ! grep -q cok-gizli <<<\"\$OUT15\""
+done
+ortam_dene PUBLIC_URL "PUBLIC_URL=https://a" "PUBLIC_URL=https://b"
+dogru "aynı ad iki kez: rc=2, 'birden fazla' yazılır, değer yok" "[ $RC15 -eq 2 ] && grep -q 'PUBLIC_URL birden fazla kez tanimli' <<<\"\$OUT15\" && ! grep -q 'https://' <<<\"\$OUT15\""
+ortam_dene JWT_SECRET "JWT_SECRET=kisa-gizli-deger"
+dogru "JWT_SECRET kısa: rc=2, uzunluk nedeni yazılır, değer yok" "[ $RC15 -eq 2 ] && grep -q 'JWT_SECRET 32 karakterden kisa' <<<\"\$OUT15\" && ! grep -q kisa-gizli <<<\"\$OUT15\""
+ortam_dene JWT_SECRET "JWT_SECRET=12345678901234567890123456789012"
+dogru "JWT_SECRET tam 32: geçer (rc=0)" "[ $RC15 -eq 0 ]"
+ortam_dene JWT_SECRET "JWT_SECRET=1234567890123456789012345678901"
+dogru "JWT_SECRET 31: reddedilir" "[ $RC15 -eq 2 ]"
+ortam_dene JWT_SECRET "JWT_SECRET=\"12345678901234567890123456789012\""
+dogru "tırnaklı 32 karakter geçer" "[ $RC15 -eq 0 ]"
+ortam_dene PUBLIC_URL "export PUBLIC_URL=\"https://x\"\\r"
+dogru "export + tırnaklı + CRLF dolu değer geçer" "[ $RC15 -eq 0 ]"
+ortam_dene PUBLIC_URL "PUBLIC_URL=https://x # yorum"
+dogru "değer + yorum dolu sayılır" "[ $RC15 -eq 0 ]"
+hazirla $A $B ""; sed -i 's/$/\r/' "$T/base/.env.staging"
+out="$(bash "$YAYIN" --kuru staging $C 2>&1)"; rc=$?
+dogru "tüm dosya CRLF ama dolu: geçer" "[ $rc -eq 0 ]"
 
 echo
 echo "Sonuç: $BAS geçti, $HATA kaldı"
