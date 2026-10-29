@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { parseSurfaces } from './flags'
-import { mapLegacyPanelPath, resolveRoute, SITE_ONLY_PATHS } from './routes'
+import { isKnownPanelScreen, legacyPathFor, mapLegacyPanelPath, resolveRoute, SITE_ONLY_PATHS } from './routes'
 
 const ALL = parseSurfaces('site,auth,panel,book,admin')
 const NONE = parseSurfaces('')
@@ -144,5 +144,42 @@ describe('denetim W0-1: sınır ve kodlama vakaları', () => {
 
   it('bozuk yüzde kodlaması çökmez, olduğu gibi geçer', () => {
     expect(resolveRoute('/%E0%A4%A', NONE)).toEqual(NEXT)
+  })
+})
+
+describe('W6 K6: hazır olmayan ekran için eski ekran bağlantısı', () => {
+  it.each([
+    [['takvim'], 'appointments'],
+    [['musteriler'], 'customers'],
+    [['kasa'], 'finance'],
+    [['ayarlar', 'moduller'], 'settings/modules'],
+    [['musteri', 'c1'], 'customers/c1'],
+    [['personel-detay', 's1'], 'staff/s1'],
+    [['fatura-yeni'], 'purchase-invoices/new'],
+  ])('K6: %j -> eski yol %s', (rest, legacy) => {
+    expect(legacyPathFor(rest)).toBe(legacy)
+  })
+
+  it('K6: eski karşılığı olmayan yeni ekran (menu, gunum) için null', () => {
+    expect(legacyPathFor(['menu'])).toBeNull()
+    expect(legacyPathFor(['gunum'])).toBeNull()
+  })
+
+  it('K6: ?eski=1 ile /tenant yolu yeni panele yönlendirilmez (yoksa Eski ekranda açın bağlantısı döngüye girer)', () => {
+    expect(resolveRoute('/tenant/defne/appointments', ALL, { legacyEscape: true })).toEqual(NEXT)
+  })
+
+  it('K6: kaçış bayrağı yokken yönlendirme sürer', () => {
+    expect(resolveRoute('/tenant/defne/appointments', ALL, { legacyEscape: false })).toMatchObject({ kind: 'redirect' })
+  })
+})
+
+describe('W6: panel ekran adları (bilinmeyen yol 404 olur)', () => {
+  it.each([['bugun'], ['gunum'], ['musteri', 'c1'], ['ayarlar', 'moduller'], ['menu'], ['hesabim']])('%j bilinen ekrandır', (...rest) => {
+    expect(isKnownPanelScreen(rest.flat())).toBe(true)
+  })
+
+  it.each([[[]], [['yok-boyle-ekran']], [['__proto__']], [['constructor']]])('%j bilinmeyen: 404', (rest) => {
+    expect(isKnownPanelScreen(rest as string[])).toBe(false)
   })
 })

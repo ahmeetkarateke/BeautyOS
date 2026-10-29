@@ -1,8 +1,12 @@
-// Geçici yer tutucu: panel ekranları W10'dan itibaren eklenir; kabuk W6'da gelir.
-export default function PanelPlaceholderPage() {
-  return (
-    <main>
-      <h1>Bu ekran yeni arayüzde hazırlanıyor</h1>
-    </main>
-  )
+import { notFound, redirect } from 'next/navigation'
+import { NotReadyScreen } from '@/features/shell/not-ready-screen'
+import { isKnownPanelScreen } from '@/lib/v2/routes'
+
+// Hazır olmayan ekranlar: bilinen bir ekran adıysa "hazırlanıyor" + eski ekran bağlantısı, değilse markalı 404.
+// Her ekran hazır olunca kendi klasörüyle bu yakalayıcıdan önce eşleşir.
+export default async function PanelFallbackPage({ params }: { params: Promise<{ slug: string; rest?: string[] }> }) {
+  const { slug, rest = [] } = await params
+  if (rest.length === 0) redirect(`/panel/${slug}/bugun`)
+  if (!isKnownPanelScreen(rest)) notFound()
+  return <NotReadyScreen rest={rest} />
 }

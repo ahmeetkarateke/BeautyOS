@@ -4,7 +4,9 @@ import { resolveRoute } from '@/lib/v2/routes'
 
 // Next 16'da middleware'in yeni adı. Bayrak kapalıyken (canlı) hiçbir eski yol değişmez; yalnız v2 yolları 404 olur.
 export function proxy(request: NextRequest) {
-  const decision = resolveRoute(request.nextUrl.pathname, enabledSurfaces)
+  const decision = resolveRoute(request.nextUrl.pathname, enabledSurfaces, {
+    legacyEscape: request.nextUrl.searchParams.get('eski') === '1',
+  })
 
   switch (decision.kind) {
     case 'next':
