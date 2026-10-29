@@ -11,7 +11,7 @@ import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
-import { requirePermission } from '../middleware/permission'
+import { requirePermission, ensurePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
@@ -812,7 +812,8 @@ export function createTenantRouter(): Router {
         phone: customer.phone,
         email: customer.email,
         birthDate: customer.birthDate?.toISOString() ?? null,
-        allergyNotes: customer.allergyNotes,
+        // Alerji notu sağlık verisidir (R9): yalnız health.view izni olan rol görür.
+        ...(can(req.user!.role, 'health.view') ? { allergyNotes: customer.allergyNotes } : {}),
         preferenceNotes: customer.preferenceNotes,
         totalVisits: customer.totalVisits,
         lifetimeValue: Number(customer.lifetimeValue),
@@ -1037,10 +1038,7 @@ export function createTenantRouter(): Router {
 
   router.patch('/appointments/:appointmentId/reschedule', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (role !== 'owner' && role !== 'manager') {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu saati yalnızca owner veya manager tarafından değiştirilebilir.' } })
-      }
+      if (!ensurePermission(req, res, 'appointment.reschedule')) return
 
       const tenantId = req.tenantId!
       const { appointmentId } = req.params
@@ -1463,6 +1461,8 @@ export function createTenantRouter(): Router {
     title: z.string().trim().min(1).max(100),
     bio: z.string().trim().max(500).optional(),
     colorCode: z.number().int().optional(),
+    // Rol atamak yalnız sahibin işi (A2); verilmezse uzman.
+    role: z.enum(['staff', 'manager', 'receptionist']).default('staff'),
   })
 
   const updateStaffSchema = z.object({
@@ -1484,8 +1484,11 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz personel verisi.' } })
       }
 
-      const { email, password, fullName, title, bio, colorCode } = parsed.data
+      const { email, password, fullName, title, bio, colorCode, role: newRole } = parsed.data
       const tenantId = req.tenantId!
+      if (newRole !== 'staff' && role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Rol yalnızca salon sahibi tarafından atanabilir.' } })
+      }
 
       // Küresel kontrol: giriş e-postayla yapılır; başka kiracıdaki aynı adres hesap karışmasına yol açar. E-posta küçük harfe normalize edilmiş, tam eşitlikle aranır.
       const existingUser = await db.user.findFirst({ where: { email }, select: { id: true } })
@@ -1498,6 +1501,15 @@ export function createTenantRouter(): Router {
       const tenantSettings = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
       const settingsObj = tenantSettings?.settings as { workingHours?: unknown } | null
       const defaultWorkingHours = resolveTenantWorkingHours(settingsObj?.workingHours)
+
+      // Müdür ve resepsiyon takvimde randevu alan uzman değildir: uzman profili yalnız 'staff' rolüne açılır.
+      if (newRole !== 'staff') {
+        const user = await db.user.create({
+          data: { tenantId, email, passwordHash, fullName, role: newRole },
+          select: { id: true, fullName: true, email: true, role: true },
+        })
+        return res.status(201).json({ id: null, title: null, bio: null, colorCode: null, fullName: user.fullName, email: user.email, userId: user.id, role: user.role })
+      }
 
       const result = await db.$transaction(async (tx) => {
         const user = await tx.user.create({
@@ -1524,6 +1536,7 @@ export function createTenantRouter(): Router {
         fullName: result.user.fullName,
         email: result.user.email,
         userId: result.user.id,
+        role: 'staff',
       })
     } catch (err) {
       next(err)
@@ -1627,6 +1640,10 @@ export function createTenantRouter(): Router {
       }
 
       const { birthDate, ...rest } = parsed.data
+      // Sağlık verisi (alerji notu) yalnız health.write ile yazılır (R9).
+      if (rest.allergyNotes !== undefined && !can(req.user!.role, 'health.write')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
 
       try {
         const updated = await db.customer.update({
@@ -1642,8 +1659,10 @@ export function createTenantRouter(): Router {
           },
         })
 
+        const { allergyNotes, ...updatedPublic } = updated
         return res.json({
-          ...updated,
+          ...updatedPublic,
+          ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
           birthDate: updated.birthDate?.toISOString() ?? null,
           lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
           createdAt: updated.createdAt.toISOString(),
@@ -1667,6 +1686,10 @@ export function createTenantRouter(): Router {
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+      // Resepsiyon yalnız bugünü kapatır/görür (matris 36); geçmiş gün dökümü sahip ve müdüre aittir.
+      if (dateStr !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
       const { start: dayStart, end: dayEnd } = toTRBounds(dateStr)
@@ -1764,7 +1787,8 @@ export function createTenantRouter(): Router {
           category: e.category,
           amount: Number(e.amount),
         })),
-        staffCommissions: [...commissionMap.values()],
+        // Prim verisi yalnız prim raporu iznine sahip rollere döner (matris 42); resepsiyon kapanış dökümünde görmez.
+        ...(can(req.user!.role, 'finance.report.commissions') ? { staffCommissions: [...commissionMap.values()] } : {}),
       })
     } catch (err) {
       next(err)
@@ -1788,6 +1812,11 @@ export function createTenantRouter(): Router {
 
       if (fromParam > toParam) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
+      }
+
+      // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
+      if (!can(req.user!.role, 'finance.report.range') && (fromParam !== today || toParam !== today)) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
       const rangeStart = toTRBounds(fromParam).start
@@ -1974,6 +2003,10 @@ export function createTenantRouter(): Router {
       }
 
       const { description, amount, paymentMethod, revenueDate } = parsed.data
+      // Kapanmış güne gelir yazmak gün sonu sayımını bozar: resepsiyon yalnız bugüne yazar (matris 38).
+      if (revenueDate !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
       const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
 
       const revenue = await db.transaction.create({

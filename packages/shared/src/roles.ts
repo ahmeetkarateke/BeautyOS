@@ -1,5 +1,5 @@
 /** Veritabanindaki UserRole degerleri (Prisma enum ile ayni olmali). */
-export const ROLES = ['owner', 'manager', 'staff', 'superadmin'] as const
+export const ROLES = ['owner', 'manager', 'receptionist', 'staff', 'superadmin'] as const
 
 export type Role = (typeof ROLES)[number]
 

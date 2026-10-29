@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
+import { ensurePermission } from '../middleware/permission'
 import { Prisma, TipSource } from '@prisma/client'
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
@@ -114,10 +115,7 @@ export function createTipsRouter(): Router {
   router.post('/tips', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
-      const role = req.user!.role
-      if (!isOwnerOrManager(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bahşiş kaydı için yetki yok.' } })
-      }
+      if (!ensurePermission(req, res, 'tip.record')) return
 
       const parsed = createTipBodySchema.safeParse(req.body)
       if (!parsed.success) {
@@ -181,6 +179,8 @@ export function createTipsRouter(): Router {
   // GET /tips — list tip entries
   router.get('/tips', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Resepsiyon bahşiş KAYDEDER ama listeyi/özeti görmez (matris 33-35); izin anahtarı yoksa ret.
+      if (!ensurePermission(req, res, 'tip.view')) return
       const tenantId = req.tenantId!
       const role = req.user!.role
       const userId = req.user!.userId
@@ -432,6 +432,8 @@ export function createTipsRouter(): Router {
   // GET /tips/summary
   router.get('/tips/summary', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Resepsiyon bahşiş KAYDEDER ama listeyi/özeti görmez (matris 33-35); izin anahtarı yoksa ret.
+      if (!ensurePermission(req, res, 'tip.view')) return
       const tenantId = req.tenantId!
 
       const querySchema = z.object({

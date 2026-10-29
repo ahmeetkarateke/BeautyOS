@@ -7,6 +7,7 @@ import {
   createTestTenant,
   createTestOwner,
   createTestManager,
+  createTestReceptionist,
   createTestStaff,
   cleanupTenant,
 } from './helpers/setup'
@@ -23,7 +24,7 @@ describe('S1-K5: yetki kapisi rol x uc matrisi', () => {
   const suffix = uniqueSuffix()
   let slug: string
   let tenantId: string
-  const tokens = {} as Record<'owner' | 'manager' | 'staff', string>
+  const tokens = {} as Record<'owner' | 'manager' | 'receptionist' | 'staff', string>
 
   beforeAll(async () => {
     const tenant = await createTestTenant(suffix)
@@ -31,6 +32,7 @@ describe('S1-K5: yetki kapisi rol x uc matrisi', () => {
     slug = tenant.slug
     tokens.owner = (await createTestOwner(tenantId, slug, suffix)).token
     tokens.manager = (await createTestManager(tenantId, slug, suffix)).token
+    tokens.receptionist = (await createTestReceptionist(tenantId, slug, suffix)).token
     tokens.staff = (await createTestStaff(tenantId, slug, suffix)).token
   })
 
@@ -39,7 +41,7 @@ describe('S1-K5: yetki kapisi rol x uc matrisi', () => {
   })
 
   for (const gate of GATES) {
-    for (const role of ['owner', 'manager', 'staff'] as const) {
+    for (const role of ['owner', 'manager', 'receptionist', 'staff'] as const) {
       const allowed = can(role, gate.permission)
       it(`${gate.method.toUpperCase()} ${gate.url} (${gate.permission}): ${role} ${allowed ? 'kapidan gecer' : '403 alir'}`, async () => {
         const res = await request(app)[gate.method](`/api/v1/tenants/${slug}${gate.url}`).set('Authorization', `Bearer ${tokens[role]}`)
