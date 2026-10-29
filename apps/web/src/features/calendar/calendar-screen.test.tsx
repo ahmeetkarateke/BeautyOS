@@ -50,6 +50,8 @@ const staffData = {
 }
 let rows: unknown[] = []
 let listError: ApiError | null = null
+let staffError: ApiError | null = null
+let staffPayload: unknown = staffData
 
 function mount(me: Me = makeMe('owner')) {
   return render(
@@ -71,6 +73,8 @@ beforeEach(() => {
   search = ''
   desktop = false
   listError = null
+  staffError = null
+  staffPayload = staffData
   stubMedia()
   rows = [
     row('a1', 'p1', 'Derya Aksoy', '10:00', '11:00', 'confirmed'),
@@ -90,7 +94,10 @@ beforeEach(() => {
       })
       return { data: inRange }
     }
-    if (path.endsWith('/staff')) return staffData
+    if (path.endsWith('/staff')) {
+      if (staffError) throw staffError
+      return staffPayload
+    }
     throw new Error(`beklenmeyen çağrı ${path}`)
   })
 })
@@ -259,5 +266,43 @@ describe('W12 Takvim', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Randevu ayrıntısı' })
     expect(dialog.textContent).toContain('Müşteri a3')
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Online randevu talebi' })).toBeNull())
+  })
+})
+
+describe('W12-1 Önemli: sessiz randevu kaybı olmaz', () => {
+  it('masaüstünde personel listesi hata verirse hata ve Yeniden dene görünür; boş ızgara çizilmez', async () => {
+    desktop = true
+    staffError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+    mount()
+    expect(await screen.findByText('Personel listesi yüklenemedi.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Yeniden dene' })).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Günlük takvim' })).toBeNull()
+  })
+
+  it('hizmet ataması kaldırılmış personelin randevusu ızgarada kendi sütunuyla görünür', async () => {
+    desktop = true
+    staffPayload = {
+      data: [
+        { id: 'p1', fullName: 'Derya Aksoy', title: 'Kuaför', skills: [{ serviceId: 'sv1' }] },
+        { id: 'p2', fullName: 'Elif Tan', title: 'Estetisyen', skills: [] },
+      ],
+    }
+    mount()
+    const grid = await screen.findByRole('group', { name: 'Günlük takvim' })
+    expect(within(grid).getByRole('heading', { name: /Elif/ })).toBeTruthy()
+    expect(within(grid).getByRole('button', { name: /Müşteri a2/ })).toBeTruthy()
+  })
+
+  it('listede hiç olmayan (silinmiş) personelin randevusu da çizilir', async () => {
+    desktop = true
+    rows = [row('z1', 'p9', 'Silinmiş Kişi', '10:00', '11:00', 'confirmed')]
+    mount()
+    const grid = await screen.findByRole('group', { name: 'Günlük takvim' })
+    expect(within(grid).getByRole('button', { name: /Müşteri z1/ })).toBeTruthy()
+  })
+
+  it('uzmanın personel profili bağlı değilse sonsuz iskelet yerine açıklama görünür', async () => {
+    mount({ ...makeMe('staff'), staffId: null })
+    expect(await screen.findByText('Uzman profiliniz bağlı değil.')).toBeTruthy()
   })
 })

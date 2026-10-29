@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchRangeAppointments, fetchStaff } from '@/features/appointments/api'
 import { addDaysToDateStr, istanbulDateStr, istanbulMinutes, stripRange, type DayAppointment } from '@/features/appointments/day-logic'
 import { attachStaff, type StaffMember } from '@/features/appointments/staff'
+import { toneForIndex } from '@/features/appointments/tones'
 import { ApprovalSheet } from '@/features/today/approval-sheet'
 import { useCan, useMe } from '@/lib/v2/session'
 import { useMediaQuery } from '@/lib/v2/use-media-query'
@@ -32,6 +33,10 @@ import { MonthView, WeekSummary } from './period-views'
 // Hafta ve ay yalnız masaüstündedir (telefonda gün görünümü). Randevu ayrıntısı/saat değiştirme W14, oluşturma W13.
 const MINUTE = 60_000
 const DESKTOP = '(min-width: 1024px)'
+
+function firstWord(name: string): string {
+  return name.trim().split(' ')[0] || name
+}
 const VIEW_OPTIONS = [
   { value: 'gun', label: 'Gün' },
   { value: 'hafta', label: 'Hafta' },
@@ -99,16 +104,26 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   const list = useApiQuery(isExpert && !ownId ? null : `cal:${range.from}:${range.to}:${ownId ?? ''}`, (c, signal) => fetchRangeAppointments(c, slug, range.from, range.to, ownId ?? undefined, signal))
   const staffQuery = useApiQuery(isExpert ? null : 'staff', (c, signal) => fetchStaff(c, slug, signal))
 
-  const staff: StaffMember[] = useMemo(() => {
+  // Sütunlar: hizmet verenler + (hizmeti kaldırılmış olsa da) randevusu olanlar + listede hiç olmayanlar.
+  // Böylece hiçbir randevu ızgarada sessizce kaybolmaz.
+  const { staff, appointments } = useMemo(() => {
     if (isExpert) {
-      return ownId ? [{ id: ownId, name: me.user.name, short: me.user.name.trim().split(/\s+/)[0] ?? me.user.name, title: '', initials: getInitials(me.user.name), tone: 1, givesService: true }] : []
+      const own: StaffMember[] = ownId ? [{ id: ownId, name: me.user.name, short: firstWord(me.user.name), title: '', initials: getInitials(me.user.name), tone: 1, givesService: true }] : []
+      return { staff: own, appointments: list.data ? attachStaff(list.data, own) : [] }
     }
     const all = staffQuery.data ?? []
-    const serving = all.filter((s) => s.givesService)
-    return serving.length > 0 ? serving : all
-  }, [isExpert, ownId, me.user.name, staffQuery.data])
+    const mapped = list.data ? attachStaff(list.data, all) : []
+    const used = new Set(mapped.filter((a) => a.status !== 'cancelled').map((a) => a.staffKey))
+    const columns = all.some((s) => s.givesService) ? all.filter((s) => s.givesService || used.has(s.id)) : [...all]
+    const known = new Set(all.map((s) => s.id))
+    const orphans = new Map<string, string>()
+    for (const a of mapped) if (a.status !== 'cancelled' && !known.has(a.staffKey)) orphans.set(a.staffKey, a.staffName)
+    for (const [key, name] of orphans) {
+      columns.push({ id: key, name, short: firstWord(name), title: '', initials: getInitials(name), tone: toneForIndex(columns.length), givesService: false })
+    }
+    return { staff: columns, appointments: mapped }
+  }, [isExpert, ownId, me.user.name, staffQuery.data, list.data])
   const staffById = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff])
-  const appointments = useMemo(() => (list.data ? attachStaff(list.data, staff) : []), [list.data, staff])
 
   // `href` her zaman açık tarih taşır (paylaşılabilir bağlantı); `null` tarih = bugün (adreste parametre yok).
   const href = (v: CalendarView, d: string | null, extra?: Record<string, string>) => {
@@ -196,7 +211,19 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
         <ErrorState subject="Takvim" onRetry={list.refetch} retrying={list.loading} lastLoadedAt={list.loadedAt} className="px-0" />
       </Card>
     )
-  } else if (!list.data) {
+  } else if (isExpert && !ownId) {
+    body = (
+      <Card>
+        <EmptyState title="Uzman profiliniz bağlı değil." description="Hesabınıza bir uzman profili bağlanınca takviminiz burada görünür. Salon yöneticinizle görüşün." centered />
+      </Card>
+    )
+  } else if (staffQuery.error && !staffQuery.data) {
+    body = (
+      <Card>
+        <ErrorState subject="Personel listesi" onRetry={staffQuery.refetch} retrying={staffQuery.loading} lastLoadedAt={staffQuery.loadedAt} className="px-0" />
+      </Card>
+    )
+  } else if (!list.data || (!isExpert && !staffQuery.data)) {
     body = (
       <SkeletonGroup className="grid gap-3">
         {[0, 1, 2, 3].map((i) => (
