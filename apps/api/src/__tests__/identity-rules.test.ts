@@ -92,7 +92,7 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
     const email = `Kayit.Karma-${suffix}@Test.LOCAL`
     const register = await request(app)
       .post('/api/v1/auth/register')
-      .send({ salonName: `Karma ${suffix}`, slug: `karma-${suffix.replace(/\W/g, '').slice(0, 10)}`, ownerFullName: 'Sahip Kisi', email, password: 'Guclu1234' })
+      .send({ salonName: `Karma ${suffix}`, slug: `tst-karma-${suffix.replace(/\W/g, '').slice(0, 10)}`, ownerFullName: 'Sahip Kisi', email, password: 'Guclu1234' })
     expect(register.status).toBe(201)
     registeredTenantIds.push((await db.tenant.findFirstOrThrow({ where: { slug: register.body.user.tenantSlug } })).id)
     expect(register.body.user.email).toBe(email.toLowerCase())
@@ -102,7 +102,7 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
 
     const again = await request(app)
       .post('/api/v1/auth/register')
-      .send({ salonName: `Karma2 ${suffix}`, slug: `karma2-${suffix.replace(/\W/g, '').slice(0, 9)}`, ownerFullName: 'Sahip Kisi', email: email.toUpperCase(), password: 'Guclu1234' })
+      .send({ salonName: `Karma2 ${suffix}`, slug: `tst-karma2-${suffix.replace(/\W/g, '').slice(0, 9)}`, ownerFullName: 'Sahip Kisi', email: email.toUpperCase(), password: 'Guclu1234' })
     expect(again.status).toBe(409)
   })
 })
