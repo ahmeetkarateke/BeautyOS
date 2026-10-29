@@ -1448,8 +1448,8 @@ export function createTenantRouter(): Router {
       const { email, password, fullName, title, bio, colorCode } = parsed.data
       const tenantId = req.tenantId!
 
-      // Küresel kontrol: giriş e-postayla yapılır; başka kiracıdaki aynı adres hesap karışmasına yol açar. Büyük/küçük harf duyarsız.
-      const existingUser = await db.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } }, select: { id: true } })
+      // Küresel kontrol: giriş e-postayla yapılır; başka kiracıdaki aynı adres hesap karışmasına yol açar. E-posta küçük harfe normalize edilmiş, tam eşitlikle aranır.
+      const existingUser = await db.user.findFirst({ where: { email }, select: { id: true } })
       if (existingUser) {
         return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresiyle kayıtlı kullanıcı zaten var.' } })
       }

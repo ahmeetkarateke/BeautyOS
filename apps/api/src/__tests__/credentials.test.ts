@@ -7,7 +7,10 @@ import bcrypt from 'bcryptjs'
 const dbMock = vi.hoisted(() => ({
   user: { findFirst: vi.fn() },
   tenant: { findUnique: vi.fn() },
+  passwordResetToken: { updateMany: vi.fn(), create: vi.fn() },
 }))
+const emailMock = vi.hoisted(() => ({ sendPasswordResetEmail: vi.fn(), sendWelcomeEmail: vi.fn() }))
+vi.mock('../lib/email', () => emailMock)
 vi.mock('../lib/db', () => ({ db: dbMock }))
 vi.mock('../lib/queue', () => ({ remindersQueue: { add: vi.fn() } }))
 
@@ -73,10 +76,10 @@ describe('S7: giris ucu (sahte db)', () => {
     spy.mockRestore()
   })
 
-  it('K2: giriste e-posta kucuk harfe cevrilir ve buyuk/kucuk harf duyarsiz aranir', async () => {
+  it('K2: giriste e-posta kucuk harfe cevrilir ve TAM eslesmeyle aranir (ILIKE joker yok)', async () => {
     await request(makeApp()).post('/api/v1/auth/login').send({ email: 'ISIK@Ornek.COM', password: 'YanlisSifre1' })
     const where = dbMock.user.findFirst.mock.calls[0][0].where
-    expect(where.email).toEqual({ equals: 'isik@ornek.com', mode: 'insensitive' })
+    expect(where.email).toBe('isik@ornek.com')
     expect(where.isActive).toBe(true)
   })
 
@@ -92,7 +95,18 @@ describe('S7: giris ucu (sahte db)', () => {
   it('K2: sifre sifirlama istegi e-postayi kucuk harfle arar, kayitsizda da 200 doner', async () => {
     const res = await request(makeApp()).post('/api/v1/auth/forgot-password').send({ email: 'YOK@Ornek.com' })
     expect(res.status).toBe(200)
-    expect(dbMock.user.findFirst.mock.calls[0][0].where.email).toEqual({ equals: 'yok@ornek.com', mode: 'insensitive' })
+    expect(dbMock.user.findFirst.mock.calls[0][0].where.email).toBe('yok@ornek.com')
+  })
+
+  it('K2: sifirlama baglantisi istekteki adrese degil kayitli hesabin adresine gider; aramada joker yok', async () => {
+    dbMock.user.findFirst.mockResolvedValueOnce({ id: 'u1', email: 'a.b@ornek.com' })
+    dbMock.passwordResetToken.updateMany.mockResolvedValue({ count: 0 })
+    dbMock.passwordResetToken.create.mockResolvedValue({})
+    const res = await request(makeApp()).post('/api/v1/auth/forgot-password').send({ email: 'A_B@Ornek.com' })
+    expect(res.status).toBe(200)
+    expect(dbMock.user.findFirst.mock.calls[0][0].where.email).toBe('a_b@ornek.com')
+    expect(emailMock.sendPasswordResetEmail).toHaveBeenCalledTimes(1)
+    expect(emailMock.sendPasswordResetEmail.mock.calls[0][0]).toBe('a.b@ornek.com')
   })
 })
 

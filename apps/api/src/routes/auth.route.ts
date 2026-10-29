@@ -11,9 +11,9 @@ import crypto from 'crypto'
 import { comparePassword, normalizeEmail } from '../lib/credentials'
 import { strongPassword } from '../lib/password-policy'
 
-// E-posta şemada küçük harfe çevrilir; aramalar büyük/küçük harf duyarsızdır (eski karışık harfli kayıtlar için).
+// E-posta şemada küçük harfe çevrilir ve TAM eşitlikle aranır. 'insensitive' (ILIKE) kullanılmaz: '_' ve '%' joker olur,
+// a_b@x.com adresi a.b@x.com hesabına eşleşirdi. Eski karışık harfli kayıtlar migration ile küçük harfe çevrildi.
 const emailField = z.string().email().transform(normalizeEmail)
-const byEmail = (email: string) => ({ equals: email, mode: 'insensitive' as const })
 
 const loginSchema = z.object({
   email: emailField,
@@ -97,7 +97,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(409).json({ error: { code: 'DUPLICATE_SLUG', message: 'Bu slug zaten kullanılıyor.' } })
       }
 
-      const emailExists = await db.user.findFirst({ where: { email: byEmail(email) }, select: { id: true } })
+      const emailExists = await db.user.findFirst({ where: { email }, select: { id: true } })
       if (emailExists) {
         return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresi zaten kullanılıyor.' } })
       }
@@ -173,7 +173,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       const { email, password } = parsed.data
 
       const user = await db.user.findFirst({
-        where: { email: byEmail(email), isActive: true },
+        where: { email, isActive: true },
         include: { tenant: { select: { slug: true } } },
       })
 
@@ -275,7 +275,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       const { email, password } = parsed.data
 
       const user = await db.user.findFirst({
-        where: { email: byEmail(email), role: 'superadmin', isActive: true },
+        where: { email, role: 'superadmin', isActive: true },
       })
 
       const passwordMatch = await comparePassword(password, user?.passwordHash)
@@ -307,8 +307,8 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       }
 
       const user = await db.user.findFirst({
-        where: { email: byEmail(parsed.data.email), isActive: true, role: { not: 'superadmin' } },
-        select: { id: true },
+        where: { email: parsed.data.email, isActive: true, role: { not: 'superadmin' } },
+        select: { id: true, email: true },
       })
 
       // Always return 200 to avoid email enumeration
@@ -329,7 +329,8 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       })
 
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
-      void sendPasswordResetEmail(parsed.data.email, `${frontendUrl}/reset-password?token=${rawToken}`)
+      // Adres isteğe değil kayıtlı hesaba gönderilir: eşleşme ne olursa olsun bağlantı yalnız hesap sahibine gider.
+      void sendPasswordResetEmail(user.email, `${frontendUrl}/reset-password?token=${rawToken}`)
 
       return res.json({ ok: true })
     } catch (err) {

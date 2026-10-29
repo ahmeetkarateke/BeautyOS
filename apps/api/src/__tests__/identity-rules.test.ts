@@ -42,7 +42,7 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
   it('K2: personel e-postasi kucuk harfle saklanir', async () => {
     const res = await addStaff(staffBody(`Karma.Harf-${suffix}@TEST.local`))
     expect(res.status).toBe(201)
-    const stored = await db.user.findFirst({ where: { email: { equals: `karma.harf-${suffix}@test.local`, mode: 'insensitive' } } })
+    const stored = await db.user.findFirst({ where: { email: `karma.harf-${suffix}@test.local` } })
     expect(stored?.email).toBe(`karma.harf-${suffix}@test.local`)
   })
 
@@ -60,6 +60,21 @@ describe('S7: kimlik kurallari (gercek PG)', () => {
       .set('Authorization', `Bearer ${ownerA}`)
       .send({ currentPassword: 'TestPass12!', newPassword: 'sadeceharfler' })
     expect(res.status).toBe(400)
+  })
+
+  it('K2 (ILIKE joker): a.b@ adresli hesaba a_b@ ile giris/sifirlama eslesmez; token olusmaz', async () => {
+    const real = await createTestOwner(tenantA.id, tenantA.slug, `dot${suffix}`)
+    const dotted = `user.${suffix}@test.local`
+    await db.user.update({ where: { id: real.user.id }, data: { email: dotted } })
+    expect(await db.user.count({ where: { email: dotted } })).toBe(1)
+    const wild = dotted.replace('.', '_')
+    const login = await request(app).post('/api/v1/auth/login').send({ email: wild, password: real.password })
+    expect(login.status).toBe(401)
+    const forgot = await request(app).post('/api/v1/auth/forgot-password').send({ email: wild })
+    expect(forgot.status).toBe(200)
+    expect(await db.passwordResetToken.count({ where: { userId: real.user.id } })).toBe(0)
+    const ok = await request(app).post('/api/v1/auth/login').send({ email: dotted.toUpperCase(), password: real.password })
+    expect(ok.status).toBe(200)
   })
 
   it('K2: kayit e-postayi kucuk harfle saklar; farkli harf bicimiyle giris ve ikinci kayit denemesi (409) calisir', async () => {
