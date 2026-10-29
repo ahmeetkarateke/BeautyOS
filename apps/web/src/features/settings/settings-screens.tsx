@@ -198,6 +198,7 @@ function OnlineForm({ data, onSaved }: { data: SalonSettings; onSaved: () => voi
   const [values, setValues] = useState<OnlineValues>(original)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { busy, failure, save } = useSave(onSaved)
+  const smsOff = useMe().tenant.bookingMode === 'approval_required'
   const set = <K extends keyof OnlineValues>(key: K, value: OnlineValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: '' }))
@@ -212,17 +213,22 @@ function OnlineForm({ data, onSaved }: { data: SalonSettings; onSaved: () => voi
           checked={values.enabled}
           onCheckedChange={(on) => set('enabled', on)}
         />
-        <SelectField
-          label="Online randevular"
-          value={values.approval}
-          onChange={(event) => set('approval', event.target.value as OnlineValues['approval'])}
-          hint={
-            values.approval === 'manual' ? 'Her talebi siz onaylarsınız; onaylanana dek randevu kesinleşmez.' : 'Talep gelince randevu kendiliğinden onaylanır.'
-          }
-        >
-          <option value="manual">Onayımla kesinleşsin</option>
-          <option value="auto">Otomatik onaylansın</option>
-        </SelectField>
+        {smsOff ? (
+          // Kalıcı karar (müdür): SMS doğrulaması yokken sunucu her talebi onaya bırakır; "otomatik" seçeneği yanıltıcı olurdu.
+          <Banner tone="info">SMS doğrulaması açılana kadar online talepler salon onayına düşer.</Banner>
+        ) : (
+          <SelectField
+            label="Online randevular"
+            value={values.approval}
+            onChange={(event) => set('approval', event.target.value as OnlineValues['approval'])}
+            hint={
+              values.approval === 'manual' ? 'Her talebi siz onaylarsınız; onaylanana dek randevu kesinleşmez.' : 'Talep gelince randevu kendiliğinden onaylanır.'
+            }
+          >
+            <option value="manual">Onayımla kesinleşsin</option>
+            <option value="auto">Otomatik onaylansın</option>
+          </SelectField>
+        )}
         <InputField
           label="WhatsApp numarası"
           optional

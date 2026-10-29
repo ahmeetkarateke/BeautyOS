@@ -192,3 +192,29 @@ describe('W27 Modüller (yalnız sahip)', () => {
     expect(await screen.findByText('Bu bölüm yakında.')).toBeTruthy()
   })
 })
+
+describe('W27-1 koşul: SMS kapalıyken otomatik onay yok (müdür kararı)', () => {
+  const smsOff = (): Me => ({ ...makeMe('owner'), tenant: { ...makeMe('owner').tenant, bookingMode: 'approval_required' } })
+
+  it('K14: bookingMode approval_required iken onay seçimi çizilmez; kalıcı not yazılır', async () => {
+    mount(<SettingsSection section="online-randevu" />, smsOff())
+    await screen.findByRole('switch', { name: 'Online randevu sayfası açık' })
+    expect(screen.queryByRole('combobox', { name: 'Online randevular' })).toBeNull()
+    expect(screen.getByText('SMS doğrulaması açılana kadar online talepler salon onayına düşer.')).toBeTruthy()
+    expect(screen.queryByText('Otomatik onaylansın')).toBeNull()
+  })
+
+  it('K15: bu modda başka alan kaydedilince onlineBookingApproval gönderilmez', async () => {
+    settings = { ...(settings as object), settings: { ...((settings as { settings: object }).settings), onlineBookingApproval: 'auto' } }
+    mount(<SettingsSection section="online-randevu" />, smsOff())
+    fireEvent.click(await screen.findByRole('switch', { name: 'Online randevu sayfası açık' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    expect((writes()[0][1] as Init).body).toEqual({ publicBookingEnabled: false })
+  })
+
+  it('K16: SMS açık modda (verified) otomatik onay seçeneği vardır', async () => {
+    mount(<SettingsSection section="online-randevu" />)
+    expect(await screen.findByRole('combobox', { name: 'Online randevular' })).toBeTruthy()
+  })
+})
