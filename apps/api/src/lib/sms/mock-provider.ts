@@ -10,11 +10,8 @@ export class MockSmsProvider implements SmsProvider {
 
   async send(input: SmsSendInput): Promise<SmsSendResult> {
     logger.info(
-      {
-        to: input.to,
-        body: input.body,
-        partCount: smsPartCount(input.body),
-      },
+      // Gövde ve alıcı yazılmaz: OTP kodu, ad ve telefon içerir (KVKK). Yalnız boyut bilgisi.
+      { partCount: smsPartCount(input.body), bodyLength: input.body.length },
       '📱 [MOCK SMS] (gerçek gönderim yok, env\'de NETGSM_USERCODE eksik)',
     )
 
