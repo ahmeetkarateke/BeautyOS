@@ -236,7 +236,7 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
     )
   } else {
     body = (
-      <div className="grid gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
         {!isExpert && staff.length > 0 ? (
           <ChipRow aria-label="Personel">
             <Chip pressed={staffFilter === ''} onToggle={() => setStaffFilter('')}>
@@ -270,7 +270,7 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {header}
       {navigation}
       {body}

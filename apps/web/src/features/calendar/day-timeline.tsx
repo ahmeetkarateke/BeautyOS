@@ -28,7 +28,7 @@ export function DayTimeline({
           .filter((a) => a.status !== 'cancelled' && istanbulMinutes(a.start) >= hourStart && istanbulMinutes(a.start) < hourStart + 60)
           .sort((a, b) => a.start.getTime() - b.start.getTime())
         return (
-          <div key={hourStart} className="grid grid-cols-[48px_1fr] gap-3 border-t border-border-subtle py-2">
+          <div key={hourStart} className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 border-t border-border-subtle py-2">
             <span className="pt-2 text-sm text-text-muted tabular-nums">{minutesLabel(hourStart)}</span>
             <div className="grid content-start gap-2">
               {inHour.length === 0 ? (
