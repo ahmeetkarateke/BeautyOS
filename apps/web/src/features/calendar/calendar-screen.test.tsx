@@ -292,6 +292,25 @@ describe('W12 Takvim', () => {
   })
 })
 
+describe('W13 takvimden randevu oluşturma', () => {
+  it('?yeni=1 adresi Randevu oluştur katmanını açar; kapatınca yeni parametresi adresten kalkar', async () => {
+    search = 'yeni=1&tarih=2026-10-28'
+    mount()
+    const dialog = await screen.findByRole('dialog', { name: 'Randevu oluştur' })
+    expect(dialog).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kapat' }))
+    await waitFor(() => expect(replace).toHaveBeenCalled())
+    expect(String(replace.mock.calls.at(-1)![0])).not.toContain('yeni=1')
+  })
+
+  it('yeni parametresi yokken katman açılmaz', async () => {
+    mount()
+    await screen.findByTestId('randevu-a1')
+    expect(screen.queryByRole('dialog', { name: 'Randevu oluştur' })).toBeNull()
+  })
+})
+
+
 describe('W12 erişilebilirlik (kabul H1/H2)', () => {
   it('gün şeridi düğmeleri aria-label taşımaz; ad gizli metinden gelir ve görünür metin soluk opaklıkla çizilmez', async () => {
     mount()
@@ -304,7 +323,7 @@ describe('W12 erişilebilirlik (kabul H1/H2)', () => {
   })
 })
 
-describe('W13 takvimden: sessiz randevu kaybı olmaz', () => {
+describe('W12-1 Önemli: sessiz randevu kaybı olmaz', () => {
   it('masaüstünde personel listesi hata verirse hata ve Yeniden dene görünür; boş ızgara çizilmez', async () => {
     desktop = true
     staffError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })

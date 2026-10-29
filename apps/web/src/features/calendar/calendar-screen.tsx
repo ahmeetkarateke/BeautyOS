@@ -22,6 +22,7 @@ import { SegmentedControl } from '@/ui/segmented-control'
 import { Skeleton, SkeletonGroup } from '@/ui/skeleton'
 import { EmptyState, ErrorState } from '@/ui/states'
 import { STATUS_LABELS } from '@/ui/status-badge'
+import { CreateAppointmentSheet } from '@/features/appointment-create/create-sheet'
 import { AppointmentPeek } from './appointment-peek'
 import { monthGrid, parseDateParam, parseView, rangeFor, weekDays, type CalendarView } from './calendar-logic'
 import { DayGrid } from './day-grid'
@@ -306,6 +307,16 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
       {navigation}
       {body}
       <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={list.refetch} />
+      <CreateAppointmentSheet
+        open={params.get('yeni') === '1'}
+        onOpenChange={(open) => {
+          if (!open) go(view, date === today ? null : date)
+        }}
+        today={today}
+        now={clock}
+        onCreated={list.refetch}
+        initial={{ staffId: params.get('personel') ?? undefined, time: params.get('saat') ?? undefined, date: params.get('tarih') ? date : undefined }}
+      />
       <AppointmentPeek appointment={peeking} onClose={() => setPeeking(null)} />
     </div>
   )
