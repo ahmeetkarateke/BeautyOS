@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import request from 'supertest'
+import bcrypt from 'bcryptjs'
 import { createApp } from '../app'
 import { db } from '../lib/db'
 import { createTestTenant, createTestOwner, cleanupTenant, uniqueSuffix } from './helpers/setup'
-
-process.env.ADMIN_SEED_SECRET = 'test-admin-seed-secret'
 
 const app = createApp({ rateLimitMax: 1000 })
 
@@ -19,12 +18,10 @@ describe('Admin API', () => {
 
   beforeAll(async () => {
     // Seed superadmin
-    const seedRes = await request(app).post('/api/v1/admin/seed').send({
-      secret: 'test-admin-seed-secret',
-      email: ADMIN_EMAIL,
-      password: ADMIN_PASS,
+    await db.user.deleteMany({ where: { role: 'superadmin' } })
+    await db.user.create({
+      data: { email: ADMIN_EMAIL, passwordHash: await bcrypt.hash(ADMIN_PASS, 10), fullName: 'Super Admin', role: 'superadmin', isActive: true },
     })
-    expect(seedRes.status).toBe(201)
 
     // Login as superadmin
     const loginRes = await request(app).post('/api/v1/auth/admin-login').send({
@@ -50,23 +47,11 @@ describe('Admin API', () => {
 
   // ─── Seed ─────────────────────────────────────────────────────────────────────
 
-  it('seed tekrar → 200 + updated: true (idempotent)', async () => {
-    const res = await request(app).post('/api/v1/admin/seed').send({
-      secret: 'test-admin-seed-secret',
-      email: ADMIN_EMAIL,
-      password: ADMIN_PASS,
-    })
-    expect(res.status).toBe(200)
-    expect(res.body.updated).toBe(true)
-  })
-
-  it('yanlış secret → 403', async () => {
-    const res = await request(app).post('/api/v1/admin/seed').send({
-      secret: 'wrong-secret',
-      email: 'x@test.local',
-      password: 'AdminPass12!',
-    })
-    expect(res.status).toBe(403)
+  it('S7-K3: /admin/seed artik acik uc degil (kimliksiz istek 401), superadmin olusturulamaz', async () => {
+    const before = await db.user.count({ where: { role: 'superadmin' } })
+    const res = await request(app).post('/api/v1/admin/seed').send({ secret: 'her-ne-ise', email: 'x@test.local', password: 'AdminPass12!' })
+    expect(res.status).toBe(401)
+    expect(await db.user.count({ where: { role: 'superadmin' } })).toBe(before)
   })
 
   // ─── Admin Login ──────────────────────────────────────────────────────────────

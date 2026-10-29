@@ -8,25 +8,24 @@ import { db } from '../lib/db'
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../lib/email'
 import { seedDefaultAnamnesisQuestions } from '../lib/anamnesis-seeder'
 import crypto from 'crypto'
+import { comparePassword, normalizeEmail } from '../lib/credentials'
+import { strongPassword } from '../lib/password-policy'
+
+// E-posta şemada küçük harfe çevrilir; aramalar büyük/küçük harf duyarsızdır (eski karışık harfli kayıtlar için).
+const emailField = z.string().email().transform(normalizeEmail)
+const byEmail = (email: string) => ({ equals: email, mode: 'insensitive' as const })
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: emailField,
   password: z.string().min(1),
 })
-
-const strongPassword = z
-  .string()
-  .min(8, 'Şifre en az 8 karakter olmalı.')
-  .max(128, 'Şifre çok uzun.')
-  .refine((v) => /[a-zA-Z]/.test(v), 'Şifrede en az 1 harf bulunmalı.')
-  .refine((v) => /[0-9]/.test(v), 'Şifrede en az 1 rakam bulunmalı.')
 
 const registerSchema = z.object({
   salonName: z.string().trim().min(2).max(100),
   slug: z.string().trim().regex(/^[a-z0-9-]{3,30}$/, 'Slug sadece küçük harf, rakam ve tire içerebilir (3-30 karakter).'),
   ownerFullName: z.string().trim().min(2).max(100),
   phone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin.').optional(),
-  email: z.string().email(),
+  email: emailField,
   password: strongPassword,
   businessType: z.nativeEnum(BusinessType).optional(),
 })
@@ -98,7 +97,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(409).json({ error: { code: 'DUPLICATE_SLUG', message: 'Bu slug zaten kullanılıyor.' } })
       }
 
-      const emailExists = await db.user.findFirst({ where: { email }, select: { id: true } })
+      const emailExists = await db.user.findFirst({ where: { email: byEmail(email) }, select: { id: true } })
       if (emailExists) {
         return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresi zaten kullanılıyor.' } })
       }
@@ -174,13 +173,12 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       const { email, password } = parsed.data
 
       const user = await db.user.findFirst({
-        where: { email, isActive: true },
+        where: { email: byEmail(email), isActive: true },
         include: { tenant: { select: { slug: true } } },
       })
 
-      // Email enumeration koruması: kullanıcı yoksa da bcrypt compare çalıştır (timing eşitleme)
-      const DUMMY_HASH = '$2b$10$0000000000000000000000.0000000000000000000000000000000000'
-      const passwordMatch = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)
+      // Hesap varlığı sızmasın: kullanıcı yoksa da gerçek maliyette (geçerli sahte hash) bcrypt karşılaştırması çalışır.
+      const passwordMatch = await comparePassword(password, user?.passwordHash)
       if (!user || !passwordMatch) {
         return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
       }
@@ -277,15 +275,11 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       const { email, password } = parsed.data
 
       const user = await db.user.findFirst({
-        where: { email, role: 'superadmin', isActive: true },
+        where: { email: byEmail(email), role: 'superadmin', isActive: true },
       })
 
-      if (!user) {
-        return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
-      }
-
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash)
-      if (!passwordMatch) {
+      const passwordMatch = await comparePassword(password, user?.passwordHash)
+      if (!user || !passwordMatch) {
         return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'E-posta veya şifre hatalı.' } })
       }
 
@@ -307,13 +301,13 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
 
   router.post('/forgot-password', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parsed = z.object({ email: z.string().email() }).safeParse(req.body)
+      const parsed = z.object({ email: emailField }).safeParse(req.body)
       if (!parsed.success) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir e-posta adresi girin.' } })
       }
 
       const user = await db.user.findFirst({
-        where: { email: parsed.data.email, isActive: true, role: { not: 'superadmin' } },
+        where: { email: byEmail(parsed.data.email), isActive: true, role: { not: 'superadmin' } },
         select: { id: true },
       })
 

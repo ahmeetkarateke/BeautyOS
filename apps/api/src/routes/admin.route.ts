@@ -1,14 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
-import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { db } from '../lib/db'
 import { authenticateJWT, requireSuperAdmin } from '../middleware/auth.middleware'
-
-const seedSchema = z.object({
-  secret: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(8),
-})
 
 const patchTenantSchema = z.object({
   isActive: z.boolean().optional(),
@@ -19,45 +12,7 @@ const patchTenantSchema = z.object({
 export function createAdminRouter(): Router {
   const router = Router()
 
-  // POST /seed — protected by ADMIN_SEED_SECRET, no JWT required
-  router.post('/seed', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const parsed = seedSchema.safeParse(req.body)
-      if (!parsed.success) {
-        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz veri.' } })
-      }
-
-      const adminSecret = process.env.ADMIN_SEED_SECRET
-      if (!adminSecret || parsed.data.secret !== adminSecret) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Geçersiz seed secret.' } })
-      }
-
-      const passwordHash = await bcrypt.hash(parsed.data.password, 12)
-      const existing = await db.user.findFirst({ where: { role: 'superadmin' } })
-
-      if (existing) {
-        await db.user.update({
-          where: { id: existing.id },
-          data: { email: parsed.data.email, passwordHash },
-        })
-        return res.json({ ok: true, updated: true })
-      }
-
-      await db.user.create({
-        data: {
-          email: parsed.data.email,
-          passwordHash,
-          fullName: 'Super Admin',
-          role: 'superadmin',
-          isActive: true,
-        },
-      })
-
-      return res.status(201).json({ ok: true, created: true })
-    } catch (err) {
-      next(err)
-    }
-  })
+  // Süper yönetici HTTP ile oluşturulmaz (S7-K3): apps/api/scripts/create-superadmin.ts
 
   // All routes below require JWT + superadmin role
   router.use(authenticateJWT, requireSuperAdmin)
