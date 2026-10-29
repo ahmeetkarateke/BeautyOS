@@ -4,6 +4,14 @@ import { getSlots } from '../lib/slots'
 import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
 import type { BookingChannel } from '@prisma/client'
 
+/** Hizmet adı bu kiracıdaki aktif hizmetlerle eşleşmedi: akış netleştirme sorusu sorar, sahte yanıt üretmez (S5 K2). */
+export class ServiceNotFoundError extends Error {
+  readonly code = 'SERVICE_NOT_FOUND'
+  constructor(readonly serviceName: string) {
+    super('Hizmet bulunamadı.')
+  }
+}
+
 // ─── Saat dilimleri (Türkiye: UTC+3) ─────────────────────────────────────────
 
 const TZ_OFFSET_HOURS = 3
