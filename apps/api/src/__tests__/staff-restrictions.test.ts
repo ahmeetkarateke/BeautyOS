@@ -29,7 +29,7 @@ vi.mock('../middleware/auth.middleware', () => ({
 
 import { createTenantRouter } from '../routes/tenant.route'
 import { createTipsRouter } from '../routes/tips.route'
-import { maskPhone } from '../lib/customer-privacy'
+import { maskPhone, escapeLike } from '../lib/customer-privacy'
 
 function makeApp() {
   const app = express()
@@ -117,6 +117,22 @@ describe('R4: uzman musteri aramasi', () => {
     const phoneBranch = where.OR.find((b: Record<string, unknown>) => JSON.stringify(b).includes('"phone"'))
     expect(JSON.stringify(phoneBranch)).toContain('"appointments"')
     expect(JSON.stringify(phoneBranch)).toContain('sp-me')
+  })
+
+  it('K-R4: LIKE jokerleri kacislanir: ___ ve %%% aramasi tum musterileri eslestiremez', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    for (const wildcard of ['___', '%%%', 'a_c']) {
+      await request(app).get(`${URL}/customers?search=${encodeURIComponent(wildcard)}`).set(as('staff'))
+    }
+    const sent = dbMock.customer.findMany.mock.calls.map((c) => c[0].where.OR[0].fullName.contains)
+    expect(sent).toEqual(['\\_\\_\\_', '\\%\\%\\%', 'a\\_c'])
+    const phoneSent = dbMock.customer.findMany.mock.calls[0][0].where.OR[1].AND[1].phone.contains
+    expect(phoneSent).toBe('\\_\\_\\_')
+  })
+
+  it('K-R4: escapeLike ters egik cizgiyi de kacislar (kacis dizisi enjekte edilemez)', () => {
+    expect(escapeLike('a\\b%c_d')).toBe('a\\\\b\\%c\\_d')
+    expect(escapeLike('Ayse')).toBe('Ayse')
   })
 
   it('K-R4: profili olmayan uzman bos sonuc alir', async () => {

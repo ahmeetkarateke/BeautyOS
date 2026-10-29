@@ -5,6 +5,10 @@ export const STAFF_SEARCH_MIN_LENGTH = 3
 /** Uzman aramasinda donen en cok sonuc; sayfalama yok (toplu liste/disa aktarma engeli). */
 export const STAFF_SEARCH_MAX_RESULTS = 10
 
+export function escapeLike(term: string): string {
+  throw new Error('not implemented')
+}
+
 /** "0532 *** ** 67" bicimi. Kisa ya da bos deger numara sizdirmamak icin "***" olur. */
 export function maskPhone(phone: string): string {
   let digits = phone.replace(/\D/g, '')
