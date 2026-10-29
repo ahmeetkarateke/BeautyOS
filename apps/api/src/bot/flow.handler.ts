@@ -1,4 +1,5 @@
 import { logger } from '../lib/logger'
+import { SlotTakenError } from '../lib/slot-conflict'
 import type { MessagingChannel, IncomingMessage } from '../channels/types'
 import type { SessionService, ConversationSession } from '../session/session.service'
 import type { IntentService, SalonContext } from '../ai/intent.service'
@@ -519,6 +520,10 @@ export class FlowHandler {
         })
       }
     } catch (error) {
+      if (error instanceof SlotTakenError) {
+        await channel.sendText(msg.from, 'Bu saat az önce doldu. Lütfen başka bir saat seçin.')
+        return
+      }
       logger.error({ error, slotId }, 'Randevu kaydetme hatası')
       await channel.sendText(msg.from, '❌ Randevu oluşturulurken bir sorun oluştu. Lütfen tekrar deneyin.')
       return

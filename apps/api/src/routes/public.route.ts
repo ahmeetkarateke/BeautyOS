@@ -9,6 +9,7 @@ import { normalizePhoneTR } from '../lib/sms'
 import { remindersQueue } from '../lib/queue'
 import { isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { logger } from '../lib/logger'
+import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
 import { resolveBookingMode } from '../lib/booking-mode'
 import { ONLINE_LIMITS, computeExpiryAt, phoneVariants, scheduleOnlineExpiry } from '../lib/online-booking'
 
@@ -469,7 +470,7 @@ export function createPublicRouter(): Router {
         select: { id: true },
       })
       if (conflict) {
-        return res.status(409).json({ error: { code: 'SLOT_TAKEN', message: 'Bu saat dolu, lütfen başka bir saat seçin.' } })
+        return res.status(409).json(SLOT_TAKEN_BODY)
       }
 
       // sms modunda son 30 dakikada doğrulanmış telefon şart; none modunda doğrulama yoktur (ADR-0034).
@@ -536,7 +537,7 @@ export function createPublicRouter(): Router {
         phoneVerified: verifiedMode,
       })
     } catch (err) {
-      next(err)
+      respondSlotTakenOr(err, res, next)
     }
   })
 

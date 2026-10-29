@@ -79,14 +79,14 @@ describe('Randevu endpointleri', () => {
     createdAppointmentId = res.body.id
   })
 
-  it('çakışan slot → 409 APPOINTMENT_CONFLICT', async () => {
+  it('çakışan slot → 409 SLOT_TAKEN', async () => {
     const res = await request(app)
       .post(`/api/v1/tenants/${tenantSlug}/appointments`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ customerId, serviceId, staffId: staffProfileId, startAt })
 
     expect(res.status).toBe(409)
-    expect(res.body.error.code).toBe('APPOINTMENT_CONFLICT')
+    expect(res.body.error.code).toBe('SLOT_TAKEN')
   })
 
   it('geçersiz body → 400', async () => {

@@ -1,6 +1,7 @@
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { getSlots } from '../lib/slots'
+import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
 import type { BookingChannel } from '@prisma/client'
 
 // ─── Saat dilimleri (Türkiye: UTC+3) ─────────────────────────────────────────
@@ -186,20 +187,26 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 
   const referenceCode = `RDV-${Date.now().toString(36).toUpperCase()}`
 
-  await db.appointment.create({
-    data: {
-      tenantId,
-      customerId: customer.id,
-      staffId,
-      serviceId: service.id,
-      referenceCode,
-      status: 'confirmed',
-      bookingChannel: channel,
-      startAt,
-      endAt,
-      priceCharged: service.price,
-    },
-  })
+  try {
+    await db.appointment.create({
+      data: {
+        tenantId,
+        customerId: customer.id,
+        staffId,
+        serviceId: service.id,
+        referenceCode,
+        status: 'confirmed',
+        bookingChannel: channel,
+        startAt,
+        endAt,
+        priceCharged: service.price,
+      },
+    })
+  } catch (err) {
+    // Bot yolunda ön kontrol yok: saat dolduysa veritabanı kısıtı (S3) reddeder.
+    if (isSlotOverlapError(err)) throw new SlotTakenError()
+    throw err
+  }
 
   // Müşteri ziyaret sayısını artır
   await db.customer.update({
