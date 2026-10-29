@@ -1878,6 +1878,7 @@ export function createTenantRouter(): Router {
   // GET /api/v1/tenants/:slug/reports/daily?date=YYYY-MM-DD (single day)
   //   or ?from=YYYY-MM-DD&to=YYYY-MM-DD[&groupBy=day] (date range)
   const MAX_REPORT_RANGE_DAYS = 31
+  const MAX_LEGACY_REPORT_RANGE_DAYS = 366
 
   router.get('/reports/daily', requirePermission('finance.report.daily'), async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -1887,6 +1888,7 @@ export function createTenantRouter(): Router {
       const fromParam = (req.query.from as string | undefined) ?? dateParam ?? today
       const toParam = (req.query.to as string | undefined) ?? dateParam ?? today
       const groupBy = req.query.groupBy as string | undefined
+      const summaryMode = req.query.fields === 'summary'
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fromParam) || !/^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
@@ -1896,10 +1898,11 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
       }
 
-      // İki uç dahil en çok 31 gün: yıllık aralık gereksiz yük ve kişisel veri aktarımıdır.
+      // Aralık iki uç dahil sayılır. Özet kipinde (fields=summary) 31 gün; eski sözleşmede (canlıdaki eski finans ekranı) 366 gün.
+      const maxDays = summaryMode ? MAX_REPORT_RANGE_DAYS : MAX_LEGACY_REPORT_RANGE_DAYS
       const spanDays = Math.round((Date.parse(`${toParam}T00:00:00Z`) - Date.parse(`${fromParam}T00:00:00Z`)) / 86_400_000) + 1
-      if (spanDays > MAX_REPORT_RANGE_DAYS) {
-        return res.status(400).json({ error: { code: 'RANGE_TOO_LARGE', message: `Rapor aralığı en çok ${MAX_REPORT_RANGE_DAYS} gün olabilir.` } })
+      if (spanDays > maxDays) {
+        return res.status(400).json({ error: { code: 'RANGE_TOO_LARGE', message: `Rapor aralığı en çok ${maxDays} gün olabilir.` } })
       }
 
       // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
@@ -1913,7 +1916,7 @@ export function createTenantRouter(): Router {
       const expenseRangeEnd = new Date(`${toParam}T23:59:59.999Z`)
 
       // groupBy=day yalnız toplam ve günlük döküm döner: müşteri/hizmet/not alanları hiç çekilmez (veri en aza indirme).
-      const aggregateOnly = groupBy === 'day'
+      const aggregateOnly = summaryMode
       const amountSelect = {
         id: true,
         grossAmount: true,
@@ -1962,7 +1965,7 @@ export function createTenantRouter(): Router {
         netRevenue: totalRevenue - totalExpenses,
       }
 
-      if (aggregateOnly) {
+      const buildDaily = () => {
         const dayMap = new Map<string, {
           date: string
           revenue: number
@@ -1989,12 +1992,12 @@ export function createTenantRouter(): Router {
           dayMap.set(key, entry)
         }
 
-        const daily = [...dayMap.entries()]
+        return [...dayMap.entries()]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([, v]) => ({ ...v, netRevenue: v.revenue - v.expenses }))
-
-        return res.json({ ...summary, daily })
       }
+
+      if (aggregateOnly) return res.json({ ...summary, daily: buildDaily() })
 
       const txMapped = transactions.map((t) => ({
         id: t.id,
@@ -2014,7 +2017,8 @@ export function createTenantRouter(): Router {
         amount: Number(e.amount),
       }))
 
-      return res.json({ ...summary, transactions: txMapped, expenses: expensesMapped })
+      // Eski sözleşme (fields yok): groupBy=day listelerle birlikte günlük dökümü de döner (canlıdaki eski finans ekranı).
+      return res.json({ ...summary, transactions: txMapped, expenses: expensesMapped, ...(groupBy === 'day' ? { daily: buildDaily() } : {}) })
     } catch (err) {
       next(err)
     }
