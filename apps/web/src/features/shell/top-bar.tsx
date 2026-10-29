@@ -20,8 +20,12 @@ export function TopBar({ className }: { className?: string }) {
   const topLevel = buildBottomNav(me).items.some((item) => isActivePath(pathname, item.href))
   const clients = buildNav(me).flatMap((group) => group.items).find((item) => item.id === 'clients')
   const account = (
-    <Link href={`${base}/hesabim`} aria-label="Hesabım" className={buttonClassName({ variant: 'icon' })}>
-      <Avatar name={me.user.name} tone={me.staffId ? personTone(me.staffId) : undefined} size="sm" />
+    <Link href={`${base}/hesabim`} className={buttonClassName({ variant: 'icon' })}>
+      {/* aria-label yerine gizli metin: görünür baş harfler adın parçası olmayınca axe label-content-name-mismatch verir. */}
+      <span aria-hidden="true">
+        <Avatar name={me.user.name} tone={me.staffId ? personTone(me.staffId) : undefined} size="sm" />
+      </span>
+      <span className="sr-only">Hesabım</span>
     </Link>
   )
   const title = screenTitle(buildNav(me).flatMap((group) => group.items), pathname, 'Hesabım')
