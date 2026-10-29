@@ -118,14 +118,14 @@ describe('S2: sure dolumu isi', () => {
 })
 
 describe('S2: saklama (hukuk-uyum: 30 gun)', () => {
-  it('iptal olmus musterisiz talebin ad ve telefonu 30 gunden eskiyse anonimlestirilir (CHECK icin - ile doldurulur), onayli/bagli kayda dokunulmaz', async () => {
+  it('iptal ya da gelmedi (eski uctan no_show) olmus musterisiz talebin ad ve telefonu 30 gunden eskiyse anonimlestirilir (CHECK icin - ile doldurulur), onayli/bagli kayda dokunulmaz', async () => {
     dbMock.appointment.updateMany.mockResolvedValueOnce({ count: 4 })
     const now = new Date('2026-12-15T00:00:00Z')
     expect(await anonymizeStaleRequests(now)).toBe(4)
     expect(dbMock.appointment.updateMany).toHaveBeenCalledWith({
       where: {
         customerId: null,
-        status: 'cancelled',
+        status: { in: ['cancelled', 'no_show'] },
         updatedAt: { lte: new Date('2026-11-15T00:00:00.000Z') },
         NOT: { requestedPhone: '-' },
       },

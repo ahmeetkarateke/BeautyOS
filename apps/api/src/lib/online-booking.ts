@@ -97,12 +97,12 @@ export async function sweepExpiredOnlineRequests(now: Date = new Date()): Promis
 export const REQUEST_RETENTION_DAYS = 30
 export const ANONYMIZED = '-'
 
-/** Gece taraması: iptal olmuş musterisiz taleplerde requestedName/requestedPhone silinir (CHECK için '-' ile doldurulur). */
+/** Gece taraması: iptal/gelmedi olmuş musterisiz taleplerde requestedName/requestedPhone silinir (CHECK için '-' ile doldurulur). */
 export async function anonymizeStaleRequests(now: Date = new Date()): Promise<number> {
   const result = await db.appointment.updateMany({
     where: {
       customerId: null,
-      status: 'cancelled',
+      status: { in: ['cancelled', 'no_show'] },
       updatedAt: { lte: new Date(now.getTime() - REQUEST_RETENTION_DAYS * 24 * HOUR_MS) },
       NOT: { requestedPhone: ANONYMIZED },
     },

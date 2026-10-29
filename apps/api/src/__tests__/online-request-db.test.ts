@@ -243,10 +243,14 @@ describe('S2 Kritik 2: dogrulanmamis talep ve onayda musteri eslestirme (gercek 
     const fresh = await unverifiedRequest('+905553334466')
     await db.appointment.update({ where: { id: old.id }, data: { status: 'cancelled', cancelReason: 'expired' } })
     await db.appointment.update({ where: { id: fresh.id }, data: { status: 'cancelled', cancelReason: 'rejected' } })
+    const noShow = await unverifiedRequest('+905553334477')
+    await db.appointment.update({ where: { id: noShow.id }, data: { status: 'no_show' } })
+    await db.$executeRaw`UPDATE appointments SET "updatedAt" = now() - interval '31 days' WHERE id = ${noShow.id}::uuid`
     await db.$executeRaw`UPDATE appointments SET "updatedAt" = now() - interval '31 days' WHERE id = ${old.id}::uuid`
     const { anonymizeStaleRequests } = await import('../lib/online-booking')
     expect(await anonymizeStaleRequests()).toBeGreaterThanOrEqual(1)
     expect(await db.appointment.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({ requestedName: '-', requestedPhone: '-' })
+    expect(await db.appointment.findUniqueOrThrow({ where: { id: noShow.id } })).toMatchObject({ requestedName: '-', requestedPhone: '-' })
     expect(await db.appointment.findUniqueOrThrow({ where: { id: fresh.id } })).toMatchObject({ requestedName: 'Talep Eden', requestedPhone: '+905553334466' })
   })
 })
