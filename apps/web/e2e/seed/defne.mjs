@@ -14,9 +14,11 @@ const SAHIP_EPOSTA = process.env.DEMO_OWNER_EMAIL ?? 'derya@ornek.test'
 if (!API) throw new Error('E2E_API_URL tanımlı değil.')
 if (PAROLA.length < 10) throw new Error('DEMO_SEED_PASSWORD en az 10 karakter olmalı (dosyaya yazılmaz).')
 if (!/^(demo|tst)-/.test(SLUG)) throw new Error(`Kiracı slug'ı demo- ya da tst- ile başlamalı: ${SLUG}`)
-const host = new URL(API).hostname.toLowerCase()
-if (host === 'api.beautyossapp.com' || host === 'beautyossapp.com') {
-  throw new Error('Canlı API adresine karşı demo verisi kurulmaz.')
+// İzin listesi (kara liste değil): sondaki nokta ('api.beautyossapp.com.') ve büyük harf kara listeyi atlatırdı.
+const host = new URL(API).hostname.toLowerCase().replace(/\.$/, '')
+const IZINLI_HOSTLAR = new Set(['yeni-api.beautyossapp.com', 'localhost', '127.0.0.1'])
+if (!IZINLI_HOSTLAR.has(host) && host.includes('.')) {
+  throw new Error(`Demo verisi yalnız geçici test yığınına ya da staging API'sine kurulur; gelen: ${host}`)
 }
 
 const HIZMETLER = [
