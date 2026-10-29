@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { UserRole } from '@prisma/client'
-import { ROLES, can, PERMISSIONS } from '@beautyos/shared'
+import { UserRole, BusinessType } from '@prisma/client'
+import { ROLES, can, PERMISSIONS, BUSINESS_TYPES } from '@beautyos/shared'
 
 describe('paylasilan roller Prisma ile ayni', () => {
   it('ROLES, Prisma UserRole degerleriyle birebir ayni (superadmin dahil)', () => {
@@ -17,5 +17,11 @@ describe('paylasilan roller Prisma ile ayni', () => {
     for (const key of Object.keys(PERMISSIONS) as Array<keyof typeof PERMISSIONS>) {
       expect(can('superadmin', key)).toBe(false)
     }
+  })
+})
+
+describe('paylasilan isletme turleri Prisma ile ayni', () => {
+  it('BUSINESS_TYPES, Prisma BusinessType degerleriyle birebir ayni', () => {
+    expect([...BUSINESS_TYPES].sort()).toEqual(Object.values(BusinessType).sort())
   })
 })

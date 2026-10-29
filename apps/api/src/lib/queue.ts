@@ -7,7 +7,7 @@ import { sendSms, normalizePhoneTR, getSmsProvider } from './sms'
 import { sendReminderEmail, isEmailConfigured } from './email'
 import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
 import { purgeExpiredSessions } from './sessions'
-import { isHealthRegulated } from './health-regulated'
+import { isHealthRegulated } from '@beautyos/shared'
 import { istanbulDayBounds } from './time'
 
 // tenantId yeni işlerde bulunur; kuyrukta bekleyen eski işlerde yoktur (okuma filtresi o zaman yalnız id'dir).

@@ -41,7 +41,7 @@ vi.mock('../lib/sessions', () => ({ purgeExpiredSessions: vi.fn() }))
 
 import { UnrecoverableError } from 'bullmq'
 import { processReminderJob, remindersQueue, scheduleReminders, cancelReminders } from '../lib/queue'
-import { isHealthRegulated } from '../lib/health-regulated'
+import { isHealthRegulated } from '@beautyos/shared'
 
 function appt(over: Record<string, unknown> = {}) {
   return {

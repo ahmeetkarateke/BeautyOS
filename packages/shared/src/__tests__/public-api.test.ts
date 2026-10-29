@@ -3,7 +3,7 @@ import * as shared from '../index'
 
 describe('@beautyos/shared dis API', () => {
   it('K3: dis API tam olarak bu listedir (yeni ad eklemek bu testi bilerek degistirmeyi gerektirir)', () => {
-    expect(Object.keys(shared).sort()).toEqual(['PERMISSIONS', 'ROLES', 'can', 'isRole', 'permissionsFor'])
+    expect(Object.keys(shared).sort()).toEqual(['BUSINESS_TYPES', 'PERMISSIONS', 'ROLES', 'can', 'isHealthRegulated', 'isRole', 'permissionsFor'])
   })
 })
 
@@ -55,5 +55,25 @@ describe('izin tablosu', () => {
     expect(shared.permissionsFor('staff').sort()).toEqual(
       ['customer.photo.view', 'customer.photo.write', 'health.view', 'health.write'],
     )
+  })
+})
+
+describe('isHealthRegulated', () => {
+  it.each(['aesthetic_clinic', 'dentist', 'hair_transplant'])('%s saglik duzenlemeli', (t) => {
+    expect(shared.isHealthRegulated(t)).toBe(true)
+  })
+
+  it('diger tum bilinen turler saglik duzenlemeli degil', () => {
+    const regulated = new Set(['aesthetic_clinic', 'dentist', 'hair_transplant'])
+    for (const t of shared.BUSINESS_TYPES.filter((x) => !regulated.has(x))) {
+      expect(shared.isHealthRegulated(t)).toBe(false)
+    }
+  })
+
+  it('Turk I vakasi: buyuk harfli ad, bos ve string olmayan degerler false (harf donusumu yapilmaz)', () => {
+    for (const v of ['DENTIST', 'HAIR_TRANSPLANT', 'Dentist', '', null, undefined, 1, {}]) {
+      expect(shared.isHealthRegulated(v)).toBe(false)
+    }
+    expect(shared.isHealthRegulated('DENTIST'.toLowerCase())).toBe(true)
   })
 })
