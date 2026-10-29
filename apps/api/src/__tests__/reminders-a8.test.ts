@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const m = vi.hoisted(() => ({
   queues: [] as Array<{ opts: Record<string, unknown>; add: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> }>,
   appointment: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
+  messageDelivery: { findFirst: vi.fn(), create: vi.fn() },
   sendSms: vi.fn(),
   smsProvider: { name: 'netgsm' },
   sendReminderEmail: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('bullmq', () => ({
   UnrecoverableError: class UnrecoverableError extends Error {},
 }))
 vi.mock('ioredis', () => ({ default: class { quit = vi.fn(); disconnect = vi.fn() } }))
-vi.mock('../lib/db', () => ({ db: { appointment: m.appointment } }))
+vi.mock('../lib/db', () => ({ db: { appointment: m.appointment, messageDelivery: m.messageDelivery } }))
 vi.mock('../lib/sms', () => ({
   sendSms: m.sendSms,
   normalizePhoneTR: (p: string) => (/^05\d{9}$/.test(p) ? `+90${p.slice(1)}` : null),
@@ -63,6 +64,8 @@ beforeEach(() => {
   m.sendSms.mockResolvedValue(smsOk)
   m.sendReminderEmail.mockResolvedValue(true)
   m.appointment.findMany.mockResolvedValue([])
+  m.messageDelivery.findFirst.mockResolvedValue(null)
+  m.messageDelivery.create.mockResolvedValue({})
 })
 afterEach(() => vi.useRealTimers())
 
@@ -291,4 +294,34 @@ describe('isHealthRegulated', () => {
       expect(isHealthRegulated(t as string | null | undefined)).toBe(false)
     },
   )
+})
+
+describe('A8 cift gonderim onlemi (ADR-0044 risk)', () => {
+  it('ayni randevu ve tur icin yakin zamanda gonderilmis kayit varsa SMS yeniden gitmez, is tamamlanir', async () => {
+    m.appointment.findFirst.mockResolvedValue(appt())
+    m.messageDelivery.findFirst.mockResolvedValue({ id: 'd1' })
+    await expect(processReminderJob(job)).resolves.toBeUndefined()
+    expect(m.sendSms).not.toHaveBeenCalled()
+    expect(m.sendReminderEmail).not.toHaveBeenCalled()
+    const where = m.messageDelivery.findFirst.mock.calls[0][0].where
+    expect(where).toMatchObject({ appointmentId: 'a1', purpose: 'reminder_24h', status: { in: ['sent', 'delivered'] } })
+    expect(where.createdAt.gte).toBeInstanceOf(Date)
+  })
+
+  it('farkli tur (2 saat) icin 24 saat kaydi engel degildir: sorgu turu icerir', async () => {
+    m.appointment.findFirst.mockResolvedValue(appt())
+    await processReminderJob({ type: 'reminder_2h', appointmentId: 'a1', tenantId: 't1' })
+    expect(m.messageDelivery.findFirst.mock.calls[0][0].where.purpose).toBe('reminder_2h')
+    expect(m.sendSms).toHaveBeenCalledTimes(1)
+  })
+
+  it('e-posta yedegiyle gonderilince de teslim kaydi yazilir (sonraki deneme ayni kaydi gorur)', async () => {
+    m.smsProvider.name = 'mock'
+    m.appointment.findFirst.mockResolvedValue(appt())
+    await processReminderJob(job)
+    expect(m.messageDelivery.create).toHaveBeenCalledTimes(1)
+    expect(m.messageDelivery.create.mock.calls[0][0].data).toMatchObject({
+      tenantId: 't1', appointmentId: 'a1', channel: 'email', purpose: 'reminder_24h', status: 'sent',
+    })
+  })
 })
