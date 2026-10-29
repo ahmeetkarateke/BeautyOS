@@ -7,7 +7,7 @@ import { parseStaffList, type StaffMember } from './staff'
 const base = (slug: string) => `/api/v1/tenants/${encodeURIComponent(slug)}`
 
 export async function fetchDayAppointments(client: ApiClient, slug: string, date: string, signal?: AbortSignal): Promise<DayAppointment[]> {
-  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { date, limit: 100 }, signal })
+  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { date }, signal })
   return z.array(z.unknown()).parse(body.data).map(parseDayAppointment)
 }
 
@@ -55,4 +55,9 @@ export function rejectRequest(client: ApiClient, slug: string, appointmentId: st
 
 export function setAppointmentStatus(client: ApiClient, slug: string, appointmentId: string, status: 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'): Promise<unknown> {
   return client.request(`${base(slug)}/appointments/${encodeURIComponent(appointmentId)}/status`, { method: 'PATCH', body: { status } })
+}
+
+export async function fetchServiceCount(client: ApiClient, slug: string, signal?: AbortSignal): Promise<number> {
+  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/services`, { signal })
+  return z.array(z.unknown()).parse(body.data ?? []).length
 }
