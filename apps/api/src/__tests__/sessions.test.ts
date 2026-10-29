@@ -93,6 +93,25 @@ describe('K1: yenileme token ozeti ve dondurme', () => {
     expect(second.ok).toBe(true)
   })
 
+  it('S6b: tek basim isaretlidir (reissuedAt) ve DB saati farki sayimi sasirtmaz: cocuk satir usedAt den once damgalansa bile ikinci yeniden basim reddedilir', async () => {
+    const first = await createSession('u1', 't1')
+    await rotateSession(first.refreshToken)
+    // DB varsayilani (CURRENT_TIMESTAMP, islem basi) uygulama saatinden once olabilir: sayim tabanli sinir bunu kacirirdi.
+    store.rows[1].createdAt = new Date((store.rows[0].usedAt as Date).getTime() - 5000)
+    expect((await rotateSession(first.refreshToken)).ok).toBe(true)
+    expect(store.rows[0].reissuedAt).not.toBeNull()
+    expect(await rotateSession(first.refreshToken)).toEqual({ ok: false, reason: 'reused' })
+    expect(store.rows.every((x) => x.revokedAt !== null)).toBe(true)
+  })
+
+  it('S6b: uc eszamanli istek ayni eski token ile: biri doner, biri tek yeniden basim alir, ucuncusu aileyi iptal eder', async () => {
+    const first = await createSession('u1', 't1')
+    const results = await Promise.all([rotateSession(first.refreshToken), rotateSession(first.refreshToken), rotateSession(first.refreshToken)])
+    expect(results.filter((r) => r.ok)).toHaveLength(2)
+    expect(results.filter((r) => !r.ok && r.reason === 'reused')).toHaveLength(1)
+    expect(await isSessionLive(first.familyId)).toBe(false)
+  })
+
   it('S6-1 Onemli 1: iptal edilmis (cikis) ailenin token\'i tolerans icinde bile reddedilir', async () => {
     const first = await createSession('u1', 't1')
     await rotateSession(first.refreshToken)

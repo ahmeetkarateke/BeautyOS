@@ -667,6 +667,7 @@ model Session {
   expiresAt DateTime
   usedAt    DateTime? // dondurulerek kullanildi; tekrar gelirse aile iptal
   revokedAt DateTime?
+  reissuedAt DateTime? // tolerans icinde yeniden basim yapildi (tek sefer, kosullu UPDATE)
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
