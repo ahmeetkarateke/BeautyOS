@@ -36,6 +36,7 @@ import { Skeleton, SkeletonGroup } from '@/ui/skeleton'
 import { EmptyState, ErrorState } from '@/ui/states'
 import { StatusBadge } from '@/ui/status-badge'
 import { useToast } from '@/ui/toast'
+import { CompleteSheet } from '@/features/payment/complete-sheet'
 import { ApprovalSheet } from './approval-sheet'
 import { DaySummary } from './day-summary'
 import { FirstSetup } from './first-setup'
@@ -84,6 +85,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
 
   const [filter, setFilter] = useState('')
   const [reviewing, setReviewing] = useState<DayAppointment | null>(null)
+  const [completing, setCompleting] = useState<DayAppointment | null>(null)
   const [startingId, setStartingId] = useState<string | null>(null)
 
   const dayQuery = useApiQuery(isExpert ? null : `day:${today}`, (c, signal) => fetchDayAppointments(c, slug, today, signal))
@@ -170,10 +172,23 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
     </>
   )
   const approvalSheet = (
-    <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={() => {
-        dayQuery.refetch()
-        pendingQuery.refetch()
-      }} />
+    <>
+      <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={() => {
+          dayQuery.refetch()
+          pendingQuery.refetch()
+        }} />
+      {completing ? (
+        <CompleteSheet
+          appointment={completing}
+          onClose={() => setCompleting(null)}
+          onStale={dayQuery.refetch}
+          onDone={() => {
+            setCompleting(null)
+            dayQuery.refetch()
+          }}
+        />
+      ) : null}
+    </>
   )
 
   if (dayQuery.error && !dayLoaded) {
@@ -293,6 +308,10 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
                       {a.status === 'confirmed' ? (
                         <Button size="sm" variant="secondary" loading={startingId === a.id} loadingText="Başlatılıyor…" onClick={() => void start(a)}>
                           Başlat
+                        </Button>
+                      ) : a.status === 'in_progress' ? (
+                        <Button size="sm" variant="secondary" onClick={() => setCompleting(a)}>
+                          Tamamla
                         </Button>
                       ) : a.status === 'pending' && canApprove ? (
                         <Button size="sm" variant="secondary" onClick={() => setReviewing(a)}>

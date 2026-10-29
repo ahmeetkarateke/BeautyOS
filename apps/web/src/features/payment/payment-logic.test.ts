@@ -41,7 +41,11 @@ describe('W16 completeBody', () => {
     expect(completeBody({ method: 'cash', amount: 850, listPrice: 850, canEdit: true })).toEqual({ status: 'completed', paymentMethod: 'cash' })
   })
   it('K3: fiyat değiştiyse (indirim = yeni tutar) priceCharged gider', () => {
-    expect(completeBody({ method: 'card', amount: 700, listPrice: 850, canEdit: true })).toEqual({ status: 'completed', paymentMethod: 'card', priceCharged: 700 })
+    expect(completeBody({ method: 'card', amount: 700, listPrice: 850, canEdit: true })).toEqual({
+      status: 'completed',
+      paymentMethod: 'card',
+      priceCharged: 700,
+    })
   })
   it('K2: uzman değiştirilmiş tutar bile gelse priceCharged göndermez', () => {
     expect(completeBody({ method: 'cash', amount: 700, listPrice: 850, canEdit: false })).toEqual({ status: 'completed', paymentMethod: 'cash' })

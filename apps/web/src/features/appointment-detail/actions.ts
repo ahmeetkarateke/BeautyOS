@@ -1,7 +1,7 @@
 import type { AppointmentStatus } from '@/features/appointments/day-logic'
 
 // Randevu ayrıntısında hangi eylemlerin görüneceğini durum + yetki belirler (sunucu yine her isteği doğrular).
-export type DetailAction = 'start' | 'reschedule' | 'noShow' | 'cancel' | 'delete'
+export type DetailAction = 'start' | 'complete' | 'reschedule' | 'noShow' | 'cancel' | 'delete'
 
 export type ActionContext = { canReschedule: boolean; canDelete: boolean; hasService: boolean }
 
@@ -12,7 +12,8 @@ export function isLocked(status: AppointmentStatus): boolean {
 }
 
 export function availableActions(status: AppointmentStatus, ctx: ActionContext): DetailAction[] {
-  if (isLocked(status) || status === 'in_progress') return []
+  if (isLocked(status)) return []
+  if (status === 'in_progress') return ['complete']
   const list: DetailAction[] = []
   if (status === 'confirmed') list.push('start')
   if (ctx.canReschedule && ctx.hasService) list.push('reschedule')
