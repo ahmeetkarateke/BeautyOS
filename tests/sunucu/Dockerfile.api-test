@@ -1,0 +1,17 @@
+# API test imajı (geçici). Derleme bağlamı depo kökü; yalnızca sunucuda
+# tests/sunucu/api-test.sh çalıştırır ve iş bitince imajı siler.
+# Taban, canlı API imajıyla aynıdır (apps/api/Dockerfile).
+FROM node:20.20.2-bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV TZ=UTC HOME=/tmp
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+RUN npm ci --workspace=apps/api
+COPY apps/api apps/api
+COPY tests/sunucu/bekle.cjs /opt/bekle.cjs
+WORKDIR /app/apps/api
+RUN node_modules/.bin/prisma generate

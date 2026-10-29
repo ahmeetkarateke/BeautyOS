@@ -83,7 +83,7 @@ describe('Admin API', () => {
     const suffix = uniqueSuffix()
     await request(app).post('/api/v1/auth/register').send({
       salonName: `Test ${suffix}`,
-      slug: `adm-${suffix.replace(/\W/g, '').slice(0, 8)}`,
+      slug: `tst-adm-${suffix.replace(/\W/g, '').slice(0, 8)}`,
       ownerFullName: 'Owner',
       email: `adm-owner-${suffix}@test.local`,
       password: 'Secure123!',
@@ -94,7 +94,7 @@ describe('Admin API', () => {
     })
     expect(res.status).toBe(401)
     // Cleanup
-    const t = await db.tenant.findFirst({ where: { slug: { startsWith: `adm-${suffix.replace(/\W/g, '').slice(0, 8)}` } }, select: { id: true } })
+    const t = await db.tenant.findFirst({ where: { slug: { startsWith: `tst-adm-${suffix.replace(/\W/g, '').slice(0, 8)}` } }, select: { id: true } })
     if (t) await cleanupTenant(t.id)
   })
 

@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/.next
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.agents
+docs
+todo
+deploy
+**/*.log
+skills-lock.json
+apps/api/src/generated
+**/.env
+**/.env.*
+!**/.env.example

@@ -177,17 +177,19 @@ export async function cleanupTenant(tenantId: string) {
     // Mevcut child'lar
     await db.notificationLog.deleteMany({ where: { tenantId } })
     await db.transaction.deleteMany({ where: { tenantId } })
+    await db.expense.deleteMany({ where: { tenantId } })
+    await db.inventoryItem.deleteMany({ where: { tenantId } })
     await db.appointment.deleteMany({ where: { tenantId } })
     await db.staffLeave.deleteMany({ where: { tenantId } })
     await db.staffServiceAssignment.deleteMany({ where: { tenantId } })
     await db.customer.deleteMany({ where: { tenantId } })
     await db.staffProfile.deleteMany({ where: { tenantId } })
     await db.user.deleteMany({ where: { tenantId } })
+    await db.resource.deleteMany({ where: { tenantId } })
     await db.service.deleteMany({ where: { tenantId } })
     await db.tenant.delete({ where: { id: tenantId } })
   } catch (e) {
-    // best-effort cleanup — ama logla ki gelecekte FK hatası gözden kaçmasın
-    // eslint-disable-next-line no-console
-    console.error('cleanupTenant failed (may leave orphans):', (e as Error).message)
+    // Hata yutulmaz: artık veri bırakan FK hatası testi kırmızıya çevirmelidir.
+    throw new Error(`cleanupTenant failed for ${tenantId}: ${(e as Error).message}`)
   }
 }
