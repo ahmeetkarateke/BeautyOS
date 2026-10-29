@@ -17,18 +17,23 @@ export interface CustomerLookup {
 // Ayni telefonu paylasan kart sayisi pratikte tek hanelik; sinir yalniz kotu veriye karsi.
 const RESOLVE_LIMIT = 10
 
-/** Aranacak degerler: ham giris + telefonun eski kayit bicimleri (normalize edilemeyen kimlikler, ornegin Telegram sohbet no, oldugu gibi). */
-function lookupValues(phone: string): string[] {
-  return Array.from(new Set([phone, ...phoneVariants(phone)]))
+/** `exact`: kanal kimligi (Telegram sohbet no) telefon degildir; normalize edilirse gercek bir telefonla tesadufen eslesebilir. Aranacak degerler: ham giris + telefonun eski kayit bicimleri (normalize edilemeyen kimlikler, ornegin Telegram sohbet no, oldugu gibi). */
+function lookupValues(phone: string, exact: boolean): string[] {
+  return exact ? [phone] : Array.from(new Set([phone, ...phoneVariants(phone)]))
 }
 
 /**
  * ADR-0038: telefon her zaman kiracı içinde ve normalize biçimiyle aranır; aynı telefonla birden çok müşteri olabilir.
  * none -> yeni kart, single -> bağla (yalnız doğrulanmış kanalda), multiple -> hiçbirine bağlanma, salon eşleştirsin.
  */
-export async function resolveCustomerByPhone(tx: CustomerLookup, tenantId: string, phone: string): Promise<PhoneResolution> {
+export async function resolveCustomerByPhone(
+  tx: CustomerLookup,
+  tenantId: string,
+  phone: string,
+  options: { exact?: boolean } = {},
+): Promise<PhoneResolution> {
   const rows = await tx.customer.findMany({
-    where: { tenantId, phone: { in: lookupValues(phone) } },
+    where: { tenantId, phone: { in: lookupValues(phone, options.exact === true) } },
     orderBy: { createdAt: 'asc' },
     take: RESOLVE_LIMIT,
     select: { id: true },
@@ -46,7 +51,7 @@ export async function phoneInUse(
   exceptCustomerId?: string,
 ): Promise<boolean> {
   const rows = await tx.customer.findMany({
-    where: { tenantId, phone: { in: lookupValues(phone) }, ...(exceptCustomerId ? { id: { not: exceptCustomerId } } : {}) },
+    where: { tenantId, phone: { in: lookupValues(phone, false) }, ...(exceptCustomerId ? { id: { not: exceptCustomerId } } : {}) },
     take: 1,
     select: { id: true },
   })

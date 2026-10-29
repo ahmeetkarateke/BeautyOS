@@ -187,7 +187,7 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   const endAt = new Date(startAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)
 
   // ADR-0038: telefon -> none (oluştur) | single (bağla) | multiple (bağlama, requested* ile pending)
-  const found = await resolveCustomerByPhone(db, tenantId, customerPhone)
+  const found = await resolveCustomerByPhone(db, tenantId, customerPhone, { exact: channel === 'telegram' })
   const customerId =
     found.kind === 'single'
       ? found.id
