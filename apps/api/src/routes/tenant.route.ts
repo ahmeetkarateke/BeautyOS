@@ -14,6 +14,8 @@ import { can } from '@beautyos/shared'
 import { requirePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
+import { normalizeEmail } from '../lib/credentials'
+import { strongPassword } from '../lib/password-policy'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -1285,7 +1287,7 @@ export function createTenantRouter(): Router {
   // PATCH /api/v1/tenants/:slug/users/:userId/password
   const passwordSchema = z.object({
     currentPassword: z.string().min(1),
-    newPassword: z.string().min(8),
+    newPassword: strongPassword,
   })
 
   router.patch('/users/:userId/password', async (req: Request, res: Response, next: NextFunction) => {
@@ -1445,8 +1447,8 @@ export function createTenantRouter(): Router {
   // ─── Staff CRUD ────────────────────────────────────────────────────────────────
 
   const createStaffSchema = z.object({
-    email: z.string().trim().email(),
-    password: z.string().min(8),
+    email: z.string().trim().email().transform(normalizeEmail),
+    password: strongPassword,
     fullName: z.string().trim().min(2).max(100),
     title: z.string().trim().min(1).max(100),
     bio: z.string().trim().max(500).optional(),
@@ -1475,7 +1477,8 @@ export function createTenantRouter(): Router {
       const { email, password, fullName, title, bio, colorCode } = parsed.data
       const tenantId = req.tenantId!
 
-      const existingUser = await db.user.findFirst({ where: { email, tenantId } })
+      // Küresel kontrol: giriş e-postayla yapılır; başka kiracıdaki aynı adres hesap karışmasına yol açar. E-posta küçük harfe normalize edilmiş, tam eşitlikle aranır.
+      const existingUser = await db.user.findFirst({ where: { email }, select: { id: true } })
       if (existingUser) {
         return res.status(409).json({ error: { code: 'DUPLICATE_EMAIL', message: 'Bu e-posta adresiyle kayıtlı kullanıcı zaten var.' } })
       }

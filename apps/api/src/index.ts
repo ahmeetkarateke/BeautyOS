@@ -33,6 +33,7 @@ import { createShutdown } from './lib/shutdown'
 import { resolveBookingMode } from './lib/booking-mode'
 import { db } from './lib/db'
 import { logger } from './lib/logger'
+import { getDummyHash } from './lib/credentials'
 export { createApp } from './app'
 
 
@@ -155,6 +156,9 @@ async function bootstrap(): Promise<void> {
   })
 
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
+
+  // Sahte bcrypt özeti açılışta üretilir: ilk "kullanıcı yok" isteği ek ~250 ms ile ayırt edilmesin.
+  void getDummyHash()
 
   logger.info({ phoneVerification: resolveBookingMode().phoneVerification }, 'Online randevu telefon doğrulama modu')
   const reminderWorker = startReminderWorker()
