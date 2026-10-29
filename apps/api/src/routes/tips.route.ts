@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
+import { ensurePermission } from '../middleware/permission'
 import { Prisma, TipSource } from '@prisma/client'
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
@@ -114,10 +115,7 @@ export function createTipsRouter(): Router {
   router.post('/tips', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
-      const role = req.user!.role
-      if (!isOwnerOrManager(role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bahşiş kaydı için yetki yok.' } })
-      }
+      if (!ensurePermission(req, res, 'tip.record')) return
 
       const parsed = createTipBodySchema.safeParse(req.body)
       if (!parsed.success) {
@@ -181,6 +179,8 @@ export function createTipsRouter(): Router {
   // GET /tips — list tip entries
   router.get('/tips', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Resepsiyon bahşiş KAYDEDER ama listeyi/özeti görmez (matris 33-35); izin anahtarı yoksa ret.
+      if (!ensurePermission(req, res, 'tip.view')) return
       const tenantId = req.tenantId!
       const role = req.user!.role
       const userId = req.user!.userId
@@ -432,6 +432,8 @@ export function createTipsRouter(): Router {
   // GET /tips/summary
   router.get('/tips/summary', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Resepsiyon bahşiş KAYDEDER ama listeyi/özeti görmez (matris 33-35); izin anahtarı yoksa ret.
+      if (!ensurePermission(req, res, 'tip.view')) return
       const tenantId = req.tenantId!
 
       const querySchema = z.object({
@@ -459,26 +461,39 @@ export function createTipsRouter(): Router {
 
       const rangeFilter = { collectedAt: { gte: bounds.start, lte: bounds.end } }
 
+      // Uzman yalniz kendi bahsis ozetini gorur: havuz, salon toplami ve baska personel donmez.
+      let ownStaffId: string | null = null
+      if (req.user!.role === 'staff') {
+        const me = await db.staffProfile.findFirst({ where: { tenantId, userId: req.user!.userId }, select: { id: true } })
+        if (!me) {
+          return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+        }
+        ownStaffId = me.id
+      }
+      const staffScope = ownStaffId ? { staffId: ownStaffId } : {}
+
       const [totalAgg, undistributedAgg, perStaffRaw, staffCount, distributionsAgg] = await Promise.all([
         db.tipEntry.aggregate({
-          where: { tenantId, ...rangeFilter },
+          where: { tenantId, ...staffScope, ...rangeFilter },
           _sum: { amount: true },
           _count: { _all: true },
         }),
-        db.tipEntry.aggregate({
-          where: { tenantId, isDistributed: false },
-          _sum: { amount: true },
-          _count: { _all: true },
-        }),
+        ownStaffId
+          ? Promise.resolve({ _sum: { amount: null }, _count: { _all: 0 } })
+          : db.tipEntry.aggregate({
+              where: { tenantId, isDistributed: false },
+              _sum: { amount: true },
+              _count: { _all: true },
+            }),
         db.tipEntry.groupBy({
           by: ['staffId'],
-          where: { tenantId, staffId: { not: null }, ...rangeFilter },
+          where: { tenantId, staffId: ownStaffId ?? { not: null }, ...rangeFilter },
           _sum: { amount: true },
         }),
-        db.staffProfile.count({ where: { tenantId } }),
+        ownStaffId ? Promise.resolve(1) : db.staffProfile.count({ where: { tenantId } }),
         db.tipDistribution.groupBy({
           by: ['staffId'],
-          where: { tenantId, distributedAt: { gte: bounds.start, lte: bounds.end } },
+          where: { tenantId, ...staffScope, distributedAt: { gte: bounds.start, lte: bounds.end } },
           _sum: { amount: true },
         }),
       ])

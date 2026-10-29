@@ -7,6 +7,7 @@ import {
   getAvailableSlots,
   createAppointment,
   cancelAppointmentByRef,
+  ServiceNotFoundError,
   type AvailableSlot,
 } from './booking.service'
 
@@ -343,12 +344,18 @@ export class FlowHandler {
         const looksLikeDate = extractNewDate(msg.text) !== null
         const dateInput = looksLikeDate ? msg.text : (session.entities.datePreference ?? msg.text)
         session.entities.datePreference = dateInput
-        const slots = await getAvailableSlots(
-          session.tenantId,
-          session.entities.service ?? '',
-          dateInput,
-          dateInput,
-        )
+        let slots: AvailableSlot[]
+        try {
+          slots = await getAvailableSlots(session.tenantId, session.entities.service ?? '', dateInput, dateInput)
+        } catch (error) {
+          if (!(error instanceof ServiceNotFoundError)) throw error
+          // Hizmet eşleşmedi: sahte saat önermek yerine hangi hizmet olduğunu sor (S5 K2).
+          session.entities.service = undefined
+          session.step = 'awaiting_service'
+          const list = salon.services.map((s, i) => `${i + 1}. ${s.name}`).join('\n')
+          await channel.sendText(msg.from, `Hangi hizmeti kastettiğinizi anlayamadım. Lütfen listeden seçin:\n\n${list}`)
+          return
+        }
 
         if (slots.length === 0) {
           const svc = session.entities.service ?? 'Bu hizmet'
@@ -507,19 +514,21 @@ export class FlowHandler {
 
     let ref: string
     try {
-      if (slotId.includes('mock-staff')) {
-        ref = `RDV-${Date.now().toString(36).toUpperCase()}`
-      } else {
-        ref = await createAppointment({
-          tenantId: session.tenantId,
-          customerPhone: session.from,
-          customerName: session.from,
-          serviceName: service,
-          slotId,
-          channel: session.channelType === 'telegram' ? 'telegram' : 'whatsapp',
-        })
-      }
+      ref = await createAppointment({
+        tenantId: session.tenantId,
+        customerPhone: session.from,
+        customerName: session.from,
+        serviceName: service,
+        slotId,
+        channel: session.channelType === 'telegram' ? 'telegram' : 'whatsapp',
+      })
     } catch (error) {
+      if (error instanceof ServiceNotFoundError) {
+        session.entities.service = undefined
+        session.step = 'awaiting_service'
+        await channel.sendText(msg.from, 'Hizmeti doğrulayamadım, lütfen hizmeti yeniden seçin.')
+        return
+      }
       if (error instanceof SlotTakenError) {
         await channel.sendText(msg.from, 'Bu saat az önce doldu. Lütfen başka bir saat seçin.')
         return
@@ -565,7 +574,7 @@ export class FlowHandler {
     salon: SalonContext,
   ): Promise<void> {
     const refCode = msg.text.trim().toUpperCase()
-    const result = await cancelAppointmentByRef(session.tenantId, refCode)
+    const result = await cancelAppointmentByRef(session.tenantId, refCode, session.from)
 
     if (result.ok) {
       const reply = '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'

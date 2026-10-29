@@ -9,6 +9,7 @@ import { createPublicRouter } from './routes/public.route'
 import { createAdminRouter } from './routes/admin.route'
 import { createPackagesRouter } from './routes/packages.route'
 import { createTipsRouter } from './routes/tips.route'
+import { createPanelSummaryRouter } from './routes/panel-summary.route'
 import { createCustomerEnrichmentRouter } from './routes/customer-enrichment.route'
 import { createCurrentAccountsRouter } from './routes/current-accounts.route'
 import { createPurchaseInvoicesRouter } from './routes/purchase-invoices.route'
@@ -91,6 +92,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
   app.use('/api/v1/tenants/:slug', createFinancialAccountsRouter())
   app.use('/api/v1/tenants/:slug', createStockRouter())
   app.use('/api/v1/tenants/:slug', createAppointmentApprovalRouter())
+  app.use('/api/v1/tenants/:slug/panel-summary', createPanelSummaryRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   app.use(apiErrorHandler((err) => logger.error({ err }, 'Unhandled error')))

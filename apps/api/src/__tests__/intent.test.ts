@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { IntentService, TEST_SALON } from '../ai/intent.service'
+import { IntentService } from '../ai/intent.service'
+import { TEST_SALON } from './helpers/test-salon'
 import type { ConversationSession } from '../session/session.service'
 
 // Her satır: { input, expected } — 20 Türkçe konuşma

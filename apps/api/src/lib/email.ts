@@ -56,7 +56,7 @@ export async function sendWelcomeEmail(email: string, salonName: string, trialEn
   const trialEndStr = trialEndsAt.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
   return deliver('welcome', {
     to: email,
-    subject: `BeautyOS'a hoş geldin, ${singleLine(salonName)}!`,
+    subject: `BeautyOS'a hoş geldiniz, ${singleLine(salonName)}!`,
     html: `<p>Merhaba,</p><p><strong>${escapeHtml(salonName)}</strong> adına BeautyOS'a hoş geldiniz! 30 günlük ücretsiz deneme süreniz başladı.</p><p>Deneme süreniz <strong>${trialEndStr}</strong> tarihinde sona erecek.</p>`,
   })
 }

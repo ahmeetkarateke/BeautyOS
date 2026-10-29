@@ -46,16 +46,21 @@ export class TenantRegistry {
   // ─── WhatsApp phoneNumberId → tenantId ───────────────────────────────────
 
   async getByPhoneNumberId(phoneNumberId: string): Promise<string | null> {
+    // Eşleşme yoksa mesaj düşer: "ilk aktif kiracı"ya yönlendirme başka salonun botuna sızar (S5 K3).
+    if (!phoneNumberId) return null
     const cacheKey = `wa:${phoneNumberId}`
     const cached = this.get(cacheKey)
     if (cached) return cached
 
     const tenant = await db.tenant.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, settings: { path: ['whatsappPhoneNumberId'], equals: phoneNumberId } },
       select: { id: true },
     })
 
-    if (!tenant) return null
+    if (!tenant) {
+      logger.warn({ idSuffix: phoneNumberId.slice(-4) }, 'Tenant bulunamadı (WhatsApp phone number id)')
+      return null
+    }
 
     this.set(cacheKey, tenant.id)
     return tenant.id

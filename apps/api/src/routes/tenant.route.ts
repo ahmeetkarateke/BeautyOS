@@ -11,8 +11,9 @@ import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
-import { requirePermission } from '../middleware/permission'
-import { customerAccessFilter } from '../lib/customer-scope'
+import { requirePermission, ensurePermission } from '../middleware/permission'
+import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
+import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
 import { istanbulDayRange } from '../lib/time'
@@ -405,6 +406,56 @@ export function createTenantRouter(): Router {
     }
   })
 
+  async function respondStaffCustomerSearch(req: Request, res: Response, rawSearch: string | undefined) {
+    const tenantId = req.tenantId!
+    const term = rawSearch?.trim() ?? ''
+    if (term.length < STAFF_SEARCH_MIN_LENGTH) {
+      return res.status(400).json({
+        error: { code: 'SEARCH_REQUIRED', message: `Müşteri aramak için en az ${STAFF_SEARCH_MIN_LENGTH} karakter yazın.` },
+      })
+    }
+    const profileId = await ownStaffProfileId(req)
+    if (!profileId) return res.json({ data: [], nextCursor: null })
+
+    // Telefon yalniz kendi musterilerinde aranir: baska musterinin numarasi rakam rakam sorgulanarak cikarilamaz.
+    const own = ownCustomerWhere(tenantId, profileId)
+    const pattern = escapeLike(term)
+    const rows = await db.customer.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { fullName: { contains: pattern, mode: 'insensitive' as const } },
+          { AND: [own, { phone: { contains: pattern, mode: 'insensitive' as const } }] },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: STAFF_SEARCH_MAX_RESULTS,
+      select: { id: true, fullName: true, phone: true, email: true, totalVisits: true, lastVisitAt: true, createdAt: true },
+    })
+    const ownRows = rows.length
+      ? await db.customer.findMany({ where: { tenantId, id: { in: rows.map((r) => r.id) }, ...own }, select: { id: true } })
+      : []
+    const ownIds = new Set(ownRows.map((r) => r.id))
+
+    return res.json({
+      data: rows.map((c) => {
+        const isOwn = ownIds.has(c.id)
+        return {
+          id: c.id,
+          fullName: c.fullName,
+          phone: isOwn ? c.phone : maskPhone(c.phone),
+          phoneMasked: !isOwn,
+          isOwn,
+          email: isOwn ? c.email : null,
+          totalVisits: isOwn ? c.totalVisits : null,
+          lastVisitDate: isOwn ? (c.lastVisitAt?.toISOString() ?? null) : null,
+          createdAt: c.createdAt.toISOString(),
+        }
+      }),
+      nextCursor: null,
+    })
+  }
+
   // GET /api/v1/tenants/:slug/customers?search=TEXT&cursor=ID&limit=20
   router.get('/customers', searchLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -425,6 +476,11 @@ export function createTenantRouter(): Router {
       }
 
       const { search, cursor, limit } = parsed.data
+
+      // R4: uzman icin liste yok; yalniz arama kipi (>=3 karakter, <=10 sonuc, maskeli telefon).
+      if (!can(req.user?.role, 'customer.view_all')) {
+        return respondStaffCustomerSearch(req, res, search)
+      }
 
       const searchFilter = search
         ? {
@@ -812,7 +868,8 @@ export function createTenantRouter(): Router {
         phone: customer.phone,
         email: customer.email,
         birthDate: customer.birthDate?.toISOString() ?? null,
-        allergyNotes: customer.allergyNotes,
+        // Alerji notu sağlık verisidir (R9): yalnız health.view izni olan rol görür.
+        ...(can(req.user!.role, 'health.view') ? { allergyNotes: customer.allergyNotes } : {}),
         preferenceNotes: customer.preferenceNotes,
         totalVisits: customer.totalVisits,
         lifetimeValue: Number(customer.lifetimeValue),
@@ -856,6 +913,8 @@ export function createTenantRouter(): Router {
       }
 
       const { status, cancellationReason } = parsed.data
+      // R3: uzman fiyati degistiremez; gonderirse sessizce yok sayilir (randevu fiyati gecerli).
+      const priceOverride = req.user!.role === 'staff' ? undefined : parsed.data.priceCharged
 
       const existing = await db.appointment.findFirst({ where: { id: appointmentId, tenantId } })
       if (!existing) {
@@ -913,7 +972,7 @@ export function createTenantRouter(): Router {
         })
         if (appt) {
           const rate = Number(appt.service.commissionRate)
-          const gross = parsed.data.priceCharged ?? Number(appt.priceCharged)
+          const gross = priceOverride ?? Number(appt.priceCharged)
           const method = parsed.data.paymentMethod ?? 'cash'
           const completedAt = new Date()
           await db.transaction.create({
@@ -931,7 +990,7 @@ export function createTenantRouter(): Router {
               completedAt,
             },
           })
-          if (parsed.data.priceCharged) {
+          if (priceOverride) {
             await db.appointment.update({
               where: { id: appointmentId },
               data: { priceCharged: gross },
@@ -1037,10 +1096,7 @@ export function createTenantRouter(): Router {
 
   router.patch('/appointments/:appointmentId/reschedule', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (role !== 'owner' && role !== 'manager') {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu saati yalnızca owner veya manager tarafından değiştirilebilir.' } })
-      }
+      if (!ensurePermission(req, res, 'appointment.reschedule')) return
 
       const tenantId = req.tenantId!
       const { appointmentId } = req.params
@@ -1463,6 +1519,8 @@ export function createTenantRouter(): Router {
     title: z.string().trim().min(1).max(100),
     bio: z.string().trim().max(500).optional(),
     colorCode: z.number().int().optional(),
+    // Rol atamak yalnız sahibin işi (A2); verilmezse uzman.
+    role: z.enum(['staff', 'manager', 'receptionist']).default('staff'),
   })
 
   const updateStaffSchema = z.object({
@@ -1484,8 +1542,11 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz personel verisi.' } })
       }
 
-      const { email, password, fullName, title, bio, colorCode } = parsed.data
+      const { email, password, fullName, title, bio, colorCode, role: newRole } = parsed.data
       const tenantId = req.tenantId!
+      if (newRole !== 'staff' && role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Rol yalnızca salon sahibi tarafından atanabilir.' } })
+      }
 
       // Küresel kontrol: giriş e-postayla yapılır; başka kiracıdaki aynı adres hesap karışmasına yol açar. E-posta küçük harfe normalize edilmiş, tam eşitlikle aranır.
       const existingUser = await db.user.findFirst({ where: { email }, select: { id: true } })
@@ -1498,6 +1559,15 @@ export function createTenantRouter(): Router {
       const tenantSettings = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
       const settingsObj = tenantSettings?.settings as { workingHours?: unknown } | null
       const defaultWorkingHours = resolveTenantWorkingHours(settingsObj?.workingHours)
+
+      // Müdür ve resepsiyon takvimde randevu alan uzman değildir: uzman profili yalnız 'staff' rolüne açılır.
+      if (newRole !== 'staff') {
+        const user = await db.user.create({
+          data: { tenantId, email, passwordHash, fullName, role: newRole },
+          select: { id: true, fullName: true, email: true, role: true },
+        })
+        return res.status(201).json({ id: null, title: null, bio: null, colorCode: null, fullName: user.fullName, email: user.email, userId: user.id, role: user.role })
+      }
 
       const result = await db.$transaction(async (tx) => {
         const user = await tx.user.create({
@@ -1524,6 +1594,7 @@ export function createTenantRouter(): Router {
         fullName: result.user.fullName,
         email: result.user.email,
         userId: result.user.id,
+        role: 'staff',
       })
     } catch (err) {
       next(err)
@@ -1627,6 +1698,10 @@ export function createTenantRouter(): Router {
       }
 
       const { birthDate, ...rest } = parsed.data
+      // Sağlık verisi (alerji notu) yalnız health.write ile yazılır (R9).
+      if (rest.allergyNotes !== undefined && !can(req.user!.role, 'health.write')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
 
       try {
         const updated = await db.customer.update({
@@ -1642,8 +1717,10 @@ export function createTenantRouter(): Router {
           },
         })
 
+        const { allergyNotes, ...updatedPublic } = updated
         return res.json({
-          ...updated,
+          ...updatedPublic,
+          ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
           birthDate: updated.birthDate?.toISOString() ?? null,
           lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
           createdAt: updated.createdAt.toISOString(),
@@ -1667,6 +1744,10 @@ export function createTenantRouter(): Router {
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+      // Resepsiyon yalnız bugünü kapatır/görür (matris 36); geçmiş gün dökümü sahip ve müdüre aittir.
+      if (dateStr !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
       const { start: dayStart, end: dayEnd } = toTRBounds(dateStr)
@@ -1764,7 +1845,8 @@ export function createTenantRouter(): Router {
           category: e.category,
           amount: Number(e.amount),
         })),
-        staffCommissions: [...commissionMap.values()],
+        // Prim verisi yalnız prim raporu iznine sahip rollere döner (matris 42); resepsiyon kapanış dökümünde görmez.
+        ...(can(req.user!.role, 'finance.report.commissions') ? { staffCommissions: [...commissionMap.values()] } : {}),
       })
     } catch (err) {
       next(err)
@@ -1788,6 +1870,11 @@ export function createTenantRouter(): Router {
 
       if (fromParam > toParam) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
+      }
+
+      // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
+      if (!can(req.user!.role, 'finance.report.range') && (fromParam !== today || toParam !== today)) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
       const rangeStart = toTRBounds(fromParam).start
@@ -1974,6 +2061,10 @@ export function createTenantRouter(): Router {
       }
 
       const { description, amount, paymentMethod, revenueDate } = parsed.data
+      // Kapanmış güne gelir yazmak gün sonu sayımını bozar: resepsiyon yalnız bugüne yazar (matris 38).
+      if (revenueDate !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
       const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
 
       const revenue = await db.transaction.create({

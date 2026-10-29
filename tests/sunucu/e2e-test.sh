@@ -29,6 +29,17 @@ MIN_AVAIL_MB=600
 
 avail_mb() { awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo; }
 
+# Aynı-site (same-site) çerez koşulu: yenileme çerezi SameSite=Lax'tır (S6). `web` ve `bostest-api` tek etiketli,
+# birbirinden farklı "site"lar sayılır ve tarayıcı çerezi çapraz isteğe göndermez. E2E_ALAN=bostest.test verilirse
+# web ve API aynı kayıtlı alan altındaki adlarla (web.<alan>, bostest-api.<alan>) açılır; `.test` hiçbir zaman gerçek
+# bir ana bilgisayara çözülmez. Verilmezse eski tek etiketli adlar kullanılır (duman testleri).
+ALAN="${E2E_ALAN:-}"
+case "$ALAN" in
+  "") WEB_HOST="web"; API_HOST="bostest-api" ;;
+  bostest.test) WEB_HOST="web.$ALAN"; API_HOST="bostest-api.$ALAN" ;;
+  *) echo "E2E_ALAN yalniz 'bostest.test' olabilir" >&2; exit 2 ;;
+esac
+
 # Canlı siteyle ortak sunucu: derleme sürüyorsa ya da bellek zaten azsa koşma.
 if pgrep -f 'derle[.]sh' >/dev/null 2>&1; then
   echo "derle.sh calisiyor, E2E kosulmadi" >&2
@@ -89,7 +100,7 @@ if [ "${E2E_UI_V2_SHOWCASE:-}" = "1" ]; then
   grep -q '^ENV NEXT_PUBLIC_UI_V2_SHOWCASE=1' "$WEBSRC/apps/web/Dockerfile" || { echo "vitrin bayrağı Dockerfile'a eklenemedi" >&2; exit 4; }
 fi
 docker build -q --memory 1536m --memory-swap 1536m -f "$WEBSRC/apps/web/Dockerfile" \
-  --build-arg NEXT_PUBLIC_API_URL=http://bostest-api:3001 --build-arg NEXT_PUBLIC_UI_V2="${E2E_UI_V2:-}" --build-arg NODE_HEAP_MB=1280 \
+  --build-arg NEXT_PUBLIC_API_URL="http://${API_HOST}:3001" --build-arg NEXT_PUBLIC_UI_V2="${E2E_UI_V2:-}" --build-arg NODE_HEAP_MB=1280 \
   -t "$WEB_IMG" "$WEBSRC" >/dev/null
 rm -rf "$WEBSRC"
 docker build -q --memory 512m --memory-swap 512m -f "$SRC/tests/sunucu/Dockerfile.e2e" -t "$E2E_IMG" "$SRC" >/dev/null
@@ -104,20 +115,21 @@ docker run -d --name "${RUN}-redis" --network "$NET" --network-alias redis \
   redis:7.4-alpine redis-server --save "" --appendonly no >/dev/null
 
 DBURL="postgresql://postgres:${PGPASS}@postgres:5432/beautyos_test"
-docker run -d --name "${RUN}-api" --network "$NET" --network-alias bostest-api --memory 384m --memory-swap 384m \
+docker run -d --name "${RUN}-api" --network "$NET" --network-alias "$API_HOST" --memory 384m --memory-swap 384m \
   -e TZ=UTC -e NODE_ENV=test -e PORT=3001 \
   -e DATABASE_URL="$DBURL" -e DIRECT_URL="$DBURL" -e REDIS_URL="redis://redis:6379" \
-  -e JWT_SECRET="$JWT" -e CORS_ORIGIN="http://web:3000" -e ALLOWED_ORIGINS="http://web:3000" \
+  -e JWT_SECRET="$JWT" -e CORS_ORIGIN="http://${WEB_HOST}:3000" -e ALLOWED_ORIGINS="http://${WEB_HOST}:3000" \
   "$API_IMG" sh -c 'node /opt/bekle.cjs postgres:5432 redis:6379 \
     && node_modules/.bin/prisma migrate deploy >/dev/null \
     && exec npx --no-install tsx src/index.ts' >/dev/null
-docker run -d --name "${RUN}-web" --network "$NET" --network-alias web --memory 320m --memory-swap 320m \
+docker run -d --name "${RUN}-web" --network "$NET" --network-alias "$WEB_HOST" --memory 320m --memory-swap 320m \
   "$WEB_IMG" >/dev/null
 
 docker run --rm --name "${RUN}-e2e" --network "$NET" --memory 512m --memory-swap 512m --shm-size=256m \
   -v "$OUT:/out" -v "$SRC/tests/sunucu/bekle.cjs:/opt/bekle.cjs:ro" \
-  -e E2E_UI_V2="${E2E_UI_V2:-}" -e E2E_UI_V2_SHOWCASE="${E2E_UI_V2_SHOWCASE:-}" -e E2E_BASE_URL=http://web:3000 -e E2E_API_URL=http://bostest-api:3001 \
+  -e E2E_UI_V2="${E2E_UI_V2:-}" -e E2E_UI_V2_SHOWCASE="${E2E_UI_V2_SHOWCASE:-}" -e E2E_BASE_URL="http://${WEB_HOST}:3000" -e E2E_API_URL="http://${API_HOST}:3001" \
   -e E2E_OUT_DIR=/out/cikti -e E2E_SHOT_DIR=/out/ekran -e DEMO_SEED_PASSWORD="$(openssl rand -hex 12)" -e DEMO_SEED_GUN=1 \
-  "$E2E_IMG" sh -c 'node /opt/bekle.cjs bostest-api:3001 web:3000 \
-    && node e2e/seed/defne.mjs && node e2e/seed/defne.mjs \
+  -e E2E_SEED="${E2E_SEED:-1}" -e BEKLE_API="${API_HOST}:3001" -e BEKLE_WEB="${WEB_HOST}:3000" \
+  "$E2E_IMG" sh -c 'node /opt/bekle.cjs "$BEKLE_API" "$BEKLE_WEB" \
+    && { [ "$E2E_SEED" = "0" ] || { node e2e/seed/defne.mjs && node e2e/seed/defne.mjs; }; } \
     && npx playwright test "$@"' sh "$@"

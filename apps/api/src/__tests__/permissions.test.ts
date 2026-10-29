@@ -201,11 +201,10 @@ describe('S1 uzman yalniz kendi musterilerini gorur (K4)', () => {
   const get = (path: string, token: string) =>
     request(app).get(`/api/v1/tenants/${slug}${path}`).set('Authorization', `Bearer ${token}`)
 
-  it('K4 liste: staff A yalniz kendi musterisini gorur', async () => {
+  it('K4 liste (R4): uzman icin liste yok; aramasiz GET /customers 400 SEARCH_REQUIRED', async () => {
     const res = await get('/customers', staffAToken)
-    expect(res.status).toBe(200)
-    const ids = res.body.data.map((c: { id: string }) => c.id)
-    expect(ids).toEqual([ownCustomerId])
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('SEARCH_REQUIRED')
   })
 
   it('K4 liste: owner uc musteriyi de gorur (kapsami daraltan filtre owner icin devrede degil)', async () => {
@@ -215,11 +214,14 @@ describe('S1 uzman yalniz kendi musterilerini gorur (K4)', () => {
     expect(ids).not.toContain(foreignTenantCustomerId)
   })
 
-  it('K4 liste: staff aramasi da kapsamla sinirli (baska uzmanin musterisi aramayla gelmez)', async () => {
+  it('K4 arama (R4): uzman kendi musterisinde telefonu acik, baska uzmanin musterisinde maskeli gorur; baska kiracinin musterisi gelmez', async () => {
     const res = await get('/customers?search=Müşteri', staffAToken)
     expect(res.status).toBe(200)
-    const ids = res.body.data.map((c: { id: string }) => c.id)
-    expect(ids).not.toContain(otherStaffCustomerId)
+    const byId = Object.fromEntries(res.body.data.map((c: { id: string }) => [c.id, c]))
+    expect(byId[ownCustomerId]).toMatchObject({ isOwn: true, phoneMasked: false, phone: '+905550000101' })
+    expect(byId[otherStaffCustomerId]).toMatchObject({ isOwn: false, phoneMasked: true, phone: '0555 *** ** 02' })
+    expect(byId[foreignTenantCustomerId]).toBeUndefined()
+    expect(JSON.stringify(res.body)).not.toContain('+905550000102')
   })
 
   it('K4 ayrinti: kendi musterisi 200, baska uzmanin, randevusuz ve baska kiracinin musterisi 404', async () => {

@@ -1,13 +1,8 @@
 import { db } from './db'
 import type { SalonContext } from '../ai/intent.service'
-import { TEST_SALON } from '../ai/intent.service'
 
-export async function getSalon(tenantId: string): Promise<SalonContext> {
-  // 'test-tenant' slug → test verisini döndür (MVP geçiş dönemi)
-  if (tenantId === 'test-tenant') {
-    return TEST_SALON
-  }
-
+/** Kiracı yoksa null: bot kurgusal bir salonla yanıt vermez, çağıran mesajı düşürür (S5 K1). */
+export async function getSalon(tenantId: string): Promise<SalonContext | null> {
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     include: {
@@ -16,7 +11,7 @@ export async function getSalon(tenantId: string): Promise<SalonContext> {
     },
   })
 
-  if (!tenant) return TEST_SALON
+  if (!tenant) return null
 
   const settings = tenant.settings && typeof tenant.settings === 'object'
     ? tenant.settings as Record<string, unknown>
