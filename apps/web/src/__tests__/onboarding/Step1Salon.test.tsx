@@ -59,7 +59,6 @@ describe('Step1Salon', () => {
     await user.type(screen.getByLabelText(/Adres/i), 'Kadıköy, İstanbul')
     await user.type(screen.getByLabelText(/Telefon/i), '05551234567')
 
-    await user.click(screen.getByLabelText(/Diğer/))
 
     await user.click(screen.getByRole('button', { name: /İleri/i }))
 
@@ -81,7 +80,6 @@ describe('Step1Salon', () => {
     await user.type(screen.getByLabelText(/Salon Adı/i), 'Güzellik Salonu')
     await user.type(screen.getByLabelText(/Adres/i), 'Kadıköy, İstanbul')
     await user.type(screen.getByLabelText(/Telefon/i), '05551234567')
-    await user.click(screen.getByLabelText(/Diğer/))
 
     await user.click(screen.getByRole('button', { name: /İleri/i }))
 

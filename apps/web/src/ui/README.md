@@ -29,6 +29,6 @@ Sonraki bölüm (W4): `.katman` (Sheet/Dialog), onay penceresi, açılır menü,
 
 - Renk, aralık ve köşe yalnız `src/styles/tokens.css` anlamsal tokenlarından gelir (`bg-primary`, `text-text-muted`, `rounded-card`). Ham hex ve varsayılan Tailwind paleti yok; `scripts/ui-lint` yakalar.
 - Durum ve kişi renkleri `app.css` içindeki `@theme inline` ile sınıfa bağlıdır (`bg-status-pending-bg`, `bg-person-1-bg`).
-- Alanlara `name` verilmez (JS yüklenmezse girdi URL'ye sızmasın); veri üst bileşenin durumundan gider.
+- Metin alanlarına `name` verilmez (JS yüklenmezse girdi URL'ye sızmasın); veri üst bileşenin durumundan gider. İstisna: `RadioGroup` radyoları gruplamak için otomatik üretilmiş bir `name` kullanır (gizli bilgi taşımaz, değer yine üst bileşende).
 - Sınıf adları tam yazılır (dinamik birleştirme yok); Tailwind bulamaz.
 - Etkileşim kuralı bileşenle birlikte teste bağlanır (`*.test.tsx`); test adı `W3:` önekiyle kriteri taşır.
