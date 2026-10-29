@@ -43,6 +43,7 @@ import {
   validateProfile,
   weekRows,
   type HourRow,
+  type Leave,
 } from './logic'
 
 // Personel ayrıntısı (tasarim.md §8.1 `personel-detay/<id>`): Profil, Hizmetleri, Çalışma saatleri, İzinler; Ödemeler yakında.
@@ -52,7 +53,8 @@ const message = (err: unknown) => (err instanceof ApiError ? err : new ApiError(
 export function StaffDetailScreen({ staffId }: { staffId: string }) {
   const me = useMe()
   const slug = me.tenant.slug
-  const query = useApiQuery('staff:profiles', (c, signal) => fetchStaffProfiles(c, slug, signal))
+  // Rol yetkisizse istek hiç atılmaz (anahtar null).
+  const query = useApiQuery(me.role === 'owner' || me.role === 'manager' ? 'staff:profiles' : null, (c, signal) => fetchStaffProfiles(c, slug, signal))
   const [tab, setTab] = useState('profil')
   if (me.role !== 'owner' && me.role !== 'manager') return <Forbidden />
   const back = `/panel/${encodeURIComponent(slug)}/personel`
@@ -357,7 +359,9 @@ function HoursEditor({ person, initial, onSaved }: { person: StaffProfile; initi
 
   const patch = (key: string, change: Partial<HourRow>) => {
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
-    setErrors((current) => ({ ...current, [key]: '' }))
+    // Tüm hatalar (genel "en az bir gün açık" şeridi dahil) düzenlemeyle temizlenir.
+    void key
+    setErrors({})
   }
 
   async function save() {
@@ -422,6 +426,7 @@ function LeavesTab({ staffId, canWrite }: { staffId: string; canWrite: boolean }
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [dateError, setDateError] = useState<string | null>(null)
+  const [removingLeave, setRemovingLeave] = useState<Leave | null>(null)
 
   async function run(action: () => Promise<void>, done: string) {
     setBusy(true)
@@ -434,6 +439,7 @@ function LeavesTab({ staffId, canWrite }: { staffId: string; canWrite: boolean }
       setFailure(message(err))
     } finally {
       setBusy(false)
+      setRemovingLeave(null)
     }
   }
 
@@ -464,12 +470,7 @@ function LeavesTab({ staffId, canWrite }: { staffId: string; canWrite: boolean }
                   <span className="text-sm text-text-muted">{[leaveTypeLabel(leave.leaveType), leave.note].filter(Boolean).join(' · ')}</span>
                 </span>
                 {canWrite ? (
-                  <Button
-                    size="sm"
-                    variant="text"
-                    disabled={busy}
-                    onClick={() => void run(() => removeLeave(client, slug, staffId, leave.id), 'İzin silindi.')}
-                  >
+                  <Button size="sm" variant="text" disabled={busy} onClick={() => setRemovingLeave(leave)}>
                     Sil
                   </Button>
                 ) : null}
@@ -519,6 +520,20 @@ function LeavesTab({ staffId, canWrite }: { staffId: string; canWrite: boolean }
           <p className="text-xs text-text-muted">İzinleri yalnız salon sahibi değiştirebilir.</p>
         )}
       </div>
+      {removingLeave ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) setRemovingLeave(null)
+          }}
+          title="İzin silinsin mi?"
+          description={`${formatDate(`${removingLeave.leaveDate}T12:00:00+03:00`, 'long')} tarihli ${leaveTypeLabel(removingLeave.leaveType).toLowerCase()} kaydı silinir; o gün uzmana yeniden randevu verilebilir.`}
+          actionLabel="İzni sil"
+          loading={busy}
+          loadingText="Siliniyor…"
+          onConfirm={() => void run(() => removeLeave(client, slug, staffId, removingLeave.id), 'İzin silindi.')}
+        />
+      ) : null}
     </Card>
   )
 }
