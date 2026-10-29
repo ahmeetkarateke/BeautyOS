@@ -1089,6 +1089,7 @@ export function createTenantRouter(): Router {
   // PATCH /api/v1/tenants/:slug/appointments/:appointmentId/reschedule
   const rescheduleSchema = z.object({
     startAt: z.string().datetime(),
+    staffId: z.string().uuid().optional(),
   })
 
   router.patch('/appointments/:appointmentId/reschedule', async (req: Request, res: Response, next: NextFunction) => {
@@ -1118,13 +1119,34 @@ export function createTenantRouter(): Router {
         })
       }
 
+      // Kurucu kararı R3: personel değiştirme izni olmayan rol (uzman) yalnız kendi randevusunun saatini/gününü değiştirir.
+      // Koşullu kapı olduğu için ensurePermission değil inline can(); izin anahtarı gates.ts dışında (gövdeye bağlı).
+      const canReassign = can(req.user!.role, 'appointment.reassign_staff')
+      if (!canReassign && (parsed.data.staffId ?? existing.staffId) !== existing.staffId) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevuyu başka personele taşıma yetkiniz yok.' } })
+      }
+      if (!canReassign && (await ownStaffProfileId(req)) !== existing.staffId) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Yalnızca kendi randevunuzu taşıyabilirsiniz.' } })
+      }
+
+      const targetStaffId = parsed.data.staffId ?? existing.staffId
+      if (targetStaffId !== existing.staffId) {
+        const assignable = await db.staffProfile.findFirst({
+          where: { id: targetStaffId, tenantId, serviceAssignments: { some: { serviceId: existing.serviceId, isActive: true } } },
+          select: { id: true },
+        })
+        if (!assignable) {
+          return res.status(400).json({ error: { code: 'STAFF_NOT_ASSIGNABLE', message: 'Seçilen personel bu hizmeti vermiyor.' } })
+        }
+      }
+
       const newStart = new Date(parsed.data.startAt)
       const newEnd = new Date(newStart.getTime() + existing.service.durationMinutes * 60 * 1000)
 
       const conflict = await db.appointment.findFirst({
         where: {
           id: { not: appointmentId },
-          staffId: existing.staffId,
+          staffId: targetStaffId,
           tenantId,
           status: { notIn: ['cancelled', 'no_show'] },
           startAt: { lt: newEnd },
@@ -1137,7 +1159,7 @@ export function createTenantRouter(): Router {
 
       const updated = await db.appointment.update({
         where: { id: appointmentId },
-        data: { startAt: newStart, endAt: newEnd },
+        data: { startAt: newStart, endAt: newEnd, ...(targetStaffId !== existing.staffId ? { staffId: targetStaffId } : {}) },
         include: {
           customer: { select: { fullName: true } },
           service: { select: { name: true } },

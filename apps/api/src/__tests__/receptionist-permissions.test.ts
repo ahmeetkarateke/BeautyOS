@@ -5,6 +5,7 @@ import { can, permissionsFor, isRole, PERMISSIONS, type PermissionKey } from '@b
 const RECEPTION_ALLOWED: PermissionKey[] = [
   'appointment.approve', // 3-7 (online talep onay/ret)
   'appointment.reschedule', // 6
+  'appointment.reassign_staff', // 6 (randevuyu baska personele tasima)
   'customer.view_all', // 13
   'customer.write', // 15
   'waitlist.view', // 11
@@ -58,8 +59,8 @@ describe('A2: receptionist rolu', () => {
     }
   })
 
-  it('uzman (staff) resepsiyon izinlerinden hicbirine sahip degil', () => {
-    for (const key of RECEPTION_ALLOWED) expect(can('staff', key)).toBe(false)
+  it('uzman (staff) resepsiyon izinlerinden hicbirine sahip degil; tek istisna kurucu karari R3 ile appointment.reschedule (kapsam rotada: yalniz kendi randevusu, staffId degistiremez)', () => {
+    for (const key of RECEPTION_ALLOWED) expect(can('staff', key), key).toBe(key === 'appointment.reschedule')
   })
 
   it('izin tablosundaki her anahtar tanimli ve rol listesi bos degil', () => {
