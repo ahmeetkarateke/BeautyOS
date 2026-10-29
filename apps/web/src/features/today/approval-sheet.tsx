@@ -44,7 +44,8 @@ function ApprovalBody({ request, onClose, onChanged }: { request: DayAppointment
   const [error, setError] = useState<string | null>(null)
   const [confirmReject, setConfirmReject] = useState(false)
 
-  const needsMatch = request.unverified
+  // Doğrulanmamış ya da müşterisi bağlanamamış (aynı telefonda birden çok kart) talep eşleştirme ister.
+  const needsMatch = request.unverified || request.customerId === null
   const candidates = useApiQuery(needsMatch ? `candidates:${request.id}` : null, (c, signal) => fetchCustomerCandidates(c, slug, request.id, signal))
   const candidateList = candidates.data ?? []
   const hasCandidates = candidateList.length > 0
@@ -107,7 +108,7 @@ function ApprovalBody({ request, onClose, onChanged }: { request: DayAppointment
           {candidateList.map((c) => (
             <Radio key={c.id} value={c.id} label={c.fullName} description={c.phone} />
           ))}
-          <Radio value={CREATE} label="Yeni müşteri olarak ekle" description="Listedeki kişilerden hiçbiri değilse." />
+          <Radio value={CREATE} label="Yeni müşteri olarak kaydet" description="Listedeki kişilerden hiçbiri değilse." />
           {choice === CREATE ? <p className="mt-1 text-sm text-text-muted">Bu telefon başka bir müşteride de kayıtlı kalacak.</p> : null}
         </RadioGroup>
       ) : null}

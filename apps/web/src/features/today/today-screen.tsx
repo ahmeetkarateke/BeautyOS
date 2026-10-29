@@ -229,6 +229,14 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
     <div className="grid gap-4">
       {header}
 
+      {canApprove && pendingQuery.error && !pendingQuery.data ? (
+        <div data-testid="bugun-bulgu">
+          <Banner tone="error" action={{ label: 'Yeniden dene', onClick: pendingQuery.refetch }}>
+            Bekleyen online talepler yüklenemedi.
+          </Banner>
+        </div>
+      ) : null}
+
       {canApprove && pending.length > 0 ? (
         <div data-testid="bugun-bulgu">
           <Banner tone="warning" action={{ label: 'Gözden geçir', onClick: () => setReviewing(pending[0]) }}>

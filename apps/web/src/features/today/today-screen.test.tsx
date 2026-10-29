@@ -37,11 +37,15 @@ let staffError: ApiError | null = null
 let weekDashboardError: ApiError | null = null
 let services: unknown[] = [{ id: 'sv1' }]
 let pendingRows: unknown[] = []
+let pendingError: ApiError | null = null
 
 function setupApi() {
   request.mockImplementation(async (path: string, init?: { query?: Record<string, string>; method?: string }) => {
     if (path.endsWith('/appointments') && !init?.method) {
-      if (init?.query?.status === 'pending') return { data: pendingRows }
+      if (init?.query?.status === 'pending') {
+        if (pendingError) throw pendingError
+        return { data: pendingRows }
+      }
       if (appointmentsError) throw appointmentsError
       return { data: appointments }
     }
@@ -76,6 +80,7 @@ beforeEach(() => {
   push.mockReset()
   replace.mockReset()
   appointmentsError = null
+  pendingError = null
   staffError = null
   weekDashboardError = null
   services = [{ id: 'sv1' }]
@@ -122,6 +127,16 @@ describe('W10 Bugün ekranı', () => {
     expect(banner.textContent).toContain('1 online randevu onay bekliyor.')
     fireEvent.click(within(banner).getByRole('button', { name: 'Gözden geçir' }))
     expect(await screen.findByRole('dialog', { name: 'Online randevu talebi' })).toBeTruthy()
+  })
+
+  it('W10-2 Ö1: bekleyen talepler sorgusu hata verirse şerit kaybolmaz; blok içi hata ve Yeniden dene çıkar', async () => {
+    pendingError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+    mount()
+    const banner = await screen.findByTestId('bugun-bulgu')
+    expect(banner.textContent).toContain('Bekleyen online talepler yüklenemedi.')
+    pendingError = null
+    fireEvent.click(within(banner).getByRole('button', { name: 'Yeniden dene' }))
+    await waitFor(() => expect(screen.getByTestId('bugun-bulgu').textContent).toContain('1 online randevu onay bekliyor.'))
   })
 
   it('W10-1 Ö6: bekleyen talepler yalnız bugünü değil önümüzdeki 14 günü sayar (en az 3 saat sonrası istendiği için çoğu sonraki günlerde)', async () => {
