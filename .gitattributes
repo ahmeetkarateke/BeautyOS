@@ -1,6 +1,30 @@
+# Satir sonu: depoda ve calisma agacinda LF (Windows'ta core.autocrlf ne olursa olsun CRLF'li commit/sahte fark olusmaz).
+* text=auto eol=lf
+
 # Sunucuda calisan dosyalar LF olmali (CRLF bash/Docker shebang ve komutlarini bozar)
 deploy/** text eol=lf
 *.sh text eol=lf
 **/Dockerfile text eol=lf
 .dockerignore text eol=lf
 apps/api/prisma/migrations/** text eol=lf
+
+# Ikili dosyalar: satir sonu donusumu asla uygulanmaz
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.mp4 binary
+*.webm binary
+*.mp3 binary
