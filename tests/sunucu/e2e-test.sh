@@ -12,6 +12,13 @@ set -euo pipefail
 SRC="${1:?kaynak dizini gerekli}"
 OUT="${2:?çıktı dizini gerekli}"
 shift 2 || true
+# Çıktı dizini root olarak chown -R edilir: yalnız /tmp altındaki gerçek (symlink çözülmüş) bir alt dizine izin ver.
+mkdir -p "$OUT"
+OUT="$(realpath "$OUT")"
+case "$OUT" in
+  /tmp/?*) ;;
+  *) echo "çıktı dizini /tmp altında olmalı (gerçek yol: $OUT)" >&2; exit 2 ;;
+esac
 RUN="bostest-e2e-$$"
 NET="${RUN}-net"
 API_IMG="bostest-api:$$"
