@@ -25,6 +25,7 @@ const gunBicimi = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeri
 const gun = (t: number) => gunBicimi.format(new Date(t))
 
 let k: TestKiraci
+let veri: Awaited<ReturnType<typeof randevuVerisiKur>>
 let o: Oturum
 let anon: APIRequestContext
 let kayitliMusteriId: string
@@ -62,7 +63,8 @@ async function ilkTalebiAc(page: Oturum['page']) {
 
 test.beforeAll(async ({ browser }, info) => {
   k = await kiraciKur('w10')
-  const { hizmet, uzman } = await randevuVerisiKur(k)
+  veri = await randevuVerisiKur(k)
+  const { hizmet, uzman } = veri
   kayitliTelefon = `0555${Math.floor(1000000 + Math.random() * 8999999)}`
   const musteri = await k.api.post(k.yol('/customers'), { data: { fullName: 'Kayıtlı Müşteri', phone: kayitliTelefon } })
   expect(musteri.status(), await musteri.text()).toBe(201)
@@ -92,11 +94,34 @@ test.afterAll(async () => {
   await anon?.dispose()
 })
 
+// Bugün için randevu yokken (talepler yarın ve sonrası) şeridin görünüp görünmediği; sonuç serinin sonunda ayrı bir testle hükme bağlanır.
+// Serial kipte tek başarısız test kalanı atlatır ve beforeAll'ın 3 talepleri (IP başına saatte 3) yeniden harcanamaz: bu yüzden
+// hata hemen fırlatılmaz, bu ölçüm kaydedilir ve diğer akışlar bugünün bir randevusu açılarak sürdürülür.
+const axeBulgulari: string[] = []
+let bosGundeSeritGorundu: boolean | undefined
+let bosGunKanitYolu = ''
+
 test('W10: sahip girince Bugün açılır ve üç bekleyen online talep şeritte görünür', async () => {
   const { page } = o
   await girisYap(page, k.email, k.password, new RegExp(`/panel/${k.slug}/bugun`))
   await expect(page.getByRole('heading', { level: 1, name: 'Bugün' })).toBeVisible()
   const serit = page.getByTestId('bugun-bulgu')
+  // Önce yalnız bekleyen talepler var, bugün randevusu yok: şerit görünmeli (ölçüm).
+  await expect(page.getByText('Bugün randevu yok.')).toBeVisible()
+  bosGundeSeritGorundu = await serit.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false)
+  bosGunKanitYolu = await ekranGoruntusu(page, 'w10-bos-gun-talepler-gorunmuyor')
+  // Sonraki akışlar için bugüne bir onaylı randevu açılır (talep şeridi dolu günde çiziliyor mu denenir).
+  const baslangic = new Date(Date.now() + 90 * 60_000)
+  const olustur = await k.api.post(k.yol('/appointments'), {
+    data: { customerId: veri.musteri.id, serviceId: veri.hizmet.id, staffId: veri.uzman.id, startAt: `${baslangic.toISOString().slice(0, 19)}Z` },
+  })
+  expect(olustur.status(), await olustur.text()).toBe(201)
+  // Yönetici oluşturunca randevu "bekliyor" başlar; şerit yalnız online talepleri saysın diye onaylanır.
+  const bugunkuId = ((await olustur.json()) as { id: string }).id
+  const onay = await k.api.patch(k.yol(`/appointments/${bugunkuId}/status`), { data: { status: 'confirmed' } })
+  expect(onay.status(), await onay.text()).toBeLessThan(300)
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: 'Bugün' })).toBeVisible()
   await expect(serit).toContainText('3 online randevu onay bekliyor.')
   await expect(serit).toContainText('Aday Bir')
   await expect(serit).toContainText('Aday Uc')
@@ -112,7 +137,10 @@ for (const g of [
     await expect(page.getByTestId('bugun-bulgu')).toBeVisible()
     await ekranGoruntusu(page, `w10-bugun-${g.ad}`)
     expect(await yatayTasma(page), 'yatay taşma (px)').toBeLessThanOrEqual(0)
-    await expectNoSeriousA11yViolations(page, `W10 Bugün ${g.ad} px`)
+    // İhlal hemen fırlatılmaz (serial kip kalan testleri atlatır); kaydedilir ve serinin sonunda ayrı testle hükme bağlanır.
+    await expectNoSeriousA11yViolations(page, `W10 Bugün ${g.ad} px`).catch((e: Error) => {
+      axeBulgulari.push(e.message.split('\n').slice(0, 14).join('\n'))
+    })
   })
 }
 
@@ -132,7 +160,7 @@ test('W10 K2 (ADR-0038): aday varken onay seçim yapılmadan açılmaz; "Yeni m�
   await ekranGoruntusu(page, 'w10-onay-katmani-390')
   await onayla.click()
 
-  await expect(page.getByText('Randevu talebi onaylandı.')).toBeVisible()
+  await expect(page.getByText('Randevu talebi onaylandı.', { exact: true }).last()).toBeVisible()
   await expect(katman).toBeHidden()
 
   const satir = (await randevular()).find((r) => r.customerName === 'Aday Bir')
@@ -152,7 +180,7 @@ test('W10: aday seçilip bağlanınca randevu kayıtlı müşteriye bağlanır, 
   await expect(katman).toContainText('Aday Iki')
   await katman.getByRole('radio', { name: /Kayıtlı Müşteri/ }).click()
   await katman.getByRole('button', { name: 'Talebi onayla' }).click()
-  await expect(page.getByText('Randevu talebi onaylandı.')).toBeVisible()
+  await expect(page.getByText('Randevu talebi onaylandı.', { exact: true }).last()).toBeVisible()
   await expect(katman).toBeHidden()
 
   const satir = (await randevular()).find((r) => r.customerName === 'Kayıtlı Müşteri' && r.status === 'confirmed' && r.id !== undefined)
@@ -174,12 +202,15 @@ test('W10: talep reddedilir (onay penceresiyle), randevu iptal olur ve şerit ka
   expect((await randevular()).find((r) => r.customerName === 'Aday Uc')?.status).toBe('pending')
   await page.getByRole('alertdialog').getByRole('button', { name: 'Talebi reddet' }).click()
 
-  await expect(page.getByText('Randevu talebi reddedildi.')).toBeVisible()
+  await expect(page.getByText('Randevu talebi reddedildi.', { exact: true }).last()).toBeVisible()
   await expect(page.getByTestId('bugun-bulgu')).toHaveCount(0)
   const satir = (await randevular()).find((r) => r.customerName === 'Aday Uc')
   expect(satir?.status).toBe('cancelled')
 })
 
-test('W10 UI-DoD: gezinti boyunca tarayıcı konsolunda hata yok', async () => {
-  expect(o.konsol, 'konsol hataları').toEqual([])
+// Serinin son testi: birikmiş ölçümler birlikte hükme bağlanır (soft: biri kalsa da diğeri raporlanır).
+test('W10 B1 + UI-DoD: boş günde talep şeridi görünür, iki genişlikte ciddi axe ihlali yok, konsolda hata yok', () => {
+  expect.soft(bosGundeSeritGorundu, `W10 B1: bugün randevu yokken yarın ve sonrası için bekleyen talepler şeritte çizilmedi; kanıt: ${bosGunKanitYolu}`).toBe(true)
+  expect.soft(axeBulgulari, 'axe ihlalleri').toEqual([])
+  expect.soft(o.konsol, 'konsol hataları').toEqual([])
 })
