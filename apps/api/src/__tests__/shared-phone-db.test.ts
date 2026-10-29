@@ -11,6 +11,7 @@ import {
   cleanupTenant,
 } from './helpers/setup'
 import { findCustomerCandidates } from '../lib/online-booking'
+import { resolveCustomerByPhone } from '../lib/customer-phone'
 
 // ADR-0038 (gercek PG, api-test.sh yigini): tekillik kalkti, CHECK gevsedi, onayda create aday kontrolu yapmaz.
 const app = createApp({ rateLimitMax: 1000 })
@@ -103,6 +104,9 @@ describe('ADR-0038: ayni telefonla birden cok musteri (gercek PG)', () => {
     await db.customer.create({ data: { tenantId: b.id, fullName: 'B Musteri', phone } })
     expect((await findCustomerCandidates(b.id, phone)).length).toBe(1)
     expect(await findCustomerCandidates(a.id, phone)).toEqual([])
+    // resolveCustomerByPhone da kiraci ici: B'de tek kart varken A icin none
+    expect((await resolveCustomerByPhone(db, b.id, phone)).kind).toBe('single')
+    expect(await resolveCustomerByPhone(db, a.id, phone)).toEqual({ kind: 'none' })
   })
 
   it('K6: panel POST /customers ayni telefonda varsayilan 409, allowSharedPhone ile 201', async () => {

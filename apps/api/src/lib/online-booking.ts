@@ -68,10 +68,13 @@ export async function scheduleOnlineExpiry(appointmentId: string, expiresAt: Dat
   }
 }
 
-/** Yalniz hala bekleyen web talebini iptal eder; atomik, onaylanmis talebe dokunmaz. */
+/** Online talep kapsami: web kanali ya da musterisiz (salon eslestirmesi bekleyen, orn. bot 'multiple') bekleyen talep. Panelden elle acilan musterili pending randevuya dokunulmaz. */
+const ONLINE_REQUEST_SCOPE = [{ bookingChannel: 'web' as const }, { customerId: null }]
+
+/** Yalniz hala bekleyen online talebi iptal eder; atomik, onaylanmis talebe dokunmaz. */
 export async function expireOnlineRequest(appointmentId: string): Promise<boolean> {
   const result = await db.appointment.updateMany({
-    where: { id: appointmentId, status: 'pending', bookingChannel: 'web' },
+    where: { id: appointmentId, status: 'pending', OR: ONLINE_REQUEST_SCOPE },
     data: { status: 'cancelled', cancelReason: 'expired' },
   })
   return result.count > 0
@@ -82,10 +85,14 @@ export async function sweepExpiredOnlineRequests(now: Date = new Date()): Promis
   const result = await db.appointment.updateMany({
     where: {
       status: 'pending',
-      bookingChannel: 'web',
-      OR: [
-        { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * HOUR_MS) } },
-        { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * HOUR_MS) } },
+      AND: [
+        { OR: ONLINE_REQUEST_SCOPE },
+        {
+          OR: [
+            { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * HOUR_MS) } },
+            { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * HOUR_MS) } },
+          ],
+        },
       ],
     },
     data: { status: 'cancelled', cancelReason: 'expired' },

@@ -30,7 +30,7 @@ export function createPanelSummaryRouter(): Router {
 
       const [pendingOnlineRequests, waitingList, cashToday, setupAndTrial] = await Promise.all([
         can(role, 'appointment.approve')
-          ? db.appointment.count({ where: { tenantId, status: 'pending', bookingChannel: 'web', isDeleted: false } })
+          ? db.appointment.count({ where: { tenantId, status: 'pending', isDeleted: false, OR: [{ bookingChannel: 'web' }, { customerId: null }] } })
           : null,
         can(role, 'waitlist.view') ? db.waitlist.count({ where: { tenantId, status: 'waiting' } }) : null,
         can(role, 'finance.report.daily') ? readCashToday(tenantId, now) : null,

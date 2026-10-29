@@ -2,7 +2,9 @@ import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { getSlots } from '../lib/slots'
 import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
-import { resolveCustomerByPhone } from '../lib/customer-phone'
+import { resolveCustomerByPhone, lookupValues } from '../lib/customer-phone'
+import { computeExpiryAt, scheduleOnlineExpiry } from '../lib/online-booking'
+import { normalizePhoneTR } from '../lib/sms/types'
 import type { BookingChannel } from '@prisma/client'
 
 /** Hizmet adı bu kiracıdaki aktif hizmetlerle eşleşmedi: akış netleştirme sorusu sorar, sahte yanıt üretmez (S5 K2). */
@@ -187,24 +189,27 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   const endAt = new Date(startAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)
 
   // ADR-0038: telefon -> none (oluştur) | single (bağla) | multiple (bağlama, requested* ile pending)
-  const found = await resolveCustomerByPhone(db, tenantId, customerPhone, { exact: channel === 'telegram' })
+  // Telefon her yerde normalize saklanir (ADR-0038). Telegram'da sohbet no telefon degildir: oldugu gibi kalir.
+  const identity = channel === 'telegram' ? customerPhone : (normalizePhoneTR(customerPhone) ?? customerPhone)
+  const found = await resolveCustomerByPhone(db, tenantId, identity, { exact: channel === 'telegram' })
   const customerId =
     found.kind === 'single'
       ? found.id
       : found.kind === 'none'
-        ? (await db.customer.create({ data: { tenantId, phone: customerPhone, fullName: customerName }, select: { id: true } })).id
+        ? (await db.customer.create({ data: { tenantId, phone: identity, fullName: customerName }, select: { id: true } })).id
         : null
   const status = customerId ? 'confirmed' : 'pending'
 
   const referenceCode = `RDV-${Date.now().toString(36).toUpperCase()}`
 
+  let appointment: { id: string }
   try {
-    await db.appointment.create({
+    appointment = await db.appointment.create({
       data: {
         tenantId,
         customerId,
         requestedName: customerId ? null : customerName,
-        requestedPhone: customerId ? null : customerPhone,
+        requestedPhone: customerId ? null : identity,
         staffId,
         serviceId: service.id,
         referenceCode,
@@ -214,12 +219,16 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         endAt,
         priceCharged: service.price,
       },
+      select: { id: true },
     })
   } catch (err) {
     // Bot yolunda ön kontrol yok: saat dolduysa veritabanı kısıtı (S3) reddeder.
     if (isSlotOverlapError(err)) throw new SlotTakenError()
     throw err
   }
+
+  // Eşleşmeyi bekleyen talep süresiz kalmasın: web talebiyle aynı süre dolumu kurulur (gece taraması yedektir).
+  if (!customerId) await scheduleOnlineExpiry(appointment.id, computeExpiryAt(new Date(), startAt))
 
   // Müşteri ziyaret sayısını artır (bağlanmamış talepte kart yoktur)
   if (customerId) {
@@ -246,11 +255,19 @@ export async function cancelAppointmentByRef(
   tenantId: string,
   referenceCode: string,
   customerPhone: string,
+  options: { exact?: boolean } = {},
 ): Promise<CancelResult> {
   if (!customerPhone.trim()) return { ok: false, reason: 'not_found' }
 
+  // Kimlik, randevunun kart telefonuyla ya da (müşterisiz talepte) requestedPhone ile eşleşmeli; WhatsApp biçim farkı (905… / +905…) önemsiz.
+  const values = lookupValues(customerPhone, options.exact === true)
   const appointment = await db.appointment.findFirst({
-    where: { tenantId, referenceCode, status: { in: ['pending', 'confirmed'] }, customer: { phone: customerPhone } },
+    where: {
+      tenantId,
+      referenceCode,
+      status: { in: ['pending', 'confirmed'] },
+      OR: [{ customer: { phone: { in: values } } }, { requestedPhone: { in: values } }],
+    },
   })
 
   if (!appointment) return { ok: false, reason: 'not_found' }

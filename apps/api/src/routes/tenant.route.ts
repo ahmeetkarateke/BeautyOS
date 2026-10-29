@@ -14,6 +14,7 @@ import { can } from '@beautyos/shared'
 import { requirePermission, ensurePermission } from '../middleware/permission'
 import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
 import { phoneInUse } from '../lib/customer-phone'
+import { normalizePhoneTR } from '../lib/sms/types'
 import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
@@ -746,45 +747,43 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz müşteri verisi.' } })
       }
 
-      const { fullName, phone, email, birthDate, allowSharedPhone } = parsed.data
+      const { fullName, email, birthDate, allowSharedPhone } = parsed.data
+      // Telefon her yerde normalize saklanır (ADR-0038); biçimi tanınmayan numara reddedilir.
+      const phone = normalizePhoneTR(parsed.data.phone)
+      if (!phone) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir telefon numarası girin.' } })
+      }
 
       if (!allowSharedPhone && (await phoneInUse(db, tenantId, phone))) {
         return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
       }
 
-      try {
-        const customer = await db.customer.create({
-          data: {
-            tenantId,
-            fullName,
-            phone,
-            email,
-            birthDate: birthDate ? new Date(birthDate) : undefined,
-          },
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-            totalVisits: true,
-            createdAt: true,
-          },
-        })
+      const customer = await db.customer.create({
+        data: {
+          tenantId,
+          fullName,
+          phone,
+          email,
+          birthDate: birthDate ? new Date(birthDate) : undefined,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          totalVisits: true,
+          createdAt: true,
+        },
+      })
 
-        return res.status(201).json({
-          id: customer.id,
-          fullName: customer.fullName,
-          phone: customer.phone,
-          email: customer.email,
-          totalVisits: customer.totalVisits,
-          createdAt: customer.createdAt.toISOString(),
-        })
-      } catch (dbErr: unknown) {
-        if ((dbErr as { code?: string }).code === 'P2002') {
-          return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
-        }
-        throw dbErr
-      }
+      return res.status(201).json({
+        id: customer.id,
+        fullName: customer.fullName,
+        phone: customer.phone,
+        email: customer.email,
+        totalVisits: customer.totalVisits,
+        createdAt: customer.createdAt.toISOString(),
+      })
     } catch (err) {
       next(err)
     }
@@ -1701,38 +1700,40 @@ export function createTenantRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
+      // Telefon her yerde normalize saklanır (ADR-0038); biçimi tanınmayan numara reddedilir.
+      if (rest.phone !== undefined) {
+        const normalized = normalizePhoneTR(rest.phone)
+        if (!normalized) {
+          return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir telefon numarası girin.' } })
+        }
+        rest.phone = normalized
+      }
+
       if (rest.phone !== undefined && rest.phone !== existing.phone && !allowSharedPhone && (await phoneInUse(db, tenantId, rest.phone, customerId))) {
         return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
       }
 
-      try {
-        const updated = await db.customer.update({
-          where: { id: customerId },
-          data: {
-            ...rest,
-            ...(birthDate !== undefined ? { birthDate: birthDate ? new Date(birthDate) : null } : {}),
-          },
-          select: {
-            id: true, fullName: true, phone: true, email: true,
-            birthDate: true, allergyNotes: true, preferenceNotes: true,
-            totalVisits: true, segment: true, lastVisitAt: true, createdAt: true,
-          },
-        })
+      const updated = await db.customer.update({
+        where: { id: customerId },
+        data: {
+          ...rest,
+          ...(birthDate !== undefined ? { birthDate: birthDate ? new Date(birthDate) : null } : {}),
+        },
+        select: {
+          id: true, fullName: true, phone: true, email: true,
+          birthDate: true, allergyNotes: true, preferenceNotes: true,
+          totalVisits: true, segment: true, lastVisitAt: true, createdAt: true,
+        },
+      })
 
-        const { allergyNotes, ...updatedPublic } = updated
-        return res.json({
-          ...updatedPublic,
-          ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
-          birthDate: updated.birthDate?.toISOString() ?? null,
-          lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
-          createdAt: updated.createdAt.toISOString(),
-        })
-      } catch (dbErr: unknown) {
-        if ((dbErr as { code?: string }).code === 'P2002') {
-          return res.status(409).json({ error: { code: 'DUPLICATE_PHONE', message: 'Bu telefon numarasıyla kayıtlı müşteri zaten var.' } })
-        }
-        throw dbErr
-      }
+      const { allergyNotes, ...updatedPublic } = updated
+      return res.json({
+        ...updatedPublic,
+        ...(can(req.user!.role, 'health.view') ? { allergyNotes } : {}),
+        birthDate: updated.birthDate?.toISOString() ?? null,
+        lastVisitAt: updated.lastVisitAt?.toISOString() ?? null,
+        createdAt: updated.createdAt.toISOString(),
+      })
     } catch (err) {
       next(err)
     }

@@ -182,8 +182,20 @@ describe('K4: iptal sahiplik ister', () => {
     const r = await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000009')
     expect(r).toEqual({ ok: false, reason: 'not_found' })
     const where = dbMock.appointment.findFirst.mock.calls[0][0].where
-    expect(where).toMatchObject({ tenantId: 't1', referenceCode: 'RDV-ABC', customer: { phone: '905320000009' } })
+    expect(where).toMatchObject({ tenantId: 't1', referenceCode: 'RDV-ABC' })
+    // WhatsApp: 905... biçimi normalize (+90...) kayıtla eşleşir; müşterisiz talep requestedPhone ile eşleşir
+    expect(where.OR).toEqual([
+      { customer: { phone: { in: expect.arrayContaining(['905320000009', '+905320000009']) } } },
+      { requestedPhone: { in: expect.arrayContaining(['905320000009', '+905320000009']) } },
+    ])
     expect(dbMock.appointment.update).not.toHaveBeenCalled()
+  })
+
+  it('ADR-0038: Telegram kanalinda (exact) sohbet no normalize edilmez, yalniz tam eslesir', async () => {
+    dbMock.appointment.findFirst.mockResolvedValue(null)
+    await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000009', { exact: true })
+    const where = dbMock.appointment.findFirst.mock.calls[0][0].where
+    expect(where.OR[0]).toEqual({ customer: { phone: { in: ['905320000009'] } } })
   })
 
   it('K4: sahibi kendi randevusunu iptal eder', async () => {

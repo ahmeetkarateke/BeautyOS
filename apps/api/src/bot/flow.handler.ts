@@ -544,7 +544,7 @@ export class FlowHandler {
     const dateStr = formatDateTR(slotId.split('__')[0].split('T')[0])
     const reply =
       (pendingApproval
-        ? `✅ Randevu talebiniz alındı! Salonumuz kaydınızı eşleştirip onayladığında size bilgi verilecek.\n\n`
+        ? `✅ Randevu talebiniz alındı! Salonumuz sizinle iletişime geçecek; 24 saat içinde onay almazsanız lütfen salonu arayın.\n\n`
         : `✅ Randevunuz oluşturuldu!\n\n`) +
       `📋 *${service}*\n` +
       `📅 ${dateStr} saat ${displayTime}\n` +
@@ -579,7 +579,7 @@ export class FlowHandler {
     salon: SalonContext,
   ): Promise<void> {
     const refCode = msg.text.trim().toUpperCase()
-    const result = await cancelAppointmentByRef(session.tenantId, refCode, session.from)
+    const result = await cancelAppointmentByRef(session.tenantId, refCode, session.from, { exact: session.channelType === 'telegram' })
 
     if (result.ok) {
       const reply = '✅ Randevunuz iptal edildi. Görüşmek üzere! 👋'

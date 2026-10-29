@@ -18,7 +18,7 @@ export interface CustomerLookup {
 const RESOLVE_LIMIT = 10
 
 /** `exact`: kanal kimligi (Telegram sohbet no) telefon degildir; normalize edilirse gercek bir telefonla tesadufen eslesebilir. Aranacak degerler: ham giris + telefonun eski kayit bicimleri (normalize edilemeyen kimlikler, ornegin Telegram sohbet no, oldugu gibi). */
-function lookupValues(phone: string, exact: boolean): string[] {
+export function lookupValues(phone: string, exact: boolean): string[] {
   return exact ? [phone] : Array.from(new Set([phone, ...phoneVariants(phone)]))
 }
 

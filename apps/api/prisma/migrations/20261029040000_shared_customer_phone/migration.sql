@@ -6,7 +6,7 @@
 --   SELECT "tenantId", phone, count(*) FROM customers GROUP BY 1, 2 HAVING count(*) > 1;
 --   Tekrarlar birlestirilince: DROP INDEX "customers_tenantId_phone_idx"; CREATE UNIQUE INDEX "customers_tenantId_phone_key" ON "customers"("tenantId", "phone");
 --   CHECK geri: DROP CONSTRAINT "appointments_customer_or_request"; ADD CONSTRAINT ... CHECK ("customerId" IS NOT NULL OR ("phoneVerified" = false AND "requestedName" IS NOT NULL AND "requestedPhone" IS NOT NULL));
---   (once phoneVerified=true olan musterisiz talepler onaylanmali ya da reddedilmeli.)
+--   (once musterisiz ve phoneVerified=true olan TUM talepler (reddedilenler dahil) silinmeli ya da phoneVerified=false yapilmali.)
 DROP INDEX "customers_tenantId_phone_key";
 CREATE INDEX "customers_tenantId_phone_idx" ON "customers"("tenantId", "phone");
 

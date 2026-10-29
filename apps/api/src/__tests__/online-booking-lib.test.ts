@@ -92,7 +92,7 @@ describe('S2: sure dolumu isi', () => {
     const ok = await expireOnlineRequest('a1')
     expect(ok).toBe(true)
     expect(dbMock.appointment.updateMany).toHaveBeenCalledWith({
-      where: { id: 'a1', status: 'pending', bookingChannel: 'web' },
+      where: { id: 'a1', status: 'pending', OR: [{ bookingChannel: 'web' }, { customerId: null }] },
       data: { status: 'cancelled', cancelReason: 'expired' },
     })
   })
@@ -108,10 +108,15 @@ describe('S2: sure dolumu isi', () => {
     const count = await sweepExpiredOnlineRequests(now)
     expect(count).toBe(3)
     const args = dbMock.appointment.updateMany.mock.calls[0][0]
-    expect(args.where).toMatchObject({ status: 'pending', bookingChannel: 'web' })
-    expect(args.where.OR).toEqual([
-      { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * H) } },
-      { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * H) } },
+    expect(args.where.status).toBe('pending')
+    expect(args.where.AND).toEqual([
+      { OR: [{ bookingChannel: 'web' }, { customerId: null }] },
+      {
+        OR: [
+          { createdAt: { lte: new Date(now.getTime() - ONLINE_LIMITS.expiryHours * H) } },
+          { startAt: { lte: new Date(now.getTime() + ONLINE_LIMITS.expiryLeadHours * H) } },
+        ],
+      },
     ])
     expect(args.data).toEqual({ status: 'cancelled', cancelReason: 'expired' })
   })

@@ -137,7 +137,7 @@ describe('bot createAppointment (ADR-0038)', () => {
     const r = await createAppointment(input)
     expect(r.status).toBe('pending')
     const data = dbMock.appointment.create.mock.calls[0][0].data
-    expect(data).toMatchObject({ customerId: null, requestedName: 'Ayse', requestedPhone: '905320000001', status: 'pending' })
+    expect(data).toMatchObject({ customerId: null, requestedName: 'Ayse', requestedPhone: '+905320000001', status: 'pending' })
     expect(dbMock.customer.create).not.toHaveBeenCalled()
     expect(dbMock.customer.update).not.toHaveBeenCalled()
   })
