@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHealthRegulated } from '@/lib/v2/business-type'
+import { hidesServiceInMessages } from '@/lib/v2/business-type'
 import { canNotify, createBody, notifyMessage, preferenceLine, sortEntries, statusLabel, validateAdd, type WaitEntry } from './logic'
 
 const entry = (over: Partial<WaitEntry> = {}): WaitEntry => ({
@@ -104,13 +104,13 @@ describe('W22 validateAdd / createBody', () => {
 })
 
 describe('W22 KVKK: klinikte mesajda hizmet adı yok (hukuk-uyum §10.7)', () => {
-  it('K7: sağlık düzenlemeli türler tek ortak yardımcıda (lib/v2/business-type): dentist, aesthetic_clinic, hair_transplant; salon türleri değil', () => {
-    expect(isHealthRegulated('dentist')).toBe(true)
-    expect(isHealthRegulated('aesthetic_clinic')).toBe(true)
-    expect(isHealthRegulated('hair_transplant')).toBe(true)
-    expect(isHealthRegulated('beauty_center')).toBe(false)
-    expect(isHealthRegulated('hair_salon')).toBe(false)
-    expect(isHealthRegulated('')).toBe(false)
+  it('K7: hizmet adı gizleme kararı tek ortak yardımcıda (lib/v2/business-type): dentist, aesthetic_clinic, hair_transplant; salon türleri değil', () => {
+    expect(hidesServiceInMessages('dentist')).toBe(true)
+    expect(hidesServiceInMessages('aesthetic_clinic')).toBe(true)
+    expect(hidesServiceInMessages('hair_transplant')).toBe(true)
+    expect(hidesServiceInMessages('beauty_center')).toBe(false)
+    expect(hidesServiceInMessages('hair_salon')).toBe(false)
+    expect(hidesServiceInMessages('')).toBe(false)
   })
   it('K7: klinik metni hizmet adını içermez, tanıtım/indirim yoktur', () => {
     const text = notifyMessage(entry({ serviceName: 'Botoks' }), 'Işık Klinik', true)
@@ -124,6 +124,6 @@ describe('W22 KVKK: klinikte mesajda hizmet adı yok (hukuk-uyum §10.7)', () =>
 
 describe('W22 KVKK: her sağlık düzenlemeli türde', () => {
   it.each(['dentist', 'aesthetic_clinic', 'hair_transplant'])('K8: %s için üretilen metinde hizmet adı yok', (type) => {
-    expect(notifyMessage(entry({ serviceName: 'Saç ekimi' }), 'Klinik', isHealthRegulated(type))).not.toContain('Saç ekimi')
+    expect(notifyMessage(entry({ serviceName: 'Saç ekimi' }), 'Klinik', hidesServiceInMessages(type))).not.toContain('Saç ekimi')
   })
 })
