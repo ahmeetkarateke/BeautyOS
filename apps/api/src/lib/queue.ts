@@ -228,3 +228,7 @@ export function startReminderWorker(): Worker<ReminderJobData> {
 
   return worker
 }
+
+// Iskelet (kirmizi adim): gercek uygulama sonraki commit'te.
+export async function scheduleReminders(_input: { appointmentId: string; tenantId: string; startAt: Date; now?: Date }): Promise<void> {}
+export async function cancelReminders(_appointmentId: string): Promise<void> {}
