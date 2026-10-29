@@ -6,8 +6,8 @@ import { parseStaffList, type StaffMember } from './staff'
 // Randevu uçları (kiracı: /auth/me'den gelen salon kısaltması). Sunucu yanıtı güvenilmez girdi sayılır: zod ile doğrulanır.
 const base = (slug: string) => `/api/v1/tenants/${encodeURIComponent(slug)}`
 
-export async function fetchDayAppointments(client: ApiClient, slug: string, date: string, signal?: AbortSignal): Promise<DayAppointment[]> {
-  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { date }, signal })
+export async function fetchDayAppointments(client: ApiClient, slug: string, date: string, signal?: AbortSignal, staffId?: string): Promise<DayAppointment[]> {
+  const body = await client.request<{ data?: unknown[] }>(`${base(slug)}/appointments`, { query: { date, staffId }, signal })
   return z.array(z.unknown()).parse(body.data).map(parseDayAppointment)
 }
 
