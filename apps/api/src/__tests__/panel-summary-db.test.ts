@@ -37,7 +37,7 @@ describe('panel-summary (gercek PG)', () => {
       data: {
         tenantId: b.id, customerId: null, requestedName: 'Talep', requestedPhone: '+905320000098', staffId: staffB.profile.id, serviceId: svcB.id,
         referenceCode: `T-${Math.random().toString(36).slice(2, 10).toUpperCase()}`, startAt: start, endAt: new Date(start.getTime() + 3600 * 1000),
-        priceCharged: 100, status: 'pending', bookingChannel: 'web',
+        priceCharged: 100, status: 'pending', bookingChannel: 'web', phoneVerified: false, // musterisiz kayit CHECK: yalniz dogrulanmamis talep
       },
     })
     await db.waitlist.create({ data: { tenantId: b.id, customerId: custB.id, status: 'waiting' } })
