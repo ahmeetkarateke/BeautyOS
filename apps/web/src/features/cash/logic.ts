@@ -9,9 +9,7 @@ export function differenceView(expected: number, counted: number): DifferenceVie
   const cents = Math.round(counted * 100) - Math.round(expected * 100)
   if (cents === 0) return { amount: 0, text: 'Fark yok', tone: 'ok' }
   const amount = cents / 100
-  return cents < 0
-    ? { amount, text: `${formatMoney(-amount)} eksik`, tone: 'short' }
-    : { amount, text: `${formatMoney(amount)} fazla`, tone: 'over' }
+  return cents < 0 ? { amount, text: `${formatMoney(-amount)} eksik`, tone: 'short' } : { amount, text: `${formatMoney(amount)} fazla`, tone: 'over' }
 }
 
 /** Sayım isteğe bağlı: boş = sayım yok. 0 geçerlidir. */
