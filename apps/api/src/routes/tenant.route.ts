@@ -1706,12 +1706,16 @@ export function createTenantRouter(): Router {
       }
 
       // Telefon her yerde normalize saklanır (ADR-0038); biçimi tanınmayan numara reddedilir.
+      // Telefon değişmiyorsa (Telegram sohbet no, sabit hat gibi normalize edilemeyen mevcut kayıtlar dahil) doğrulama ve yazma yok.
+      if (rest.phone !== undefined && rest.phone === existing.phone) {
+        delete rest.phone
+      }
       if (rest.phone !== undefined) {
         const normalized = normalizePhoneTR(rest.phone)
         if (!normalized) {
           return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçerli bir telefon numarası girin.' } })
         }
-        rest.phone = normalized
+        rest.phone = normalized === existing.phone ? undefined : normalized
       }
 
       if (rest.phone !== undefined && rest.phone !== existing.phone && !allowSharedPhone && (await phoneInUse(db, tenantId, rest.phone, customerId))) {
