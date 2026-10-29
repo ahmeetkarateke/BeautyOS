@@ -106,6 +106,11 @@ enum AppointmentStatus {
   no_show
 }
 
+enum AppointmentCancelReason {
+  rejected
+  expired
+}
+
 enum BookingChannel {
   whatsapp
   telegram
@@ -406,7 +411,9 @@ model Resource {
 model Appointment {
   id                 String            @id @default(uuid()) @db.Uuid
   tenantId           String            @db.Uuid
-  customerId         String            @db.Uuid
+  customerId         String?           @db.Uuid
+  requestedName      String?
+  requestedPhone     String?
   staffId            String            @db.Uuid
   serviceId          String            @db.Uuid
   resourceId         String?           @db.Uuid
@@ -419,12 +426,14 @@ model Appointment {
   notes              String?
   cancellationReason String?
   cancelledById      String?           @db.Uuid
+  cancelReason       AppointmentCancelReason?
+  phoneVerified      Boolean           @default(true)
   isDeleted          Boolean           @default(false)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
   tenant       Tenant            @relation(fields: [tenantId], references: [id])
-  customer     Customer          @relation(fields: [customerId], references: [id])
+  customer     Customer?         @relation(fields: [customerId], references: [id])
   staff        StaffProfile      @relation(fields: [staffId], references: [id])
   service      Service           @relation(fields: [serviceId], references: [id])
   resource     Resource?         @relation(fields: [resourceId], references: [id])

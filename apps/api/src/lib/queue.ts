@@ -4,11 +4,13 @@ import { DeliveryPurpose } from '@prisma/client'
 import { db } from './db'
 import { logger } from './logger'
 import { sendSms, normalizePhoneTR } from './sms'
+import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
 
 export type ReminderJobData =
   | { type: 'reminder_24h'; appointmentId: string }
   | { type: 'reminder_2h'; appointmentId: string }
   | { type: 'nightly_noshow' }
+  | { type: 'online_expire'; appointmentId: string }
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 
@@ -31,7 +33,15 @@ export const remindersQueue = new Queue<ReminderJobData>('reminders', {
 
 export async function processReminderJob(data: ReminderJobData): Promise<void> {
   if (data.type === 'nightly_noshow') {
+    await sweepExpiredOnlineRequests()
+    await anonymizeStaleRequests()
     await processNightlyNoShow()
+    return
+  }
+  if (data.type === 'online_expire') {
+    if (await expireOnlineRequest(data.appointmentId)) {
+      logger.info({ appointmentId: data.appointmentId }, 'Online talep süresi doldu, iptal edildi')
+    }
     return
   }
 
@@ -69,6 +79,11 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     timeZone: 'Europe/Istanbul',
   })
 
+  // Doğrulanmamış online talepte müşteri henüz yoktur (onayda bağlanır); hatırlatma gönderilecek kişi yok.
+  if (!appointment.customer) {
+    logger.info({ appointmentId }, 'Randevuya bağlı müşteri yok, hatırlatma atlandı')
+    return
+  }
   const { id: customerId, fullName, phone } = appointment.customer
   const serviceName = appointment.service.name
   const salonName = appointment.tenant.name
@@ -130,6 +145,8 @@ async function processNightlyNoShow(): Promise<void> {
         where: { id: appt.id },
         data: { status: 'no_show' },
       })
+
+      if (!appt.customer) continue
 
       const normalized = normalizePhoneTR(appt.customer.phone)
       if (!normalized) {

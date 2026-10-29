@@ -18,6 +18,7 @@ import { createStockRouter } from './routes/stock.route'
 import { createWaitlistRouter } from './routes/waitlist.route'
 import { apiErrorHandler } from './lib/error-handler'
 import { logger } from './lib/logger'
+import { createAppointmentApprovalRouter } from './routes/appointment-approval.route'
 
 export function createApp(options?: { rateLimitMax?: number }) {
   const app = express()
@@ -89,6 +90,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
   app.use('/api/v1/tenants/:slug', createPurchaseInvoicesRouter())
   app.use('/api/v1/tenants/:slug', createFinancialAccountsRouter())
   app.use('/api/v1/tenants/:slug', createStockRouter())
+  app.use('/api/v1/tenants/:slug', createAppointmentApprovalRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   app.use(apiErrorHandler((err) => logger.error({ err }, 'Unhandled error')))
