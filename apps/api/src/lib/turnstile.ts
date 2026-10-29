@@ -18,7 +18,18 @@ export function allowedTurnstileHosts(env: NodeJS.ProcessEnv = process.env): str
   return [...hosts]
 }
 
-export async function verifyTurnstile(token: string | undefined, remoteIp: string | undefined): Promise<boolean> {
+/** Uretimde gizli anahtar yoksa dogrulama yapilamaz; cagiran 503 doner (kapali basarisizlik). */
+export function isTurnstileUnavailable(): boolean {
+  return process.env.NODE_ENV === 'production' && !process.env.TURNSTILE_SECRET_KEY
+}
+
+export const TURNSTILE_TIMEOUT_MS = 5000
+
+export async function verifyTurnstile(
+  token: string | undefined,
+  remoteIp: string | undefined,
+  timeoutMs: number = TURNSTILE_TIMEOUT_MS,
+): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY
   if (!secret) {
     // Production'da CAPTCHA zorunlu — secret yoksa booking reddedilir
@@ -32,6 +43,7 @@ export async function verifyTurnstile(token: string | undefined, remoteIp: strin
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
+      signal: AbortSignal.timeout(timeoutMs),
     })
     const data = (await res.json()) as { success?: boolean; hostname?: string }
     if (data.success !== true) return false

@@ -23,6 +23,7 @@ export const PERMISSIONS = {
   'supplier.read': OWNER_MANAGER, // 46
   'customer.view_all': OWNER_MANAGER, // 13 (uzman yalniz kendi musterilerini gorur)
   'customer.write': OWNER_MANAGER, // 15 (uzman duzenleyemez; kendi musterisinde not duzenleme acilirsa kapsam + alan beyaz listesi gerekir)
+  'appointment.approve': OWNER_MANAGER, // online talep onay/ret (A2'de resepsiyon eklenir)
   'waitlist.view': OWNER_MANAGER, // 11 (liste musteri adi ve telefonu tasir)
   'health.view': OWNER_MANAGER_STAFF, // 17 (uzman yalniz kendi musterisinde)
   'health.write': OWNER_MANAGER_STAFF, // 17

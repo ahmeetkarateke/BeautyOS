@@ -24,8 +24,10 @@ import { createFinancialAccountsRouter } from './routes/financial-accounts.route
 import { createStaffPayoutsRouter } from './routes/staff-payouts.route'
 import { createStockRouter } from './routes/stock.route'
 import { createWaitlistRouter } from './routes/waitlist.route'
+import { createAppointmentApprovalRouter } from './routes/appointment-approval.route'
 import { TenantRegistry } from './lib/tenant.registry'
 import { startReminderWorker } from './lib/queue'
+import { resolveBookingMode } from './lib/booking-mode'
 import { db } from './lib/db'
 import { logger } from './lib/logger'
 export { createApp } from './app'
@@ -104,6 +106,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api/v1/tenants/:slug', createPurchaseInvoicesRouter())
   app.use('/api/v1/tenants/:slug', createFinancialAccountsRouter())
   app.use('/api/v1/tenants/:slug', createStockRouter())
+  app.use('/api/v1/tenants/:slug', createAppointmentApprovalRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   // ─── Global error handler ─────────────────────────────────────────────────
@@ -141,6 +144,7 @@ async function bootstrap(): Promise<void> {
 
   // ─── Telegram webhook kaydet ──────────────────────────────────────────────
 
+  logger.info({ phoneVerification: resolveBookingMode().phoneVerification }, 'Online randevu telefon doğrulama modu')
   startReminderWorker()
   logger.info('BullMQ hatırlatma worker başlatıldı')
 

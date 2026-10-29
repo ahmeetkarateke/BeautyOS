@@ -167,6 +167,7 @@ describe('S2: onay ve ret', () => {
 })
 
 describe('S2: onay/ret uclari (yetki)', () => {
+  const APPT = '33333333-3333-4333-8333-333333333333'
   const secret = 'x'.repeat(40)
   function tokenFor(role: string, tenantId = 't1') {
     return jwt.sign({ userId: 'u1', tenantId, tenantSlug: 'salon', role }, secret, { expiresIn: '5m' })
@@ -182,17 +183,17 @@ describe('S2: onay/ret uclari (yetki)', () => {
   it('K1: sahip ve mudur onaylayabilir (200 + confirmed)', async () => {
     for (const role of ['owner', 'manager']) {
       const res = await request(makeApp())
-        .patch('/api/v1/tenants/salon/appointments/a1/approve')
+        .patch(`/api/v1/tenants/salon/appointments/${APPT}/approve`)
         .set('Authorization', `Bearer ${tokenFor(role)}`)
       expect(res.status).toBe(200)
-      expect(res.body).toEqual({ id: 'a1', status: 'confirmed' })
+      expect(res.body).toEqual({ id: APPT, status: 'confirmed' })
     }
   })
 
   it('K1: uzman (staff) onaylayamaz ve reddedemez (403), veri degismez', async () => {
     for (const action of ['approve', 'reject']) {
       const res = await request(makeApp())
-        .patch(`/api/v1/tenants/salon/appointments/a1/${action}`)
+        .patch(`/api/v1/tenants/salon/appointments/${APPT}/${action}`)
         .set('Authorization', `Bearer ${tokenFor('staff')}`)
       expect(res.status).toBe(403)
     }
@@ -201,15 +202,15 @@ describe('S2: onay/ret uclari (yetki)', () => {
 
   it('K1: ret 200 + cancelled doner; bekleyen olmayan talepte 409 NOT_PENDING', async () => {
     const ok = await request(makeApp())
-      .patch('/api/v1/tenants/salon/appointments/a1/reject')
+      .patch(`/api/v1/tenants/salon/appointments/${APPT}/reject`)
       .set('Authorization', `Bearer ${tokenFor('owner')}`)
     expect(ok.status).toBe(200)
-    expect(ok.body).toEqual({ id: 'a1', status: 'cancelled' })
+    expect(ok.body).toEqual({ id: APPT, status: 'cancelled' })
 
     dbMock.appointment.updateMany.mockResolvedValueOnce({ count: 0 })
     dbMock.appointment.findFirst.mockResolvedValueOnce({ status: 'confirmed' })
     const locked = await request(makeApp())
-      .patch('/api/v1/tenants/salon/appointments/a1/reject')
+      .patch(`/api/v1/tenants/salon/appointments/${APPT}/reject`)
       .set('Authorization', `Bearer ${tokenFor('owner')}`)
     expect(locked.status).toBe(409)
     expect(locked.body.error.code).toBe('NOT_PENDING')
@@ -217,7 +218,7 @@ describe('S2: onay/ret uclari (yetki)', () => {
 
   it('kiraci izolasyonu: baska salonun slug\'i ile istek 403 (token baska kiraciya ait)', async () => {
     const res = await request(makeApp())
-      .patch('/api/v1/tenants/baska-salon/appointments/a1/approve')
+      .patch(`/api/v1/tenants/baska-salon/appointments/${APPT}/approve`)
       .set('Authorization', `Bearer ${tokenFor('owner')}`)
     expect(res.status).toBe(403)
     expect(dbMock.appointment.updateMany).not.toHaveBeenCalled()

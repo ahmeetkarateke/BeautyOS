@@ -7,6 +7,7 @@ const dbMock = vi.hoisted(() => ({
   phoneVerification: {
     findFirst: vi.fn(),
     create: vi.fn(),
+    count: vi.fn(),
   },
   tenant: { findUnique: vi.fn() },
 }))
@@ -19,16 +20,18 @@ vi.mock('../lib/sms', () => ({
 }))
 
 import { sendVerificationCode } from '../lib/phone-verification'
-import { allowedTurnstileHosts, verifyTurnstile } from '../lib/turnstile'
+import { allowedTurnstileHosts, isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { createPublicRouter } from '../routes/public.route'
 
-const ENV_KEYS = ['NODE_ENV', 'NETGSM_USERCODE', 'TURNSTILE_SECRET_KEY', 'ALLOWED_ORIGINS', 'FRONTEND_URL'] as const
+const ENV_KEYS = ['NODE_ENV', 'NETGSM_USERCODE', 'TURNSTILE_SECRET_KEY', 'ALLOWED_ORIGINS', 'FRONTEND_URL', 'JWT_SECRET'] as const
 let saved: Record<string, string | undefined>
 
 beforeEach(() => {
   saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]))
   dbMock.phoneVerification.findFirst.mockReset().mockResolvedValue(null)
   dbMock.phoneVerification.create.mockReset().mockResolvedValue({})
+  dbMock.phoneVerification.count.mockReset().mockResolvedValue(0)
+  process.env.JWT_SECRET = 'j'.repeat(40)
   dbMock.tenant.findUnique.mockReset().mockResolvedValue({ id: 't1', name: 'Salon', settings: {}, isActive: true })
 })
 
@@ -124,6 +127,29 @@ describe('Turnstile siteverify hostname denetimi', () => {
     delete process.env.FRONTEND_URL
     stubSiteverify({ success: true, hostname: 'app.beautyossapp.com' })
     expect(await verifyTurnstile('tok', undefined)).toBe(false)
+  })
+
+  it('S2-K4: siteverify 5 sn icinde yanit vermezse istek iptal edilir ve dogrulama basarisiz sayilir', async () => {
+    let seenSignal: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url: string, init: { signal: AbortSignal }) => {
+        seenSignal = init.signal
+        return new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+      }),
+    )
+    expect(await verifyTurnstile('tok', undefined, 20)).toBe(false)
+    expect(seenSignal?.aborted).toBe(true)
+  })
+
+  it('S2-K4: isTurnstileUnavailable yalniz uretimde gizli anahtar yokken true', () => {
+    delete process.env.TURNSTILE_SECRET_KEY
+    expect(isTurnstileUnavailable()).toBe(true)
+    process.env.NODE_ENV = 'development'
+    expect(isTurnstileUnavailable()).toBe(false)
+    process.env.NODE_ENV = 'production'
+    process.env.TURNSTILE_SECRET_KEY = 'gizli'
+    expect(isTurnstileUnavailable()).toBe(false)
   })
 
   it('allowedTurnstileHosts adresleri host adına çevirir, geçersizleri atlar', () => {

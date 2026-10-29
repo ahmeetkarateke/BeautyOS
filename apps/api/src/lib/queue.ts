@@ -4,11 +4,13 @@ import { DeliveryPurpose } from '@prisma/client'
 import { db } from './db'
 import { logger } from './logger'
 import { sendSms, normalizePhoneTR } from './sms'
+import { expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
 
 export type ReminderJobData =
   | { type: 'reminder_24h'; appointmentId: string }
   | { type: 'reminder_2h'; appointmentId: string }
   | { type: 'nightly_noshow' }
+  | { type: 'online_expire'; appointmentId: string }
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 
@@ -31,7 +33,14 @@ export const remindersQueue = new Queue<ReminderJobData>('reminders', {
 
 export async function processReminderJob(data: ReminderJobData): Promise<void> {
   if (data.type === 'nightly_noshow') {
+    await sweepExpiredOnlineRequests()
     await processNightlyNoShow()
+    return
+  }
+  if (data.type === 'online_expire') {
+    if (await expireOnlineRequest(data.appointmentId)) {
+      logger.info({ appointmentId: data.appointmentId }, 'Online talep süresi doldu, iptal edildi')
+    }
     return
   }
 
