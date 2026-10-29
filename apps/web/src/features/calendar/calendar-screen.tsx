@@ -13,7 +13,9 @@ import { useCan, useMe } from '@/lib/v2/session'
 import { useMediaQuery } from '@/lib/v2/use-media-query'
 import { useApiQuery } from '@/lib/v2/use-api-query'
 import { getInitials } from '@/ui/avatar'
+import { Banner } from '@/ui/banner'
 import { buttonClassName, Button } from '@/ui/button'
+import { useToast } from '@/ui/toast'
 import { Card } from '@/ui/card'
 import { Chip, ChipRow } from '@/ui/chip'
 import { cn } from '@/ui/cn'
@@ -24,6 +26,8 @@ import { EmptyState, ErrorState } from '@/ui/states'
 import { STATUS_LABELS } from '@/ui/status-badge'
 import { AppointmentDetailSheet } from '@/features/appointment-detail/detail-sheet'
 import { CreateAppointmentSheet } from '@/features/appointment-create/create-sheet'
+import { isMovable, type DropTarget } from './drag-logic'
+import { useAppointmentMove } from './use-appointment-move'
 import { monthGrid, parseDateParam, parseView, rangeFor, weekDays, type CalendarView } from './calendar-logic'
 import { DayGrid } from './day-grid'
 import { DayTimeline } from './day-timeline'
@@ -46,10 +50,26 @@ const VIEW_OPTIONS = [
 const STATUS_OPTIONS = Object.entries(STATUS_LABELS)
 
 const noon = (date: string) => new Date(`${date}T12:00:00+03:00`)
-const longDay = new Intl.DateTimeFormat('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
-const monthTitle = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
-const weekdayShort = new Intl.DateTimeFormat('tr-TR', { weekday: 'short', timeZone: 'Europe/Istanbul' })
-const dayNo = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', timeZone: 'Europe/Istanbul' })
+const longDay = new Intl.DateTimeFormat('tr-TR', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Europe/Istanbul',
+})
+const monthTitle = new Intl.DateTimeFormat('tr-TR', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Europe/Istanbul',
+})
+const weekdayShort = new Intl.DateTimeFormat('tr-TR', {
+  weekday: 'short',
+  timeZone: 'Europe/Istanbul',
+})
+const dayNo = new Intl.DateTimeFormat('tr-TR', {
+  day: 'numeric',
+  timeZone: 'Europe/Istanbul',
+})
 
 function useClock(fixed?: Date): Date {
   const [now, setNow] = useState(() => fixed ?? new Date())
@@ -77,7 +97,11 @@ function headingFor(view: CalendarView, date: string): string {
   return monthTitle.format(noon(date))
 }
 
-const UNIT: Record<CalendarView, string> = { gun: 'gün', hafta: 'hafta', ay: 'ay' }
+const UNIT: Record<CalendarView, string> = {
+  gun: 'gün',
+  hafta: 'hafta',
+  ay: 'ay',
+}
 
 export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   const me = useMe()
@@ -102,15 +126,38 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   const [reviewing, setReviewing] = useState<DayAppointment | null>(null)
   const [peeking, setPeeking] = useState<DayAppointment | null>(null)
 
-  const list = useApiQuery(isExpert && !ownId ? null : `cal:${range.from}:${range.to}:${ownId ?? ''}`, (c, signal) => fetchRangeAppointments(c, slug, range.from, range.to, ownId ?? undefined, signal))
+  const list = useApiQuery(isExpert && !ownId ? null : `cal:${range.from}:${range.to}:${ownId ?? ''}`, (c, signal) =>
+    fetchRangeAppointments(c, slug, range.from, range.to, ownId ?? undefined, signal),
+  )
   const staffQuery = useApiQuery(isExpert ? null : 'staff', (c, signal) => fetchStaff(c, slug, signal))
+  const toast = useToast()
+  const canReschedule = useCan('appointment.reschedule')
+  const mover = useAppointmentMove({
+    onChanged: list.refetch,
+    loadedAt: list.loadedAt,
+  })
 
   // Sütunlar: hizmet verenler + (hizmeti kaldırılmış olsa da) randevusu olanlar + listede hiç olmayanlar.
   // Böylece hiçbir randevu ızgarada sessizce kaybolmaz.
   const { staff, appointments } = useMemo(() => {
     if (isExpert) {
-      const own: StaffMember[] = ownId ? [{ id: ownId, name: me.user.name, short: firstWord(me.user.name), title: '', initials: getInitials(me.user.name), tone: 1, givesService: true }] : []
-      return { staff: own, appointments: list.data ? attachStaff(list.data, own) : [] }
+      const own: StaffMember[] = ownId
+        ? [
+            {
+              id: ownId,
+              name: me.user.name,
+              short: firstWord(me.user.name),
+              title: '',
+              initials: getInitials(me.user.name),
+              tone: 1,
+              givesService: true,
+            },
+          ]
+        : []
+      return {
+        staff: own,
+        appointments: list.data ? attachStaff(list.data, own) : [],
+      }
     }
     const all = staffQuery.data ?? []
     const mapped = list.data ? attachStaff(list.data, all) : []
@@ -120,7 +167,15 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
     const orphans = new Map<string, string>()
     for (const a of mapped) if (a.status !== 'cancelled' && !known.has(a.staffKey)) orphans.set(a.staffKey, a.staffName)
     for (const [key, name] of orphans) {
-      columns.push({ id: key, name, short: firstWord(name), title: '', initials: getInitials(name), tone: toneForIndex(columns.length), givesService: false })
+      columns.push({
+        id: key,
+        name,
+        short: firstWord(name),
+        title: '',
+        initials: getInitials(name),
+        tone: toneForIndex(columns.length),
+        givesService: false,
+      })
     }
     return { staff: columns, appointments: mapped }
   }, [isExpert, ownId, me.user.name, staffQuery.data, list.data])
@@ -152,7 +207,22 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
     else setPeeking(found)
   }
 
-  const dayAppointments = appointments.filter((a) => a.status !== 'cancelled')
+  // Taşınan randevu, sunucu yanıtı ve liste yenilemesi gelene dek yeni yerinde görünür (W15).
+  const shown = useMemo(() => {
+    const move = mover.pending
+    return move ? appointments.map((a) => (a.id === move.id ? { ...a, start: move.startAt, end: move.endAt } : a)) : appointments
+  }, [appointments, mover.pending])
+  const dayAppointments = shown.filter((a) => a.status !== 'cancelled')
+  // Uzman yalnız kendi randevusunu taşır; sunucu da ayrıca doğrular.
+  const canMove = (a: DayAppointment) => (!isExpert || a.staffKey === ownId) && isMovable(a, { canReschedule, now: clock })
+  const onMove = (a: DayAppointment, target: DropTarget) => {
+    if (target.valid) void mover.move(a, target)
+    else
+      toast.show({
+        message: 'Geçmiş bir saate taşınamaz. Randevuyu ileri bir saate bırakın.',
+        tone: 'error',
+      })
+  }
   const stripDays = weekDays(date)
   const filtered = appointments.filter((a) => (!staffFilter || a.staffKey === staffFilter) && (!statusFilter || a.status === statusFilter))
 
@@ -163,7 +233,14 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
         <p className="text-sm text-text-muted">{headingFor(view, date)}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {desktop ? <SegmentedControl aria-label="Görünüm" options={VIEW_OPTIONS} value={view} onValueChange={(v) => go(v as CalendarView, date === today ? null : date)} /> : null}
+        {desktop ? (
+          <SegmentedControl
+            aria-label="Görünüm"
+            options={VIEW_OPTIONS}
+            value={view}
+            onValueChange={(v) => go(v as CalendarView, date === today ? null : date)}
+          />
+        ) : null}
         <Link href={create()} className={cn(buttonClassName(), 'max-lg:hidden')}>
           Randevu oluştur
         </Link>
@@ -173,9 +250,18 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
 
   const navigation = (
     <div className="flex items-center gap-2">
-      <Button variant="icon" aria-label={`Önceki ${UNIT[view]}`} icon={<ChevronLeft aria-hidden="true" className="size-5" />} onClick={() => go(view, stepDate(view, date, -1))} />
+      <Button
+        variant="icon"
+        aria-label={`Önceki ${UNIT[view]}`}
+        icon={<ChevronLeft aria-hidden="true" className="size-5" />}
+        onClick={() => go(view, stepDate(view, date, -1))}
+      />
       {view === 'gun' ? (
-        <div role="group" aria-label="Gün seçin" className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&_:focus-visible]:-outline-offset-2 [&::-webkit-scrollbar]:hidden">
+        <div
+          role="group"
+          aria-label="Gün seçin"
+          className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&_:focus-visible]:-outline-offset-2 [&::-webkit-scrollbar]:hidden"
+        >
           {stripDays.map((d) => (
             <button
               key={d}
@@ -200,7 +286,12 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
       ) : (
         <span className="flex-1" />
       )}
-      <Button variant="icon" aria-label={`Sonraki ${UNIT[view]}`} icon={<ChevronRight aria-hidden="true" className="size-5" />} onClick={() => go(view, stepDate(view, date, 1))} />
+      <Button
+        variant="icon"
+        aria-label={`Sonraki ${UNIT[view]}`}
+        icon={<ChevronRight aria-hidden="true" className="size-5" />}
+        onClick={() => go(view, stepDate(view, date, 1))}
+      />
       {date !== today || view !== 'gun' ? (
         <Button variant="secondary" size="sm" onClick={() => go(view, null)}>
           Bugün
@@ -219,7 +310,11 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   } else if (isExpert && !ownId) {
     body = (
       <Card>
-        <EmptyState title="Uzman profiliniz bağlı değil." description="Hesabınıza bir uzman profili bağlanınca takviminiz burada görünür. Salon yöneticinizle görüşün." centered />
+        <EmptyState
+          title="Uzman profiliniz bağlı değil."
+          description="Hesabınıza bir uzman profili bağlanınca takviminiz burada görünür. Salon yöneticinizle görüşün."
+          centered
+        />
       </Card>
     )
   } else if (staffQuery.error && !staffQuery.data) {
@@ -248,22 +343,42 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   } else if (dayAppointments.length === 0) {
     body = (
       <Card>
-        <EmptyState title="Bu gün için randevu yok." action={{ label: 'Randevu oluştur', onClick: () => router.push(create()) }} centered />
+        <EmptyState
+          title="Bu gün için randevu yok."
+          action={{
+            label: 'Randevu oluştur',
+            onClick: () => router.push(create()),
+          }}
+          centered
+        />
       </Card>
     )
   } else if (desktop) {
     body = (
       <>
+        {mover.error ? (
+          <Banner tone="error" action={{ label: 'Kapat', onClick: mover.clearError }}>
+            {mover.error}
+          </Banner>
+        ) : null}
         <DayGrid
           staff={staff}
-          appointments={appointments}
+          appointments={shown}
           range={stripRange(dayAppointments)}
           nowMin={nowMin}
           showNow={date === today}
+          nowMs={clock.getTime()}
+          busy={mover.busy}
+          canMove={canMove}
           onOpen={openAppointment}
           onPickFree={(personel, time) => router.push(create(personel, time))}
+          onMove={onMove}
         />
-        <p className="text-xs text-text-muted">Boş bir saate tıklayınca randevu oluşturulur. Klavye için “Randevu oluştur” bağlantısını kullanın.</p>
+        <p className="text-xs text-text-muted">
+          Boş bir saate tıklayınca randevu oluşturulur.
+          {canReschedule ? ' İleri tarihli randevuyu sürükleyerek aynı uzmanın başka bir saatine taşıyabilirsiniz.' : ''} Klavye için randevuyu açıp “Saati
+          değiştir”i, yeni randevu için “Randevu oluştur” bağlantısını kullanın.
+        </p>
       </>
     )
   } else {
@@ -314,7 +429,11 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
         }}
         today={today}
         onCreated={list.refetch}
-        initial={{ staffId: params.get('personel') ?? undefined, time: params.get('saat') ?? undefined, date: params.get('tarih') ? date : undefined }}
+        initial={{
+          staffId: params.get('personel') ?? undefined,
+          time: params.get('saat') ?? undefined,
+          date: params.get('tarih') ? date : undefined,
+        }}
       />
       <AppointmentDetailSheet appointment={peeking} today={today} onClose={() => setPeeking(null)} onChanged={list.refetch} />
     </div>

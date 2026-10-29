@@ -10,10 +10,21 @@ function suffixOfNumber(n: number): string {
   return n === 0 ? UNIT_SUFFIX[0] : TENS_SUFFIX[n / 10]
 }
 
-export function untilLabel(clock: string): string {
+function dativeSuffix(clock: string): string | null {
   const match = /^(\d{2}):(\d{2})$/.exec(clock)
-  if (!match) return `${clock} saatine kadar`
+  if (!match) return null
   const hours = Number(match[1])
   const minutes = Number(match[2])
-  return `${clock}’${suffixOfNumber(minutes !== 0 ? minutes : hours)} kadar`
+  return suffixOfNumber(minutes !== 0 ? minutes : hours)
+}
+
+/** "15:30’a": saate yönelme eki. Biçim bozuksa eksiz döner. */
+export function clockDative(clock: string): string {
+  const suffix = dativeSuffix(clock)
+  return suffix ? `${clock}’${suffix}` : clock
+}
+
+export function untilLabel(clock: string): string {
+  const suffix = dativeSuffix(clock)
+  return suffix ? `${clock}’${suffix} kadar` : `${clock} saatine kadar`
 }
