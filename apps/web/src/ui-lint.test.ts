@@ -103,3 +103,23 @@ describe('ui-lint: CSS @import (denetim W2-2 / W3-1 Önemli 2)', () => {
     expect(rules('styles/app.css', '@import "../ui/extra.css";')).toEqual([])
   })
 })
+
+describe('ui-lint: CSS @import yazım çeşitleri (denetim W3-2 Önemli)', () => {
+  it('ADR-UI-02: tırnaksız url(), büyük harf ve çok satırlı @import yakalanır', () => {
+    expect(rules('styles/a.css', '@import url(../app/(legacy)/globals.css);')).toEqual(['eski-klasor-importu'])
+    expect(rules('styles/a.css', '@IMPORT "../components/x.css";')).toEqual(['eski-klasor-importu'])
+    expect(rules('styles/a.css', '@import\n  "../lib/eski.css";')).toEqual(['eski-klasor-importu'])
+    expect(rules('styles/a.css', "@import url( '../lib/eski.css' ) layer(base);")).toEqual(['eski-klasor-importu'])
+  })
+
+  it('ADR-UI-02: bu yazımların v2 içi ve paket hâlleri serbest, yorumdaki import sayılmaz', () => {
+    expect(rules('styles/a.css', '@import url(./tokens.css);')).toEqual([])
+    expect(rules('styles/a.css', '@IMPORT "tailwindcss";')).toEqual([])
+    expect(rules('styles/a.css', '/* @import "../lib/eski.css"; */ .a { color: var(--color-text) }')).toEqual([])
+  })
+
+  it('ADR-UI-02: çok satırlı importta satır numarası @import satırıdır', () => {
+    const found = lintSource('styles/a.css', '.a{}\n\n@import\n  "../lib/eski.css";') as Finding[]
+    expect(found.map((f) => f.line)).toEqual([3])
+  })
+})
