@@ -6,16 +6,18 @@ import { createHash } from 'node:crypto'
 // A7 / ADR-0043 + ADR-0046: musterinin randevu baglantisi (token govdede). db ve kuyruk sahte; DB/Redis gerekmez.
 const m = vi.hoisted(() => ({
   db: {
-    appointment: { findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    appointment: { findFirst: vi.fn(), updateMany: vi.fn() },
     staffProfile: { findFirst: vi.fn() },
   },
   scheduleReminders: vi.fn(),
   cancelReminders: vi.fn(),
   scheduleOnlineExpiry: vi.fn(),
   removeExpiryJob: vi.fn(),
+  getSlots: vi.fn(),
 }))
 
 vi.mock('../lib/db', () => ({ db: m.db }))
+vi.mock('../lib/slots', () => ({ getSlots: m.getSlots }))
 vi.mock('../lib/queue', () => ({ remindersQueue: { add: vi.fn(), remove: vi.fn() }, scheduleReminders: m.scheduleReminders, cancelReminders: m.cancelReminders }))
 vi.mock('../lib/online-booking', () => ({
   scheduleOnlineExpiry: m.scheduleOnlineExpiry,
@@ -42,7 +44,7 @@ function booking(over: Record<string, unknown> = {}) {
     startAt, endAt: new Date(startAt.getTime() + H), priceCharged: 250,
     service: { name: 'Sac Boyama', durationMinutes: 60, bufferMinutes: 0 },
     staff: { user: { fullName: 'Uzman Ali' } },
-    tenant: { name: 'Salon X', slug: 'salon-x', businessType: 'hair_salon', settings: { phone: '05320000000', address: 'Moda Cd. 5' } },
+    tenant: { name: 'Salon X', slug: 'salon-x', businessType: 'hair_salon', isActive: true, settings: { phone: '05320000000', address: 'Moda Cd. 5', publicBookingEnabled: true } },
     ...over,
   }
 }
@@ -52,8 +54,13 @@ beforeEach(() => {
   conflictResult = null
   setBooking(booking())
   m.db.appointment.updateMany.mockResolvedValue({ count: 1 })
-  m.db.appointment.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'a1', ...data }))
   m.db.staffProfile.findFirst.mockResolvedValue({ id: 's1' })
+  delete process.env.NETGSM_USERCODE
+  // Mesai: istenen Istanbul gununun her ceyrek saati uygun slot olarak doner.
+  m.getSlots.mockImplementation(async ({ date }: { date: string }) => {
+    const base = Date.parse(`${date}T00:00:00+03:00`)
+    return Array.from({ length: 96 }, (_, i) => ({ id: new Date(base + i * 15 * 60_000).toISOString(), label: '', available: true }))
+  })
   for (const f of [m.scheduleReminders, m.cancelReminders, m.scheduleOnlineExpiry, m.removeExpiryJob]) f.mockResolvedValue(undefined)
 })
 
@@ -140,7 +147,7 @@ describe('POST /public/bookings/cancel', () => {
     expect(res.body).toEqual({ status: 'cancelled' })
     const call = m.db.appointment.updateMany.mock.calls[0][0]
     expect(call.where).toMatchObject({ manageTokenHash: sha256(TOKEN), isDeleted: false, status: { in: ['pending', 'confirmed'] } })
-    expect(call.where.startAt.gt).toBeInstanceOf(Date)
+    expect(Math.abs(call.where.startAt.gte.getTime() - (Date.now() + 2 * H))).toBeLessThan(5000)
     expect(call.data).toMatchObject({ status: 'cancelled', cancelReason: 'cancelled_by_customer' })
     expect(m.cancelReminders).toHaveBeenCalledWith('a1')
     expect(m.removeExpiryJob).toHaveBeenCalledWith('a1')
@@ -189,11 +196,12 @@ describe('POST /public/bookings/cancel', () => {
 describe('POST /public/bookings/reschedule', () => {
   const newStart = () => new Date(Date.now() + 96 * H)
 
-  it('mutlu yol (otomatik onay modunda musterili randevu): saat degisir, token ayni kalir, durum confirmed, isler yeniden kurulur', async () => {
+  it('SMS acik + otomatik onay (musterili randevu): saat degisir, token ayni kalir, durum confirmed, isler yeniden kurulur', async () => {
+    process.env.NETGSM_USERCODE = 'x'
     const start = newStart()
     const res = await post('reschedule', { token: TOKEN, startAt: start.toISOString() })
     expect(res.status).toBe(200)
-    const data = m.db.appointment.update.mock.calls[0][0].data
+    const data = m.db.appointment.updateMany.mock.calls[0][0].data
     expect(data.startAt.getTime()).toBe(start.getTime())
     expect(data.endAt.getTime()).toBe(start.getTime() + H)
     expect(data).not.toHaveProperty('manageTokenHash')
@@ -203,11 +211,21 @@ describe('POST /public/bookings/reschedule', () => {
     expect(m.scheduleReminders.mock.calls[0][0]).toMatchObject({ appointmentId: 'a1', tenantId: 't1' })
   })
 
-  it('elle onay modunda (klinik varsayilani) yeniden pending olur, onay suresi dolumu kurulur, hatirlatma kurulmaz', async () => {
-    setBooking(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', settings: {} } }))
+  it('SMS KAPALI (kurucu karari 5): salonun onayladigi musterili randevu tasininca zorunlu salon onayi icin pending olur, hatirlatma kurulmaz', async () => {
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(200)
-    expect(m.db.appointment.update.mock.calls[0][0].data.status).toBe('pending')
+    expect(res.body.status).toBe('pending')
+    expect(m.db.appointment.updateMany.mock.calls[0][0].data.status).toBe('pending')
+    expect(m.scheduleOnlineExpiry).toHaveBeenCalledTimes(1)
+    expect(m.scheduleReminders).not.toHaveBeenCalled()
+  })
+
+  it('SMS acik + elle onay modunda (klinik varsayilani) yeniden pending olur, onay suresi dolumu kurulur, hatirlatma kurulmaz', async () => {
+    setBooking(booking({ tenant: { name: 'K', slug: 'k', businessType: 'dentist', isActive: true, settings: { publicBookingEnabled: true } } }))
+    process.env.NETGSM_USERCODE = 'x'
+    const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    expect(res.status).toBe(200)
+    expect(m.db.appointment.updateMany.mock.calls[0][0].data.status).toBe('pending')
     expect(m.scheduleOnlineExpiry).toHaveBeenCalledTimes(1)
     expect(m.scheduleReminders).not.toHaveBeenCalled()
   })
@@ -215,7 +233,7 @@ describe('POST /public/bookings/reschedule', () => {
   it('musterisiz (dogrulanmamis) talep her zaman pending kalir', async () => {
     setBooking(booking({ customerId: null, status: 'pending' }))
     await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
-    expect(m.db.appointment.update.mock.calls[0][0].data.status).toBe('pending')
+    expect(m.db.appointment.updateMany.mock.calls[0][0].data.status).toBe('pending')
   })
 
   it('cakisma (ayni personelde dolu saat): 409 SLOT_TAKEN, yazilmaz', async () => {
@@ -260,6 +278,50 @@ describe('POST /public/bookings/reschedule', () => {
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('BOOKING_NOT_MODIFIABLE')
+  })
+})
+
+describe('reschedule: yazim koşullu, salon açık, mesai içinde (denetim A7-baglanti-1)', () => {
+  const newStart = () => new Date(Date.now() + 96 * H)
+
+  it('yazim kosulludur: token ozeti, bekleyen/onayli durum, silinmemis ve 2 saat siniri where icinde', async () => {
+    await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    const where = m.db.appointment.updateMany.mock.calls[0][0].where
+    expect(where).toMatchObject({ manageTokenHash: sha256(TOKEN), isDeleted: false, status: { in: ['pending', 'confirmed'] } })
+    const gte = where.startAt.gte.getTime()
+    expect(Math.abs(gte - (Date.now() + 2 * H))).toBeLessThan(5000)
+  })
+
+  it('arada reddedilen/iptal edilen randevu dirilmez: guncelleme count 0 -> 409 BOOKING_NOT_MODIFIABLE, isler kurulmaz', async () => {
+    m.db.appointment.updateMany.mockResolvedValue({ count: 0 })
+    const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('BOOKING_NOT_MODIFIABLE')
+    expect(m.scheduleReminders).not.toHaveBeenCalled()
+    expect(m.scheduleOnlineExpiry).not.toHaveBeenCalled()
+  })
+
+  it('mesai disi / slot olmayan saat 400 INVALID_SLOT, yazilmaz', async () => {
+    m.getSlots.mockResolvedValue([])
+    const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_SLOT')
+    expect(m.db.appointment.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('slot sorgusu kiraci, hizmet ve hedef personelle yapilir', async () => {
+    await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    expect(m.getSlots.mock.calls[0][0]).toMatchObject({ tenantId: 't1', serviceId: 'sv1', staffId: 's1' })
+  })
+
+  it('salon pasifse ya da online randevuyu kapattiysa 403 BOOKING_DISABLED, yazilmaz', async () => {
+    setBooking(booking({ tenant: { name: 'Salon X', slug: 'salon-x', businessType: 'hair_salon', isActive: false, settings: { publicBookingEnabled: true } } }))
+    expect((await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })).status).toBe(403)
+    setBooking(booking({ tenant: { name: 'Salon X', slug: 'salon-x', businessType: 'hair_salon', isActive: true, settings: { publicBookingEnabled: false } } }))
+    const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('BOOKING_DISABLED')
+    expect(m.db.appointment.updateMany).not.toHaveBeenCalled()
   })
 })
 
