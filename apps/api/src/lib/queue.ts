@@ -81,7 +81,7 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
   // SMS gönder
   const normalized = normalizePhoneTR(phone)
   if (!normalized) {
-    logger.warn({ appointmentId, phone }, 'Telefon normalize edilemedi, hatırlatma atlandı')
+    logger.warn({ appointmentId }, 'Telefon normalize edilemedi, hatırlatma atlandı')
     return
   }
 
