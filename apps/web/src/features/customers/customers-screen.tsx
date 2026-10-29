@@ -161,6 +161,7 @@ export function CustomersScreen() {
         type="search"
         inputMode="search"
         autoComplete="off"
+        maxLength={100}
         value={input}
         onChange={(event) => setInput(event.target.value)}
         hint={hint}

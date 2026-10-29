@@ -58,13 +58,29 @@ describe('W17 toCreatePayload', () => {
 })
 
 describe('W17 toFormValues / toUpdatePayload', () => {
-  const original = { id: 'c1', fullName: 'Ayşe Demir', phone: '+905321234567', email: 'ayse@ornek.com', birthDate: '1990-05-17T00:00:00.000Z', preferenceNotes: 'Sıcak su' }
+  const original = {
+    id: 'c1',
+    fullName: 'Ayşe Demir',
+    phone: '+905321234567',
+    email: 'ayse@ornek.com',
+    birthDate: '1990-05-17T00:00:00.000Z',
+    preferenceNotes: 'Sıcak su',
+  }
 
   it('K8: sunucu kaydı forma çevrilir (+90 ulusal rakama, ISO tarih günlüğe)', () => {
-    expect(toFormValues(original)).toEqual({ fullName: 'Ayşe Demir', phoneDigits: '5321234567', email: 'ayse@ornek.com', birthDate: '1990-05-17', preferenceNotes: 'Sıcak su' })
+    expect(toFormValues(original)).toEqual({
+      fullName: 'Ayşe Demir',
+      phoneDigits: '5321234567',
+      email: 'ayse@ornek.com',
+      birthDate: '1990-05-17',
+      preferenceNotes: 'Sıcak su',
+    })
   })
   it('K8: telefonu null olan kayıt boş telefonla açılır, boş formda emptyValues kullanılır', () => {
-    expect(toFormValues({ ...original, phone: null, email: null, birthDate: null, preferenceNotes: null })).toEqual(emptyValues())
+    expect(toFormValues({ ...original, phone: null, email: null, birthDate: null, preferenceNotes: null })).toEqual({
+      ...emptyValues(),
+      fullName: 'Ayşe Demir',
+    })
     expect(emptyValues().phoneDigits).toBe('')
   })
   it('K9: değişmeyen alan gönderilmez; yalnız değişen gider', () => {
@@ -76,7 +92,11 @@ describe('W17 toFormValues / toUpdatePayload', () => {
     expect(toUpdatePayload({ ...toFormValues(original), phoneDigits: '5329876543' }, original, false)).toEqual({ phone: '05329876543' })
   })
   it('K9: silinen e-posta, doğum tarihi ve not null gider (temizlenir)', () => {
-    expect(toUpdatePayload({ ...toFormValues(original), email: '', birthDate: '', preferenceNotes: '' }, original, false)).toEqual({ email: null, birthDate: null, preferenceNotes: null })
+    expect(toUpdatePayload({ ...toFormValues(original), email: '', birthDate: '', preferenceNotes: '' }, original, false)).toEqual({
+      email: null,
+      birthDate: null,
+      preferenceNotes: null,
+    })
   })
   it('K7: düzenlemede Yine de ekle yalnız telefon değişirken anlamlıdır ama bayrak her durumda iletilir', () => {
     expect(toUpdatePayload({ ...toFormValues(original), phoneDigits: '5329876543' }, original, true)).toEqual({ phone: '05329876543', allowSharedPhone: true })

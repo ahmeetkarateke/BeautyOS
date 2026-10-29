@@ -353,7 +353,7 @@ function CustomerSection({
   const loaded = searching && settled && hits.data !== undefined
   return (
     <Section title="Müşteri">
-      <InputField label="Müşteri ara" type="search" role="searchbox" hint="Ad ya da telefonla arayın (en az 2 karakter)." value={term} onChange={(event) => onTerm(event.target.value)} />
+      <InputField label="Müşteri ara" type="search" role="searchbox" maxLength={100} hint="Ad ya da telefonla arayın (en az 2 karakter)." value={term} onChange={(event) => onTerm(event.target.value)} />
       {searching && hits.error && !hits.data ? (
         <Banner tone="error" action={{ label: 'Yeniden dene', onClick: hits.refetch }}>
           Müşteri araması yapılamadı.
