@@ -41,6 +41,48 @@ describe('ui-lint kuralları', () => {
   })
 })
 
+describe('ui-lint: yalıtım beyaz listesi (denetim W2-1 Kritik 1)', () => {
+  const bad = [
+    "import '@/app/(legacy)/globals.css'",
+    "import { apiFetch } from '../lib/api'",
+    "import { x } from '@/lib/yeni-eski-dosya'",
+    "import { x } from '@/lib/api/sub'",
+    "export { Button } from '@/components/ui/button'",
+    "const m = await import('@/store/auth')",
+  ]
+  it.each(bad)('ADR-UI-02: ui/ altından yasak içe aktarma yakalanır: %s', (code) => {
+    expect(rules('ui/a.tsx', code)).toEqual(['eski-klasor-importu'])
+  })
+
+  it('ADR-UI-02: features/x/ altından ../../lib/api yakalanır', () => {
+    expect(rules('features/x/a.tsx', "import { apiFetch } from '../../lib/api'")).toEqual(['eski-klasor-importu'])
+  })
+
+  it('ADR-UI-02: v2 içi göreli ve takma adlı içe aktarmalar serbest', () => {
+    expect(rules('ui/a.tsx', "import { Button } from '../ui/button'")).toEqual([])
+    expect(rules('features/x/a.tsx', "import { cn } from '../../ui/cn'")).toEqual([])
+    expect(rules('ui/a.tsx', "import './local.css'")).toEqual([])
+    expect(rules('features/x/a.tsx', "import { Button } from '@/ui/button'")).toEqual([])
+    expect(rules('app/(v2)/layout.tsx', "import '@/styles/app.css'")).toEqual([])
+    expect(rules('proxy.ts', "import { resolveRoute } from './lib/v2/routes'")).toEqual([])
+    expect(rules('ui/a.tsx', "import { useState } from 'react'")).toEqual([])
+  })
+
+  it('ADR-UI-02: çok satırlı içe aktarmanın from satırı da denetlenir', () => {
+    expect(rules('ui/a.tsx', "import {\n  a,\n} from '@/lib/api'")).toEqual(['eski-klasor-importu'])
+  })
+})
+
+describe('ui-lint: rem/em ve keyfi kalınlık (denetim W2-1 Öneri)', () => {
+  it('tasarim.md §3.2: 0,75 rem altı yazı ve font-[700] yakalanır; 0,75 rem ve 600 serbest', () => {
+    expect(rules('ui/a.tsx', '<p className="text-[0.6rem]" />')).toEqual(['12px-alti-yazi'])
+    expect(rules('ui/a.tsx', '<p className="text-[0.7rem]" />')).toEqual(['12px-alti-yazi'])
+    expect(rules('ui/a.tsx', '<p className="text-[0.75rem]" />')).toEqual([])
+    expect(rules('ui/a.tsx', '<p className="font-[700]" />')).toEqual(['kalin-700'])
+    expect(rules('ui/a.tsx', '<p className="font-[600]" />')).toEqual([])
+  })
+})
+
 describe('ui-lint: gerçek v2 klasörleri', () => {
   it('ADR-UI-04: v2 klasörlerinde ihlal yok', () => {
     const found = lintV2(path.join(__dirname)) as Array<Finding & { file: string }>

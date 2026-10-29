@@ -11,8 +11,26 @@ const EXTENSIONS = new Set(['.ts', '.tsx', '.css'])
 // tokens.css ham katman dosyası: hex yalnız orada serbest.
 const HEX_ALLOWED_FILES = new Set(['styles/tokens.css'])
 
-const FORBIDDEN_IMPORT =
-  /(?:from\s+|import\s*\(\s*|require\s*\(\s*)['"](?:@\/(?:components|hooks|store)\/|@\/lib\/(?:api|admin-api|utils|modules|sector-data|staff-colors|landing-tokens)['"]|@\/app\/\(legacy\)|(?:\.\.?\/)+(?:components|hooks|store)\/|[^'"]*\(legacy\))/
+// İçe aktarma beyaz listesi (ADR-UI-02): v2 dosyası yalnız v2 köklerinden içe aktarabilir.
+// Kara liste yeni eklenen eski dosyayı kaçırırdı.
+const V2_ROOTS = V2_DIRS.map((d) => d + '/')
+const isV2Path = (p) => V2_ROOTS.some((root) => (p + '/').startsWith(root))
+// from 'x' | import 'x' | import('x') | require('x'); "export ... from 'x'" de from ile yakalanır.
+const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"])([^'"]+)\1/g
+
+/**
+ * @param {string} importer apps/web/src'ye göre içe aktaran dosya
+ * @param {string} spec
+ */
+function isForbiddenImport(importer, spec) {
+  if (spec.startsWith('@/')) return !isV2Path(spec.slice(2))
+  if (spec.startsWith('.')) {
+    const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(importer), spec))
+    // Kök dışına çıkan ya da v2 kökü olmayan yol ihlaldir (proxy.ts src kökündedir).
+    return resolved.startsWith('..') || !isV2Path(resolved)
+  }
+  return false // paket adı
+}
 
 /** @typedef {{ rule: string, line: number, text: string }} Finding */
 
@@ -51,9 +69,9 @@ export function lintSource(relativePath, content) {
     if (/\b(?:bg-white|bg-black|text-white|text-black)\b/.test(line)) at('ham-renk-sinifi')
     if (/\b(?:bg|text|border|ring|fill|stroke)-(?:gray|slate|zinc|neutral|stone|red|green|blue|amber|purple|violet|indigo)-\d{2,3}\b/.test(line)) at('ham-renk-sinifi')
     if (/(?:^|[\s"'`{(])dark:/.test(line)) at('dark-varyanti')
-    if (/\btext-\[(?:[0-9]|1[01])(?:\.\d+)?px\]/.test(line) || /font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px/.test(line)) at('12px-alti-yazi')
-    if (/\bfont-(?:bold|extrabold|black)\b|font-weight:\s*[7-9]00\b/.test(line)) at('kalin-700')
-    if (FORBIDDEN_IMPORT.test(line)) at('eski-klasor-importu')
+    if (/\btext-\[(?:[0-9]|1[01])(?:\.\d+)?px\]/.test(line) || /font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px/.test(line) || /\btext-\[0?\.(?:[0-6]\d*|7(?:[0-4]\d*)?)r?em\]/.test(line)) at('12px-alti-yazi')
+    if (/\bfont-(?:bold|extrabold|black)\b|font-weight:\s*[7-9]00\b|\bfont-\[[7-9]00\]/.test(line)) at('kalin-700')
+    if (!isCss && [...line.matchAll(SPECIFIER)].some((m) => isForbiddenImport(relativePath, m[2]))) at('eski-klasor-importu')
   })
   return findings
 }
