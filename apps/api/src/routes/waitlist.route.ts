@@ -45,10 +45,6 @@ export function createWaitlistRouter(): Router {
   router.use(requireTenantAccess)
   router.use(checkTenantActive)
 
-  function canMutateOthers(role: string): boolean {
-    return role === 'owner' || role === 'manager'
-  }
-
   // GET /waitlist
   router.get('/', requirePermission('waitlist.view'), async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -126,7 +122,7 @@ export function createWaitlistRouter(): Router {
   })
 
   // POST /waitlist
-  router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/', requirePermission('waitlist.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
 
@@ -179,7 +175,7 @@ export function createWaitlistRouter(): Router {
   })
 
   // PATCH /waitlist/:id — preferences / notes
-  router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  router.patch('/:id', requirePermission('waitlist.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const { id } = req.params
@@ -228,14 +224,10 @@ export function createWaitlistRouter(): Router {
   })
 
   // DELETE /waitlist/:id — soft cancel
-  router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  router.delete('/:id', requirePermission('waitlist.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const { id } = req.params
-
-      if (!canMutateOthers(req.user!.role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bekleme kaydı iptal etme yetkiniz yok.' } })
-      }
 
       const existing = await db.waitlist.findFirst({ where: { id, tenantId }, select: { id: true } })
       if (!existing) {
@@ -250,7 +242,7 @@ export function createWaitlistRouter(): Router {
   })
 
   // POST /waitlist/:id/notify
-  router.post('/:id/notify', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/:id/notify', requirePermission('waitlist.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const { id } = req.params
@@ -289,7 +281,7 @@ export function createWaitlistRouter(): Router {
   })
 
   // POST /waitlist/:id/book
-  router.post('/:id/book', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/:id/book', requirePermission('waitlist.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const { id } = req.params
@@ -327,14 +319,10 @@ export function createWaitlistRouter(): Router {
   })
 
   // POST /waitlist/:id/expire
-  router.post('/:id/expire', async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/:id/expire', requirePermission('waitlist.write'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!
       const { id } = req.params
-
-      if (!canMutateOthers(req.user!.role)) {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Süre dolduruma yetkiniz yok.' } })
-      }
 
       const entry = await db.waitlist.findFirst({ where: { id, tenantId }, select: { id: true, status: true } })
       if (!entry) {

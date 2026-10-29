@@ -334,6 +334,38 @@ describe('S1 uzman yalniz kendi musterilerini gorur (K4)', () => {
     expect(ownerRes.body.data.map((e: { id: string }) => e.id)).toContain(entry.id)
   })
 
+  it('S1b: staff bekleme listesine yazamaz (POST, PATCH, DELETE, notify, book, expire 403) ve kayit degismez; notify yanitinda telefon yok', async () => {
+    const entry = await db.waitlist.create({ data: { tenantId, customerId: otherStaffCustomerId } })
+    const countBefore = await db.waitlist.count({ where: { tenantId, customerId: otherStaffCustomerId } })
+    const base = `/api/v1/tenants/${slug}/waitlist`
+    const auth = { Authorization: `Bearer ${staffAToken}` }
+    const calls = [
+      request(app).post(base).set(auth).send({ customerId: otherStaffCustomerId }),
+      request(app).patch(`${base}/${entry.id}`).set(auth).send({ notes: 'DEGISTI' }),
+      request(app).delete(`${base}/${entry.id}`).set(auth),
+      request(app).post(`${base}/${entry.id}/notify`).set(auth).send({}),
+      request(app).post(`${base}/${entry.id}/book`).set(auth).send({ appointmentId: entry.id }),
+      request(app).post(`${base}/${entry.id}/expire`).set(auth).send({}),
+    ]
+    for (const res of await Promise.all(calls)) {
+      expect(res.status).toBe(403)
+      expect(JSON.stringify(res.body)).not.toContain('+905550000102')
+    }
+    const after = await db.waitlist.findUniqueOrThrow({ where: { id: entry.id } })
+    expect(after.status).toBe('waiting')
+    expect(after.notes).toBeNull()
+    expect(after.notifiedAt).toBeNull()
+    expect(await db.waitlist.count({ where: { tenantId, customerId: otherStaffCustomerId } })).toBe(countBefore)
+  })
+
+  it('S1b: owner bekleme listesine yazabilir (staff testinin tesadufen gecmedigini kanitlar)', async () => {
+    const res = await request(app)
+      .post(`/api/v1/tenants/${slug}/waitlist`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ customerId: otherStaffCustomerId })
+    expect(res.status).toBeLessThan(300)
+  })
+
   describe('musteri paketleri (K4 kapsami)', () => {
     let ownCpId: string
     let otherCpId: string

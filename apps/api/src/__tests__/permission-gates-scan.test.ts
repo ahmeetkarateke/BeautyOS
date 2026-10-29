@@ -31,8 +31,8 @@ describe('S1-K5: yetki kapisi tablosu kaynakla birebir ayni', () => {
     for (const gate of GATES) expect(Object.keys(PERMISSIONS)).toContain(gate.permission)
   })
 
-  it('S1 yeni anahtarlar: customer.write ve waitlist.view yalniz owner ve manager', () => {
-    for (const key of ['customer.write', 'waitlist.view'] as PermissionKey[]) {
+  it('S1 yeni anahtarlar: customer.write, waitlist.view ve waitlist.write yalniz owner ve manager', () => {
+    for (const key of ['customer.write', 'waitlist.view', 'waitlist.write'] as PermissionKey[]) {
       expect(can('owner', key)).toBe(true)
       expect(can('manager', key)).toBe(true)
       expect(can('staff', key)).toBe(false)

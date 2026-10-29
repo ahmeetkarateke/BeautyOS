@@ -43,6 +43,14 @@ describe('izin tablosu', () => {
     }
   })
 
+  it('Object.prototype adlari izin anahtari sayilmaz (disaridan gelen anahtar icin kapali basarisizlik)', () => {
+    for (const key of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+      for (const role of ['owner', 'manager', 'staff']) {
+        expect(shared.can(role, key as never)).toBe(false)
+      }
+    }
+  })
+
   it('permissionsFor: staff yalnizca saglik ve fotograf izinlerini alir', () => {
     expect(shared.permissionsFor('staff').sort()).toEqual(
       ['customer.photo.view', 'customer.photo.write', 'health.view', 'health.write'],
