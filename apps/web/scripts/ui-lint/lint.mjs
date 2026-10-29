@@ -17,6 +17,8 @@ const V2_ROOTS = V2_DIRS.map((d) => d + '/')
 const isV2Path = (p) => V2_ROOTS.some((root) => (p + '/').startsWith(root))
 // from 'x' | import 'x' | import('x') | require('x'); "export ... from 'x'" de from ile yakalanır.
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"])([^'"]+)\1/g
+// CSS: @import "x" | @import url('x')
+const CSS_IMPORT = /@import\s+(?:url\(\s*)?(['"])([^'"]+)\1/g
 
 /**
  * @param {string} importer apps/web/src'ye göre içe aktaran dosya
@@ -71,7 +73,7 @@ export function lintSource(relativePath, content) {
     if (/(?:^|[\s"'`{(])dark:/.test(line)) at('dark-varyanti')
     if (/\btext-\[(?:[0-9]|1[01])(?:\.\d+)?px\]/.test(line) || /font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px/.test(line) || /\btext-\[0?\.(?:[0-6]\d*|7(?:[0-4]\d*)?)r?em\]/.test(line)) at('12px-alti-yazi')
     if (/\bfont-(?:bold|extrabold|black)\b|font-weight:\s*[7-9]00\b|\bfont-\[[7-9]00\]/.test(line)) at('kalin-700')
-    if (!isCss && [...line.matchAll(SPECIFIER)].some((m) => isForbiddenImport(relativePath, m[2]))) at('eski-klasor-importu')
+    if ([...line.matchAll(isCss ? CSS_IMPORT : SPECIFIER)].some((m) => isForbiddenImport(relativePath, m[2]))) at('eski-klasor-importu')
   })
   return findings
 }

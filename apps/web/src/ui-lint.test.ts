@@ -89,3 +89,17 @@ describe('ui-lint: gerçek v2 klasörleri', () => {
     expect(found.map((f) => `${f.file}:${f.line} ${f.rule}`)).toEqual([])
   })
 })
+
+describe('ui-lint: CSS @import (denetim W2-2 / W3-1 Önemli 2)', () => {
+  it('ADR-UI-02: v2 CSS dosyası eski CSS ya da eski klasörden @import yapamaz', () => {
+    expect(rules('styles/a.css', '@import "../app/(legacy)/globals.css";')).toEqual(['eski-klasor-importu'])
+    expect(rules('styles/a.css', "@import url('../lib/eski.css');")).toEqual(['eski-klasor-importu'])
+    expect(rules('ui/a.css', '@import "../components/x.css";')).toEqual(['eski-klasor-importu'])
+  })
+
+  it('ADR-UI-02: v2 içi göreli ve paket @import serbest', () => {
+    expect(rules('styles/app.css', '@import "./tokens.css";')).toEqual([])
+    expect(rules('styles/app.css', '@import "tailwindcss" source(none);')).toEqual([])
+    expect(rules('styles/app.css', '@import "../ui/extra.css";')).toEqual([])
+  })
+})

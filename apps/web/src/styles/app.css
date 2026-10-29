@@ -14,6 +14,22 @@
 @import "./tokens.css";
 @import "./fonts.css";
 
+/* --status-* ve --person-* Tailwind'in renk ad alanında değildir; yardımcı sınıfa (bg-status-pending-bg) bağlanır.
+   inline: değer var() olarak kalır, tokens.css tek kaynak. */
+@theme inline {
+  --color-status-pending-bg: var(--status-pending-bg);     --color-status-pending-text: var(--status-pending-text);
+  --color-status-confirmed-bg: var(--status-confirmed-bg); --color-status-confirmed-text: var(--status-confirmed-text);
+  --color-status-inprogress-bg: var(--status-inprogress-bg); --color-status-inprogress-text: var(--status-inprogress-text);
+  --color-status-completed-bg: var(--status-completed-bg); --color-status-completed-text: var(--status-completed-text);
+  --color-status-cancelled-bg: var(--status-cancelled-bg); --color-status-cancelled-text: var(--status-cancelled-text);
+  --color-status-noshow-bg: var(--status-noshow-bg);       --color-status-noshow-text: var(--status-noshow-text);
+  --color-person-1-bg: var(--person-1-bg); --color-person-1-text: var(--person-1-text); --color-person-1-mark: var(--person-1-mark);
+  --color-person-2-bg: var(--person-2-bg); --color-person-2-text: var(--person-2-text); --color-person-2-mark: var(--person-2-mark);
+  --color-person-3-bg: var(--person-3-bg); --color-person-3-text: var(--person-3-text); --color-person-3-mark: var(--person-3-mark);
+  --color-person-4-bg: var(--person-4-bg); --color-person-4-text: var(--person-4-text); --color-person-4-mark: var(--person-4-mark);
+  --color-person-5-bg: var(--person-5-bg); --color-person-5-text: var(--person-5-text); --color-person-5-mark: var(--person-5-mark);
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);
@@ -45,7 +61,8 @@
     outline-offset: 2px;
   }
 
-  input:focus-visible, select:focus-visible, textarea:focus-visible {
+  /* Onay kutusu, radyo ve anahtar (type=checkbox|radio) bu kuralın dışındadır: kenar rengi değişimi yetmez, genel 2 px halka kalmalı. */
+  input:not([type="checkbox"], [type="radio"]):focus-visible, select:focus-visible, textarea:focus-visible {
     outline: none;
     border-color: var(--color-focus);
     box-shadow: 0 0 0 3px var(--color-primary-soft);

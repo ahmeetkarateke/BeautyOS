@@ -40,9 +40,9 @@ describe('Step1Salon', () => {
     await user.click(screen.getByRole('button', { name: /İleri/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Salon adı en az 2 karakter olmalıdır')).toBeInTheDocument()
-      expect(screen.getByText('Adres giriniz')).toBeInTheDocument()
-      expect(screen.getByText('Geçerli bir telefon numarası girin')).toBeInTheDocument()
+      expect(screen.getByText('Salon adı en az 2 karakter olmalıdır'))
+      expect(screen.getByText('Adres giriniz'))
+      expect(screen.getByText('Geçerli bir telefon numarası girin'))
     })
 
     expect(onNext).not.toHaveBeenCalled()
@@ -59,7 +59,6 @@ describe('Step1Salon', () => {
     await user.type(screen.getByLabelText(/Adres/i), 'Kadıköy, İstanbul')
     await user.type(screen.getByLabelText(/Telefon/i), '05551234567')
 
-    // Working hours has a default value, so no need to type
 
     await user.click(screen.getByRole('button', { name: /İleri/i }))
 
