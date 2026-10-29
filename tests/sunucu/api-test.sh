@@ -50,6 +50,15 @@ trap cleanup EXIT
 PGPASS="$(openssl rand -hex 16)"
 JWT="$(openssl rand -hex 24)"
 
+# API_ENTEGRASYON="a.test.ts b.test.ts": tests/entegrasyon'dan apps/api/src/__tests__/ icine (acilmis kopyaya) alinir;
+# goreli icerik aktarmalari oradan cozulur.
+for f in ${API_ENTEGRASYON:-}; do
+  case "$f" in
+    */*|*..*) echo "gecersiz entegrasyon dosya adi: $f" >&2; exit 2 ;;
+  esac
+  cp "$SRC/tests/entegrasyon/$f" "$SRC/apps/api/src/__tests__/$f"
+done
+
 docker build -q --memory 1g --memory-swap 1g -f "$SRC/tests/sunucu/Dockerfile.api-test" -t "$IMG" "$SRC" >/dev/null
 
 docker network create --internal "$NET" >/dev/null
@@ -61,12 +70,35 @@ docker run -d --name "${RUN}-redis" --network "$NET" --network-alias redis \
   --memory 64m --memory-swap 64m --tmpfs /data \
   redis:7.4-alpine redis-server --save "" --appendonly no >/dev/null
 
+# API_MIGRATE_ROLE=1: migration'lar super kullanici olmayan bir veritabani sahibi rolle calisir (app_owner'i taklit eder);
+# testler yine postgres ile baglanir, yalniz sema o rolle kurulur.
+MIGRATE_URL=""
+if [ -n "${API_MIGRATE_ROLE:-}" ]; then
+  OWNERPASS="$(openssl rand -hex 12)"
+  # initdb'nin gecici sunucusu yalniz unix soketinde dinler; kalici sunucu TCP'de dinleyince hazirdir (en cok 60 sn).
+  hazir=""
+  for _ in $(seq 1 60); do
+    if docker exec "${RUN}-pg" psql -h 127.0.0.1 -U postgres -d beautyos_test -tAc 'SELECT 1' >/dev/null 2>&1; then hazir=1; break; fi
+    sleep 1
+  done
+  [ -n "$hazir" ] || { echo "postgres 60 sn icinde hazir olmadi" >&2; exit 4; }
+  docker exec "${RUN}-pg" psql -U postgres -d beautyos_test -v ON_ERROR_STOP=1 \
+    -c "CREATE ROLE app_owner LOGIN PASSWORD '${OWNERPASS}' NOSUPERUSER NOCREATEDB NOCREATEROLE" \
+    -c "ALTER DATABASE beautyos_test OWNER TO app_owner" >/dev/null
+  docker exec "${RUN}-pg" psql -U postgres -d beautyos_test -tA \
+    -c "SELECT 'migrate rolu: ' || rolname || ' super=' || rolsuper FROM pg_roles WHERE rolname = 'app_owner'"
+  MIGRATE_URL="postgresql://app_owner:${OWNERPASS}@postgres:5432/beautyos_test"
+fi
+
 docker run --rm --name "${RUN}-api" --network "$NET" --memory 768m --memory-swap 768m \
+  -e MIGRATE_URL="$MIGRATE_URL" -e API_TSC="${API_TSC:-}" \
   -e TZ=UTC -e NODE_ENV=test \
   -e DATABASE_URL="postgresql://postgres:${PGPASS}@postgres:5432/beautyos_test" \
   -e DIRECT_URL="postgresql://postgres:${PGPASS}@postgres:5432/beautyos_test" \
   -e REDIS_URL="redis://redis:6379" \
   -e JWT_SECRET="$JWT" \
   "$IMG" sh -c 'node /opt/bekle.cjs postgres:5432 redis:6379 \
-    && node_modules/.bin/prisma migrate deploy >/dev/null \
+    && echo "== node: $(node --version) ==" \
+    && DATABASE_URL="${MIGRATE_URL:-$DATABASE_URL}" DIRECT_URL="${MIGRATE_URL:-$DIRECT_URL}" node_modules/.bin/prisma migrate deploy >/dev/null \
+    && { [ -z "$API_TSC" ] || { echo "== tsc --noEmit =="; npx --no-install tsc --noEmit -p . && echo "tsc: 0 hata"; }; } \
     && npx --no-install vitest run "$@"' sh "$@"
