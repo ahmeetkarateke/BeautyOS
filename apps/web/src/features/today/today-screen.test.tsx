@@ -190,6 +190,19 @@ describe('W10 Bugün ekranı', () => {
     expect(screen.getByText('Bugün randevu yok.')).toBeTruthy()
   })
 
+  it('W10 B1: bugün randevu yokken ileri tarihli bekleyen talep şeridi ve onay katmanı yine çıkar', async () => {
+    appointments = []
+    pendingRows = [
+      { ...row('f1', 'p1', 'Derya Aksoy', '10:00', '11:00', 'pending', { unverified: true, customerId: null }), startTime: new Date('2026-10-30T10:00:00+03:00').toISOString(), endTime: new Date('2026-10-30T11:00:00+03:00').toISOString() },
+    ]
+    mount()
+    await screen.findByText('Bugün randevu yok.')
+    const banner = await screen.findByTestId('bugun-bulgu')
+    expect(banner.textContent).toContain('1 online randevu onay bekliyor.')
+    fireEvent.click(within(banner).getByRole('button', { name: 'Gözden geçir' }))
+    expect(await screen.findByRole('dialog', { name: 'Online randevu talebi' })).toBeTruthy()
+  })
+
   it('K-boş: kurulum tamamsa liste gösterilmez, yalnız boş durum görünür', async () => {
     appointments = []
     mount()
