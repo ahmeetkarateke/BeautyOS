@@ -119,6 +119,8 @@ describe('W6 K1: telefon üst bar ve alt menü', () => {
     expect(within(bar).getByText('Defne Güzellik')).toBeTruthy()
     expect(within(bar).getByRole('link', { name: 'Müşteri ara' }).getAttribute('href')).toBe('/panel/defne/musteriler')
     expect(within(bar).getByRole('link', { name: 'Hesabım' }).getAttribute('href')).toBe('/panel/defne/hesabim')
+    // Görünür baş harfler aria-label ile çelişmesin (axe label-content-name-mismatch): ad gizli metinden gelir.
+    expect(within(bar).getByRole('link', { name: 'Hesabım' }).hasAttribute('aria-label')).toBe(false)
   })
 
   it('K1: alt ekranda üst bar geri oku ve ekran adı gösterir; geri Menü ekranına gider', () => {
