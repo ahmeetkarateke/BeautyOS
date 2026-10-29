@@ -86,6 +86,14 @@ describe('A2: resepsiyon rolu (gercek PG)', () => {
     }
   })
 
+  it('resepsiyon bahsis listesini ve ozetini goremez (403)', async () => {
+    for (const url of ['/tips', '/tips/summary']) {
+      const res = await request(app).get(`/api/v1/tenants/${tenant.slug}${url}`).set('Authorization', `Bearer ${tokens.receptionist}`)
+      expect(res.status).toBe(403)
+      expect(res.body.error.code).toBe('FORBIDDEN')
+    }
+  })
+
   it('resepsiyon bugunun gunluk kasasini gorur (200)', async () => {
     const res = await request(app).get(`/api/v1/tenants/${tenant.slug}/reports/daily`).set('Authorization', `Bearer ${tokens.receptionist}`)
     expect(res.status).toBe(200)

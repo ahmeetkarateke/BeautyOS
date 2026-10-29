@@ -179,6 +179,10 @@ export function createTipsRouter(): Router {
   // GET /tips — list tip entries
   router.get('/tips', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Resepsiyon bahşiş KAYDEDER ama listeyi/özeti görmez (matris 33-35); varsayılan ret.
+      if (req.user!.role === 'receptionist') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
       const tenantId = req.tenantId!
       const role = req.user!.role
       const userId = req.user!.userId
@@ -430,6 +434,10 @@ export function createTipsRouter(): Router {
   // GET /tips/summary
   router.get('/tips/summary', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Resepsiyon bahşiş KAYDEDER ama listeyi/özeti görmez (matris 33-35); varsayılan ret.
+      if (req.user!.role === 'receptionist') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
       const tenantId = req.tenantId!
 
       const querySchema = z.object({
