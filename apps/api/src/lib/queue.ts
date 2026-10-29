@@ -6,6 +6,8 @@ import { logger } from './logger'
 import { sendSms, normalizePhoneTR } from './sms'
 import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
 import { purgeExpiredSessions } from './sessions'
+import { isHealthRegulated } from './health-regulated'
+import { istanbulDayBounds } from './panel-summary'
 
 export type ReminderJobData =
   | { type: 'reminder_24h'; appointmentId: string }
@@ -35,7 +37,7 @@ export const remindersQueue = new Queue<ReminderJobData>('reminders', {
   connection: createConnection(),
   defaultJobOptions: {
     attempts: 3,
-    backoff: { type: 'exponential', delay: 5000 },
+    backoff: { type: 'exponential', delay: 60_000 },
     removeOnComplete: true,
     removeOnFail: false,
   },
@@ -58,23 +60,23 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
 
   const { appointmentId, type } = data
 
-  let appointment
-  try {
-    appointment = await db.appointment.findUnique({
-      where: { id: appointmentId },
-      include: {
-        customer: { select: { id: true, fullName: true, phone: true, marketingConsentSms: true } },
-        service: { select: { name: true } },
-        tenant: { select: { id: true, name: true } },
-      },
-    })
-  } catch (err) {
-    logger.warn({ err, appointmentId }, 'Randevu sorgulanırken hata, hatırlatma atlandı')
-    return
-  }
+  // Sorgu hatası yutulmaz: iş başarısız olur ve BullMQ yeniden dener.
+  const appointment = await db.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      customer: { select: { id: true, fullName: true, phone: true, marketingConsentSms: true } },
+      service: { select: { name: true } },
+      tenant: { select: { id: true, name: true, businessType: true } },
+    },
+  })
 
   if (!appointment) {
     logger.warn({ appointmentId }, 'Randevu bulunamadı, hatırlatma atlandı')
+    return
+  }
+
+  if (appointment.isDeleted) {
+    logger.info({ appointmentId }, 'Randevu silinmiş, hatırlatma atlandı')
     return
   }
 
@@ -96,13 +98,14 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     return
   }
   const { id: customerId, fullName, phone } = appointment.customer
-  const serviceName = appointment.service.name
   const salonName = appointment.tenant.name
+  // Klinik türlerinde hizmet adı mesajda geçmez (hukuk-uyum §10.7).
+  const serviceLabel = isHealthRegulated(appointment.tenant.businessType) ? '' : ` ${appointment.service.name}`
 
   const text =
     type === 'reminder_24h'
-      ? `${salonName}: Sayın ${fullName}, yarın saat ${saat}'de ${serviceName} randevunuz bulunmaktadır. Bilginize.`
-      : `${salonName}: Sayın ${fullName}, bugün saat ${saat}'de ${serviceName} randevunuz vardır. Sizi bekliyoruz.`
+      ? `${salonName}: Sayın ${fullName}, yarın saat ${saat}'de${serviceLabel} randevunuz bulunmaktadır. Bilginize.`
+      : `${salonName}: Sayın ${fullName}, bugün saat ${saat}'de${serviceLabel} randevunuz vardır. Sizi bekliyoruz.`
 
   // SMS gönder
   const normalized = normalizePhoneTR(phone)
@@ -125,26 +128,27 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     logger.info({ appointmentId, type, provider: result.providerName }, 'Hatırlatma SMS gönderildi')
   } else {
     logger.error({ appointmentId, type, error: result.errorMessage }, 'Hatırlatma SMS başarısız')
+    // Hata fırlatılır ki BullMQ yeniden denesin; son denemede iş "failed" kalır.
+    throw new Error('Hatırlatma SMS gönderilemedi')
   }
 }
 
 async function processNightlyNoShow(): Promise<void> {
   const now = new Date()
-  const todayStart = new Date(now)
-  todayStart.setHours(0, 0, 0, 0)
-  const todayEnd = new Date(now)
-  todayEnd.setHours(23, 59, 59, 999)
+  // Konteyner TZ=UTC; "bugün" İstanbul gününe göre hesaplanır.
+  const { start: todayStart, end: todayEnd } = istanbulDayBounds(now)
 
   const staleAppointments = await db.appointment.findMany({
     where: {
       status: { in: ['pending', 'confirmed', 'in_progress'] },
+      isDeleted: false,
       endAt: { lt: now },
       startAt: { gte: todayStart, lte: todayEnd },
     },
     include: {
       customer: { select: { id: true, fullName: true, phone: true } },
       service: { select: { name: true } },
-      tenant: { select: { id: true, name: true } },
+      tenant: { select: { id: true, name: true, businessType: true } },
     },
   })
 
@@ -171,7 +175,8 @@ async function processNightlyNoShow(): Promise<void> {
         timeZone: 'Europe/Istanbul',
       })
 
-      const text = `${appt.tenant.name}: Sayın ${appt.customer.fullName}, bugün saat ${saat}'deki ${appt.service.name} randevunuza katılamadınız. Yeni randevu için bizimle iletişime geçebilirsiniz.`
+      const serviceLabel = isHealthRegulated(appt.tenant.businessType) ? '' : ` ${appt.service.name}`
+      const text = `${appt.tenant.name}: Sayın ${appt.customer.fullName}, bugün saat ${saat}'deki${serviceLabel} randevunuza katılamadınız. Yeni randevu için bizimle iletişime geçebilirsiniz.`
 
       await sendSms({
         tenantId: appt.tenant.id,
