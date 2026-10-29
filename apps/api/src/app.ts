@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { createAuthRouter } from './routes/auth.route'
+import { createMeRouter } from './routes/me.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { createPublicRouter } from './routes/public.route'
 import { createAdminRouter } from './routes/admin.route'
@@ -68,6 +69,10 @@ export function createApp(options?: { rateLimitMax?: number }) {
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla istek gönderildi, lütfen 15 dakika sonra tekrar deneyin.' } },
   })
+
+  // /auth/me hiz siniri disinda: arayuz her acilista cagirir (A1)
+
+  app.use('/api/v1/auth/me', createMeRouter())
 
   app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax }))
   app.use('/api/v1/admin', createAdminRouter())
