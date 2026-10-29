@@ -86,6 +86,7 @@ enum FinancialTransactionType {
 enum UserRole {
   owner
   manager
+  receptionist
   staff
   superadmin
 }

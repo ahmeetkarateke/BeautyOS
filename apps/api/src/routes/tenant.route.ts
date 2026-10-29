@@ -11,7 +11,7 @@ import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
-import { requirePermission } from '../middleware/permission'
+import { requirePermission, ensurePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
@@ -1027,10 +1027,7 @@ export function createTenantRouter(): Router {
 
   router.patch('/appointments/:appointmentId/reschedule', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const role = req.user!.role
-      if (role !== 'owner' && role !== 'manager') {
-        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Randevu saati yalnızca owner veya manager tarafından değiştirilebilir.' } })
-      }
+      if (!ensurePermission(req, res, 'appointment.reschedule')) return
 
       const tenantId = req.tenantId!
       const { appointmentId } = req.params
@@ -1453,6 +1450,8 @@ export function createTenantRouter(): Router {
     title: z.string().trim().min(1).max(100),
     bio: z.string().trim().max(500).optional(),
     colorCode: z.number().int().optional(),
+    // Rol atamak yalnız sahibin işi (A2); verilmezse uzman.
+    role: z.enum(['staff', 'manager', 'receptionist']).default('staff'),
   })
 
   const updateStaffSchema = z.object({
@@ -1474,8 +1473,11 @@ export function createTenantRouter(): Router {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz personel verisi.' } })
       }
 
-      const { email, password, fullName, title, bio, colorCode } = parsed.data
+      const { email, password, fullName, title, bio, colorCode, role: newRole } = parsed.data
       const tenantId = req.tenantId!
+      if (newRole !== 'staff' && role !== 'owner') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Rol yalnızca salon sahibi tarafından atanabilir.' } })
+      }
 
       // Küresel kontrol: giriş e-postayla yapılır; başka kiracıdaki aynı adres hesap karışmasına yol açar. E-posta küçük harfe normalize edilmiş, tam eşitlikle aranır.
       const existingUser = await db.user.findFirst({ where: { email }, select: { id: true } })
@@ -1488,6 +1490,15 @@ export function createTenantRouter(): Router {
       const tenantSettings = await db.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } })
       const settingsObj = tenantSettings?.settings as { workingHours?: unknown } | null
       const defaultWorkingHours = resolveTenantWorkingHours(settingsObj?.workingHours)
+
+      // Müdür ve resepsiyon takvimde randevu alan uzman değildir: uzman profili yalnız 'staff' rolüne açılır.
+      if (newRole !== 'staff') {
+        const user = await db.user.create({
+          data: { tenantId, email, passwordHash, fullName, role: newRole },
+          select: { id: true, fullName: true, email: true, role: true },
+        })
+        return res.status(201).json({ id: null, title: null, bio: null, colorCode: null, fullName: user.fullName, email: user.email, userId: user.id, role: user.role })
+      }
 
       const result = await db.$transaction(async (tx) => {
         const user = await tx.user.create({
@@ -1514,6 +1525,7 @@ export function createTenantRouter(): Router {
         fullName: result.user.fullName,
         email: result.user.email,
         userId: result.user.id,
+        role: 'staff',
       })
     } catch (err) {
       next(err)
@@ -1778,6 +1790,11 @@ export function createTenantRouter(): Router {
 
       if (fromParam > toParam) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'from tarihi to tarihinden büyük olamaz.' } })
+      }
+
+      // Resepsiyon yalnız bugünün kasasını görür (matris 36); geçmiş ve aralık raporu sahip ve müdüre aittir.
+      if (req.user!.role === 'receptionist' && (fromParam !== today || toParam !== today)) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
 
       const rangeStart = toTRBounds(fromParam).start

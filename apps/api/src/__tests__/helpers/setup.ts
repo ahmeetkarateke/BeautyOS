@@ -78,6 +78,27 @@ export async function createTestManager(tenantId: string, tenantSlug: string, su
   return { user, token, password }
 }
 
+export async function createTestReceptionist(tenantId: string, tenantSlug: string, suffix: string) {
+  const password = 'TestPass12!'
+  const passwordHash = await bcrypt.hash(password, 10)
+  const user = await db.user.create({
+    data: {
+      tenantId,
+      email: `reception-${suffix}@test.local`,
+      passwordHash,
+      fullName: `Test Resepsiyon ${suffix}`,
+      role: 'receptionist',
+      isActive: true,
+    },
+  })
+  const token = jwt.sign(
+    { userId: user.id, tenantId, tenantSlug, role: 'receptionist' },
+    JWT_SECRET,
+    { expiresIn: '1h' },
+  )
+  return { user, token, password }
+}
+
 export async function createTestStaff(tenantId: string, tenantSlug: string, suffix: string) {
   const password = 'TestPass12!'
   const passwordHash = await bcrypt.hash(password, 10)
