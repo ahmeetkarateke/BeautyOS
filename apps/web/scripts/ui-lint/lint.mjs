@@ -18,7 +18,7 @@ const isV2Path = (p) => V2_ROOTS.some((root) => (p + '/').startsWith(root))
 // from 'x' | import 'x' | import('x') | require('x'); "export ... from 'x'" de from ile yakalanır.
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"])([^'"]+)\1/g
 // CSS: @import "x" | @import url('x')
-const CSS_IMPORT = /@import\s+(?:url\(\s*)?(['"])([^'"]+)\1/g
+const CSS_IMPORT = /@import\s+(?:url\(\s*)?(?:(['"])([^'"]+)\1|([^'")\s;]+))/gi
 
 /**
  * @param {string} importer apps/web/src'ye göre içe aktaran dosya
@@ -73,9 +73,23 @@ export function lintSource(relativePath, content) {
     if (/(?:^|[\s"'`{(])dark:/.test(line)) at('dark-varyanti')
     if (/\btext-\[(?:[0-9]|1[01])(?:\.\d+)?px\]/.test(line) || /font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px/.test(line) || /\btext-\[0?\.(?:[0-6]\d*|7(?:[0-4]\d*)?)r?em\]/.test(line)) at('12px-alti-yazi')
     if (/\bfont-(?:bold|extrabold|black)\b|font-weight:\s*[7-9]00\b|\bfont-\[[7-9]00\]/.test(line)) at('kalin-700')
-    if ([...line.matchAll(isCss ? CSS_IMPORT : SPECIFIER)].some((m) => isForbiddenImport(relativePath, m[2]))) at('eski-klasor-importu')
+    if (!isCss && [...line.matchAll(SPECIFIER)].some((m) => isForbiddenImport(relativePath, m[2]))) at('eski-klasor-importu')
   })
+  if (isCss) findings.push(...lintCssImports(relativePath, content))
   return findings
+}
+
+// CSS @import çok satırlı, büyük harfli ve tırnaksız url() olabilir: satır satır değil tüm içerikte aranır
+// (yorumlar boşlukla silinir, satır sayısı korunur).
+function lintCssImports(relativePath, content) {
+  const blanked = content.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+  const out = []
+  for (const m of blanked.matchAll(CSS_IMPORT)) {
+    if (!isForbiddenImport(relativePath, m[2] ?? m[3])) continue
+    const line = blanked.slice(0, m.index).split('\n').length
+    out.push({ rule: 'eski-klasor-importu', line, text: content.split(/\r?\n/)[line - 1].trim() })
+  }
+  return out
 }
 
 /** @param {string} srcRoot apps/web/src mutlak yolu */
