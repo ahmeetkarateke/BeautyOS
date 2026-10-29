@@ -172,3 +172,18 @@ describe('W22 Bekleme listesi', () => {
     expect((await within(dialog).findByRole('alert')).textContent).toContain('artık işlem kabul etmiyor')
   })
 })
+
+describe('W22 KVKK: bildirim bağlantısı', () => {
+  it('K10: klinik türünde önizlemede ve WhatsApp bağlantısında hizmet adı yok; salonda var', async () => {
+    mount({ ...makeMe('owner'), tenant: { ...makeMe('owner').tenant, businessType: 'hair_transplant' } })
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Haber ver' }))[0])
+    let dialog = await screen.findByRole('dialog', { name: 'Müşteriye haber ver' })
+    expect(within(dialog).getByTestId('mesaj-onizleme').textContent).not.toContain('Fön')
+    expect(decodeURIComponent(within(dialog).getByRole('link', { name: 'WhatsApp’ta aç' }).getAttribute('href') ?? '')).not.toContain('Fön')
+    cleanup()
+    mount()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Haber ver' }))[0])
+    dialog = await screen.findByRole('dialog', { name: 'Müşteriye haber ver' })
+    expect(decodeURIComponent(within(dialog).getByRole('link', { name: 'WhatsApp’ta aç' }).getAttribute('href') ?? '')).toContain('Fön')
+  })
+})

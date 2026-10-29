@@ -55,8 +55,11 @@ export function canNotify(status: string): boolean {
 }
 
 /** Ad ilk sözcüktür; harf büyütme/küçültme yapılmaz (Türk İ/ı bozulmaz). */
-export function notifyMessage(entry: WaitEntry, salonName: string): string {
+export function notifyMessage(entry: WaitEntry, salonName: string, healthRegulated = false): string {
   const first = entry.customerName.trim().split(/\s+/)[0] || entry.customerName
+  // KVKK (hukuk-uyum §10.7): sağlık düzenlemeli işletmede hizmet adı mesaja girmez (kilit ekranında görünür, WhatsApp'a gider).
+  if (healthRegulated)
+    return `Merhaba ${first}, ${salonName}: beklediğiniz randevu için uygun bir saat açıldı. Uygunsa bu mesaja yanıt verin ya da bizi arayın.`
   const subject = entry.serviceName ? `${entry.serviceName} için beklediğiniz saat` : 'beklediğiniz saat'
   return `Merhaba ${first}, ${salonName}: ${subject} müsait oldu. Uygunsanız bize yazın ya da arayın.`
 }
