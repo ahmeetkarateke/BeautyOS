@@ -71,6 +71,8 @@ beforeEach(() => {
         ],
       }
     if (path.endsWith('/leaves')) return { data: leaves }
+    if (path.endsWith('/settings'))
+      return { settings: { workingHours: { monday: { start: '10:00', end: '19:00' }, tuesday: { start: '10:00', end: '19:00' } } } }
     throw new Error(`beklenmeyen çağrı ${path}`)
   })
 })
@@ -216,5 +218,74 @@ describe('W21 Personel ayrıntısı', () => {
     cleanup()
     mount(<StaffDetailScreen staffId="p1" />, makeMe('receptionist'))
     expect(screen.getByText('Bu sayfayı görme yetkiniz yok.')).toBeTruthy()
+  })
+})
+
+describe('W21-1: salon saatleri kullanılıyor (müdür kararı)', () => {
+  const salonStaff = () => {
+    staff = [person({ workingHours: null })]
+  }
+
+  it('K12: özel saati olmayan personelde "Salon çalışma saatleri kullanılıyor" ve salon saatleri salt okunur; kaydet düğmesi yok', async () => {
+    salonStaff()
+    mount(<StaffDetailScreen staffId="p1" />)
+    openTab(await screen.findByRole('tab', { name: 'Çalışma saatleri' }))
+    expect(await screen.findByText(/Salon çalışma saatleri kullanılıyor/)).toBeTruthy()
+    const list = screen.getByRole('list', { name: 'Salon çalışma saatleri' })
+    expect(list.textContent).toContain('10:00 – 19:00')
+    expect(list.textContent).toContain('Kapalı')
+    expect(screen.queryByRole('button', { name: 'Saatleri kaydet' })).toBeNull()
+    expect(screen.queryByLabelText('Pazartesi başlangıç')).toBeNull()
+  })
+
+  it('K13: ilgisiz bir alanı (unvan) kaydetmek çalışma saatlerini yazmaz', async () => {
+    salonStaff()
+    mount(<StaffDetailScreen staffId="p1" />)
+    await screen.findByRole('heading', { level: 1, name: 'Derya Aksoy' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Unvan' }), { target: { value: 'Yeni unvan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Profili kaydet' }))
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    expect((writes()[0][1] as Init).body).toEqual({ title: 'Yeni unvan' })
+    expect(JSON.stringify((writes()[0][1] as Init).body)).not.toContain('workingHours')
+  })
+
+  it('K14: Kişiye özel saat belirle düzenleyiciyi salon saatleriyle doldurur; kaydedince 7 günlük program gider', async () => {
+    salonStaff()
+    mount(<StaffDetailScreen staffId="p1" />)
+    openTab(await screen.findByRole('tab', { name: 'Çalışma saatleri' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Kişiye özel saat belirle' }))
+    const start = (await screen.findByLabelText('Pazartesi başlangıç')) as HTMLInputElement
+    expect(start.value).toBe('10:00')
+    fireEvent.change(start, { target: { value: '11:00' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Saatleri kaydet' }))
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    const hours = ((writes()[0][1] as Init).body as { workingHours: Record<string, unknown> }).workingHours
+    expect(hours.monday).toEqual({ start: '11:00', end: '19:00' })
+    expect(hours.wednesday).toBeNull()
+  })
+
+  it('K15: hepsi kapalı kayıt engellenir, neden yazılır, istek atılmaz', async () => {
+    salonStaff()
+    mount(<StaffDetailScreen staffId="p1" />)
+    openTab(await screen.findByRole('tab', { name: 'Çalışma saatleri' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Kişiye özel saat belirle' }))
+    await screen.findByLabelText('Pazartesi başlangıç')
+    fireEvent.click(screen.getByRole('switch', { name: 'Pazartesi' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Salı' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saatleri kaydet' }))
+    expect(await screen.findByText(/En az bir gün açık olmalı/)).toBeTruthy()
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('K16: salon saati yüklenemezse hata ve Yeniden dene (kapalı gösterilmez)', async () => {
+    salonStaff()
+    const impl = request.getMockImplementation()!
+    request.mockImplementation(async (path: string, init?: Init) => {
+      if (path.endsWith('/settings')) throw new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
+      return impl(path, init)
+    })
+    mount(<StaffDetailScreen staffId="p1" />)
+    openTab(await screen.findByRole('tab', { name: 'Çalışma saatleri' }))
+    expect(await screen.findByText('Salon saatleri yüklenemedi.')).toBeTruthy()
   })
 })

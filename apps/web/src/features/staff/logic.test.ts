@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { commissionLine, hoursBody, leaveTypeLabel, salonRows, sortLeaves, usesSalonHours, validateHours, validateProfile, weekRows, type HourRow } from './logic'
+import {
+  commissionLine,
+  hoursBody,
+  leaveTypeLabel,
+  salonRows,
+  sortLeaves,
+  usesSalonHours,
+  validateHours,
+  validateProfile,
+  weekRows,
+  type HourRow,
+} from './logic'
 
 describe('W21 weekRows', () => {
   it("K1: yedi gün Pazartesi'den başlar, Türkçe adlarla; çalışılmayan gün (null) kapalı görünür", () => {

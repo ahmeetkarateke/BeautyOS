@@ -25,13 +25,25 @@ import {
   assignService,
   fetchAssignments,
   fetchLeaves,
+  fetchSalonHours,
   fetchStaffProfiles,
   removeLeave,
   unassignService,
   updateStaffProfile,
   type StaffProfile,
 } from './api'
-import { commissionLine, hoursBody, leaveTypeLabel, sortLeaves, validateHours, validateProfile, weekRows, type HourRow } from './logic'
+import {
+  commissionLine,
+  hoursBody,
+  leaveTypeLabel,
+  salonRows,
+  sortLeaves,
+  usesSalonHours,
+  validateHours,
+  validateProfile,
+  weekRows,
+  type HourRow,
+} from './logic'
 
 // Personel ayrıntısı (tasarim.md §8.1 `personel-detay/<id>`): Profil, Hizmetleri, Çalışma saatleri, İzinler; Ödemeler yakında.
 // Sunucu kuralları: profil ve saatleri sahip/müdür, hizmet ataması ve izinleri yalnız sahip yazar.
@@ -288,11 +300,57 @@ function ServicesTab({ staffId, canWrite }: { staffId: string; canWrite: boolean
   )
 }
 
+// Kişiye özel saati olmayan personel salon saatleriyle çalışır (sunucu böyle çözer). Saat ancak kullanıcı "Kişiye özel saat belirle"ye
+// basıp düzenlerse yazılır; ilgisiz bir alanı kaydetmek saatleri yazmaz.
 function HoursTab({ person, onSaved }: { person: StaffProfile; onSaved: () => void }) {
+  const slug = useMe().tenant.slug
+  const own = weekRows(person.workingHours)
+  const [custom, setCustom] = useState(false)
+  const salon = useApiQuery(usesSalonHours(own) ? 'staff:salon-hours' : null, (c, signal) => fetchSalonHours(c, slug, signal))
+
+  if (!usesSalonHours(own)) return <HoursEditor person={person} initial={own} onSaved={onSaved} />
+  if (custom) return <HoursEditor person={person} initial={salonRows(salon.data)} onSaved={onSaved} />
+  if (salon.error && !salon.data) {
+    return (
+      <Card>
+        <ErrorState subject="Salon saatleri" onRetry={salon.refetch} retrying={salon.loading} className="px-0" />
+      </Card>
+    )
+  }
+  if (salon.data === undefined && salon.loading) {
+    return (
+      <Card>
+        <Skeleton className="w-1/2" />
+      </Card>
+    )
+  }
+  return (
+    <Card>
+      <div className="grid gap-3">
+        <Banner tone="info">Salon çalışma saatleri kullanılıyor. Bu uzmana özel saat tanımlanmamış.</Banner>
+        <ul aria-label="Salon çalışma saatleri" className="m-0 grid list-none gap-0 p-0">
+          {salonRows(salon.data).map((row) => (
+            <li key={row.key} className="flex justify-between gap-3 border-b border-border-subtle py-2 last:border-b-0">
+              <span>{row.label}</span>
+              <span className="tabular-nums text-text-secondary">{row.open ? `${row.start} – ${row.end}` : 'Kapalı'}</span>
+            </li>
+          ))}
+        </ul>
+        <div>
+          <Button variant="secondary" onClick={() => setCustom(true)}>
+            Kişiye özel saat belirle
+          </Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function HoursEditor({ person, initial, onSaved }: { person: StaffProfile; initial: HourRow[]; onSaved: () => void }) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
   const toast = useToast()
-  const [rows, setRows] = useState<HourRow[]>(() => weekRows(person.workingHours))
+  const [rows, setRows] = useState<HourRow[]>(initial)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
@@ -324,6 +382,7 @@ function HoursTab({ person, onSaved }: { person: StaffProfile; onSaved: () => vo
     <Card>
       <div className="grid gap-3">
         {failure ? <Banner tone="error">{failure}</Banner> : null}
+        {errors._all ? <Banner tone="error">{errors._all}</Banner> : null}
         {rows.map((row) => (
           <div key={row.key} className="grid gap-2 border-b border-border-subtle pb-3 last:border-b-0">
             <Switch label={row.label} checked={row.open} onCheckedChange={(open) => patch(row.key, { open })} />
