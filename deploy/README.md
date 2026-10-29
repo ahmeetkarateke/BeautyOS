@@ -13,6 +13,7 @@ git -c core.autocrlf=false archive --format=tar -o beautyos-<sha12>.tar <tam-sha
 
 `-c core.autocrlf=false` şarttır: aksi halde Windows'ta dosyalar CRLF'ye çevrilir, kabuk betikleri ve Dockerfile'lar bozulur,
 Prisma migration checksum'ları değişir. (Depodaki `.gitattributes` kritik dosyaları zaten LF'ye zorlar; bu bayrak ek güvencedir.)
+Kök `.gitattributes` artık TÜM metin dosyaları için `* text=auto eol=lf` uygular (ikili türler `binary` istisnası): Windows'ta `core.autocrlf` ne olursa olsun depoda ve çalışma ağacında LF kalır, CRLF'li commit ve sahte satır farkı oluşmaz. Eski bir dalda CRLF'li dosya varsa dalı şöyle birleştirilir: `git merge -X renormalize <dal>` (çakışmasız geçer) ve ardından `git add --renormalize .` çalıştırılır (yalnız dal tarafında değişen dosyalar CRLF kalabilir, bu adım zorunludur); yalnız satır sonu değişen dosyalar ayrı bir commit'e konur.
 
 Özet dosyasını `sha256sum -c` biçiminde yaz (`certutil` çıktısı bu biçimde DEĞİLDİR; Git Bash'te `sha256sum` kullan):
 
