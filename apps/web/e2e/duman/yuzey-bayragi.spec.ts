@@ -61,9 +61,17 @@ test.describe('bayrak açık (staging)', () => {
     expect(new URL(yanit.headers()['location'], 'http://web:3000').pathname).toBe('/panel/defne/musteri/abc123')
   })
 
-  test('K2: /panel ve /v2 yolları açılır', async ({ request }) => {
-    for (const yol of ['/panel/defne/bugun', '/v2']) {
-      expect((await git(request, yol)).status(), yol).toBe(200)
+  // D8: staging'de yalnız `panel` yüzeyi açık olabilir; beklenti E2E_UI_V2 listesinden türetilir.
+  // /panel/* panel yüzeyine, /v2 (v2 ana sayfa) site yüzeyine bağlıdır; kapalı yüzeyin yolu 404 verir.
+  const acik = new Set(BAYRAK.toLowerCase().split(',').map((p) => p.trim()))
+
+  test('K2: açık yüzeyin yolu 200, kapalı yüzeyin yolu 404 verir', async ({ request }) => {
+    const beklenen: Array<[string, string]> = [
+      ['/panel/defne/bugun', 'panel'],
+      ['/v2', 'site'],
+    ]
+    for (const [yol, yuzey] of beklenen) {
+      expect((await git(request, yol)).status(), `${yol} (${yuzey})`).toBe(acik.has(yuzey) ? 200 : 404)
     }
   })
 
