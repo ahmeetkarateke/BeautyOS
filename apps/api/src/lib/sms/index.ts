@@ -5,6 +5,7 @@ import { logger } from '../logger'
 import { NetgsmProvider } from './netgsm-provider'
 import { MockSmsProvider } from './mock-provider'
 import type { SmsProvider, SmsSendInput, SmsSendResult } from './types'
+import type { TemplateRef } from '../messages/templates'
 
 export { normalizePhoneTR, smsPartCount } from './types'
 export type { SmsProvider, SmsSendInput, SmsSendResult }
@@ -39,7 +40,10 @@ export interface SendSmsParams {
   customerId?: string | null
   appointmentId?: string | null
   to: string
+  /** Sağlayıcıya giden metin. Şablon verilmişse veritabanına YAZILMAZ (ADR-0047). */
   body: string
+  /** Şablonlu iletide (hatırlatma, doğrulama, onay, iptal) gövde yerine bu (anahtar, sürüm) saklanır. */
+  template?: TemplateRef
   purpose: DeliveryPurpose
 }
 
@@ -60,7 +64,9 @@ export async function sendSms(params: SendSmsParams): Promise<{ delivery: Messag
       channel: MessageChannel.sms,
       purpose: params.purpose,
       phone: params.to,
-      body: params.body,
+      body: params.template ? null : params.body,
+      templateKey: params.template?.key ?? null,
+      templateVersion: params.template?.version ?? null,
       status: DeliveryStatus.queued,
       providerName: provider.name,
     },

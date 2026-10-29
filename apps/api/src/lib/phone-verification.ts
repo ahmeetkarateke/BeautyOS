@@ -7,6 +7,7 @@ import { createHmac, randomInt, timingSafeEqual } from 'node:crypto'
 import { db } from './db'
 import { isSmsConfigured } from './booking-mode'
 import { sendSms, normalizePhoneTR } from './sms'
+import { renderTemplate } from './messages/templates'
 import { DeliveryPurpose } from '@prisma/client'
 
 const CODE_TTL_MS = 10 * 60 * 1000
@@ -103,7 +104,9 @@ export async function sendVerificationCode(args: {
     },
   })
 
-  const body = `BeautyOS doğrulama kodunuz: ${code}\nKod 10 dakika geçerlidir. Güvenliğiniz için kimseyle paylaşmayın.`
+  // Kod yalnız sağlayıcıya giden metindedir; teslim kaydında gövde saklanmaz (şablon anahtarı + sürüm), log'a yazılmaz (ADR-0047).
+  const template = { key: 'phone_verification', version: 1 }
+  const body = renderTemplate(template, { code })
 
   // Tenant context'i varsa delivery'i o tenant'a kaydet, yoksa public booking için
   // mock provider zaten herkes için çalışır — gerçek SMS sadece NETGSM_USERCODE varsa
@@ -112,6 +115,7 @@ export async function sendVerificationCode(args: {
       tenantId,
       to: normalized,
       body,
+      template,
       purpose: DeliveryPurpose.verification,
     })
     if (!result.success) {
