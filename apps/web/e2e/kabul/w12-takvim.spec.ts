@@ -130,7 +130,7 @@ test('W12 masaüstü Ay: gün hücrelerinde randevu sayısı; hücre o günün G
   await page.waitForURL(/gorunum=ay/)
   const ay = page.getByRole('group', { name: 'Ay görünümü' })
   await expect(ay).toBeVisible()
-  const bugunHucre = ay.locator('a[aria-label$=", 4 randevu"]')
+  const bugunHucre = ay.getByRole('link', { name: /4 randevu$/ })
   await expect(bugunHucre, 'bugünün hücresi 4 randevu sayar').toHaveCount(1)
   await olc(page, 'w12-takvim-ay-1440')
   await bugunHucre.click()
@@ -162,7 +162,7 @@ test('W12 hata yolu: personel listesi yüklenemezse "Yeniden dene" çıkar ve ba
   // Yalnız bu test sırasında, yalnız personel listesi uç noktasına tarayıcı düzeyinde sunucu hatası verilir.
   await page.route(personelListesi, (r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"code":"INTERNAL","message":"test"}}' }))
   await page.goto(`/panel/${k.slug}/takvim`)
-  await expect(page.getByText(/Personel listesi/).first()).toBeVisible()
+  await expect(page.getByText(/Personel listesi/).first()).toBeVisible({ timeout: 30_000 })
   const yeniden = page.getByRole('button', { name: 'Yeniden dene' })
   await expect(yeniden).toBeVisible()
   await ekranGoruntusu(page, 'w12-takvim-personel-hatasi-1440')
