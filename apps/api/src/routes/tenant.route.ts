@@ -13,7 +13,7 @@ import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission, ensurePermission } from '../middleware/permission'
 import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
-import { maskPhone, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
+import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
 import { strongPassword } from '../lib/password-policy'
@@ -409,12 +409,13 @@ export function createTenantRouter(): Router {
 
     // Telefon yalniz kendi musterilerinde aranir: baska musterinin numarasi rakam rakam sorgulanarak cikarilamaz.
     const own = ownCustomerWhere(tenantId, profileId)
+    const pattern = escapeLike(term)
     const rows = await db.customer.findMany({
       where: {
         tenantId,
         OR: [
-          { fullName: { contains: term, mode: 'insensitive' as const } },
-          { AND: [own, { phone: { contains: term, mode: 'insensitive' as const } }] },
+          { fullName: { contains: pattern, mode: 'insensitive' as const } },
+          { AND: [own, { phone: { contains: pattern, mode: 'insensitive' as const } }] },
         ],
       },
       orderBy: { createdAt: 'desc' },

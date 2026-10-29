@@ -88,6 +88,16 @@ describe('A2 bolum 2: uzman kisitlari (gercek PG)', () => {
     expect(own.body.data.map((c: { fullName: string }) => c.fullName)).toEqual(['Zeynep Kendi'])
   })
 
+  it('K-R4: LIKE jokerleri uzman aramasinda tum musterileri listelemez (___, %%%)', async () => {
+    for (const wildcard of ['___', '%%%', '_%_']) {
+      const res = await get(`/customers?search=${encodeURIComponent(wildcard)}`, me.token)
+      expect(res.status, wildcard).toBe(200)
+      expect(res.body.data, wildcard).toEqual([])
+    }
+    // sahip icin ayni arama etkilenmez (kontrol: veri gercekten var)
+    expect((await get('/customers?search=Zey', ownerToken)).body.data.length).toBeGreaterThanOrEqual(2)
+  })
+
   it('K-R4: uzman aramasiz liste alamaz; sahip telefonu acik alir', async () => {
     expect((await get('/customers', me.token)).status).toBe(400)
     const res = await get('/customers?search=Baska', ownerToken)

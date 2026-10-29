@@ -5,8 +5,9 @@ export const STAFF_SEARCH_MIN_LENGTH = 3
 /** Uzman aramasinda donen en cok sonuc; sayfalama yok (toplu liste/disa aktarma engeli). */
 export const STAFF_SEARCH_MAX_RESULTS = 10
 
+/** PostgreSQL ILIKE jokerlerini (% _) ve kaçış karakterini (\) kaçışlar: Prisma `contains` bunları kaçışlamaz, `___` her kaydı eşleştirirdi. */
 export function escapeLike(term: string): string {
-  throw new Error('not implemented')
+  return term.replace(/[\\%_]/g, '\\$&')
 }
 
 /** "0532 *** ** 67" bicimi. Kisa ya da bos deger numara sizdirmamak icin "***" olur. */
