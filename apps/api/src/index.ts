@@ -24,6 +24,7 @@ import { createFinancialAccountsRouter } from './routes/financial-accounts.route
 import { createStaffPayoutsRouter } from './routes/staff-payouts.route'
 import { createStockRouter } from './routes/stock.route'
 import { createWaitlistRouter } from './routes/waitlist.route'
+import { apiErrorHandler } from './lib/error-handler'
 import { TenantRegistry } from './lib/tenant.registry'
 import { startReminderWorker } from './lib/queue'
 import { db } from './lib/db'
@@ -107,10 +108,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 
   // ─── Global error handler ─────────────────────────────────────────────────
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    logger.error({ err }, 'Unhandled error')
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Sunucu hatası.' } })
-  })
+  app.use(apiErrorHandler((err) => logger.error({ err }, 'Beklenmeyen hata')))
 
   // ─── Root health check ────────────────────────────────────────────────────
 
