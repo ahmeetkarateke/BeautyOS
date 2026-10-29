@@ -947,6 +947,7 @@ export function createTenantRouter(): Router {
                 const fuEnd = new Date(fuStart.getTime() + durationMs)
                 const conflict = await db.appointment.findFirst({
                   where: {
+                    tenantId,
                     staffId: appt.staffId,
                     status: { notIn: ['cancelled', 'no_show'] },
                     isDeleted: false,
