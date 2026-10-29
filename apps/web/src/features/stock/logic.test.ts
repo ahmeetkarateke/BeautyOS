@@ -1,7 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { emptyProduct, movementBody, movementLabel, productBody, sortItems, stockStatus, toProductValues, validateMovement, validateProduct, type Item, type ProductValues } from './logic'
+import {
+  emptyProduct,
+  movementBody,
+  movementLabel,
+  productBody,
+  sortItems,
+  stockStatus,
+  toProductValues,
+  validateMovement,
+  validateProduct,
+  type Item,
+  type ProductValues,
+} from './logic'
 
-const item = (over: Partial<Item> = {}): Item => ({ id: 'i1', name: 'Şampuan', sku: null, quantity: 10, lowStockThreshold: 3, unitCost: 50, sellingPrice: null, unit: 'adet', ...over })
+const item = (over: Partial<Item> = {}): Item => ({
+  id: 'i1',
+  name: 'Şampuan',
+  sku: null,
+  quantity: 10,
+  lowStockThreshold: 3,
+  unitCost: 50,
+  sellingPrice: null,
+  unit: 'adet',
+  ...over,
+})
 const valid: ProductValues = { name: 'Şampuan', sku: ' SMP-01 ', unit: 'adet', quantityText: '12', thresholdText: '3', costText: '49,90', priceText: '' }
 
 describe('W25 stockStatus', () => {
@@ -19,7 +41,12 @@ describe('W25 stockStatus', () => {
 
 describe('W25 sortItems', () => {
   it('K2: tükenenler, sonra azalanlar, sonra tamamı ada göre Türkçe sırayla', () => {
-    const sorted = sortItems([item({ id: 'a', name: 'Zeytin' }), item({ id: 'b', name: 'Çay', quantity: 1 }), item({ id: 'c', name: 'Boya', quantity: 0 }), item({ id: 'd', name: 'Ağda' })])
+    const sorted = sortItems([
+      item({ id: 'a', name: 'Zeytin' }),
+      item({ id: 'b', name: 'Çay', quantity: 1 }),
+      item({ id: 'c', name: 'Boya', quantity: 0 }),
+      item({ id: 'd', name: 'Ağda' }),
+    ])
     expect(sorted.map((i) => i.id)).toEqual(['c', 'b', 'd', 'a'])
   })
 })
@@ -54,7 +81,13 @@ describe('W25 productBody', () => {
     expect(productBody({ ...valid, priceText: '120,5' }).sellingPrice).toBe(120.5)
   })
   it('K4: forma çevirme (sunucu kaydı) ve boş ürün başlangıcı', () => {
-    expect(toProductValues(item({ sku: 'X', sellingPrice: 99.9, unitCost: 5 }))).toMatchObject({ sku: 'X', priceText: '99,9', costText: '5', thresholdText: '3', unit: 'adet' })
+    expect(toProductValues(item({ sku: 'X', sellingPrice: 99.9, unitCost: 5 }))).toMatchObject({
+      sku: 'X',
+      priceText: '99,9',
+      costText: '5',
+      thresholdText: '3',
+      unit: 'adet',
+    })
     expect(emptyProduct().unit).toBe('adet')
   })
 })
