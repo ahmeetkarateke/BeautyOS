@@ -206,6 +206,15 @@ describe('panel: ortak telefon yalniz bilincli (allowSharedPhone)', () => {
     expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toContain('+905321234567')
   })
 
+  it('W13: panel POST telefonu "05321234567" (0 + 10 hane) biciminde kabul eder ve +905321234567 olarak saklar', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    dbMock.customer.create.mockResolvedValue({ ...created, phone: '+905321234567' })
+    const res = await request(app).post(`${URL}/customers`).set(owner).send({ fullName: 'Yeni Kisi', phone: '05321234567' })
+    expect(res.status).toBe(201)
+    expect(dbMock.customer.create.mock.calls[0][0].data.phone).toBe('+905321234567')
+    expect(res.body.phone).toBe('+905321234567')
+  })
+
   it('ADR-0038 Onemli 3: panel POST gecersiz telefonu 400 ile reddeder (yazmaz)', async () => {
     const res = await request(app).post(`${URL}/customers`).set(owner).send({ fullName: 'Yeni Kisi', phone: 'abcdefgh' })
     expect(res.status).toBe(400)

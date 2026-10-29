@@ -20,13 +20,15 @@ export interface GetSlotsInput {
   serviceId: string
   staffId: string
   date: string // YYYY-MM-DD
+  /** Varsayılan true (herkese açık ve bot yolu). Oturumlu panel çağrısı false verir: online'a kapalı hizmete de randevu açılabilir. */
+  onlineOnly?: boolean
 }
 
 export async function getSlots(input: GetSlotsInput): Promise<SlotResult[]> {
-  const { tenantId, serviceId, staffId, date } = input
+  const { tenantId, serviceId, staffId, date, onlineOnly = true } = input
 
   const service = await db.service.findFirst({
-    where: { id: serviceId, tenantId, isActive: true, isOnlineBookable: true },
+    where: { id: serviceId, tenantId, isActive: true, ...(onlineOnly ? { isOnlineBookable: true } : {}) },
     select: { durationMinutes: true, bufferMinutes: true },
   })
   if (!service) return []

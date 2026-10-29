@@ -16,7 +16,7 @@ import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../li
 import { phoneInUse } from '../lib/customer-phone'
 import { normalizePhoneTR } from '../lib/sms/types'
 import { revokeUserSessions } from '../lib/sessions'
-import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
+import { maskPhone, escapeLike, phoneSearchPattern, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
 import { strongPassword } from '../lib/password-policy'
@@ -248,7 +248,7 @@ export function createTenantRouter(): Router {
       const tenantId = req.tenantId!
 
       if (staffId !== 'any') {
-        const slots = await getSlots({ tenantId, serviceId, staffId, date })
+        const slots = await getSlots({ tenantId, serviceId, staffId, date, onlineOnly: false })
         return res.json({ date, slots: slots.map((s) => ({ ...s, staffId })) })
       }
 
@@ -262,7 +262,7 @@ export function createTenantRouter(): Router {
 
       const allResults = await Promise.all(
         staffList.map(async (sp) => {
-          const slots = await getSlots({ tenantId, serviceId, staffId: sp.id, date })
+          const slots = await getSlots({ tenantId, serviceId, staffId: sp.id, date, onlineOnly: false })
           return slots.map((s) => ({ ...s, staffId: sp.id }))
         }),
       )
@@ -301,7 +301,7 @@ export function createTenantRouter(): Router {
         serviceId: z.string().uuid().optional(),
         status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
         statusIn: z.string().optional(),
-        search: z.string().min(2).optional(),
+        search: z.string().min(2).max(100).optional(),
       })
 
       const parsed = querySchema.safeParse(req.query)
@@ -418,7 +418,7 @@ export function createTenantRouter(): Router {
         tenantId,
         OR: [
           { fullName: { contains: pattern, mode: 'insensitive' as const } },
-          { AND: [own, { phone: { contains: pattern, mode: 'insensitive' as const } }] },
+          { AND: [own, { phone: { contains: phoneSearchPattern(term), mode: 'insensitive' as const } }] },
         ],
       },
       orderBy: { createdAt: 'desc' },
@@ -455,7 +455,7 @@ export function createTenantRouter(): Router {
       const tenantId = req.tenantId!
 
       const querySchema = z.object({
-        search: z.string().min(2).optional(),
+        search: z.string().min(2).max(100).optional(),
         cursor: z.string().uuid().optional(),
         limit: z.preprocess(
           (v) => (v === undefined || v === '' ? 50 : Number(v)),
@@ -478,8 +478,8 @@ export function createTenantRouter(): Router {
       const searchFilter = search
         ? {
             OR: [
-              { fullName: { contains: search, mode: 'insensitive' as const } },
-              { phone: { contains: search, mode: 'insensitive' as const } },
+              { fullName: { contains: escapeLike(search), mode: 'insensitive' as const } },
+              { phone: { contains: phoneSearchPattern(search), mode: 'insensitive' as const } },
             ],
           }
         : {}

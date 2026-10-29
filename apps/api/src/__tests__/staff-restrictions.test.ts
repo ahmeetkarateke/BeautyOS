@@ -153,6 +153,60 @@ describe('R4: uzman musteri aramasi', () => {
   })
 })
 
+describe('W13-2: telefon aramasi normalize biciminde saklanan kaydi bulur', () => {
+  const phoneContains = (call: unknown[]) => {
+    const where = (call[0] as { where: { OR: Array<Record<string, any>> } }).where
+    const branch = where.OR.find((b) => JSON.stringify(b).includes('"phone"'))!
+    return (branch.phone ?? branch.AND[1].phone).contains as string
+  }
+
+  it('K-W13-2: 0532..., 532..., +90532... ve bosluklu/tireli yazimlar ayni ulusal numara desenini arar (saklanan +90 bicimi bulunur)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    for (const term of ['0532 123', '532123', '+90532123', '0(532)-123', '90532123']) {
+      dbMock.customer.findMany.mockClear()
+      await request(app).get(`${URL}/customers?search=${encodeURIComponent(term)}`).set(as('owner'))
+      expect(phoneContains(dbMock.customer.findMany.mock.calls[0]), term).toBe('532123')
+    }
+  })
+
+  it('K-W13-2: telefon gibi olmayan terim aynen (jokerleri kacislanmis) aranir; kisa rakam terimi (2 hane) normalize edilmez', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await request(app).get(`${URL}/customers?search=${encodeURIComponent('a_c')}`).set(as('owner'))
+    expect(phoneContains(dbMock.customer.findMany.mock.calls[0])).toBe('a\\_c')
+    dbMock.customer.findMany.mockClear()
+    await request(app).get(`${URL}/customers?search=05`).set(as('owner'))
+    expect(phoneContains(dbMock.customer.findMany.mock.calls[0])).toBe('05')
+  })
+
+  it('K-W13-2: uzman aramasi da normalize eder ve telefon dali yine yalniz kendi musterileriyle sinirli kalir (R4)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await request(app).get(`${URL}/customers?search=0555123`).set(as('staff'))
+    const where = dbMock.customer.findMany.mock.calls[0][0].where
+    expect(phoneContains(dbMock.customer.findMany.mock.calls[0])).toBe('555123')
+    const phoneBranch = where.OR.find((b: Record<string, unknown>) => JSON.stringify(b).includes('"phone"'))
+    expect(JSON.stringify(phoneBranch)).toContain('sp-me')
+    expect(JSON.stringify(where).match(/"phone"/g)).toHaveLength(1)
+  })
+})
+
+describe('W13-API-1: arama terimi siniri ve karisik terim', () => {
+  it('K-W13-2: harf+rakam karisik terim (ab532) telefon gibi sayilmaz, aynen aranir; yonetici adinda joker kacislanir', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await request(app).get(`${URL}/customers?search=ab532`).set(as('owner'))
+    const where = dbMock.customer.findMany.mock.calls[0][0].where
+    expect(where.OR[1].phone.contains).toBe('ab532')
+    dbMock.customer.findMany.mockClear()
+    await request(app).get(`${URL}/customers?search=a_c`).set(as('owner'))
+    expect(dbMock.customer.findMany.mock.calls[0][0].where.OR[0].fullName.contains).toBe('a\\_c')
+  })
+
+  it('K-W13-2: 100 karakteri asan arama terimi 400 VALIDATION_ERROR (sorgu atilmaz)', async () => {
+    const res = await request(app).get(`${URL}/customers?search=${'a'.repeat(101)}`).set(as('owner'))
+    expect(res.status).toBe(400)
+    expect(dbMock.customer.findMany).not.toHaveBeenCalled()
+  })
+})
+
 describe('R3: uzman fiyati degistiremez', () => {
   function setupCompletion() {
     dbMock.appointment.findFirst
