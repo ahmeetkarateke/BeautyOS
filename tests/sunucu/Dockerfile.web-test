@@ -1,0 +1,13 @@
+# Web birim test imajı (geçici). Derleme bağlamı depo kökü; yalnızca tests/sunucu/web-test.sh çalıştırır.
+FROM node:20.20.2-bookworm-slim
+WORKDIR /app
+ENV TZ=UTC HOME=/tmp
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+# @beautyos/shared çalışma alanı: web bunu içe aktarır, npm ci'dan önce kopyalanır ve dist'i derlenir.
+COPY packages/shared packages/shared
+RUN npm ci --workspace=apps/web --workspace=@beautyos/shared
+RUN npm run build --workspace=@beautyos/shared
+COPY apps/web apps/web
+WORKDIR /app/apps/web
