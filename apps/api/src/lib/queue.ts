@@ -48,7 +48,6 @@ export const remindersQueue = new Queue<ReminderJobData>('reminders', {
 
 const HOUR_MS = 60 * 60 * 1000
 const RECONCILE_WINDOW_MS = 48 * HOUR_MS
-const DUPLICATE_WINDOW_MS = 6 * HOUR_MS
 // Netgsm'in yeniden denemeyle düzelmeyecek kodları: metin, başlık, IYS onayı, parametre. Diğerleri (ağ, 85, 99, bilinmeyen) geçici sayılır.
 const PERMANENT_SMS_CODES: ReadonlySet<string> = new Set(['20', '40', '50', '51', '70'])
 
@@ -151,14 +150,15 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
 
   const purpose = type === 'reminder_24h' ? DeliveryPurpose.reminder_24h : DeliveryPurpose.reminder_2h
 
-  // Çift gönderim önlemi (ADR-0044 riski): aynı randevu ve tür için yakın zamanda gönderilmiş kayıt varsa tekrar gönderilmez
+  // Çift gönderim önlemi (ADR-0044 riski): aynı randevu ve tür için son değişikliğinden sonra gönderilmiş kayıt varsa tekrar gönderilmez
   // (yeniden deneme, uzlaştırma ya da çift iş). Pencere kısa tutulur ki saati değişen randevunun yeni hatırlatması engellenmesin.
   const alreadySent = await db.messageDelivery.findFirst({
     where: {
       appointmentId,
       purpose,
       status: { in: ['sent', 'delivered'] },
-      createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+      // Randevunun son değişikliğinden sonra yazılmış kayıt: saati taşınan randevunun yeni hatırlatması eski kayıtla engellenmez.
+      createdAt: { gt: appointment.updatedAt },
     },
     select: { id: true },
   })

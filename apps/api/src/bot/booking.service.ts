@@ -5,6 +5,7 @@ import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
 import { resolveCustomerByPhone, lookupValues } from '../lib/customer-phone'
 import { computeExpiryAt, scheduleOnlineExpiry, ONLINE_LIMITS } from '../lib/online-booking'
 import { normalizePhoneTR } from '../lib/sms/types'
+import { scheduleReminders } from '../lib/queue'
 import type { BookingChannel } from '@prisma/client'
 
 /** Telefon birden çok karta uyuyor (salon eşleştirecek) ama saat 2 saatten yakın: talep onaylanamadan düşerdi (S2ek-2). */
@@ -241,6 +242,15 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 
   // Eşleşmeyi bekleyen talep süresiz kalmasın: web talebiyle aynı süre dolumu kurulur (gece taraması yedektir).
   if (!customerId) await scheduleOnlineExpiry(appointment.id, computeExpiryAt(new Date(), startAt))
+
+  // Onaylı bot randevusu için hatırlatma işleri kurulur (ADR-0044); kurulamazsa randevu geçerli kalır, gece uzlaştırması telafi eder.
+  if (status === 'confirmed') {
+    try {
+      await scheduleReminders({ appointmentId: appointment.id, tenantId, startAt })
+    } catch (err) {
+      logger.warn({ err, appointmentId: appointment.id }, 'Bot randevusu hatırlatması kurulamadı')
+    }
+  }
 
   // Müşteri ziyaret sayısını artır (bağlanmamış talepte kart yoktur)
   if (customerId) {
