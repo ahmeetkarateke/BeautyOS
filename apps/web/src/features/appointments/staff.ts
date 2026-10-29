@@ -12,7 +12,7 @@ const staffRow = z.object({
   skills: z.array(z.object({ serviceId: z.string() })).optional(),
 })
 
-export type StaffMember = { id: string; name: string; short: string; title: string; initials: string; tone: Tone; givesService: boolean }
+export type StaffMember = { id: string; name: string; short: string; title: string; initials: string; tone: Tone; givesService: boolean; /** Verdiği hizmetler (GET /staff skills). Yoksa bilinmiyor. */ serviceIds?: string[] }
 
 export function parseStaffList(input: unknown): StaffMember[] {
   const rows = z.object({ data: z.array(staffRow) }).parse(input).data
@@ -24,6 +24,7 @@ export function parseStaffList(input: unknown): StaffMember[] {
     initials: getInitials(row.fullName),
     tone: toneForIndex(index),
     givesService: (row.skills?.length ?? 0) > 0,
+    serviceIds: row.skills?.map((skill) => skill.serviceId),
   }))
 }
 
