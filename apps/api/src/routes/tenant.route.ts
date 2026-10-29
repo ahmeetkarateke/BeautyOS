@@ -15,6 +15,7 @@ import { requirePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
+import { istanbulDayRange } from '../lib/time'
 import { strongPassword } from '../lib/password-policy'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -307,15 +308,19 @@ export function createTenantRouter(): Router {
 
       const { date, dateFrom, dateTo, limit, staffId, serviceId, status, statusIn, search } = parsed.data
 
+      // Gün sınırları Europe/Istanbul gününe göredir (A4). Aralıkta (date, dateFrom/dateTo) satır sınırı yoktur; en çok 31 gün.
       let dateFilter = {}
-      if (dateFrom || dateTo) {
-        const gte = dateFrom ? new Date(`${dateFrom}T00:00:00.000Z`) : undefined
-        const lte = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : undefined
-        dateFilter = { startAt: { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) } }
-      } else if (date) {
-        const start = new Date(`${date}T00:00:00.000Z`)
-        const end = new Date(`${date}T23:59:59.999Z`)
-        dateFilter = { startAt: { gte: start, lte: end } }
+      let hasDateRange = false
+      const rangeFrom = dateFrom ?? date ?? dateTo
+      const rangeTo = dateTo ?? date ?? dateFrom
+      if (rangeFrom && rangeTo) {
+        const range = istanbulDayRange(rangeFrom, rangeTo)
+        if (!range.ok) {
+          const message = range.reason === 'RANGE_TOO_LARGE' ? 'Tarih aralığı en çok 31 gün olabilir.' : 'Geçersiz tarih aralığı.'
+          return res.status(400).json({ error: { code: range.reason, message } })
+        }
+        dateFilter = { startAt: { gte: range.gte, lt: range.lt } }
+        hasDateRange = true
       }
 
       const VALID_STATUSES = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'] as const
@@ -358,7 +363,7 @@ export function createTenantRouter(): Router {
               }
             : {}),
         },
-        take: limit,
+        ...(hasDateRange ? {} : { take: limit }),
         orderBy: { startAt: 'asc' },
         include: {
           customer: { select: { fullName: true, phone: true } },
@@ -376,6 +381,10 @@ export function createTenantRouter(): Router {
         data: appointments.map((a) => ({
           id: a.id,
           referenceCode: a.referenceCode,
+          customerId: a.customerId,
+          serviceId: a.serviceId,
+          staffId: a.staffId,
+          durationMinutes: Math.round((a.endAt.getTime() - a.startAt.getTime()) / 60000),
           customerName: a.customer?.fullName ?? a.requestedName ?? '',
           customerPhone: a.customer?.phone ?? a.requestedPhone ?? '',
           unverified: a.customer === null,
