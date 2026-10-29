@@ -46,6 +46,28 @@ describe('S8: body-parser istemci hatalari', () => {
     expect(log).not.toHaveBeenCalled()
   })
 
+  it('type tasiyan ama expose olmayan 4xx hata (tek kural eksik) 500 kalir ve loglanir', async () => {
+    const { app, log } = appThrowing(Object.assign(new Error('x'), { type: 'request.aborted', status: 400 }))
+    const res = await request(app).get('/x')
+    expect(res.status).toBe(500)
+    expect(log).toHaveBeenCalledTimes(1)
+  })
+
+  it('expose olan ama type tasimayan 4xx hata (tek kural eksik) 500 kalir ve loglanir', async () => {
+    const { app, log } = appThrowing(Object.assign(new Error('x'), { status: 400, expose: true }))
+    const res = await request(app).get('/x')
+    expect(res.status).toBe(500)
+    expect(log).toHaveBeenCalledTimes(1)
+  })
+
+  it('diger body-parser 413 turleri (request.size.invalid) PAYLOAD_TOO_LARGE olarak korunur', async () => {
+    const { app, log } = appThrowing(Object.assign(new Error('x'), { type: 'request.size.invalid', status: 413, expose: true }))
+    const res = await request(app).get('/x')
+    expect(res.status).toBe(413)
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE')
+    expect(log).not.toHaveBeenCalled()
+  })
+
   it('body-parser disi hata, status 400 tasisa da expose/type yoksa 500 kalir ve loglanir', async () => {
     const { app, log } = appThrowing(Object.assign(new Error('veritabani sifresi=abc'), { status: 400 }))
     const res = await request(app).get('/x')

@@ -26,7 +26,9 @@ export function apiErrorHandler(logUnhandled: UnhandledLogger): ErrorRequestHand
     // bunlari expose=true ve 4xx ile isaretler. Mesaj govdeden parca tasiyabildigi icin yansitilmaz, loglanmaz.
     const { status, expose } = (err ?? {}) as { status?: unknown; expose?: unknown }
     if (typeof type === 'string' && expose === true && typeof status === 'number' && status >= 400 && status < 500) {
-      if (status === 415) {
+      if (status === 413) {
+        res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'İstek gövdesi çok büyük.' } })
+      } else if (status === 415) {
         res.status(415).json({ error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Desteklenmeyen içerik türü.' } })
       } else {
         res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz istek gövdesi.' } })
