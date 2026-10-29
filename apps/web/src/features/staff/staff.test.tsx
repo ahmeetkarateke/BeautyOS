@@ -197,6 +197,7 @@ describe('W21 Personel ayrıntısı', () => {
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect((writes()[0][1] as Init).body).toEqual({ leaveDate: '2026-12-24', leaveType: 'day_off' })
     fireEvent.click(within(list).getAllByRole('button', { name: 'Sil' })[0])
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'İzni sil' }))
     await waitFor(() => expect(writes()).toHaveLength(2))
     expect(writes()[1][0]).toMatch(/leaves\/l1$/)
   })
@@ -287,5 +288,37 @@ describe('W21-1: salon saatleri kullanılıyor (müdür kararı)', () => {
     mount(<StaffDetailScreen staffId="p1" />)
     openTab(await screen.findByRole('tab', { name: 'Çalışma saatleri' }))
     expect(await screen.findByText('Salon saatleri yüklenemedi.')).toBeTruthy()
+  })
+})
+
+describe('W21-1 öneriler', () => {
+  it('K17: izin silmek önce onay ister; Vazgeç istek atmaz', async () => {
+    mount(<StaffDetailScreen staffId="p1" />)
+    openTab(await screen.findByRole('tab', { name: 'İzinler' }))
+    const list = await screen.findByRole('list', { name: 'İzinler' })
+    fireEvent.click(within(list).getAllByRole('button', { name: 'Sil' })[0])
+    const confirm = await screen.findByRole('alertdialog')
+    expect(confirm.textContent).toContain('1 Kasım 2026')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Vazgeç' }))
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('K18: yetkisiz rolde (resepsiyon) personel listesi isteği hiç atılmaz', () => {
+    mount(<StaffDetailScreen staffId="p1" />, makeMe('receptionist'))
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('K19: "En az bir gün açık olmalı" şeridi bir gün açılınca kaybolur', async () => {
+    staff = [person({ workingHours: null })]
+    mount(<StaffDetailScreen staffId="p1" />)
+    openTab(await screen.findByRole('tab', { name: 'Çalışma saatleri' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Kişiye özel saat belirle' }))
+    await screen.findByLabelText('Pazartesi başlangıç')
+    fireEvent.click(screen.getByRole('switch', { name: 'Pazartesi' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Salı' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saatleri kaydet' }))
+    expect(await screen.findByText(/En az bir gün açık olmalı/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('switch', { name: 'Cuma' }))
+    expect(screen.queryByText(/En az bir gün açık olmalı/)).toBeNull()
   })
 })
