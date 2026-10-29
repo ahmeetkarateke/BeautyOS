@@ -13,6 +13,7 @@ import { isValidModuleKey } from '../lib/modules'
 import { can } from '@beautyos/shared'
 import { requirePermission } from '../middleware/permission'
 import { customerAccessFilter } from '../lib/customer-scope'
+import { approveOnlineRequest } from '../lib/online-booking'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
 
@@ -346,7 +347,14 @@ export function createTenantRouter(): Router {
           ...staffFilter,
           ...(serviceId ? { serviceId } : {}),
           ...statusFilter,
-          ...(search ? { customer: { fullName: { contains: search, mode: 'insensitive' as const } } } : {}),
+          ...(search
+            ? {
+                OR: [
+                  { customer: { fullName: { contains: search, mode: 'insensitive' as const } } },
+                  { requestedName: { contains: search, mode: 'insensitive' as const } },
+                ],
+              }
+            : {}),
         },
         take: limit,
         orderBy: { startAt: 'asc' },
@@ -366,8 +374,9 @@ export function createTenantRouter(): Router {
         data: appointments.map((a) => ({
           id: a.id,
           referenceCode: a.referenceCode,
-          customerName: a.customer.fullName,
-          customerPhone: a.customer.phone,
+          customerName: a.customer?.fullName ?? a.requestedName ?? '',
+          customerPhone: a.customer?.phone ?? a.requestedPhone ?? '',
+          unverified: a.customer === null,
           serviceName: a.service.name,
           serviceCategory: a.service.category ?? '',
           staffName: a.staff.user.fullName,
@@ -645,7 +654,7 @@ export function createTenantRouter(): Router {
       return res.status(201).json({
         id: appointment.id,
         referenceCode: appointment.referenceCode,
-        customerName: appointment.customer.fullName,
+        customerName: appointment.customer?.fullName ?? '',
         serviceName: appointment.service.name,
         staffName: appointment.staff.user.fullName,
         startTime: appointment.startAt.toISOString(),
@@ -858,6 +867,16 @@ export function createTenantRouter(): Router {
         })
       }
 
+      // Müşterisi henüz eşleşmemiş (doğrulanmamış) online talep: onay müşteri eşleştirmesi gerektirir (S2).
+      if (!existing.customerId && status !== 'cancelled' && status !== 'no_show') {
+        const outcome = status === 'confirmed' ? await approveOnlineRequest(tenantId, appointmentId, { customerAction: 'create' }) : 'not_pending'
+        if (outcome === 'ok') return res.json({ id: appointmentId, status: 'confirmed', cancellationReason: existing.cancellationReason })
+        if (typeof outcome === 'object' && outcome.result === 'match_required') {
+          return res.status(409).json({ error: { code: 'CUSTOMER_MATCH_REQUIRED', message: 'Bu telefonla kayıtlı bir müşteri var; eşleştirmeyi yeni panelden yapın.' }, candidates: outcome.candidates })
+        }
+        return res.status(409).json({ error: { code: 'CUSTOMER_MATCH_REQUIRED', message: 'Önce talebi onaylayıp müşteriyle eşleştirin.' } })
+      }
+
       const updated = await db.appointment.update({
         where: { id: appointmentId },
         data: {
@@ -971,7 +990,7 @@ export function createTenantRouter(): Router {
                     timeZone: 'Europe/Istanbul',
                   })
                   const text = `${appt.service.name} işleminiz tamamlandı! ${fu.label} kontrolünüz (${tarih}) takvime eklendi. Saat değişikliği için bize yazabilirsiniz.`
-                  await channel.sendText(appt.customer.phone, text)
+                  if (appt.customer) await channel.sendText(appt.customer.phone, text)
                 }
               } catch (err) {
                 logger.warn({ err, appointmentId }, 'Follow-up bildirimleri gönderilemedi')
@@ -1085,7 +1104,7 @@ export function createTenantRouter(): Router {
       return res.json({
         id: updated.id,
         referenceCode: updated.referenceCode,
-        customerName: updated.customer.fullName,
+        customerName: updated.customer?.fullName ?? updated.requestedName ?? '',
         serviceName: updated.service.name,
         staffName: updated.staff.user.fullName,
         startTime: updated.startAt.toISOString(),
@@ -1711,7 +1730,7 @@ export function createTenantRouter(): Router {
         transactions: transactions.map((t) => ({
           id: t.id,
           time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
-          customerName: t.appointment?.customer.fullName ?? null,
+          customerName: t.appointment?.customer?.fullName ?? null,
           serviceName: t.appointment?.service.name ?? null,
           amount: Number(t.grossAmount),
           paymentMethod: t.paymentMethod,
@@ -1789,7 +1808,7 @@ export function createTenantRouter(): Router {
       const txMapped = transactions.map((t) => ({
         id: t.id,
         time: t.appointment?.startAt.toISOString() ?? t.completedAt?.toISOString() ?? null,
-        customerName: t.appointment?.customer.fullName ?? null,
+        customerName: t.appointment?.customer?.fullName ?? null,
         serviceName: t.appointment?.service.name ?? null,
         serviceCategory: t.appointment?.service.category ?? 'Diğer',
         amount: Number(t.grossAmount),

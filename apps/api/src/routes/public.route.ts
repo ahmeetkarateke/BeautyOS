@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import { db } from '../lib/db'
@@ -17,6 +17,13 @@ const MAX_ACTIVE_PER_PHONE = 2
 const MIN_LEAD_FOR_APPROVAL_MS = 2.5 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** Doğrulamasız (none) modda onay için süre dolumu yakın saatleri kapsamaz: slot listesi bu saatleri kapalı gösterir. */
+function applyApprovalLead<T extends { id: string; available: boolean }>(slots: T[]): T[] {
+  if (resolveBookingMode().phoneVerification === 'sms') return slots
+  const limit = Date.now() + MIN_LEAD_FOR_APPROVAL_MS
+  return slots.map((s) => (new Date(s.id.includes('Z') || s.id.includes('+') ? s.id : `${s.id}Z`).getTime() < limit ? { ...s, available: false } : s))
+}
+
 const MANUAL_BY_DEFAULT: ReadonlySet<string> = new Set(['dentist', 'aesthetic_clinic'])
 
 /** T3: salon ayarı varsa o; yoksa klinik türleri elle onay, diğerleri otomatik. Yalnız sms (doğrulanmış) modunda geçerlidir. */
@@ -26,45 +33,55 @@ function resolveApprovalMode(tenant: { settings: unknown; businessType: string }
   return MANUAL_BY_DEFAULT.has(tenant.businessType) ? 'manual' : 'auto'
 }
 
-interface CapError {
-  code: string
-  message: string
-}
+type PhoneCap = 'active' | 'pending'
 
-/** Telefon ve kiracı tavanları. Hata varsa 429 gövdesini döner. */
-async function checkBookingCaps(tenantId: string, variants: string[], verifiedMode: boolean): Promise<CapError | null> {
+/**
+ * Telefon başına tavanlar. Sonuç telefonun salonda randevusu olup olmadığını söyler; bu yüzden doğrulanmamış
+ * (none) modda çağıran bunu ayırt edilemez başarı yanıtıyla gizler (KVKK: sağlık verisi çıkarımı).
+ */
+async function checkPhoneCaps(tenantId: string, variants: string[], verifiedMode: boolean): Promise<PhoneCap | null> {
   const activeCount = await db.appointment.count({
     where: {
       tenantId,
-      customer: { phone: { in: variants } },
+      OR: [{ customer: { phone: { in: variants } } }, { requestedPhone: { in: variants } }],
       isDeleted: false,
       status: { in: ['pending', 'confirmed', 'in_progress'] },
       startAt: { gte: new Date() },
     },
   })
-  if (activeCount >= MAX_ACTIVE_PER_PHONE) {
-    return {
-      code: 'TOO_MANY_BOOKINGS',
-      message: `Bu telefon için aktif ${MAX_ACTIVE_PER_PHONE} randevu sınırına ulaşıldı. Mevcut randevularınızı tamamladıktan sonra yeni randevu alabilirsiniz.`,
-    }
-  }
+  if (activeCount >= MAX_ACTIVE_PER_PHONE) return 'active'
 
   if (!verifiedMode) {
     const phonePending = await db.appointment.count({
-      where: { tenantId, bookingChannel: 'web', status: 'pending', isDeleted: false, customer: { phone: { in: variants } } },
+      where: { tenantId, bookingChannel: 'web', status: 'pending', isDeleted: false, OR: [{ customer: { phone: { in: variants } } }, { requestedPhone: { in: variants } }] },
     })
-    if (phonePending >= ONLINE_LIMITS.pendingPerPhone) {
-      return { code: 'PHONE_PENDING_LIMIT', message: 'Bu telefon için onay bekleyen bir talebiniz var. Salon yanıt verdikten sonra yeni talep oluşturabilirsiniz.' }
-    }
+    if (phonePending >= ONLINE_LIMITS.pendingPerPhone) return 'pending'
   }
+  return null
+}
 
+/** Kiracı geneli günlük tavan; telefona özgü bilgi taşımaz, ayrı kodla dönebilir. */
+async function isTenantDailyCapReached(tenantId: string): Promise<boolean> {
   const tenantPending = await db.appointment.count({
     where: { tenantId, bookingChannel: 'web', status: 'pending', isDeleted: false, createdAt: { gte: new Date(Date.now() - DAY_MS) } },
   })
-  if (tenantPending >= ONLINE_LIMITS.pendingPerTenantPerDay) {
-    return { code: 'TENANT_DAILY_LIMIT', message: 'Online randevu şu an alınamıyor, lütfen salonu arayın.' }
+  return tenantPending >= ONLINE_LIMITS.pendingPerTenantPerDay
+}
+
+/** Tavana takılan doğrulamasız talebe başarılı talebin aynısı döner; kayıt oluşturulmaz. */
+function acceptedLookalike(startDate: Date) {
+  return {
+    id: randomUUID(),
+    referenceCode: newReferenceCode(Date.now()),
+    startAt: startDate,
+    status: 'pending' as const,
+    approvalRequired: true,
+    phoneVerified: false,
   }
-  return null
+}
+
+function newReferenceCode(nowMs: number): string {
+  return `RDV-${nowMs.toString(36).toUpperCase()}${randomBytes(2).toString('hex').toUpperCase()}`
 }
 
 /** Kayıtlı müşteri farklı telefon biçimiyle bulunur; yoksa normalize telefonla oluşturulur. */
@@ -75,7 +92,11 @@ async function resolveCustomerId(
   fullName: string,
   verifiedAt: Date | null,
 ): Promise<string> {
-  const existing = await db.customer.findFirst({ where: { tenantId, phone: { in: variants } }, select: { id: true } })
+  const existing = await db.customer.findFirst({
+    where: { tenantId, phone: { in: variants } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  })
   if (existing) return existing.id
   const verified = verifiedAt ? { phoneVerifiedAt: verifiedAt } : {}
   const customer = await db.customer.upsert({
@@ -127,11 +148,12 @@ export function createPublicRouter(): Router {
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla istek gönderildi, lütfen 1 dakika sonra tekrar deneyin.' } },
   })
 
-  // Başarısız denemeler (captcha, doğrulama, 4xx/5xx) sayacı tüketmez.
   const bookLimiter = rateLimit({
     windowMs: 60 * 60 * 1000,
     max: ONLINE_LIMITS.ipPerHour,
+    // Yalnız 400 (captcha, doğrulama, geçmiş/yakın saat) kotayı tüketmez; tavan, 404, 409 ve 429 yanıtları sayılır.
     skipFailedRequests: true,
+    requestWasSuccessful: (_req, res) => res.statusCode !== 400,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla rezervasyon denemesi. Lütfen 1 saat sonra tekrar deneyin.' } },
@@ -265,7 +287,7 @@ export function createPublicRouter(): Router {
 
       if (staffId !== 'any') {
         const slots = await getSlots({ tenantId: tenant.id, serviceId, staffId, date })
-        return res.json({ date, slots: slots.map((s) => ({ ...s, staffId })) })
+        return res.json({ date, slots: applyApprovalLead(slots.map((s) => ({ ...s, staffId }))) })
       }
 
       // staffId=any → bu hizmeti yapan tüm personel için slot topla, zamana göre dedupe et
@@ -297,7 +319,7 @@ export function createPublicRouter(): Router {
       }
 
       const merged = Array.from(byTime.values()).sort((a, b) => a.id.localeCompare(b.id))
-      return res.json({ date, slots: merged })
+      return res.json({ date, slots: applyApprovalLead(merged) })
     } catch (err) {
       next(err)
     }
@@ -420,9 +442,6 @@ export function createPublicRouter(): Router {
       }
       const variants = phoneVariants(customerPhone)
 
-      const capped = await checkBookingCaps(tenant.id, variants, verifiedMode)
-      if (capped) return res.status(429).json({ error: capped })
-
       const service = await db.service.findFirst({
         where: { id: serviceId, tenantId: tenant.id, isActive: true, isOnlineBookable: true },
         select: { id: true, durationMinutes: true, bufferMinutes: true, price: true },
@@ -489,10 +508,23 @@ export function createPublicRouter(): Router {
         verifiedAt = recent.consumedAt
       }
 
-      const customerId = await resolveCustomerId(tenant.id, normalizedPhone, variants, customerName, verifiedAt)
+      // Tavanlar servis, personel, saat ve (sms modunda) doğrulamadan sonra denetlenir: geçerli veri olmadan sorgulanamaz.
+      if (await isTenantDailyCapReached(tenant.id)) {
+        return res.status(429).json({ error: { code: 'TENANT_DAILY_LIMIT', message: 'Online randevu şu an alınamıyor, lütfen salonu arayın.' } })
+      }
+      const phoneCap = await checkPhoneCaps(tenant.id, variants, verifiedMode)
+      if (phoneCap) {
+        if (!verifiedMode) return res.status(201).json(acceptedLookalike(startDate))
+        return res.status(429).json({
+          error: { code: 'TOO_MANY_BOOKINGS', message: `Bu telefon için aktif ${MAX_ACTIVE_PER_PHONE} randevu sınırına ulaşıldı. Mevcut randevularınızı tamamladıktan sonra yeni randevu alabilirsiniz.` },
+        })
+      }
+
+      // Doğrulanmamış talep var olan müşteriye bağlanmaz ve müşteri oluşturmaz (KVKK): ad/telefon talepte tutulur, salon onayda eşleştirir.
+      const customerId = verifiedMode ? await resolveCustomerId(tenant.id, normalizedPhone, variants, customerName, verifiedAt) : null
       const approvalRequired = !verifiedMode || resolveApprovalMode(tenant) === 'manual'
       const status = approvalRequired ? 'pending' : 'confirmed'
-      const referenceCode = `RDV-${nowMs.toString(36).toUpperCase()}${randomBytes(2).toString('hex').toUpperCase()}`
+      const referenceCode = newReferenceCode(nowMs)
 
       const appointment = await db.appointment.create({
         data: {
@@ -501,6 +533,8 @@ export function createPublicRouter(): Router {
           staffId,
           serviceId,
           referenceCode,
+          requestedName: verifiedMode ? null : customerName,
+          requestedPhone: verifiedMode ? null : normalizedPhone,
           status,
           phoneVerified: verifiedMode,
           bookingChannel: 'web',

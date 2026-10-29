@@ -5,6 +5,7 @@
 
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto'
 import { db } from './db'
+import { isSmsConfigured } from './booking-mode'
 import { sendSms, normalizePhoneTR } from './sms'
 import { DeliveryPurpose } from '@prisma/client'
 
@@ -54,7 +55,7 @@ export async function sendVerificationCode(args: {
     return { ok: false, error: 'INVALID_PHONE', message: 'Geçersiz telefon numarası formatı.' }
   }
 
-  const smsConfigured = Boolean(process.env.NETGSM_USERCODE)
+  const smsConfigured = isSmsConfigured()
   const isProduction = process.env.NODE_ENV === 'production'
   // Üretimde gerçek SMS sağlayıcısı yoksa kod hiçbir yere iletilemez; kodu yanıtta vermek doğrulamayı anlamsız kılar.
   if (isProduction && !smsConfigured) {

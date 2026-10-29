@@ -78,6 +78,11 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     timeZone: 'Europe/Istanbul',
   })
 
+  // Doğrulanmamış online talepte müşteri henüz yoktur (onayda bağlanır); hatırlatma gönderilecek kişi yok.
+  if (!appointment.customer) {
+    logger.info({ appointmentId }, 'Randevuya bağlı müşteri yok, hatırlatma atlandı')
+    return
+  }
   const { id: customerId, fullName, phone } = appointment.customer
   const serviceName = appointment.service.name
   const salonName = appointment.tenant.name
@@ -139,6 +144,8 @@ async function processNightlyNoShow(): Promise<void> {
         where: { id: appt.id },
         data: { status: 'no_show' },
       })
+
+      if (!appt.customer) continue
 
       const normalized = normalizePhoneTR(appt.customer.phone)
       if (!normalized) {

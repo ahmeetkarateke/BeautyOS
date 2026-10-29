@@ -21,6 +21,7 @@ const ID = '00000000-0000-4000-8000-000000000001'
 export const GATES: Gate[] = [
   { file: 'appointment-approval', method: 'patch', route: '/appointments/:id/approve', url: `/appointments/${ID}/approve`, permission: 'appointment.approve' },
   { file: 'appointment-approval', method: 'patch', route: '/appointments/:id/reject', url: `/appointments/${ID}/reject`, permission: 'appointment.approve' },
+  { file: 'appointment-approval', method: 'get', route: '/appointments/:id/customer-candidates', url: `/appointments/${ID}/customer-candidates`, permission: 'appointment.approve' },
 
   { file: 'current-accounts', method: 'get', route: '/current-accounts', url: '/current-accounts', permission: 'current_account.read' },
   { file: 'current-accounts', method: 'get', route: '/current-accounts/:partyType/:partyId/entries', url: `/current-accounts/customer/${ID}/entries`, permission: 'current_account.read' },

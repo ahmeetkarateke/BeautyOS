@@ -16,6 +16,8 @@ const turnstileMock = vi.hoisted(() => ({ verifyTurnstile: vi.fn(), isTurnstileU
 
 vi.mock('../lib/db', () => ({ db: dbMock }))
 vi.mock('../lib/queue', () => ({ remindersQueue: queueMock }))
+const slotsMock = vi.hoisted(() => ({ getSlots: vi.fn() }))
+vi.mock('../lib/slots', () => slotsMock)
 vi.mock('../lib/turnstile', () => turnstileMock)
 vi.mock('../lib/sms', async () => {
   const actual = await vi.importActual<typeof import('../lib/sms/types')>('../lib/sms/types')
@@ -80,8 +82,8 @@ beforeEach(() => {
   dbMock.staffProfile.findFirst.mockReset().mockResolvedValue({ id: STAFF_ID })
   dbMock.appointment.findFirst.mockReset().mockResolvedValue(null)
   dbMock.appointment.count.mockReset().mockImplementation(async (args: { where: Record<string, any> }) => {
-    if (args.where.customer && args.where.status?.in) return counts.active
-    if (args.where.customer) return counts.phonePending
+    if (args.where.OR && args.where.status?.in) return counts.active
+    if (args.where.OR) return counts.phonePending
     return counts.tenantPending
   })
   dbMock.appointment.create.mockReset().mockImplementation(async (args: { data: Record<string, unknown> }) => ({
@@ -118,13 +120,12 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
     expect(dbMock.phoneVerification.findFirst).not.toHaveBeenCalled()
   })
 
-  it('K1: musteri normalize edilmis telefonla olusur ve phoneVerifiedAt isaretlenmez', async () => {
+  it('S2 Kritik 2: dogrulanmamis talep musteri olusturmaz; ad ve normalize telefon talepte tutulur (customerId null)', async () => {
     await book(makeApp())
-    const arg = dbMock.customer.upsert.mock.calls[0][0]
-    expect(arg.where).toEqual({ tenantId_phone: { tenantId: 't1', phone: '+905551112233' } })
-    expect(arg.create.phone).toBe('+905551112233')
-    expect(arg.create).not.toHaveProperty('phoneVerifiedAt')
-    expect(arg.update).not.toHaveProperty('phoneVerifiedAt')
+    expect(dbMock.customer.upsert).not.toHaveBeenCalled()
+    expect(dbMock.customer.findFirst).not.toHaveBeenCalled()
+    const data = dbMock.appointment.create.mock.calls[0][0].data
+    expect(data).toMatchObject({ customerId: null, requestedName: 'Ayşe Yılmaz', requestedPhone: '+905551112233', phoneVerified: false })
   })
 
   it('K1: salon otomatik onay (T3) ayarini acmis olsa da talep pending duser', async () => {
@@ -135,14 +136,13 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
     expect(dbMock.appointment.create.mock.calls[0][0].data.status).toBe('pending')
   })
 
-  it('K1: kayitli musteri farkli telefon bicimiyle bulunur ve yeniden kullanilir (tekrar musteri olusmaz)', async () => {
+  it('S2 Kritik 2: var olan musterinin telefonuyla gelen talep o karta baglanmaz (musteri aranmaz, guncellenmez, baglanmaz)', async () => {
     dbMock.customer.findFirst.mockResolvedValue({ id: 'cust-old', phone: '05551112233' })
-    await book(makeApp())
+    const res = await book(makeApp())
+    expect(res.status).toBe(201)
+    expect(dbMock.customer.findFirst).not.toHaveBeenCalled()
     expect(dbMock.customer.upsert).not.toHaveBeenCalled()
-    expect(dbMock.appointment.create.mock.calls[0][0].data.customerId).toBe('cust-old')
-    const where = dbMock.customer.findFirst.mock.calls[0][0].where
-    expect(where.tenantId).toBe('t1')
-    expect(where.phone.in).toEqual(expect.arrayContaining(['+905551112233', '05551112233']))
+    expect(dbMock.appointment.create.mock.calls[0][0].data.customerId).toBeNull()
   })
 
   it('K3: talep icin online-expire-<id> is kimligiyle sure dolumu kurulur (24 saat ya da randevudan 2 saat once)', async () => {
@@ -176,19 +176,27 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
     expect(names).not.toContain('reminder-2h')
   })
 
-  it('K2 tavan: ayni telefonla bekleyen talep varsa 429 PHONE_PENDING_LIMIT, kayit olusmaz', async () => {
+  it('S2 Kritik 1: telefon tavanina takilan istek basarili istekle ayni durum kodu ve ayni govde bicimini alir, kayit olusmaz', async () => {
+    const ok = await book(makeApp())
+    dbMock.appointment.create.mockClear()
     counts.phonePending = 1
-    const res = await book(makeApp())
-    expect(res.status).toBe(429)
-    expect(res.body.error.code).toBe('PHONE_PENDING_LIMIT')
+    const capped = await book(makeApp())
+    expect(capped.status).toBe(ok.status)
+    expect(Object.keys(capped.body).sort()).toEqual(Object.keys(ok.body).sort())
+    for (const key of ['status', 'approvalRequired', 'phoneVerified']) expect(capped.body[key]).toBe(ok.body[key])
+    expect(capped.body.id).not.toBe(ok.body.id)
     expect(dbMock.appointment.create).not.toHaveBeenCalled()
+    expect(queueMock.add).toHaveBeenCalledTimes(1) // yalniz ilk basarili talebin sure dolumu isi
   })
 
-  it('K2 tavan: bekleyen talep sorgusu kiraci ve tum telefon bicimleriyle sinirlidir', async () => {
+  it('K2 tavan: bekleyen talep sorgusu kiraci ve tum telefon bicimleriyle (musteri telefonu ya da talep telefonu) sinirlidir', async () => {
     await book(makeApp())
-    const phoneCall = dbMock.appointment.count.mock.calls.map((c) => c[0].where).find((w) => w.customer && !w.status.in)!
+    const phoneCall = dbMock.appointment.count.mock.calls.map((c) => c[0].where).find((w) => w.OR && !w.status.in)!
     expect(phoneCall).toMatchObject({ tenantId: 't1', bookingChannel: 'web', status: 'pending', isDeleted: false })
-    expect(phoneCall.customer.phone.in).toEqual(expect.arrayContaining(['+905551112233', '05551112233', '5551112233']))
+    const requested = phoneCall.OR.find((c: Record<string, unknown>) => 'requestedPhone' in c)
+    expect(requested.requestedPhone.in).toEqual(expect.arrayContaining(['+905551112233', '05551112233', '5551112233']))
+    const linked = phoneCall.OR.find((c: Record<string, unknown>) => 'customer' in c)
+    expect(linked.customer.phone.in).toEqual(expect.arrayContaining(['+905551112233']))
   })
 
   it('K2 tavan: kiracida 24 saatte 20 bekleyen talep varsa 429 TENANT_DAILY_LIMIT ve durust metin', async () => {
@@ -205,11 +213,40 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
     expect((await book(makeApp())).status).toBe(201)
   })
 
-  it('K2 tavan: mevcut aktif randevu siniri (telefon basina 2) korunur', async () => {
+  it('S2 Kritik 1: aktif randevu siniri (telefon basina 2) da ayni ayirt edilemez yaniti verir, kayit olusmaz', async () => {
+    const ok = await book(makeApp())
+    dbMock.appointment.create.mockClear()
     counts.active = 2
+    const capped = await book(makeApp())
+    expect(capped.status).toBe(201)
+    expect(Object.keys(capped.body).sort()).toEqual(Object.keys(ok.body).sort())
+    expect(capped.body.status).toBe('pending')
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+  })
+
+  it('S2 Kritik 1: telefon tavani gecerli servis/personel gerektirir (gecersiz servis 404, telefon durumu sizmaz)', async () => {
+    counts.phonePending = 1
+    dbMock.service.findFirst.mockResolvedValue(null)
     const res = await book(makeApp())
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+  })
+
+  it('S2 Kritik 1: dolu slotta tavan sorgusu yapilmaz (409 SLOT_TAKEN)', async () => {
+    counts.phonePending = 1
+    dbMock.appointment.findFirst.mockResolvedValue({ id: 'other' })
+    const res = await book(makeApp())
+    expect(res.status).toBe(409)
+    expect(dbMock.appointment.count).not.toHaveBeenCalled()
+  })
+
+  it('S2 Kritik 1: tavana takilan istekler de IP kotasini tuketir (4. istek 429 RATE_LIMIT)', async () => {
+    counts.phonePending = 1
+    const app = makeApp()
+    for (let i = 0; i < 3; i++) expect((await book(app)).status).toBe(201)
+    const res = await book(app)
     expect(res.status).toBe(429)
-    expect(res.body.error.code).toBe('TOO_MANY_BOOKINGS')
+    expect(res.body.error.code).toBe('RATE_LIMIT')
   })
 
   it('K2 tavan: ayni IP saatte 3 talep alir, 4. talep 429 RATE_LIMIT', async () => {
@@ -259,10 +296,56 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
   })
 })
 
+describe('S2: none modunda yakin saatler slot listesinde kapali', () => {
+  it('2,5 saatten yakin slot available=false, uzak slot acik; sms modunda hepsi acik', async () => {
+    const near = new Date(Date.now() + 2 * H).toISOString().replace(/\.\d{3}Z$/, 'Z')
+    const far = new Date(Date.now() + 6 * H).toISOString().replace(/\.\d{3}Z$/, 'Z')
+    slotsMock.getSlots.mockResolvedValue([
+      { id: near, label: '10:00', available: true },
+      { id: far, label: '14:00', available: true },
+    ])
+    const url = `/api/v1/tenants/salon/public/slots?serviceId=${SERVICE_ID}&staffId=${STAFF_ID}&date=2030-01-01`
+    const none = await request(makeApp()).get(url)
+    expect(none.body.slots.map((x: { available: boolean }) => x.available)).toEqual([false, true])
+    process.env.NETGSM_USERCODE = 'kullanici'
+    const sms = await request(makeApp()).get(url)
+    expect(sms.body.slots.map((x: { available: boolean }) => x.available)).toEqual([true, true])
+  })
+})
+
 describe('S2 sms modu: dogrulama ve T3 devrede', () => {
   beforeEach(() => {
     process.env.NETGSM_USERCODE = 'kullanici'
     dbMock.phoneVerification.findFirst.mockResolvedValue({ id: 'pv1', consumedAt: new Date() })
+  })
+
+  it('S2 Kritik 1: sms modunda tavan sorgusu dogrulamadan sonra yapilir; dogrulanmamis telefon tavan durumunu ogrenemez (403)', async () => {
+    dbMock.phoneVerification.findFirst.mockResolvedValue(null)
+    counts.active = 2
+    const res = await book(makeApp())
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('PHONE_NOT_VERIFIED')
+  })
+
+  it('S2: sms modunda dogrulanmis telefon aktif randevu sinirina takilirsa durust 429 TOO_MANY_BOOKINGS alir', async () => {
+    counts.active = 2
+    const res = await book(makeApp())
+    expect(res.status).toBe(429)
+    expect(res.body.error.code).toBe('TOO_MANY_BOOKINGS')
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+  })
+
+  it('S2: sms modunda kayitli musteri farkli telefon bicimiyle bulunur (en eski kayit) ve baglanir', async () => {
+    dbMock.customer.findFirst.mockResolvedValue({ id: 'cust-old', phone: '05551112233' })
+    await book(makeApp())
+    expect(dbMock.customer.upsert).not.toHaveBeenCalled()
+    const data = dbMock.appointment.create.mock.calls[0][0].data
+    expect(data.customerId).toBe('cust-old')
+    expect(data.requestedPhone).toBeNull()
+    const arg = dbMock.customer.findFirst.mock.calls[0][0]
+    expect(arg.where.tenantId).toBe('t1')
+    expect(arg.where.phone.in).toEqual(expect.arrayContaining(['+905551112233', '05551112233']))
+    expect(arg.orderBy).toEqual({ createdAt: 'asc' })
   })
 
   it('K5: telefon dogrulanmamissa 403 PHONE_NOT_VERIFIED, kayit olusmaz', async () => {

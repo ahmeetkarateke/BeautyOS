@@ -81,6 +81,12 @@ describe('S2-K7: OTP saklama ve uretim', () => {
     expect(where.createdAt.gte.getTime()).toBeGreaterThan(Date.now() - 60 * 60 * 1000 - 5000)
   })
 
+  it('S2: bosluktan olusan NETGSM_USERCODE yapilandirilmis sayilmaz (mod ve kod gonderimi ayni karari verir)', async () => {
+    process.env.NODE_ENV = 'production'
+    process.env.NETGSM_USERCODE = '   '
+    expect(await sendVerificationCode({ phone: '05551112233', tenantId: 't1' })).toMatchObject({ ok: false, error: 'SMS_UNAVAILABLE' })
+  })
+
   it('saatte 4 gonderimde (sinirin hemen alti) gonderim yapilir', async () => {
     dbMock.phoneVerification.count.mockResolvedValue(4)
     expect(await sendVerificationCode({ phone: '05551112233', tenantId: 't1' })).toMatchObject({ ok: true })
