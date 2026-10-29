@@ -15,17 +15,16 @@ import {
 
 // W12 görsel kabul: Takvim. Masaüstünde gün, hafta, ay; telefonda gün. Hizmeti kaldırılmış ve silinmiş personelin
 // randevusu görünür kalır; personel listesi hatasında "Yeniden dene" çıkar ve düzelir; uzman yalnız kendi takvimini görür.
-// Randevular "bugün" (İstanbul) ve şimdiden sonra kurulur; 21:00'den sonra gün sınırı aşılabileceğinden atlanır.
+// Randevular "bugün" (İstanbul) 09:00'dan itibaren sabit saatlere kurulur: günün saatinden bağımsızdır, atlanmaz.
 // Bütçe: /auth 10 istek/15 dk: bu dosya 1 kayıt + 2 giriş yapar.
 test.skip(!PANEL_ACIK || !ayniSiteHazir(), ATLAMA_NEDENI)
 // Takvim sayfaları ağır (1440 px tam sayfa görüntü + axe) ve sunucu 2 vCPU: test başına süre sınırı geniş tutulur; beklemeler koşulludur.
 test.describe.configure({ mode: 'serial', timeout: 120_000 })
 
 const TZ = 'Europe/Istanbul'
-const istanbulSaati = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
-test.skip(istanbulSaati >= 21, 'İstanbul saati 21:00 sonrası: "bugün" randevuları gün sınırını aşabilir')
-
-const dakikaSonra = (dk: number) => new Date(Date.now() + dk * 60_000).toISOString()
+const bugunTarihi = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+// Günün saatinden bağımsız (atlama yok): İstanbul bugün 09:00 + dk. Türkiye yıl boyu UTC+3: 09:00 = 06:00Z. API panel için geçmiş saati kabul eder (W13-G1).
+const dakikaSonra = (dk: number) => new Date(Date.parse(`${bugunTarihi}T06:00:00Z`) + dk * 60_000).toISOString()
 const rastgeleTelefon = () => `0555${Math.floor(1000000 + Math.random() * 8999999)}`
 
 let k: TestKiraci
