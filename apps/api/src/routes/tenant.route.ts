@@ -1862,6 +1862,39 @@ export function createTenantRouter(): Router {
     }
   })
 
+  // GET /api/v1/tenants/:slug/finance/day-status?date=YYYY-MM-DD  (kasa ekrani: gun kapali mi; resepsiyon yalniz bugun)
+  router.get('/finance/day-status', requirePermission('finance.report.daily'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.tenantId!
+      const date = typeof req.query.date === 'string' ? req.query.date : getIstanbulDateStr()
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih formatı. YYYY-MM-DD bekleniyor.' } })
+      }
+      if (date !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
+      }
+      const closure = await db.cashDayClosure.findUnique({ where: { tenantId_date: { tenantId, date: dayKey(date) } } })
+      const isClosed = closure?.isClosed === true
+      // Kapalı günde kapanıştaki değer, açık günde canlı nakit tahsilatı (beklenen nakit).
+      const { start, end } = toTRBounds(date)
+      const live = isClosed
+        ? null
+        : await db.transaction.aggregate({ where: { tenantId, status: 'completed', completedAt: { gte: start, lte: end } }, _sum: { cashAmount: true } })
+      const expectedCash = isClosed ? (closure!.expectedCash === null ? null : Number(closure!.expectedCash)) : Number(live?._sum.cashAmount ?? 0)
+      const countedCash = isClosed && closure!.countedCash !== null ? Number(closure!.countedCash) : null
+      return res.json({
+        date,
+        isClosed,
+        closedAt: isClosed ? (closure!.closedAt?.toISOString() ?? null) : null,
+        expectedCash,
+        countedCash,
+        difference: countedCash !== null && expectedCash !== null ? Number((countedCash - expectedCash).toFixed(2)) : null,
+      })
+    } catch (err) {
+      next(err)
+    }
+  })
+
   // GET /api/v1/tenants/:slug/finance/corrections?date=YYYY-MM-DD  (duzeltme gecmisi; yalniz owner/manager)
   router.get('/finance/corrections', requirePermission('finance.correction'), async (req: Request, res: Response, next: NextFunction) => {
     try {

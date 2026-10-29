@@ -5,7 +5,7 @@ import { can } from '@beautyos/shared'
 
 // A6b (R5): kasa gunu kapanisi, gunu yeniden acma ve odeme duzeltmesi; her duzeltme kaydi tutar. db sahte.
 const dbMock = vi.hoisted(() => ({
-  transaction: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+  transaction: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), create: vi.fn(), aggregate: vi.fn() },
   expense: { findMany: vi.fn() },
   staffProfile: { findMany: vi.fn(), findFirst: vi.fn() },
   user: { findMany: vi.fn() },
@@ -225,5 +225,37 @@ describe('GET /finance/corrections', () => {
     expect(arg.where).toMatchObject({ tenantId: 't1' })
     expect(arg.orderBy).toEqual({ createdAt: 'desc' })
     expect((await request(app).get(`${BASE}/finance/corrections`).set(as('receptionist'))).status).toBe(403)
+  })
+})
+
+describe('GET /finance/day-status', () => {
+  it('K-R5: kapali gun: kapanis alanlari ve sayim farki doner; sorgu kiraci ve gune bagli', async () => {
+    dbMock.cashDayClosure.findUnique.mockResolvedValue({
+      isClosed: true, closedAt: new Date('2026-11-20T18:00:00Z'), expectedCash: 300, countedCash: 290,
+    })
+    const res = await request(app).get(`${BASE}/finance/day-status?date=${NOW_DAY}`).set(as('receptionist'))
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ date: NOW_DAY, isClosed: true, closedAt: '2026-11-20T18:00:00.000Z', expectedCash: 300, countedCash: 290, difference: -10 })
+    expect(dbMock.cashDayClosure.findUnique.mock.calls[0][0].where).toEqual({ tenantId_date: { tenantId: 't1', date: new Date(`${NOW_DAY}T00:00:00.000Z`) } })
+  })
+
+  it('K-R5: kayit yok ya da yeniden acilmis gun acik sayilir; beklenen nakit canli toplamdan (tenantId + gun + completed) gelir', async () => {
+    dbMock.transaction.aggregate.mockResolvedValue({ _sum: { cashAmount: 125.5 } })
+    for (const row of [null, { isClosed: false, closedAt: null, expectedCash: null, countedCash: null }]) {
+      dbMock.cashDayClosure.findUnique.mockResolvedValue(row)
+      const res = await request(app).get(`${BASE}/finance/day-status?date=${NOW_DAY}`).set(as('owner'))
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({ isClosed: false, closedAt: null, expectedCash: 125.5, countedCash: null, difference: null })
+    }
+    expect(dbMock.transaction.aggregate.mock.calls[0][0].where).toMatchObject({ tenantId: 't1', status: 'completed' })
+  })
+
+  it('K-R5: resepsiyon yalniz bugunu gorur (gecmis gun 403); owner/manager gecmis gunu gorur; uzman 403; bozuk tarih 400', async () => {
+    dbMock.transaction.aggregate.mockResolvedValue({ _sum: { cashAmount: 0 } })
+    expect((await request(app).get(`${BASE}/finance/day-status?date=${DAY}`).set(as('receptionist'))).status).toBe(403)
+    expect((await request(app).get(`${BASE}/finance/day-status?date=${DAY}`).set(as('manager'))).status).toBe(200)
+    expect((await request(app).get(`${BASE}/finance/day-status`).set(as('receptionist'))).status).toBe(200)
+    expect((await request(app).get(`${BASE}/finance/day-status?date=${DAY}`).set(as('staff'))).status).toBe(403)
+    expect((await request(app).get(`${BASE}/finance/day-status?date=20.11.2026`).set(as('owner'))).status).toBe(400)
   })
 })

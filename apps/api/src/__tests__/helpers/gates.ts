@@ -55,6 +55,7 @@ export const GATES: Gate[] = [
 
   { file: 'tenant', method: 'post', route: '/finance/close-day', url: '/finance/close-day', permission: 'finance.close_day' },
   { file: 'tenant', method: 'post', route: '/finance/reopen-day', url: '/finance/reopen-day', permission: 'finance.correction' },
+  { file: 'tenant', method: 'get', route: '/finance/day-status', url: '/finance/day-status', permission: 'finance.report.daily' },
   { file: 'tenant', method: 'get', route: '/finance/corrections', url: '/finance/corrections', permission: 'finance.correction' },
   { file: 'tenant', method: 'post', route: '/appointments/:appointmentId/correction', url: `/appointments/${ID}/correction`, permission: 'finance.correction' },
   { file: 'tenant', method: 'get', route: '/reports/daily', url: '/reports/daily', permission: 'finance.report.daily' },
