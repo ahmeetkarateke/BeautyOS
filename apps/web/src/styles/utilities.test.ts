@@ -40,3 +40,25 @@ describe('app.css üretilen sınıflar (W3)', () => {
     expect(css).not.toContain('.bg-gray-500')
   })
 })
+
+describe('odak göstergesi (denetim W3-1 Kritik 1, tasarim.md §4 "Odak")', () => {
+  // jsdom :focus-visible hesaplamaz; derlenmiş CSS'te outline'ı kaldıran kuralların kapsamı denetlenir.
+  const outlineNoneSelectors = (): string[] =>
+    [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , body]) => /outline:\s*none/.test(body))
+      .flatMap(([, selector]) => selector.split(/,(?![^(]*\))/).map((s) => s.trim()))
+      .filter((s) => s.includes('focus-visible'))
+
+  it('W3: outline: none kaldıran odak kuralı onay kutusu ve radyoyu kapsamaz (anahtar da checkbox)', () => {
+    const inputRules = outlineNoneSelectors().filter((s) => s.startsWith('input'))
+    expect(inputRules.length).toBeGreaterThan(0)
+    for (const selector of inputRules) {
+      expect(selector).toMatch(/:not\([^)]*\[type="?checkbox"?\][^)]*\)/)
+      expect(selector).toMatch(/:not\([^)]*\[type="?radio"?\][^)]*\)/)
+    }
+  })
+
+  it('W3: genel :focus-visible kuralı 2 px halka ve 2 px boşluk verir', () => {
+    expect(css).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--color-focus\)[^}]*outline-offset:\s*2px/)
+  })
+})

@@ -61,7 +61,8 @@
     outline-offset: 2px;
   }
 
-  input:focus-visible, select:focus-visible, textarea:focus-visible {
+  /* Onay kutusu, radyo ve anahtar (type=checkbox|radio) bu kuralın dışındadır: kenar rengi değişimi yetmez, genel 2 px halka kalmalı. */
+  input:not([type="checkbox"], [type="radio"]):focus-visible, select:focus-visible, textarea:focus-visible {
     outline: none;
     border-color: var(--color-focus);
     box-shadow: 0 0 0 3px var(--color-primary-soft);
