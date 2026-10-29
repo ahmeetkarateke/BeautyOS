@@ -8,6 +8,7 @@ const dbMock = vi.hoisted(() => ({
   appointment: { updateMany: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   customer: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   tenant: { findUnique: vi.fn() },
+  user: { findFirst: vi.fn() },
   $transaction: vi.fn(),
 }))
 const queueMock = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
@@ -40,6 +41,7 @@ beforeEach(() => {
   dbMock.$transaction.mockReset().mockImplementation(async (fn: (tx: typeof dbMock) => unknown) => fn(dbMock))
   dbMock.appointment.findMany.mockReset().mockResolvedValue([])
   dbMock.tenant.findUnique.mockReset().mockResolvedValue({ isActive: true, trialEndsAt: null })
+  dbMock.user.findFirst.mockReset().mockResolvedValue({ id: 'u1' }) // S6: authenticateJWT kullanici aktifligini her istekte sorar
   queueMock.add.mockReset().mockResolvedValue({})
   queueMock.remove.mockReset().mockResolvedValue(1)
 })

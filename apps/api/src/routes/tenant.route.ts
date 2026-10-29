@@ -15,6 +15,7 @@ import { requirePermission, ensurePermission } from '../middleware/permission'
 import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
 import { phoneInUse } from '../lib/customer-phone'
 import { normalizePhoneTR } from '../lib/sms/types'
+import { revokeUserSessions } from '../lib/sessions'
 import { maskPhone, escapeLike, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
@@ -1385,6 +1386,8 @@ export function createTenantRouter(): Router {
 
       const newHash = await bcrypt.hash(newPassword, 12)
       await db.user.update({ where: { id: userId }, data: { passwordHash: newHash } })
+      // Şifre değişince kullanıcının tüm oturumları kapanır (S6 K2).
+      await revokeUserSessions(userId)
 
       return res.json({ ok: true })
     } catch (err) {
@@ -1660,6 +1663,8 @@ export function createTenantRouter(): Router {
       }
 
       await db.user.update({ where: { id: profile.userId }, data: { isActive: false } })
+      // Pasifleştirilen kullanıcının oturumları hemen kapanır (S6 K2).
+      await revokeUserSessions(profile.userId)
 
       return res.json({ ok: true })
     } catch (err) {
