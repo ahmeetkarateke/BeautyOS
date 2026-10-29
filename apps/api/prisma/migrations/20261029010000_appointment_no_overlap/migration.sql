@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 DO $$
 DECLARE
   bad_range integer;
-  overlaps integer;
+  overlap_count integer;
 BEGIN
   SELECT count(*) INTO bad_range FROM "appointments"
    WHERE "endAt" < "startAt" AND NOT "isDeleted" AND "status" NOT IN ('cancelled', 'no_show');
@@ -19,15 +19,15 @@ BEGIN
     RAISE EXCEPTION 'S3: % randevuda endAt < startAt. Once duzeltin (SELECT id FROM appointments WHERE "endAt" < "startAt").', bad_range;
   END IF;
 
-  SELECT count(*) INTO overlaps
+  SELECT count(*) INTO overlap_count
     FROM "appointments" a
     JOIN "appointments" b
       ON a."staffId" = b."staffId" AND a."id" < b."id"
      AND a."startAt" < b."endAt" AND b."startAt" < a."endAt"
    WHERE NOT a."isDeleted" AND a."status" NOT IN ('cancelled', 'no_show')
      AND NOT b."isDeleted" AND b."status" NOT IN ('cancelled', 'no_show');
-  IF overlaps > 0 THEN
-    RAISE EXCEPTION 'S3: % cakisan randevu cifti var. Kisit kurulmadi. Cakismalari elle cozun (iptal ya da saat degisikligi) ve migration''i yeniden calistirin.', overlaps;
+  IF overlap_count > 0 THEN
+    RAISE EXCEPTION 'S3: % cakisan randevu cifti var. Kisit kurulmadi. Cakismalari elle cozun (iptal ya da saat degisikligi) ve migration''i yeniden calistirin.', overlap_count;
   END IF;
 END $$;
 
