@@ -194,7 +194,7 @@ describe('POST /public/bookings/cancel', () => {
 })
 
 describe('POST /public/bookings/reschedule', () => {
-  const newStart = () => new Date(Date.now() + 96 * H)
+  const newStart = () => new Date(Math.ceil((Date.now() + 96 * H) / 900_000) * 900_000) // slot izgarasina oturur
 
   it('SMS acik + otomatik onay (musterili randevu): saat degisir, token ayni kalir, durum confirmed, isler yeniden kurulur', async () => {
     process.env.NETGSM_USERCODE = 'x'
@@ -241,7 +241,7 @@ describe('POST /public/bookings/reschedule', () => {
     const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('SLOT_TAKEN')
-    expect(m.db.appointment.update).not.toHaveBeenCalled()
+    expect(m.db.appointment.updateMany).not.toHaveBeenCalled()
   })
 
   it('cakisma sorgusu kendi randevusunu haric tutar ve kiraciya baglidir', async () => {
@@ -262,7 +262,7 @@ describe('POST /public/bookings/reschedule', () => {
     expect(past.status).toBe(400)
     const soon = await post('reschedule', { token: TOKEN, startAt: new Date(Date.now() + 1 * H).toISOString() })
     expect(soon.status).toBe(400)
-    expect(m.db.appointment.update).not.toHaveBeenCalled()
+    expect(m.db.appointment.updateMany).not.toHaveBeenCalled()
   })
 
   it('staffId verilirse personel online randevu kabul etmeli ve hizmeti yapabilmeli (kiraciya bagli), yoksa 404', async () => {
@@ -282,7 +282,7 @@ describe('POST /public/bookings/reschedule', () => {
 })
 
 describe('reschedule: yazim koşullu, salon açık, mesai içinde (denetim A7-baglanti-1)', () => {
-  const newStart = () => new Date(Date.now() + 96 * H)
+  const newStart = () => new Date(Math.ceil((Date.now() + 96 * H) / 900_000) * 900_000) // slot izgarasina oturur
 
   it('yazim kosulludur: token ozeti, bekleyen/onayli durum, silinmemis ve 2 saat siniri where icinde', async () => {
     await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })

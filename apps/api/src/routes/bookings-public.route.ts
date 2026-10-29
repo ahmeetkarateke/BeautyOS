@@ -8,7 +8,8 @@ import { computeExpiryAt, removeExpiryJob, scheduleOnlineExpiry } from '../lib/o
 import { resolveApprovalMode, resolveBookingMode } from '../lib/booking-mode'
 import { initialAppointmentStatus } from '../lib/appointment-status'
 import { SLOT_TAKEN_BODY, isSlotOverlapError } from '../lib/slot-conflict'
-import { buildIcs, canModify, hashManageToken, modifyDeadline, showPricesOnline } from '../lib/booking-link'
+import { getSlots } from '../lib/slots'
+import { MODIFY_WINDOW_MS, buildIcs, canModify, hashManageToken, modifyDeadline, showPricesOnline } from '../lib/booking-link'
 
 // A7 / ADR-0043 + ADR-0046: müşterinin randevu bağlantısı uçları. Token yalnız POST gövdesinde gelir (yolda ve sorguda değil);
 // hata iletileri ve log'lar token taşımaz. Kiracı slug'ı yoktur: token hash'i randevuyu ve kiracısını belirler.
@@ -50,7 +51,7 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
       include: {
         service: { select: { name: true, durationMinutes: true, bufferMinutes: true } },
         staff: { select: { user: { select: { fullName: true } } } },
-        tenant: { select: { name: true, slug: true, businessType: true, settings: true } },
+        tenant: { select: { name: true, slug: true, businessType: true, settings: true, isActive: true } },
       },
     })
 
@@ -106,7 +107,8 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
           manageTokenHash: hashManageToken(parsed.data.token),
           isDeleted: false,
           status: { in: ['pending', 'confirmed'] },
-          startAt: { gt: modifyDeadline(new Date(Date.now() + 2 * 60 * 60 * 1000)) },
+          // Yazım anında da 2 saat sınırı: başlangıç şimdi + 2 saatten önce olamaz (canModify ile aynı kural).
+          startAt: { gte: new Date(Date.now() + MODIFY_WINDOW_MS) },
         },
         data: { status: 'cancelled', cancelReason: 'cancelled_by_customer' },
       })
@@ -130,6 +132,10 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
       if (!booking) return res.status(404).json(NOT_FOUND)
       if (booking.status !== 'pending' && booking.status !== 'confirmed') return res.status(409).json(NOT_MODIFIABLE)
       if (!canModify(booking.status, booking.startAt)) return res.status(409).json(WINDOW_CLOSED)
+      // Salon pasifse ya da online randevuyu kapattıysa yeni saat alınamaz (/book ile aynı kapı).
+      if (!booking.tenant.isActive || (booking.tenant.settings as { publicBookingEnabled?: unknown } | null)?.publicBookingEnabled !== true) {
+        return res.status(403).json({ error: { code: 'BOOKING_DISABLED', message: 'Bu salon şu anda online rezervasyon kabul etmiyor. Lütfen salonu arayın.' } })
+      }
 
       const newStart = new Date(startAt.includes('Z') || startAt.includes('+') ? startAt : `${startAt}Z`)
       if (Number.isNaN(newStart.getTime())) return res.status(400).json(BAD_BODY)
@@ -149,6 +155,15 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
         targetStaffId = staff.id
       }
 
+      // Mesai ve slot ızgarası: istenen saat, hedef personelin o günkü çalışma saatlerinden üretilen slotlardan biri olmalı.
+      // Doluluk ayrıca aşağıda yapılır (kendi mevcut saati yüzünden slot dolu görünmesin diye uygunluk alanına bakılmaz).
+      const istanbulDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(newStart)
+      const daySlots = await getSlots({ tenantId: booking.tenantId, serviceId: booking.serviceId, staffId: targetStaffId, date: istanbulDate })
+      const onGrid = daySlots.some((slot) => new Date(slot.id.includes('Z') || slot.id.includes('+') ? slot.id : `${slot.id}Z`).getTime() === newStart.getTime())
+      if (!onGrid) {
+        return res.status(400).json({ error: { code: 'INVALID_SLOT', message: 'Seçilen saat salonun çalışma saatleri dışında.' } })
+      }
+
       const newEnd = new Date(newStart.getTime() + (booking.service.durationMinutes + booking.service.bufferMinutes) * 60 * 1000)
       const conflict = await db.appointment.findFirst({
         where: {
@@ -164,14 +179,24 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
       if (conflict) return res.status(409).json(SLOT_TAKEN_BODY)
 
       // Durum yeni online talep kuralıyla yeniden belirlenir: müşteri bağlı değilse ya da elle onay modundaysa pending.
-      const approvalRequired = booking.customerId === null || resolveApprovalMode(booking.tenant) === 'manual'
+      // Telefon doğrulaması (SMS) kapalıyken her online talep zorunlu salon onayıyla bekler (kurucu kararı 5): taşıma da.
+      const approvalRequired = !verified || booking.customerId === null || resolveApprovalMode(booking.tenant) === 'manual'
       const status = initialAppointmentStatus('web', { approvalRequired })
 
+      // Koşullu yazım: araya giren iptal/ret/başlama ezilmez (reddedilen randevu dirilmez), 2 saat sınırı yazım anında da sınanır.
       try {
-        await db.appointment.update({
-          where: { id: booking.id },
+        const written = await db.appointment.updateMany({
+          where: {
+            id: booking.id,
+            tenantId: booking.tenantId,
+            manageTokenHash: hashManageToken(token),
+            isDeleted: false,
+            status: { in: ['pending', 'confirmed'] },
+            startAt: { gte: new Date(Date.now() + MODIFY_WINDOW_MS) },
+          },
           data: { startAt: newStart, endAt: newEnd, staffId: targetStaffId, status },
         })
+        if (written.count === 0) return res.status(409).json(NOT_MODIFIABLE)
       } catch (err) {
         // Ön kontrol yarışa açıktır; asıl koruma veritabanı kısıtıdır (S3).
         if (isSlotOverlapError(err)) return res.status(409).json(SLOT_TAKEN_BODY)
