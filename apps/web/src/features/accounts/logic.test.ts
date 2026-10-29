@@ -1,8 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { accountBody, accountTypeLabel, emptyAccount, sortAccounts, totalBalance, transferBody, validateAccount, validateTransfer, type AccountRow, type AccountValues } from './logic'
+import {
+  accountBody,
+  accountTypeLabel,
+  emptyAccount,
+  sortAccounts,
+  totalBalance,
+  transferBody,
+  validateAccount,
+  validateTransfer,
+  type AccountRow,
+  type AccountValues,
+} from './logic'
 
 const acc = (over: Partial<AccountRow> = {}): AccountRow => ({ id: 'a1', type: 'cash', name: 'Kasa', balance: 1000, isActive: true, isDefault: false, ...over })
-const valid: AccountValues = { type: 'bank', name: 'İş Bankası', bankName: 'İş Bankası', iban: 'TR33 0006 1005 1978 6457 8413 26', openingText: '1.250,50', isDefault: false, notes: '' }
+const valid: AccountValues = {
+  type: 'bank',
+  name: 'İş Bankası',
+  bankName: 'İş Bankası',
+  iban: 'TR33 0006 1005 1978 6457 8413 26',
+  openingText: '1.250,50',
+  isDefault: false,
+  notes: '',
+}
 
 describe('W24 accountTypeLabel', () => {
   it('K1: hesap türleri Türkçe; bilinmeyen tür "Diğer"', () => {
@@ -16,7 +35,12 @@ describe('W24 accountTypeLabel', () => {
 
 describe('W24 sortAccounts / totalBalance', () => {
   it('K2: varsayılan hesap önce, sonra etkinler ada göre (Türkçe), pasifler sonda', () => {
-    const sorted = sortAccounts([acc({ id: 'p', name: 'Eski', isActive: false }), acc({ id: 'z', name: 'Zeta' }), acc({ id: 'c', name: 'Çiçek' }), acc({ id: 'd', name: 'Ana', isDefault: true })])
+    const sorted = sortAccounts([
+      acc({ id: 'p', name: 'Eski', isActive: false }),
+      acc({ id: 'z', name: 'Zeta' }),
+      acc({ id: 'c', name: 'Çiçek' }),
+      acc({ id: 'd', name: 'Ana', isDefault: true }),
+    ])
     expect(sorted.map((a) => a.id)).toEqual(['d', 'c', 'z', 'p'])
   })
   it('K2: toplam bakiye yalnız etkin hesapları toplar; kuruş hatası yok', () => {
