@@ -81,6 +81,7 @@ beforeEach(() => {
     const a = A().find((x) => x.id === where.id)
     if (!a) return null
     if (where.isActive !== undefined && a.isActive !== where.isActive) return null
+    if (where.tenantId !== undefined && a.tenantId !== where.tenantId) return null
     return a
   })
 })
@@ -126,6 +127,15 @@ describe('POST /transactions/transfer pasif hesap', () => {
 
   it('pasif kaynak hesap 400 INVALID_ACCOUNT, hareket yazilmaz', async () => {
     seed(false, true)
+    const res = await request(app).post(`${BASE}/transactions/transfer`).send(body)
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_ACCOUNT')
+    expect(T()).toHaveLength(0)
+  })
+
+  it('baska kiracinin (aktif, var olan) hesabina virman 400 INVALID_ACCOUNT, hareket yazilmaz', async () => {
+    seed(true, true)
+    A().find((a) => a.id === U2)!.tenantId = 't2'
     const res = await request(app).post(`${BASE}/transactions/transfer`).send(body)
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('INVALID_ACCOUNT')
