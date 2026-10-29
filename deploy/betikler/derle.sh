@@ -76,8 +76,11 @@ fi
 while IFS='=' read -r anahtar deger; do
   case "$anahtar" in
     '' | \#*) continue ;;
-    NEXT_PUBLIC_API_URL_PROD | NEXT_PUBLIC_API_URL_STAGING | NEXT_PUBLIC_TURNSTILE_SITE_KEY | NEXT_PUBLIC_BOT_FEATURES_ENABLED | NEXT_PUBLIC_UI_V2_PROD | NEXT_PUBLIC_UI_V2_STAGING)
+    NEXT_PUBLIC_API_URL_PROD | NEXT_PUBLIC_API_URL_STAGING | NEXT_PUBLIC_TURNSTILE_SITE_KEY | NEXT_PUBLIC_BOT_FEATURES_ENABLED | NEXT_PUBLIC_UI_V2_PROD | NEXT_PUBLIC_UI_V2_STAGING | NEXT_PUBLIC_UI_V2_SHOWCASE_STAGING)
       DEGER[$anahtar]="$deger" ;;
+    # Tasarım sistemi vitrini canlıda ASLA açılmaz: canlı için vitrin anahtarı tanımlanamaz (boş bile olsa reddedilir).
+    NEXT_PUBLIC_UI_V2_SHOWCASE_PROD | NEXT_PUBLIC_UI_V2_SHOWCASE)
+      hata "derleme.conf: $anahtar tanımlanamaz (vitrin yalnız staging imajında açılır: NEXT_PUBLIC_UI_V2_SHOWCASE_STAGING)"; exit 1 ;;
     *) hata "derleme.conf içinde bilinmeyen anahtar: $anahtar"; exit 1 ;;
   esac
 done <"$AGAC/deploy/derleme.conf"
@@ -91,6 +94,11 @@ for bayrak in NEXT_PUBLIC_UI_V2_PROD NEXT_PUBLIC_UI_V2_STAGING; do
     exit 1
   fi
 done
+# Vitrin bayrağı (yalnız staging): boş/tanımsız = kapalı; açık değer yalnız "1" (kodda raw === '1').
+if ! [[ "${DEGER[NEXT_PUBLIC_UI_V2_SHOWCASE_STAGING]:-}" =~ ^1?$ ]]; then
+  hata "derleme.conf: NEXT_PUBLIC_UI_V2_SHOWCASE_STAGING boş ya da 1 olmalı"
+  exit 1
+fi
 
 # ─── K4: sınırlı builder (olmazsa gerekçesiyle varsayılan builder) ────────────────
 KOMUT_INSA=(docker build)
@@ -141,9 +149,10 @@ insa() { # ad etiket dockerfile [ek argümanlar...]
   SURELER+=("$ad $((SECONDS - t0)) sn")
 }
 
-web_argumanlari() { # api_url ui_v2
+web_argumanlari() { # api_url ui_v2 [vitrin]  (vitrin yalnız staging çağrısında verilir; canlıda build-arg HİÇ eklenmez)
   printf '%s\n' --build-arg "NEXT_PUBLIC_API_URL=$1" \
     --build-arg "NEXT_PUBLIC_UI_V2=${2:-}" \
+    ${3:+--build-arg "NEXT_PUBLIC_UI_V2_SHOWCASE=$3"} \
     --build-arg "NEXT_PUBLIC_TURNSTILE_SITE_KEY=${DEGER[NEXT_PUBLIC_TURNSTILE_SITE_KEY]:-}" \
     --build-arg "NEXT_PUBLIC_BOT_FEATURES_ENABLED=${DEGER[NEXT_PUBLIC_BOT_FEATURES_ENABLED]:-false}" \
     --build-arg "NODE_HEAP_MB=$WEB_HEAP_MB"
@@ -152,7 +161,7 @@ web_argumanlari() { # api_url ui_v2
 insa api "beautyos-api:$SHA12" apps/api/Dockerfile
 mapfile -t ARG_PROD < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_PROD]}" "${DEGER[NEXT_PUBLIC_UI_V2_PROD]:-}")
 insa web-prod "beautyos-web:${SHA12}-prod" apps/web/Dockerfile "${ARG_PROD[@]}"
-mapfile -t ARG_STAGING < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_STAGING]}" "${DEGER[NEXT_PUBLIC_UI_V2_STAGING]:-}")
+mapfile -t ARG_STAGING < <(web_argumanlari "${DEGER[NEXT_PUBLIC_API_URL_STAGING]}" "${DEGER[NEXT_PUBLIC_UI_V2_STAGING]:-}" "${DEGER[NEXT_PUBLIC_UI_V2_SHOWCASE_STAGING]:-}")
 insa web-staging "beautyos-web:${SHA12}-staging" apps/web/Dockerfile "${ARG_STAGING[@]}"
 
 # ─── K3: etiket doğrulaması ──────────────────────────────────────────────────────
