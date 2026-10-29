@@ -19,6 +19,7 @@ import { revokeUserSessions } from '../lib/sessions'
 import { maskPhone, escapeLike, phoneSearchPattern, STAFF_SEARCH_MIN_LENGTH, STAFF_SEARCH_MAX_RESULTS } from '../lib/customer-privacy'
 import { SLOT_TAKEN_BODY, isSlotOverlapError, respondSlotTakenOr } from '../lib/slot-conflict'
 import { normalizeEmail } from '../lib/credentials'
+import { istanbulDayRange } from '../lib/time'
 import { strongPassword } from '../lib/password-policy'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -105,6 +106,18 @@ async function isDayClosed(
 class DayClosedError extends Error {}
 
 const DAY_CLOSED_BODY = { error: { code: 'DAY_CLOSED', message: 'Bu günün kasası kapatılmış. Önce günü yeniden açın.' } } as const
+
+// Seçilen İstanbul gününe, şu anki İstanbul saatiyle bir an kurar (konteyner TZ=UTC; yerel saat kullanılmaz).
+function istanbulInstantOnDay(dateStr: string, now: Date = new Date()): Date {
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Istanbul',
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(now)
+  return new Date(`${dateStr}T${time}+03:00`)
+}
 
 function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -333,15 +346,20 @@ export function createTenantRouter(): Router {
 
       const { date, dateFrom, dateTo, limit, staffId, serviceId, status, statusIn, search } = parsed.data
 
+      // Gün sınırları Europe/Istanbul gününe göredir (A4). Aralıkta (date, dateFrom/dateTo) satır sınırı yoktur; en çok 31 gün.
       let dateFilter = {}
-      if (dateFrom || dateTo) {
-        const gte = dateFrom ? new Date(`${dateFrom}T00:00:00.000Z`) : undefined
-        const lte = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : undefined
-        dateFilter = { startAt: { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) } }
-      } else if (date) {
-        const start = new Date(`${date}T00:00:00.000Z`)
-        const end = new Date(`${date}T23:59:59.999Z`)
-        dateFilter = { startAt: { gte: start, lte: end } }
+      let hasDateRange = false
+      // Yalnız biri verilirse (dateFrom ya da dateTo) o tek gün sayılır; açık uçlu aralık yoktur.
+      const rangeFrom = dateFrom ?? date ?? dateTo
+      const rangeTo = dateTo ?? date ?? dateFrom
+      if (rangeFrom && rangeTo) {
+        const range = istanbulDayRange(rangeFrom, rangeTo)
+        if (!range.ok) {
+          const message = range.reason === 'RANGE_TOO_LARGE' ? 'Tarih aralığı en çok 31 gün olabilir.' : 'Geçersiz tarih aralığı.'
+          return res.status(400).json({ error: { code: range.reason, message } })
+        }
+        dateFilter = { startAt: { gte: range.gte, lt: range.lt } }
+        hasDateRange = true
       }
 
       const VALID_STATUSES = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'] as const
@@ -384,7 +402,7 @@ export function createTenantRouter(): Router {
               }
             : {}),
         },
-        take: limit,
+        ...(hasDateRange ? {} : { take: limit }),
         orderBy: { startAt: 'asc' },
         include: {
           customer: { select: { fullName: true, phone: true } },
@@ -402,6 +420,10 @@ export function createTenantRouter(): Router {
         data: appointments.map((a) => ({
           id: a.id,
           referenceCode: a.referenceCode,
+          customerId: a.customerId,
+          serviceId: a.serviceId,
+          staffId: a.staffId,
+          durationMinutes: Math.round((a.endAt.getTime() - a.startAt.getTime()) / 60000),
           customerName: a.customer?.fullName ?? a.requestedName ?? '',
           customerPhone: a.customer?.phone ?? a.requestedPhone ?? '',
           unverified: a.customer === null,
@@ -2345,7 +2367,7 @@ export function createTenantRouter(): Router {
   // ─── Manual Revenues ─────────────────────────────────────────────────────────
 
   const createRevenueSchema = z.object({
-    description: z.string().trim().min(1),
+    description: z.string().trim().min(1).max(200),
     amount: z.coerce.number().positive(),
     paymentMethod: z.enum(['cash', 'card']),
     revenueDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -2366,7 +2388,7 @@ export function createTenantRouter(): Router {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
       if (await isDayClosed(db, tenantId, revenueDate)) return res.status(409).json(DAY_CLOSED_BODY)
-      const completedAt = new Date(`${revenueDate}T${new Date().toTimeString().slice(0, 8)}`)
+      const completedAt = istanbulInstantOnDay(revenueDate)
 
       const revenue = await db.transaction.create({
         data: {

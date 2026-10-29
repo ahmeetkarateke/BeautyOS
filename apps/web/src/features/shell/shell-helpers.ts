@@ -16,6 +16,8 @@ export function roleLabel(me: Me): string {
       return term('owner')
     case 'manager':
       return 'Müdür'
+    case 'receptionist':
+      return 'Resepsiyon'
     case 'staff':
       return term('expert')
     case 'superadmin':

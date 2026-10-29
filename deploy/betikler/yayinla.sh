@@ -88,6 +88,58 @@ if [ -f "$BASE/.env" ] && awk -F= '$1 ~ /^[[:space:]]*(export[[:space:]]+)?BEAUT
   fi
 fi
 
+# Hedef ortamın dosyasında uygulamanın ZORUNLU değişkenleri dolu mu? Değerin dolu olup olmadığına (ve JWT_SECRET uzunluğuna) bakılır;
+# değer hiçbir yere yazdırılmaz. Sorun varsa yalnız ADI ve nedeni yazılır, yayın (ve --kuru) çıkış 2 ile durur.
+# LİSTE apps/api/src/lib/env.ts içindeki REQUIRED_IN_PRODUCTION ile SENKRON kalmalıdır (test-yayinla.sh karşılaştırır).
+ZORUNLU_ORTAM=(DATABASE_URL REDIS_URL JWT_SECRET ALLOWED_ORIGINS PUBLIC_URL FRONTEND_URL)
+if [ "$ORTAM" = "canli" ]; then ORTAM_DOSYASI="$BASE/.env"; else ORTAM_DOSYASI="$BASE/.env.staging"; fi
+JWT_EN_AZ=32   # env.ts: JWT_SECRET en az 32 karakter
+if [ ! -f "$ORTAM_DOSYASI" ]; then
+  hata "hedef ortam dosyası yok: $ORTAM_DOSYASI"
+  exit 2
+fi
+# D9: değer biçimleri compose gibi çözülür: satır sonu CR, baştaki/sondaki boşluk, tırnaklı ("" ve '') ve yorumlu (# ...) boş
+# değer BOŞ sayılır; "export AD=" kabul edilir; aynı ad birden çok kez yazılmışsa (sonuncu kazanır, gizli hata) reddedilir;
+# JWT_SECRET 32 karakterden kısaysa reddedilir. awk yalnız "AD neden" satırı yazar; DEĞER ASLA yazdırılmaz.
+read -r -d '' ORTAM_AWK <<'AWKEOF' || true
+function norm(v,    q, e, rest) {
+  sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+  q = substr(v, 1, 1)
+  if (q == "\"" || q == "\047") {
+    # tırnaklı değer: kapanış tırnağından sonra yalnız boşluk ya da "# yorum" olabilir
+    e = index(substr(v, 2), q)
+    if (e > 0) {
+      rest = substr(v, e + 2); sub(/^[ \t]+/, "", rest)
+      if (rest == "" || substr(rest, 1, 1) == "#") v = substr(v, 2, e - 1)
+    }
+  } else sub(/(^|[ \t])#.*$/, "", v)
+  sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+  return v
+}
+BEGIN { n = split(adlar, A, " "); for (i = 1; i <= n; i++) K[A[i]] = 1 }
+{
+  s = $0; sub(/\r$/, "", s); sub(/^[ \t]+/, "", s); sub(/^export[ \t]+/, "", s)
+  if (match(s, /^[A-Za-z_][A-Za-z0-9_]*[ \t]*=/)) {
+    k = substr(s, 1, RLENGTH - 1); sub(/[ \t]+$/, "", k)
+    if (k in K) { cnt[k]++; val[k] = norm(substr(s, RLENGTH + 1)) }
+  }
+}
+END {
+  for (i = 1; i <= n; i++) {
+    k = A[i]
+    if (!cnt[k]) print k " yok"
+    else if (cnt[k] > 1) print k " birden fazla kez tanimli"
+    else if (val[k] == "") print k " bos"
+    else if (k == "JWT_SECRET" && length(val[k]) < en_az) print k " " en_az " karakterden kisa"
+  }
+}
+AWKEOF
+EKSIK_ORTAM="$(awk -v adlar="${ZORUNLU_ORTAM[*]}" -v en_az="$JWT_EN_AZ" "$ORTAM_AWK" "$ORTAM_DOSYASI" | tr '\n' ';')"
+if [ -n "$EKSIK_ORTAM" ]; then
+  hata "$ORTAM ortam dosyasında zorunlu değişken sorunu (yalnız ad ve neden; değer yazılmaz): ${EKSIK_ORTAM%;} (kurucu düzeltmeli; adlar .env.example'da). Yayın başlamadı"
+  exit 2
+fi
+
 # surum.conf'tan yalnız ANAHTAR=değer okunur (source edilmez).
 oku() { awk -F= -v k="$1" '$1 == k { print substr($0, length(k) + 2); exit }' "$CONF"; }
 CANLI_ESKI="$(oku BEAUTYOS_VERSION)"

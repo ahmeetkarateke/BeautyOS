@@ -9,7 +9,9 @@
 const API = (process.env.E2E_API_URL ?? '').replace(/\/$/, '')
 const PAROLA = process.env.DEMO_SEED_PASSWORD ?? ''
 const SLUG = process.env.DEMO_SLUG ?? 'demo-defne'
-const SAHIP_EPOSTA = process.env.DEMO_OWNER_EMAIL ?? 'derya@ornek.test'
+// E-posta adresleri kiracılar arası tekil: ikinci demo kiracı için DEMO_EPOSTA_SON (örn. '2@ornek.test') verilir.
+const EPOSTA_SON = process.env.DEMO_EPOSTA_SON ?? '@ornek.test'
+const SAHIP_EPOSTA = process.env.DEMO_OWNER_EMAIL ?? `derya${EPOSTA_SON}`
 
 if (!API) throw new Error('E2E_API_URL tanımlı değil.')
 if (PAROLA.length < 10) throw new Error('DEMO_SEED_PASSWORD en az 10 karakter olmalı (dosyaya yazılmaz).')
@@ -17,7 +19,7 @@ if (!/^(demo|tst)-/.test(SLUG)) throw new Error(`Kiracı slug'ı demo- ya da tst
 // İzin listesi (kara liste değil): sondaki nokta ('api.beautyossapp.com.') ve büyük harf kara listeyi atlatırdı.
 const host = new URL(API).hostname.toLowerCase().replace(/\.$/, '')
 const IZINLI_HOSTLAR = new Set(['yeni-api.beautyossapp.com', 'localhost', '127.0.0.1'])
-if (!IZINLI_HOSTLAR.has(host) && !host.startsWith('bostest-')) {
+if (!IZINLI_HOSTLAR.has(host) && !/^bostest-[a-z0-9-]+(\.bostest\.test)?$/.test(host)) {
   throw new Error(`Demo verisi yalnız geçici test yığınına ya da staging API'sine kurulur; gelen: ${host}`)
 }
 
@@ -33,8 +35,8 @@ const HIZMETLER = [
 
 // p1 sahip kullanıcıdır ama API sahibe uzman profili açmaz (A2'ye kadar): ayrı bir uzman kaydı olarak kurulur.
 const PERSONEL = [
-  ['p1', 'Derya Aksoy', 'Saç tasarım', 'derya.uzman@ornek.test', 1], ['p2', 'Elif Şahin', 'Kuaför', 'elif@ornek.test', 2],
-  ['p3', 'Zeynep Arslan', 'Manikür ve pedikür', 'zeynep@ornek.test', 3], ['p4', 'Merve Çelik', 'Cilt bakım uzmanı', 'merve@ornek.test', 4],
+  ['p1', 'Derya Aksoy', 'Saç tasarım', `derya.uzman${EPOSTA_SON}`, 1], ['p2', 'Elif Şahin', 'Kuaför', `elif${EPOSTA_SON}`, 2],
+  ['p3', 'Zeynep Arslan', 'Manikür ve pedikür', `zeynep${EPOSTA_SON}`, 3], ['p4', 'Merve Çelik', 'Cilt bakım uzmanı', `merve${EPOSTA_SON}`, 4],
 ]
 
 const MUSTERILER = [
