@@ -38,7 +38,7 @@ function mount(me: Me = makeMe('owner'), props: Partial<React.ComponentProps<typ
     <ApiClientProvider client={client}>
       <MeProvider me={me}>
         <ToastProvider>
-          <CreateAppointmentSheet open onOpenChange={onOpenChange} today="2026-10-28" onCreated={onCreated} {...props} />
+          <CreateAppointmentSheet open onOpenChange={onOpenChange} today="2026-10-28" now={new Date("2026-10-28T09:00:00+03:00")} onCreated={onCreated} {...props} />
         </ToastProvider>
       </MeProvider>
     </ApiClientProvider>,
@@ -304,5 +304,28 @@ describe('W13 Randevu oluştur', () => {
     expect(within(strip).getAllByRole('button')).toHaveLength(14)
     fireEvent.click(within(strip).getAllByRole('button')[1])
     await waitFor(() => expect(calls('/slots', undefined).some(([, i]) => (i as Init).query?.date === '2026-10-29')).toBe(true))
+  })
+})
+
+describe('W13-G1 geçmiş saatler', () => {
+  it('K-geçmiş: bugün için şimdiden önceki saatler sunulmaz; sonrakiler sunulur', async () => {
+    slotsData = {
+      slots: [
+        { id: '2026-10-28T07:00:00', label: '10:00', available: true },
+        { id: '2026-10-28T08:30:00', label: '11:30', available: true },
+      ],
+    }
+    mount(makeMe('owner'), { now: new Date('2026-10-28T10:30:00+03:00') })
+    await pickExistingCustomer()
+    await pickServiceAndStaff()
+    expect(await screen.findByRole('button', { name: '11:30' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '10:00' })).toBeNull()
+  })
+
+  it('K-geçmiş: bütün saatler geçmişteyse "boş saat yok" açıklaması çıkar', async () => {
+    mount(makeMe('owner'), { now: new Date('2026-10-28T20:00:00+03:00') })
+    await pickExistingCustomer()
+    await pickServiceAndStaff()
+    expect(await screen.findByText('Bu gün boş saat yok. Başka bir gün seçin.')).toBeTruthy()
   })
 })

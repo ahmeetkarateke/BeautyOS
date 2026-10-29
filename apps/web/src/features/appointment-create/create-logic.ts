@@ -37,3 +37,7 @@ export function isDraftComplete(draft: CreateDraft): boolean {
   if (draft.customer.kind === 'new') return newCustomerIssue(draft.customer.name, draft.customer.phoneDigits) === null
   return true
 }
+
+export function futureSlots<T extends { id: string }>(slots: readonly T[], _nowMs: number): T[] {
+  return [...slots]
+}
