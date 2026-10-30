@@ -87,7 +87,7 @@ function AdminShell({ children, navigate }: { children: ReactNode; navigate: Nav
             </Button>
           </div>
         </div>
-        <nav aria-label="Yönetim menüsü" className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4">
+        <nav aria-label="Yönetim menüsü" className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 [&_:focus-visible]:-outline-offset-2">
           {NAV.map((item) => (
             <Link
               key={item.href}
