@@ -123,7 +123,8 @@ function TypeStep({ businessType, onTypeSaved, onDone }: StepProps) {
           void run(async () => {
             if (canChange && value !== businessType) await patchSettings(client, me.tenant.slug, { businessType: value })
           }, () => {
-            if (canChange) onTypeSaved(value)
+            // Yeni tür ve sonraki adım aynı değerden hesaplanır; state bir sonraki çizimde güncellenir.
+            if (canChange) return onTypeSaved(value)
             onDone()
           })
         }
@@ -522,7 +523,10 @@ export function SetupWizard() {
   const props: StepProps = {
     settings: query.data,
     businessType,
-    onTypeSaved: setBusinessType,
+    onTypeSaved: (type) => {
+      setBusinessType(type)
+      setStep(nextStep(step, type))
+    },
     onDone: () => setStep(nextStep(step, businessType)),
     onSkip: () => setStep(nextStep(step, businessType)),
     onBack: () => setStep(prevStep(step, businessType)),

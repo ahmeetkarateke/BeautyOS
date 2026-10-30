@@ -120,6 +120,23 @@ describe('W31 Kurulum sihirbazı', () => {
     expect(screen.getByText(/henüz hazır değil/)).toBeTruthy()
   })
 
+  it('K12: salondan dişe geçilince klinik adımı açılır', async () => {
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    fireEvent.change(screen.getByLabelText('İşletme türü'), { target: { value: 'dentist' } })
+    click('Devam et')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sağlık kuruluşu bilgileri' })).toBeTruthy()
+  })
+
+  it('K12: dişten salona geçilince salon adımı açılır ve ilerleme 2 / 7 olur', async () => {
+    mount(makeMe('owner', { businessType: 'dentist' }))
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    fireEvent.change(screen.getByLabelText('İşletme türü'), { target: { value: 'barbershop' } })
+    click('Devam et')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })).toBeTruthy()
+    expect(screen.getByText('Adım 2 / 7')).toBeTruthy()
+  })
+
   it('K1: ilk adım işletme türüdür, ilerleme çizgisi 1/7 der; tür değişmediyse istek atılmaz', async () => {
     mount()
     await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
