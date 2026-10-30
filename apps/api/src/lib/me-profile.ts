@@ -1,4 +1,4 @@
-import { permissionsFor, type PermissionKey, type Role } from '@beautyos/shared'
+import { permissionsFor, termOverrideKeyAllowed, type PermissionKey, type Role } from '@beautyos/shared'
 import { MODULE_KEYS, isValidModuleKey } from './modules'
 import type { BookingMode } from './booking-mode'
 
@@ -46,14 +46,15 @@ function resolveTermSet(raw: unknown): TermSet {
 function resolveTerms(raw: unknown): Record<string, string> {
   const terms: Record<string, string> = {}
   for (const [key, value] of Object.entries(asRecord(raw))) {
-    if (typeof value === 'string') terms[key] = value
+    // Yazma tarafindaki beyaz listeyle ayni: eski ya da elle yazilmis anahtarlar istemciye tasinmaz.
+    if (typeof value === 'string' && termOverrideKeyAllowed(key)) terms[key] = value
   }
   return terms
 }
 
 /**
  * GET /auth/me yaniti. Yalniz acik alan listesi kopyalanir (settings'in tamami disari cikmaz:
- * bot kurallari ve kanal anahtarlari gizli kalir). termSet/terms A5 migration'ina kadar settings JSON'undan okunur.
+ * bot kurallari ve kanal anahtarlari gizli kalir). termSet/terms settings JSON'unda tutulur (ADR-0031).
  */
 export function buildMeProfile(input: BuildInput): MeProfile {
   const settings = asRecord(input.tenant.settings)

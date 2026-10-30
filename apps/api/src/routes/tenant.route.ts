@@ -10,7 +10,7 @@ import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../midd
 import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
 import { isValidModuleKey } from '../lib/modules'
-import { can } from '@beautyos/shared'
+import { can, termOverrideKeyAllowed, validateTermOverrides } from '@beautyos/shared'
 import { requirePermission, ensurePermission } from '../middleware/permission'
 import { TERM_SETS } from '../lib/me-profile'
 import { customerAccessFilter, ownCustomerWhere, ownStaffProfileId } from '../lib/customer-scope'
@@ -1294,10 +1294,11 @@ export function createTenantRouter(): Router {
     termSet: z.enum(TERM_SETS).optional(),
     termOverrides: z
       .record(
-        z.string().regex(/^[A-Za-z0-9_]{1,40}$/),
+        z.string().max(40),
         z.string().trim().min(1).max(60).refine((v) => !/[<>]/.test(v), { message: 'Geçersiz karakter içeriyor.' }),
       )
       .refine((o) => Object.keys(o).length <= 30, { message: 'En çok 30 terim.' })
+      .refine((o) => validateTermOverrides(o) === null, { message: 'Terim anahtarı geçersiz ya da beş biçim eksik.' })
       .optional(),
     onlineBookingApproval: z.enum(['auto', 'manual']).optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir hex renk (ör. #6B48FF)').optional(),

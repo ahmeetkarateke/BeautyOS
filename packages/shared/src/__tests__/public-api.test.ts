@@ -3,7 +3,7 @@ import * as shared from '../index'
 
 describe('@beautyos/shared dis API', () => {
   it('K3: dis API tam olarak bu listedir (yeni ad eklemek bu testi bilerek degistirmeyi gerektirir)', () => {
-    expect(Object.keys(shared).sort()).toEqual(['PERMISSIONS', 'ROLES', 'can', 'isRole', 'permissionsFor'])
+    expect(Object.keys(shared).sort()).toEqual(['PERMISSIONS', 'ROLES', 'TERM_FORMS', 'TERM_KEYS', 'can', 'isRole', 'permissionsFor', 'termOverrideKeyAllowed', 'validateTermOverrides'])
   })
 })
 
