@@ -265,6 +265,8 @@ model Tenant {
   financialAccounts           FinancialAccount[]
   financialTransactions       FinancialTransaction[]
   invitations                 Invitation[]
+  legalAcceptances            LegalAcceptance[]
+  marketingConsents           MarketingConsent[]
   messageDeliveries           MessageDelivery[]
   phoneVerifications          PhoneVerification[]
   staffPayouts                StaffPayout[]
@@ -297,6 +299,8 @@ model User {
   passwordResetTokens PasswordResetToken[]
   sessions            Session[]
   invitationsSent     Invitation[]          @relation("InvitedBy")
+  legalAcceptances    LegalAcceptance[]
+  marketingConsents   MarketingConsent[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1268,4 +1272,44 @@ model Invitation {
   @@index([tenantId, createdAt])
   @@index([tenantId, email])
   @@map("invitations")
+}
+
+// ADR-0048: kayıtta kabul edilen sözleşmeler. Yalnız eklenir (güncelleme tetikleyiciyle engelli); belge başına ayrı satır.
+model LegalAcceptance {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  userId          String   @db.Uuid
+  documentType    String
+  documentVersion String
+  acceptedAt      DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+  channel         String
+  labelVersion    String
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("legal_acceptances")
+}
+
+// ADR-0048: BeautyOS'un salon sahibine e-posta izni (K3). Yalnız eklenir; geri alma yeni satırdır. Kampanya gönderimi İYS netleşene kadar yapılmaz.
+model MarketingConsent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  userId             String   @db.Uuid
+  channel            String
+  status             String
+  source             String
+  consentTextVersion String
+  at                 DateTime @default(now())
+  ipAddress          String?
+  userAgent          String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("marketing_consents")
 }

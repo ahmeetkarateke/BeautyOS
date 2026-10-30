@@ -84,7 +84,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
 
   // Davet kabul uclarinin kendi siniri var (IP basina 15 dk / 20); genel authLimiter'dan once baglanir.
   app.use('/api/v1/auth/invitations', createPublicInvitationsRouter({ limitMax: options?.rateLimitMax }))
-  app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax }))
+  app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax, resetLimitMax: options?.rateLimitMax, slugCheckLimitMax: options?.rateLimitMax }))
   app.use('/api/v1/admin', createAdminRouter())
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
   // index.ts ile AYNI sirada baglanir; testler uretimdeki yol tablosunu sinasin diye tum kiraci router'lari burada da var.
