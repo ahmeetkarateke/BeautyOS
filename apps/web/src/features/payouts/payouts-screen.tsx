@@ -147,7 +147,7 @@ function CreateSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
 
   async function save() {
     if (busy) return
-    const found = validatePayout(values, today)
+    const found = validatePayout(values, today, calc.data?.grossEarned)
     setErrors(found)
     if (Object.keys(found).length > 0) return
     setBusy(true)

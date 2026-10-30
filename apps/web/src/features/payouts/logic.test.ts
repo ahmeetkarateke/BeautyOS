@@ -34,6 +34,15 @@ describe('W26 validatePayout', () => {
   })
 })
 
+describe('W26-2 eksi net engeli', () => {
+  it('kesinti hak ediş + ekten büyükse deductionsText hatası; eşitse geçer', () => {
+    expect(validatePayout({ ...valid, deductionsText: '1100' }, TODAY, 1000).deductionsText).toBe('Kesinti, hak ediş ve ek ödemenin toplamından fazla olamaz.')
+    expect(validatePayout({ ...valid, deductionsText: '1000' }, TODAY, 1000)).toEqual({})
+    expect(validatePayout({ ...valid, bonusText: '200', deductionsText: '1100' }, TODAY, 1000)).toEqual({})
+    expect(validatePayout({ ...valid, deductionsText: '1100' }, TODAY)).toEqual({})
+  })
+})
+
 describe('W26 createBody / etiketler', () => {
   it('K3: gövde sunucu alanlarıyla; boş ek/kesinti/not gönderilmez', () => {
     expect(createBody(valid)).toEqual({ staffId: 's1', periodStart: '2026-10-01', periodEnd: '2026-10-28' })

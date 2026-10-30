@@ -21,7 +21,7 @@ export function netAmount(gross: number, bonusText: string, deductionsText: stri
   return (Math.round(gross * 100) + Math.round(bonus * 100) - Math.round(deductions * 100)) / 100
 }
 
-export function validatePayout(values: PayoutValues, today: string): Record<string, string> {
+export function validatePayout(values: PayoutValues, today: string, gross?: number | null): Record<string, string> {
   const errors: Record<string, string> = {}
   if (!values.staffId) errors.staffId = 'Ödeme yapılacak personeli seçin.'
   if (!DATE_RE.test(values.from)) errors.from = 'Dönem başlangıcını seçin.'
@@ -30,6 +30,10 @@ export function validatePayout(values: PayoutValues, today: string): Record<stri
   else if (values.to > today) errors.to = 'Dönem sonu bugünden ileri olamaz.'
   if (parseMoney(values.bonusText) === null) errors.bonusText = 'Ek ödemeyi rakamlarla yazın; yoksa boş bırakın.'
   if (parseMoney(values.deductionsText) === null) errors.deductionsText = 'Kesintiyi rakamlarla yazın; yoksa boş bırakın.'
+  if (!errors.bonusText && !errors.deductionsText && gross != null) {
+    const net = netAmount(gross, values.bonusText, values.deductionsText)
+    if (net !== null && net < 0) errors.deductionsText = 'Kesinti, hak ediş ve ek ödemenin toplamından fazla olamaz.'
+  }
   if (values.notes.length > 500) errors.notes = 'Not en çok 500 karakter olabilir.'
   return errors
 }
