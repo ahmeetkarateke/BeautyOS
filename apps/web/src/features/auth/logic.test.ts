@@ -3,6 +3,7 @@ import {
   MAIN_BUSINESS_TYPES,
   OTHER_BUSINESS_TYPES,
   panelPathFor,
+  setupPathFor,
   resolveBusinessType,
   slugify,
   toRegisterBody,
@@ -177,5 +178,12 @@ describe('panelPathFor', () => {
   it('K8: girişten sonra salonun Bugün ekranına gider; kısaltma kodlanır', () => {
     expect(panelPathFor('defne')).toBe('/panel/defne/bugun')
     expect(panelPathFor('a/b')).toBe('/panel/a%2Fb/bugun')
+  })
+})
+
+describe('setupPathFor', () => {
+  it('W-kucuk: kayıttan sonra salonun kurulum sihirbazına gider; kısaltma kodlanır', () => {
+    expect(setupPathFor('defne')).toBe('/panel/defne/kurulum')
+    expect(setupPathFor('a/b')).toBe('/panel/a%2Fb/kurulum')
   })
 })

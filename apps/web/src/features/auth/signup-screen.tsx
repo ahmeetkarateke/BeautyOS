@@ -13,7 +13,7 @@ import { focusFirstInvalid, InputField, PasswordField, PhoneField, SelectField }
 import { checkSlug, fetchLegalVersions, register } from './api'
 import { AuthShell } from './auth-shell'
 import type { LegalVersions } from './logic'
-import { MAIN_BUSINESS_TYPES, OTHER_BUSINESS_TYPES, panelPathFor, slugify, toRegisterBody, validateSlug, validateStep1, validateStep2 } from './logic'
+import { MAIN_BUSINESS_TYPES, OTHER_BUSINESS_TYPES, setupPathFor, slugify, toRegisterBody, validateSlug, validateStep1, validateStep2 } from './logic'
 
 type Navigate = (path: string) => void
 const defaultNavigate: Navigate = (path) => window.location.assign(path)
@@ -41,6 +41,8 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  // Sürüm uyuşmazlığı bir kez yenilemeyle çözülür; ikincisinde sorun sayfada değil sunucudadır, döngüye girilmez.
+  const mismatches = useRef(0)
 
   // Adres uygunluğu: yazma durunca sorulur (ipucu); ağ ya da hız sınırı hatası sessizce yok sayılır, kesin sonuç kayıt isteğindedir.
   useEffect(() => {
@@ -104,12 +106,14 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
         return setFailure('Belge sürümleri alınamadı. Bağlantınızı kontrol edip tekrar deneyin.')
       }
       const session = await register(client, toRegisterBody({ salonName, slug, type, otherType }, { fullName, phone, email, password, acceptTerms, marketingOptIn }, legal))
-      navigate(panelPathFor(session.tenantSlug))
+      navigate(setupPathFor(session.tenantSlug))
     } catch (error) {
       setPending(false)
       if (!(error instanceof ApiError)) return setFailure(GENERIC_ERROR)
       // Alanla ilgili çakışmalar kullanıcıyı doğru alana götürür.
       if (error.code === 'LEGAL_VERSION_MISMATCH') {
+        mismatches.current += 1
+        if (mismatches.current > 1) return setFailure('Belgeler hâlâ eşleşmiyor. Sayfayı yenileyip tekrar deneyin.')
         startLegalFetch()
         setAcceptTerms(false)
         return setFailure('Belgeler güncellendi. Kullanım şartları ve veri işleme sözleşmesini yeniden işaretleyin.')

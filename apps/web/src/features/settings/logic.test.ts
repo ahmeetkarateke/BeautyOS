@@ -41,8 +41,10 @@ describe('Telefon isteğe bağlı', () => {
     expect(validateSalon({ ...salon, phone: '   ' })).toEqual({})
     expect(Object.keys(validateSalon({ ...salon, phone: '123' }))).toEqual(['phone'])
   })
-  it('H3: boş telefon sunucuya gönderilmez (sunucu en az 7 karakter ister); diğer değişiklikler gider', () => {
-    expect(salonPatch({ ...salon, phone: '', name: 'Yeni' }, salon)).toEqual({ name: 'Yeni' })
+  it('H3: kayıtlı telefon boşaltılırsa null gider; hiç telefonu olmayan salonda boş telefon gönderilmez', () => {
+    expect(salonPatch({ ...salon, phone: '', name: 'Yeni' }, salon)).toEqual({ name: 'Yeni', phone: null })
+    expect(salonPatch({ ...salon, phone: '  ' }, salon)).toEqual({ phone: null })
+    expect(salonPatch({ ...salon, phone: '' }, { ...salon, phone: '' })).toEqual({})
   })
 })
 
@@ -84,8 +86,7 @@ describe('W27 Modüller', () => {
 })
 
 describe('H3 kayıtlı telefon', () => {
-  it('H3b: kayıtlı telefon boşaltılırsa sessizce yok sayılmaz, nedeni yazılır; hiç telefonu olmayan boş bırakabilir', () => {
-    expect(validateSalon({ ...salon, phone: '' }, salon)).toEqual({ phone: 'Kayıtlı telefon silinemez. Yeni bir numara yazın.' })
-    expect(validateSalon({ ...salon, phone: '' }, { ...salon, phone: '' })).toEqual({})
+  it('H3b: kayıtlı telefon boşaltılabilir; doğrulama hata vermez', () => {
+    expect(validateSalon({ ...salon, phone: '' }, salon)).toEqual({})
   })
 })

@@ -18,13 +18,12 @@ export function sectionsFor(role: string): Section[] {
   return SECTIONS.filter((section) => role === 'owner' || !section.ownerOnly)
 }
 
-export function validateSalon(values: SalonValues, original?: SalonValues): Record<string, string> {
+export function validateSalon(values: SalonValues): Record<string, string> {
   const errors: Record<string, string> = {}
   const name = values.name.trim()
   if (name.length < 2 || name.length > 100) errors.name = 'Salon adı 2 ile 100 karakter arasında olmalı.'
   const phone = values.phone.trim()
-  // Telefon isteğe bağlıdır; doluysa sunucu şemasındaki 7-20 kuralı geçerlidir. Sunucu henüz telefon temizlemeyi kabul etmez: kayıtlı numara boşaltılamaz.
-  if (phone === '' && original && original.phone.trim() !== '') errors.phone = 'Kayıtlı telefon silinemez. Yeni bir numara yazın.'
+  // Telefon isteğe bağlıdır; doluysa sunucu şemasındaki 7-20 kuralı geçerlidir. Boşaltılırsa kayıt silinir (salonPatch null gönderir).
   if (phone !== '' && (phone.length < 7 || phone.length > 20)) errors.phone = 'Telefonu 7 ile 20 karakter arasında yazın.'
   const address = values.address.trim()
   if (address.length < 5 || address.length > 255) errors.address = 'Adresi en az 5 karakterle yazın.'
@@ -35,8 +34,11 @@ export function salonPatch(values: SalonValues, original: SalonValues): Record<s
   const patch: Record<string, unknown> = {}
   for (const key of ['name', 'phone', 'address'] as const) {
     const next = values[key].trim()
-    // Sunucu telefonu en az 7 karakter ister: boş telefon gönderilmez (yeni salonlarda zaten boştur).
-    if (key === 'phone' && next === '') continue
+    // Boşaltılan kayıtlı telefon null ile silinir; hiç telefonu olmayan salonda boş değer gönderilmez.
+    if (key === 'phone' && next === '') {
+      if (original.phone.trim() !== '') patch.phone = null
+      continue
+    }
     if (next !== original[key].trim()) patch[key] = next
   }
   return patch
