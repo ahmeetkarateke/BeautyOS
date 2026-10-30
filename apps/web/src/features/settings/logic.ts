@@ -18,12 +18,13 @@ export function sectionsFor(role: string): Section[] {
   return SECTIONS.filter((section) => role === 'owner' || !section.ownerOnly)
 }
 
-export function validateSalon(values: SalonValues): Record<string, string> {
+export function validateSalon(values: SalonValues, original?: SalonValues): Record<string, string> {
   const errors: Record<string, string> = {}
   const name = values.name.trim()
   if (name.length < 2 || name.length > 100) errors.name = 'Salon adı 2 ile 100 karakter arasında olmalı.'
   const phone = values.phone.trim()
-  // Telefon isteğe bağlıdır; doluysa sunucu şemasındaki 7-20 kuralı geçerlidir.
+  // Telefon isteğe bağlıdır; doluysa sunucu şemasındaki 7-20 kuralı geçerlidir. Sunucu henüz telefon temizlemeyi kabul etmez: kayıtlı numara boşaltılamaz.
+  if (phone === '' && original && original.phone.trim() !== '') errors.phone = 'Kayıtlı telefon silinemez. Yeni bir numara yazın.'
   if (phone !== '' && (phone.length < 7 || phone.length > 20)) errors.phone = 'Telefonu 7 ile 20 karakter arasında yazın.'
   const address = values.address.trim()
   if (address.length < 5 || address.length > 255) errors.address = 'Adresi en az 5 karakterle yazın.'

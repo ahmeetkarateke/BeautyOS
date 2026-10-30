@@ -82,3 +82,10 @@ describe('W27 Modüller', () => {
     expect(moduleToggle(['dashboard', 'inventory'], 'inventory', true)).toEqual(['dashboard', 'inventory'])
   })
 })
+
+describe('H3 kayıtlı telefon', () => {
+  it('H3b: kayıtlı telefon boşaltılırsa sessizce yok sayılmaz, nedeni yazılır; hiç telefonu olmayan boş bırakabilir', () => {
+    expect(validateSalon({ ...salon, phone: '' }, salon)).toEqual({ phone: 'Kayıtlı telefon silinemez. Yeni bir numara yazın.' })
+    expect(validateSalon({ ...salon, phone: '' }, { ...salon, phone: '' })).toEqual({})
+  })
+})
