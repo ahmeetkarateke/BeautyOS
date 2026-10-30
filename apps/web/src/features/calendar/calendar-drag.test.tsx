@@ -153,14 +153,17 @@ describe('W15 sürükle-bırak', () => {
 
   it('K2: uzman başkasının randevusunu sürükleyemez (p2 uzmanı p1 randevularını taşıyamaz)', async () => {
     mount({ ...makeMe('staff'), staffId: 'p2' })
-    await waitFor(() => expect(request).toHaveBeenCalled())
-    await new Promise((r) => setTimeout(r, 50))
-    const el = document.querySelector('[data-event-id="a1"]') as HTMLElement | null
-    expect(el?.dataset.movable).toBeUndefined()
-    if (el) {
-      drag(el, 72)
-      expect(patches()).toHaveLength(0)
-    }
+    // Veri gerçekten yüklenmiş olmalı; yoksa "görünmüyor" iddiası tesadüfen geçer.
+    const grid = await screen.findByRole('group', { name: 'Günlük takvim' })
+    await waitFor(() => expect(request.mock.calls.some(([path]) => String(path).endsWith('/appointments'))).toBe(true))
+    expect(rows.some((r) => r.id === 'a1' && r.staffId === 'p1')).toBe(true)
+    await settle()
+    // p2 uzmanı p1 randevusunu ya takvimde hiç görmez ya da görse bile taşıyamaz.
+    const el = grid.querySelector('[data-event-id="a1"]') as HTMLElement | null
+    expect(el === null || el.dataset.movable === undefined).toBe(true)
+    if (el) drag(el, 72)
+    await settle()
+    expect(patches()).toHaveLength(0)
   })
 
   it('K3: sürüklerken hedef dilim 15 dk adımla görünür; bırakınca yeni saat sunucuya gider ve "Geri al" bildirimi çıkar', async () => {
