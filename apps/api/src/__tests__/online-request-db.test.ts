@@ -205,23 +205,28 @@ describe('S2 Kritik 2: dogrulanmamis talep ve onayda musteri eslestirme (gercek 
 
   it('S2 Kritik 1: dogrulamasiz modda ayni telefondan ikinci gecerli talep de gercekten olusur ve ayni yaniti verir (DB de 2 kayit)', async () => {
     await db.tenant.update({ where: { id: tenantId }, data: { settings: { publicBookingEnabled: true } } })
-    await db.staffProfile.update({ where: { id: staffId }, data: { acceptsOnlineBooking: true } })
+    // A7/S-book: /book yalniz personelin calisma izgarasindaki saati kabul eder; 40 gun sonrasi icin her gun 09-18 mesai tanimlanir.
+    const workday = { start: '09:00', end: '18:00' }
+    const workingHours = Object.fromEntries(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((d) => [d, workday]))
+    await db.staffProfile.update({ where: { id: staffId }, data: { acceptsOnlineBooking: true, workingHours } })
     await db.staffServiceAssignment.create({ data: { staffId, serviceId, tenantId, isActive: true } })
     await db.service.update({ where: { id: serviceId }, data: { isOnlineBookable: true, isActive: true } })
+    const gridDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 40 * 24 * H))
+    const gridSlot = (hour: number) => new Date(`${gridDay}T${String(hour).padStart(2, '0')}:00:00+03:00`).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
     const phone = '0555 777 66 55'
-    const book = (hours: number) =>
+    const book = (hour: number) =>
       request(app)
         .post(`/api/v1/tenants/${slug}/public/book`)
         .send({
           serviceId,
           staffId,
-          startAt: new Date(Date.now() + (40 * 24 + hours) * H).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+          startAt: gridSlot(hour),
           customerName: 'Aynı Telefon',
           customerPhone: phone,
         })
-    const first = await book(1)
-    const second = await book(3)
+    const first = await book(10)
+    const second = await book(12)
     expect([first.status, second.status]).toEqual([201, 201])
     expect(Object.keys(second.body).sort()).toEqual(Object.keys(first.body).sort())
     expect(second.body).toMatchObject({ status: 'pending', approvalRequired: true, phoneVerified: false })
@@ -232,7 +237,7 @@ describe('S2 Kritik 2: dogrulanmamis talep ve onayda musteri eslestirme (gercek 
       .send({
         serviceId,
         staffId,
-        startAt: new Date(Date.now() + (40 * 24 + 3) * H).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        startAt: gridSlot(12),
         customerName: 'Baska Kisi',
         customerPhone: '0555 111 00 99',
       })

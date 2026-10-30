@@ -11,6 +11,7 @@ import { IntentService } from './ai/intent.service'
 import { FlowHandler } from './bot/flow.handler'
 import { createWebhookRouter } from './routes/webhook.route'
 import { createAuthRouter } from './routes/auth.route'
+import { createBookingManageRouter } from './routes/bookings-public.route'
 import { createInvitationsRouter, createPublicInvitationsRouter } from './routes/invitations.route'
 import { createMeRouter } from './routes/me.route'
 import { createTenantRouter } from './routes/tenant.route'
@@ -112,6 +113,8 @@ async function bootstrap(): Promise<void> {
   app.use('/webhook', createWebhookRouter(flowHandler, tenantRegistry))
   // /auth/me hiz siniri disinda: arayuz her acilista cagirir (A1)
   app.use('/api/v1/auth/me', createMeRouter())
+  // Musteri randevu baglantisi (ADR-0043/0046): kiracisiz, token govdede; kendi hiz siniri var.
+  app.use('/api/v1/public/bookings', createBookingManageRouter())
   // Davet kabul uclarinin kendi siniri var (IP basina 15 dk / 20); genel authLimiter'dan once baglanir.
   app.use('/api/v1/auth/invitations', createPublicInvitationsRouter())
   app.use('/api/v1/auth', authLimiter, createAuthRouter())

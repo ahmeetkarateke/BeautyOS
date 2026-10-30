@@ -88,6 +88,19 @@ describe('A2 bolum 2: uzman kisitlari (gercek PG)', () => {
     expect(own.body.data.map((c: { fullName: string }) => c.fullName)).toEqual(['Zeynep Kendi'])
   })
 
+  it('K-R4 (W13-2): normalize edilmis telefon terimiyle arama da R4 kapsamini korur: kendi musteri bulunur, baskasinin +90 yazimli numarasi bos doner', async () => {
+    // Kayitli numaralar +905321110001 (kendi) ve +905321110002 (baska uzmanin).
+    const own = await get('/customers?search=' + encodeURIComponent('0532 111 00 01'), me.token)
+    expect(own.status).toBe(200)
+    expect(own.body.data.map((c: { fullName: string }) => c.fullName)).toEqual(['Zeynep Kendi'])
+    const foreign = await get('/customers?search=' + encodeURIComponent('+90 532 111 00 02'), me.token)
+    expect(foreign.status).toBe(200)
+    expect(foreign.body.data).toEqual([])
+    // Veri gercekten var: sahip ayni terimle bulur.
+    const asOwner = await get('/customers?search=' + encodeURIComponent('+90 532 111 00 02'), ownerToken)
+    expect(asOwner.body.data.map((c: { fullName: string }) => c.fullName)).toEqual(['Zeynep Baska'])
+  })
+
   it('K-R4: LIKE jokerleri uzman aramasinda tum musterileri listelemez (___, %%%)', async () => {
     for (const wildcard of ['___', '%%%', '_%_']) {
       const res = await get(`/customers?search=${encodeURIComponent(wildcard)}`, me.token)

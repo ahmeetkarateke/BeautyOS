@@ -10,6 +10,21 @@ export function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, '\\$&')
 }
 
+/**
+ * Telefon aramasi deseni (LIKE, kaçışlı). Telefonlar +905... biçiminde saklanır; "0532", "532", "+90532", "0 532 123" yazımları aynı
+ * ulusal numara desenini ("532...") arar. Telefon gibi görünmeyen terim (harf içeren) ya da 3 haneden kısa rakam terimi aynen aranır.
+ */
+export function phoneSearchPattern(term: string): string {
+  const trimmed = term.trim()
+  if (/^[+\d\s()-]+$/.test(trimmed)) {
+    let digits = trimmed.replace(/\D/g, '')
+    if (trimmed.startsWith('+90') || (digits.startsWith('90') && digits.length > 4)) digits = digits.slice(2)
+    else if (digits.startsWith('0')) digits = digits.slice(1)
+    if (digits.length >= 3) return digits
+  }
+  return escapeLike(trimmed)
+}
+
 /** "0532 *** ** 67" bicimi. Kisa ya da bos deger numara sizdirmamak icin "***" olur. */
 export function maskPhone(phone: string): string {
   let digits = phone.replace(/\D/g, '')

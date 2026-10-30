@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 import { logger } from './logger'
 
-type EmailKind = 'password_reset' | 'welcome' | 'invitation'
+type EmailKind = 'password_reset' | 'welcome' | 'reminder' | 'invitation'
 
 /** E-posta gönderimi yapılandırılmış mı (hatırlatma yedeği bunu görüp atlar; yapılandırma eksikliği yeniden denemeyle düzelmez). */
 export function isEmailConfigured(): boolean {
@@ -63,6 +63,15 @@ export async function sendWelcomeEmail(email: string, salonName: string, trialEn
     to: email,
     subject: `BeautyOS'a hoş geldiniz, ${singleLine(salonName)}!`,
     html: `<p>Merhaba,</p><p><strong>${escapeHtml(salonName)}</strong> adına BeautyOS'a hoş geldiniz! 30 günlük ücretsiz deneme süreniz başladı.</p><p>Deneme süreniz <strong>${trialEndStr}</strong> tarihinde sona erecek.</p>`,
+  })
+}
+
+/** Randevu hatırlatması e-posta yedeği (ADR-0044). `text` düz metindir; HTML'e kaçışlanarak girer. */
+export async function sendReminderEmail(input: { to: string; salonName: string; text: string }): Promise<boolean> {
+  return deliver('reminder', {
+    to: input.to,
+    subject: `${singleLine(input.salonName)} — Randevu hatırlatması`,
+    html: `<p>${escapeHtml(input.text)}</p>`,
   })
 }
 

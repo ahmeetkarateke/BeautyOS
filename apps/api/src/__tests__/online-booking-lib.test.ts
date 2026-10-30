@@ -12,8 +12,9 @@ const dbMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }))
 const queueMock = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
+const remindersApi = vi.hoisted(() => ({ scheduleReminders: vi.fn(), cancelReminders: vi.fn() }))
 vi.mock('../lib/db', () => ({ db: dbMock }))
-vi.mock('../lib/queue', () => ({ remindersQueue: queueMock }))
+vi.mock('../lib/queue', () => ({ remindersQueue: queueMock, ...remindersApi }))
 
 import {
   ONLINE_LIMITS,
@@ -44,6 +45,8 @@ beforeEach(() => {
   dbMock.user.findFirst.mockReset().mockResolvedValue({ id: 'u1' }) // S6: authenticateJWT kullanici aktifligini her istekte sorar
   queueMock.add.mockReset().mockResolvedValue({})
   queueMock.remove.mockReset().mockResolvedValue(1)
+  remindersApi.scheduleReminders.mockReset().mockResolvedValue(undefined)
+  remindersApi.cancelReminders.mockReset().mockResolvedValue(undefined)
 })
 
 describe('S2: sure dolumu hesabi', () => {
@@ -405,5 +408,52 @@ describe('S2: onay/ret uclari (yetki)', () => {
       .patch('/api/v1/tenants/salon/appointments/not-a-uuid/approve')
       .set('Authorization', `Bearer ${tokenFor('owner')}`)
     expect(res.status).toBe(400)
+  })
+})
+
+describe('ADR-0044: onay yollarinda hatirlatma isleri kurulur, ret ve sure dolumunda silinir', () => {
+  const start = new Date(Date.now() + 72 * H)
+  const pendingLinked = { status: 'pending', customerId: 'c1', requestedName: null, requestedPhone: null, startAt: start, tenantId: 't1' }
+
+  it('baglı musterili talep onaylaninca scheduleReminders (kiraci ve baslangic ile) cagrilir', async () => {
+    dbMock.appointment.findFirst.mockResolvedValue(pendingLinked)
+    expect(await approveOnlineRequest('t1', 'a1')).toBe('ok')
+    expect(remindersApi.scheduleReminders).toHaveBeenCalledTimes(1)
+    const arg = remindersApi.scheduleReminders.mock.calls[0][0]
+    expect(arg).toMatchObject({ appointmentId: 'a1', tenantId: 't1' })
+    expect(arg.startAt.getTime()).toBe(start.getTime())
+  })
+
+  it('dogrulanmamis talep musteri olusturularak onaylaninca da kurulur', async () => {
+    dbMock.appointment.findFirst.mockResolvedValue({ ...pendingLinked, customerId: null, requestedName: 'Ayse', requestedPhone: '+905321234567' })
+    expect(await approveOnlineRequest('t1', 'a1', { customerAction: 'create' })).toBe('ok')
+    expect(remindersApi.scheduleReminders).toHaveBeenCalledTimes(1)
+  })
+
+  it('onay basarisizsa (talep artik bekleyen degil) is kurulmaz', async () => {
+    dbMock.appointment.findFirst.mockResolvedValue(pendingLinked)
+    dbMock.appointment.updateMany.mockResolvedValue({ count: 0 })
+    expect(await approveOnlineRequest('t1', 'a1')).not.toBe('ok')
+    expect(remindersApi.scheduleReminders).not.toHaveBeenCalled()
+  })
+
+  it('hatirlatma kurulamazsa onay yine de basarili doner (ikincil is)', async () => {
+    dbMock.appointment.findFirst.mockResolvedValue(pendingLinked)
+    remindersApi.scheduleReminders.mockRejectedValue(new Error('redis down'))
+    expect(await approveOnlineRequest('t1', 'a1')).toBe('ok')
+  })
+
+  it('ret: cancelReminders cagrilir', async () => {
+    expect(await rejectOnlineRequest('t1', 'a1', 'u1')).toBe('ok')
+    expect(remindersApi.cancelReminders).toHaveBeenCalledWith('a1')
+  })
+
+  it('sure dolumu: iptal edilince cancelReminders cagrilir; iptal edilemediyse cagrilmaz', async () => {
+    expect(await expireOnlineRequest('a1')).toBe(true)
+    expect(remindersApi.cancelReminders).toHaveBeenCalledWith('a1')
+    remindersApi.cancelReminders.mockClear()
+    dbMock.appointment.updateMany.mockResolvedValue({ count: 0 })
+    expect(await expireOnlineRequest('a1')).toBe(false)
+    expect(remindersApi.cancelReminders).not.toHaveBeenCalled()
   })
 })

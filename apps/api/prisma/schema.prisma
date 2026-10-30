@@ -110,6 +110,7 @@ enum AppointmentStatus {
 enum AppointmentCancelReason {
   rejected
   expired
+  cancelled_by_customer
 }
 
 enum BookingChannel {
@@ -244,6 +245,8 @@ model Tenant {
   appointments                Appointment[]
   transactions                Transaction[]
   expenses                    Expense[]
+  cashDayClosures             CashDayClosure[]
+  corrections                 Correction[]
   inventory                   InventoryItem[]
   notificationLogs            NotificationLog[]
   staffServiceAssignments     StaffServiceAssignment[]
@@ -262,6 +265,8 @@ model Tenant {
   financialAccounts           FinancialAccount[]
   financialTransactions       FinancialTransaction[]
   invitations                 Invitation[]
+  legalAcceptances            LegalAcceptance[]
+  marketingConsents           MarketingConsent[]
   messageDeliveries           MessageDelivery[]
   phoneVerifications          PhoneVerification[]
   staffPayouts                StaffPayout[]
@@ -294,6 +299,8 @@ model User {
   passwordResetTokens PasswordResetToken[]
   sessions            Session[]
   invitationsSent     Invitation[]          @relation("InvitedBy")
+  legalAcceptances    LegalAcceptance[]
+  marketingConsents   MarketingConsent[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -422,6 +429,7 @@ model Appointment {
   serviceId          String            @db.Uuid
   resourceId         String?           @db.Uuid
   referenceCode      String            @unique
+  manageTokenHash    String?           @unique // musteri baglantisi (ADR-0043): token yalniz sha-256 ozetiyle saklanir
   status             AppointmentStatus @default(pending)
   bookingChannel     BookingChannel    @default(manual)
   startAt            DateTime
@@ -496,6 +504,54 @@ model Expense {
 
   @@index([tenantId])
   @@map("expenses")
+}
+
+// ─── Kasa kapanisi ve duzeltme kaydi (A6b, R5) ────────────────────────────────
+
+enum CorrectionKind {
+  payment
+  day_reopen
+}
+
+model CashDayClosure {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  date         DateTime  @db.Date
+  isClosed     Boolean   @default(true)
+  closedById   String?   @db.Uuid
+  closedAt     DateTime?
+  expectedCash Decimal?  @db.Decimal(10, 2)
+  countedCash  Decimal?  @db.Decimal(10, 2)
+  note         String?
+  reopenedById String?   @db.Uuid
+  reopenedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date])
+  @@map("cash_day_closures")
+}
+
+model Correction {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @db.Uuid
+  kind          CorrectionKind
+  transactionId String?        @db.Uuid
+  appointmentId String?        @db.Uuid
+  date          DateTime?      @db.Date
+  oldValue      Json
+  newValue      Json
+  reason        String
+  createdById   String         @db.Uuid
+  createdAt     DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, date])
+  @@map("corrections")
 }
 
 // ─── Inventory (Stok) ─────────────────────────────────────────────────────────
@@ -1216,4 +1272,52 @@ model Invitation {
   @@index([tenantId, createdAt])
   @@index([tenantId, email])
   @@map("invitations")
+}
+
+// ADR-0048: kayıtta kabul edilen sözleşmeler. Yalnız eklenir (güncelleme tetikleyiciyle engelli); belge başına ayrı satır.
+model LegalAcceptance {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String?   @db.Uuid
+  userId          String?   @db.Uuid
+  documentType    String
+  documentVersion String
+  acceptedAt      DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+  channel         String
+  labelVersion    String
+  // Silme sonrasi kanit: kiraci ve kullanici silinse de bu anlik goruntu kalir (ADR-0048).
+  tenantSlug String?
+  tenantName String?
+  userEmail  String?
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, userId])
+  @@map("legal_acceptances")
+}
+
+// ADR-0048: BeautyOS'un salon sahibine e-posta izni (K3). Yalnız eklenir; geri alma yeni satırdır. Kampanya gönderimi İYS netleşene kadar yapılmaz.
+model MarketingConsent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String?   @db.Uuid
+  userId             String?   @db.Uuid
+  channel            String
+  status             String
+  source             String
+  consentTextVersion String
+  at                 DateTime @default(now())
+  ipAddress          String?
+  userAgent          String?
+  // Silme sonrasi kanit: kiraci ve kullanici silinse de bu anlik goruntu kalir (ADR-0048).
+  tenantSlug String?
+  tenantName String?
+  userEmail  String?
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, userId])
+  @@map("marketing_consents")
 }

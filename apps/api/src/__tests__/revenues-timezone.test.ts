@@ -5,6 +5,10 @@ import express from 'express'
 // W16b-1: POST /revenues gun hesabi Europe/Istanbul'a gore. DB ve kimlik katmani sahte; DB/Redis gerekmez.
 const dbMock = vi.hoisted(() => ({
   transaction: { create: vi.fn() },
+  cashDayClosure: { findUnique: vi.fn() },
+  $queryRaw: vi.fn(),
+  endMark: vi.fn(),
+  $transaction: vi.fn(),
 }))
 
 vi.mock('../lib/db', () => ({ db: dbMock }))
@@ -39,6 +43,13 @@ beforeEach(() => {
   process.env.TZ = 'UTC'
   vi.clearAllMocks()
   dbMock.transaction.create.mockResolvedValue({ id: 'r1', grossAmount: 500, paymentMethod: 'cash' })
+  dbMock.cashDayClosure.findUnique.mockResolvedValue(null)
+  dbMock.$queryRaw.mockResolvedValue([])
+  dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => {
+    const result = await fn(dbMock)
+    dbMock.endMark()
+    return result
+  })
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -93,6 +104,32 @@ describe('POST /revenues aciklama siniri', () => {
     const res = await post('owner', { ...valid, description: 'a'.repeat(201) })
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    expect(dbMock.transaction.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /revenues gun kilidi (A6b-2)', () => {
+  const inside = (fn: { mock: { invocationCallOrder: number[] } }) => {
+    const at = fn.mock.invocationCallOrder.at(-1)
+    const start = dbMock.$transaction.mock.invocationCallOrder.at(-1)
+    const end = dbMock.endMark.mock.invocationCallOrder.at(-1)
+    return at !== undefined && start !== undefined && end !== undefined && at > start && at < end
+  }
+
+  it('gun kilidi, kapali kontrolu ve kayit ayni islemde calisir', async () => {
+    const res = await post('owner', valid)
+    expect(res.status).toBe(201)
+    expect(inside(dbMock.$queryRaw)).toBe(true)
+    expect(inside(dbMock.cashDayClosure.findUnique)).toBe(true)
+    expect(inside(dbMock.transaction.create)).toBe(true)
+    expect(dbMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(dbMock.transaction.create.mock.invocationCallOrder[0])
+  })
+
+  it('kapali gunde 409 DAY_CLOSED ve kayit olusmaz', async () => {
+    dbMock.cashDayClosure.findUnique.mockResolvedValue({ isClosed: true })
+    const res = await post('owner', valid)
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('DAY_CLOSED')
     expect(dbMock.transaction.create).not.toHaveBeenCalled()
   })
 })

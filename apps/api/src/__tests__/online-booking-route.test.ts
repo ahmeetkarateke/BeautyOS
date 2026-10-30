@@ -5,7 +5,7 @@ import express from 'express'
 // Bu dosya veritabani ve Redis gerektirmez: db, kuyruk, Turnstile ve SMS sahtelenir.
 const dbMock = vi.hoisted(() => ({
   tenant: { findUnique: vi.fn() },
-  service: { findFirst: vi.fn() },
+  service: { findFirst: vi.fn(), findMany: vi.fn() },
   staffProfile: { findFirst: vi.fn() },
   appointment: { count: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
   customer: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -15,7 +15,17 @@ const queueMock = vi.hoisted(() => ({ add: vi.fn(), remove: vi.fn() }))
 const turnstileMock = vi.hoisted(() => ({ verifyTurnstile: vi.fn(), isTurnstileUnavailable: vi.fn() }))
 
 vi.mock('../lib/db', () => ({ db: dbMock }))
-vi.mock('../lib/queue', () => ({ remindersQueue: queueMock }))
+// scheduleReminders gercek kuyruk modulunde tanimli; burada ayni is adlariyla queueMock.add'e yazar (kuyruk adlari K5'te sinanir).
+vi.mock('../lib/queue', () => ({
+  remindersQueue: queueMock,
+  scheduleReminders: async (i: { appointmentId: string; tenantId: string; startAt: Date; now?: Date }) => {
+    const nowMs = (i.now ?? new Date()).getTime()
+    for (const [kind, hours] of [['24h', 24], ['2h', 2]] as const) {
+      const delay = i.startAt.getTime() - hours * 3_600_000 - nowMs
+      if (delay > 0) await queueMock.add(`reminder-${kind}`, { appointmentId: i.appointmentId, tenantId: i.tenantId }, { delay })
+    }
+  },
+}))
 const slotsMock = vi.hoisted(() => ({ getSlots: vi.fn() }))
 vi.mock('../lib/slots', () => slotsMock)
 vi.mock('../lib/turnstile', () => turnstileMock)
@@ -34,6 +44,11 @@ const H = 60 * 60 * 1000
 const SERVICE_ID = '11111111-1111-4111-8111-111111111111'
 const STAFF_ID = '22222222-2222-4222-8222-222222222222'
 
+// /book artik mesai izgarasini sinar: test saatleri ceyrek saate oturur.
+function aligned(offsetMs: number): Date {
+  return new Date(Math.ceil((Date.now() + offsetMs) / 900_000) * 900_000)
+}
+
 function isoNoMs(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
@@ -50,7 +65,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
   return {
     serviceId: SERVICE_ID,
     staffId: STAFF_ID,
-    startAt: isoNoMs(new Date(Date.now() + 72 * H)),
+    startAt: isoNoMs(aligned(72 * H)),
     customerName: 'Ayşe Yılmaz',
     customerPhone: '0555 111 22 33',
     captchaToken: 'tok',
@@ -78,6 +93,10 @@ beforeEach(() => {
   delete process.env.NETGSM_USERCODE
   counts = { active: 0, phonePending: 0, tenantPending: 0 }
   setTenant()
+  slotsMock.getSlots.mockReset().mockImplementation(async ({ date }: { date: string }) => {
+    const base = Date.parse(`${date}T00:00:00+03:00`)
+    return Array.from({ length: 96 }, (_, i) => ({ id: new Date(base + i * 900_000).toISOString(), label: '', available: true }))
+  })
   dbMock.service.findFirst.mockReset().mockResolvedValue({ id: SERVICE_ID, durationMinutes: 60, bufferMinutes: 0, price: 150 })
   dbMock.staffProfile.findFirst.mockReset().mockResolvedValue({ id: STAFF_ID })
   dbMock.appointment.findFirst.mockReset().mockResolvedValue(null)
@@ -158,14 +177,15 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
   })
 
   it('K3: randevu yakinsa sure dolumu randevudan 2 saat once olur', async () => {
-    await book(makeApp(), validBody({ startAt: isoNoMs(new Date(Date.now() + 5 * H)) }))
+    await book(makeApp(), validBody({ startAt: isoNoMs(aligned(5 * H)) }))
     const call = queueMock.add.mock.calls.find((c) => c[0] === 'online-expire')!
+    // Saat ceyrek saate yuvarlandigi icin (mesai izgarasi) en cok 15 dk fazla olabilir.
     expect(call[2].delay).toBeGreaterThan(3 * H - 10_000)
-    expect(call[2].delay).toBeLessThanOrEqual(3 * H)
+    expect(call[2].delay).toBeLessThanOrEqual(3 * H + 15 * 60_000)
   })
 
   it('K3: dolum suresi kisa kalan randevu (2,5 saatten yakin) kabul edilmez: 400 TOO_SOON_FOR_APPROVAL, kayit olusmaz', async () => {
-    const res = await book(makeApp(), validBody({ startAt: isoNoMs(new Date(Date.now() + 2 * H)) }))
+    const res = await book(makeApp(), validBody({ startAt: isoNoMs(aligned(2 * H)) }))
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('TOO_SOON_FOR_APPROVAL')
     expect(dbMock.appointment.create).not.toHaveBeenCalled()
@@ -410,5 +430,84 @@ describe('S2 sms modu: dogrulama ve T3 devrede', () => {
   it('GET /tenant bookingMode=verified doner', async () => {
     const res = await request(makeApp()).get('/api/v1/tenants/salon/public/tenant')
     expect(res.body.bookingMode).toBe('verified')
+  })
+})
+
+describe('A7 (ADR-0043): online fiyat ve musteri baglantisi', () => {
+  const svcRow = { id: SERVICE_ID, name: 'Sac', durationMinutes: 60, category: null, price: 150 }
+  const services = (app: express.Express) => request(app).get('/api/v1/tenants/salon/public/services')
+
+  beforeEach(() => {
+    dbMock.service.findMany.mockReset().mockResolvedValue([svcRow])
+  })
+
+  it('klinik olmayan tur varsayilan: /public/services fiyat dondurur', async () => {
+    const res = await services(makeApp())
+    expect(res.status).toBe(200)
+    expect(res.body.data[0].price).toBe(150)
+  })
+
+  it('klinik turu (dentist) varsayilan: fiyat anahtari hic yok (null da degil)', async () => {
+    setTenant({}, 'dentist')
+    const res = await services(makeApp())
+    expect(res.body.data[0]).not.toHaveProperty('price')
+  })
+
+  it('klinik ayari showPricesOnline:true acarsa fiyat gorunur; klinik olmayan tur ayarla kapatabilir', async () => {
+    setTenant({ showPricesOnline: true }, 'dentist')
+    expect((await services(makeApp())).body.data[0].price).toBe(150)
+    setTenant({ showPricesOnline: false }, 'beauty_center')
+    expect((await services(makeApp())).body.data[0]).not.toHaveProperty('price')
+  })
+
+  it('veritabanindan fiyat yalniz gosterilecekse secilir', async () => {
+    setTenant({}, 'dentist')
+    await services(makeApp())
+    expect(dbMock.service.findMany.mock.calls[0][0].select).not.toHaveProperty('price')
+  })
+
+  it('/book: yanitta manageLink (FRONTEND_URL/book/manage#token) doner, veritabanina yalniz sha-256 ozeti yazilir', async () => {
+    process.env.FRONTEND_URL = 'https://app.example.com'
+    const res = await book(makeApp())
+    expect(res.status).toBe(201)
+    expect(res.body.manageLink.startsWith('https://app.example.com/book/manage#')).toBe(true)
+    const token = res.body.manageLink.split('#')[1]
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const data = dbMock.appointment.create.mock.calls[0][0].data
+    expect(data.manageTokenHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(JSON.stringify(data)).not.toContain(token)
+  })
+
+  it('/book yanitinda fiyat: klinik olmayan turde var, klinikte anahtar yok', async () => {
+    expect((await book(makeApp())).body.price).toBe(150)
+    setTenant({}, 'dentist')
+    expect(await book(makeApp()).then((r) => r.body)).not.toHaveProperty('price')
+  })
+})
+
+describe('S-book-calisma-saati: /book mesai izgarasini ve uygunlugu sinar', () => {
+  it('mesai disi / izgarada olmayan saat 400 INVALID_SLOT, randevu yazilmaz (baska her sey gecerli)', async () => {
+    slotsMock.getSlots.mockResolvedValue([])
+    const res = await book(makeApp())
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_SLOT')
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+  })
+
+  it('izgarada ama uygun olmayan (izinli/dolu) slot 409 SLOT_TAKEN, randevu yazilmaz', async () => {
+    const body = validBody()
+    slotsMock.getSlots.mockResolvedValue([{ id: new Date(String(body.startAt)).toISOString(), label: '', available: false }])
+    const res = await book(makeApp(), body)
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('SLOT_TAKEN')
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+  })
+
+  it('slot sorgusu kiraci, hizmet ve personelle, Istanbul gunuyle yapilir', async () => {
+    const body = validBody()
+    await book(makeApp(), body)
+    const arg = slotsMock.getSlots.mock.calls[0][0]
+    expect(arg).toMatchObject({ tenantId: 't1', serviceId: SERVICE_ID, staffId: STAFF_ID })
+    expect(arg.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })

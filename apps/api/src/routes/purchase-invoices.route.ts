@@ -46,29 +46,33 @@ const createInvoiceSchema = z.object({
   post: z.boolean().optional(), // true ise direkt muhasebeleştir
 })
 
+// Para kuralı: her kalem kuruşa (yarım yukarı) yuvarlanır, fatura toplamları yuvarlanmış kalemlerin toplamıdır.
+// Float kullanılmaz (13,585 gibi değerler float'ta aşağı düşer); Decimal ile hesaplanır.
+const MONEY_ROUND = Prisma.Decimal.ROUND_HALF_UP
+
+function roundMoney(value: Prisma.Decimal): Prisma.Decimal {
+  return value.toDecimalPlaces(2, MONEY_ROUND)
+}
+
 function computeItemTotals(item: z.infer<typeof itemSchema>) {
-  const gross = item.quantity * item.unitPrice
-  const afterDiscount = Math.max(0, gross - item.discount)
-  const tax = (afterDiscount * item.taxRate) / 100
-  const total = afterDiscount + tax
-  return {
-    afterDiscount,
-    tax,
-    total,
-  }
+  const gross = roundMoney(new Prisma.Decimal(item.quantity).mul(item.unitPrice))
+  const discount = roundMoney(new Prisma.Decimal(item.discount))
+  const afterDiscount = Prisma.Decimal.max(0, gross.minus(discount))
+  const tax = roundMoney(afterDiscount.mul(item.taxRate).div(100))
+  return { afterDiscount, tax, total: afterDiscount.plus(tax) }
 }
 
 function aggregateTotals(items: z.infer<typeof itemSchema>[]) {
-  let subtotal = 0
-  let taxTotal = 0
-  let discountTotal = 0
-  let total = 0
+  let subtotal = new Prisma.Decimal(0)
+  let taxTotal = new Prisma.Decimal(0)
+  let discountTotal = new Prisma.Decimal(0)
+  let total = new Prisma.Decimal(0)
   for (const item of items) {
-    const { afterDiscount, tax, total: lineTotal } = computeItemTotals(item)
-    subtotal += afterDiscount
-    taxTotal += tax
-    discountTotal += item.discount
-    total += lineTotal
+    const line = computeItemTotals(item)
+    subtotal = subtotal.plus(line.afterDiscount)
+    taxTotal = taxTotal.plus(line.tax)
+    discountTotal = discountTotal.plus(roundMoney(new Prisma.Decimal(item.discount)))
+    total = total.plus(line.total)
   }
   return { subtotal, taxTotal, discountTotal, total }
 }
@@ -366,10 +370,10 @@ export function createPurchaseInvoicesRouter(): Router {
             invoiceDate: new Date(data.invoiceDate),
             dueDate: data.dueDate ? new Date(data.dueDate) : null,
             status: PurchaseInvoiceStatus.draft,
-            subtotal: new Prisma.Decimal(totals.subtotal.toFixed(2)),
-            taxTotal: new Prisma.Decimal(totals.taxTotal.toFixed(2)),
-            discountTotal: new Prisma.Decimal(totals.discountTotal.toFixed(2)),
-            total: new Prisma.Decimal(totals.total.toFixed(2)),
+            subtotal: totals.subtotal,
+            taxTotal: totals.taxTotal,
+            discountTotal: totals.discountTotal,
+            total: totals.total,
             notes: data.notes ?? null,
             createdBy: userId,
           },
@@ -386,7 +390,7 @@ export function createPurchaseInvoicesRouter(): Router {
               unitPrice: new Prisma.Decimal(item.unitPrice),
               taxRate: new Prisma.Decimal(item.taxRate),
               discount: new Prisma.Decimal(item.discount),
-              total: new Prisma.Decimal(t.total.toFixed(2)),
+              total: t.total,
             }
           }),
         })

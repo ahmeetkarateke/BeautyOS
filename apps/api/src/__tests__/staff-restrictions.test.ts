@@ -7,8 +7,11 @@ import express from 'express'
 const dbMock = vi.hoisted(() => ({
   staffProfile: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   customer: { findMany: vi.fn() },
-  appointment: { findFirst: vi.fn(), update: vi.fn() },
+  appointment: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   transaction: { create: vi.fn() },
+  $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
+  cashDayClosure: { findUnique: vi.fn(), upsert: vi.fn() },
   tipEntry: { aggregate: vi.fn(), groupBy: vi.fn() },
   tipDistribution: { groupBy: vi.fn() },
 }))
@@ -153,7 +156,70 @@ describe('R4: uzman musteri aramasi', () => {
   })
 })
 
+describe('W13-2: telefon aramasi normalize biciminde saklanan kaydi bulur', () => {
+  const phoneContains = (call: unknown[]) => {
+    const where = (call[0] as { where: { OR: Array<Record<string, any>> } }).where
+    const branch = where.OR.find((b) => JSON.stringify(b).includes('"phone"'))!
+    return (branch.phone ?? branch.AND[1].phone).contains as string
+  }
+
+  it('K-W13-2: 0532..., 532..., +90532... ve bosluklu/tireli yazimlar ayni ulusal numara desenini arar (saklanan +90 bicimi bulunur)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    for (const term of ['0532 123', '532123', '+90532123', '0(532)-123', '90532123']) {
+      dbMock.customer.findMany.mockClear()
+      await request(app).get(`${URL}/customers?search=${encodeURIComponent(term)}`).set(as('owner'))
+      expect(phoneContains(dbMock.customer.findMany.mock.calls[0]), term).toBe('532123')
+    }
+  })
+
+  it('K-W13-2: telefon gibi olmayan terim aynen (jokerleri kacislanmis) aranir; kisa rakam terimi (2 hane) normalize edilmez', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await request(app).get(`${URL}/customers?search=${encodeURIComponent('a_c')}`).set(as('owner'))
+    expect(phoneContains(dbMock.customer.findMany.mock.calls[0])).toBe('a\\_c')
+    dbMock.customer.findMany.mockClear()
+    await request(app).get(`${URL}/customers?search=05`).set(as('owner'))
+    expect(phoneContains(dbMock.customer.findMany.mock.calls[0])).toBe('05')
+  })
+
+  it('K-W13-2: uzman aramasi da normalize eder ve telefon dali yine yalniz kendi musterileriyle sinirli kalir (R4)', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await request(app).get(`${URL}/customers?search=0555123`).set(as('staff'))
+    const where = dbMock.customer.findMany.mock.calls[0][0].where
+    expect(phoneContains(dbMock.customer.findMany.mock.calls[0])).toBe('555123')
+    const phoneBranch = where.OR.find((b: Record<string, unknown>) => JSON.stringify(b).includes('"phone"'))
+    expect(JSON.stringify(phoneBranch)).toContain('sp-me')
+    expect(JSON.stringify(where).match(/"phone"/g)).toHaveLength(1)
+  })
+})
+
+describe('W13-API-1: arama terimi siniri ve karisik terim', () => {
+  it('K-W13-2: harf+rakam karisik terim (ab532) telefon gibi sayilmaz, aynen aranir; yonetici adinda joker kacislanir', async () => {
+    dbMock.customer.findMany.mockResolvedValue([])
+    await request(app).get(`${URL}/customers?search=ab532`).set(as('owner'))
+    const where = dbMock.customer.findMany.mock.calls[0][0].where
+    expect(where.OR[1].phone.contains).toBe('ab532')
+    dbMock.customer.findMany.mockClear()
+    await request(app).get(`${URL}/customers?search=a_c`).set(as('owner'))
+    expect(dbMock.customer.findMany.mock.calls[0][0].where.OR[0].fullName.contains).toBe('a\\_c')
+  })
+
+  it('K-W13-2: 100 karakteri asan arama terimi 400 VALIDATION_ERROR (sorgu atilmaz)', async () => {
+    const res = await request(app).get(`${URL}/customers?search=${'a'.repeat(101)}`).set(as('owner'))
+    expect(res.status).toBe(400)
+    expect(dbMock.customer.findMany).not.toHaveBeenCalled()
+  })
+})
+
 describe('R3: uzman fiyati degistiremez', () => {
+  // A6: tamamlama tek islemde ($transaction) ve kosullu updateMany ile; sahte tx dbMock'un kendisidir.
+  function completionMocks() {
+    dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => fn(dbMock))
+    dbMock.cashDayClosure.findUnique.mockResolvedValue(null)
+    dbMock.$queryRaw.mockResolvedValue([])
+    dbMock.appointment.updateMany.mockResolvedValue({ count: 1 })
+    dbMock.appointment.update.mockResolvedValue({})
+    dbMock.transaction.create.mockResolvedValue({ id: 'tx1', completedAt: new Date() })
+  }
   function setupCompletion() {
     dbMock.appointment.findFirst
       .mockResolvedValueOnce({ id: 'a1', status: 'confirmed', staffId: 'sp-me', customerId: 'c1' })
@@ -161,23 +227,25 @@ describe('R3: uzman fiyati degistiremez', () => {
         id: 'a1', staffId: 'sp-me', priceCharged: 500, customerId: 'c1',
         service: { commissionRate: 0.1, followUpSchedule: null }, customer: null, tenant: { settings: {}, telegramBotToken: null },
       })
-    dbMock.appointment.update.mockResolvedValue({ id: 'a1', status: 'completed', cancellationReason: null })
-    dbMock.transaction.create.mockResolvedValue({})
+    completionMocks()
   }
 
   it('K-R3: uzman priceCharged gonderse bile islem tutari randevu fiyatidir (yok sayilir)', async () => {
     setupCompletion()
     const res = await request(app).patch(`${URL}/appointments/a1/status`).set(as('staff')).send({ status: 'completed', priceCharged: 1 })
     expect(res.status).toBe(200)
-    expect(dbMock.transaction.create.mock.calls[0][0].data.grossAmount).toBe(500)
-    // randevu fiyati da degismez: tek update (durum) cagrisi
-    expect(dbMock.appointment.update).toHaveBeenCalledTimes(1)
+    expect(String(dbMock.transaction.create.mock.calls[0][0].data.grossAmount)).toBe('500')
+    // randevu fiyati da degismez: fiyat guncellemesi hic yapilmaz
+    expect(dbMock.appointment.update).not.toHaveBeenCalled()
   })
 
   it('K-R3: uzman odeme yontemini secebilir (yalniz fiyat kilitli)', async () => {
     setupCompletion()
     await request(app).patch(`${URL}/appointments/a1/status`).set(as('staff')).send({ status: 'completed', priceCharged: 1, paymentMethod: 'card' })
-    expect(dbMock.transaction.create.mock.calls[0][0].data).toMatchObject({ paymentMethod: 'card', cardAmount: 500, cashAmount: 0 })
+    const data = dbMock.transaction.create.mock.calls[0][0].data
+    expect(data.paymentMethod).toBe('card')
+    expect(String(data.cardAmount)).toBe('500')
+    expect(data.cashAmount).toBe(0)
   })
 
   it.each(['owner', 'manager', 'receptionist'])('K-R3: %s priceCharged ile tutari degistirebilir', async (role) => {
@@ -187,11 +255,10 @@ describe('R3: uzman fiyati degistiremez', () => {
         id: 'a1', staffId: 'sp-other', priceCharged: 500, customerId: 'c1',
         service: { commissionRate: 0.1, followUpSchedule: null }, customer: null, tenant: { settings: {}, telegramBotToken: null },
       })
-    dbMock.appointment.update.mockResolvedValue({ id: 'a1', status: 'completed', cancellationReason: null })
-    dbMock.transaction.create.mockResolvedValue({})
+    completionMocks()
     const res = await request(app).patch(`${URL}/appointments/a1/status`).set(as(role)).send({ status: 'completed', priceCharged: 450 })
     expect(res.status).toBe(200)
-    expect(dbMock.transaction.create.mock.calls[0][0].data.grossAmount).toBe(450)
+    expect(String(dbMock.transaction.create.mock.calls[0][0].data.grossAmount)).toBe('450')
   })
 })
 

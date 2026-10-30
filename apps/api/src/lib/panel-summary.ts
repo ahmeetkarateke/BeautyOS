@@ -1,19 +1,14 @@
 // Panel ozeti (menu sayaclari, deneme suresi, bugunku kasa, ilk kurulum) icin saf yardimcilar.
+import { istanbulDayBounds } from './time'
+
 
 export const SETUP_STEP_IDS = ['salon', 'working-hours', 'services', 'staff', 'first-appointment', 'online-link'] as const
 export type SetupStepId = (typeof SETUP_STEP_IDS)[number]
 
 const DAY_MS = 24 * 60 * 60 * 1000
-// Turkiye yil boyu UTC+3 (yaz saati uygulamasi yok); tenant.route.ts'teki toTRBounds ile ayni sinirlar.
-const ISTANBUL_OFFSET_MS = 3 * 60 * 60 * 1000
 
-/** `now` aninin Istanbul takvim gununun [baslangic, bitis] araligi (UTC Date olarak). */
-export function istanbulDayBounds(now: Date): { start: Date; end: Date } {
-  const shifted = now.getTime() + ISTANBUL_OFFSET_MS
-  const dayStartShifted = shifted - (((shifted % DAY_MS) + DAY_MS) % DAY_MS)
-  const start = new Date(dayStartShifted - ISTANBUL_OFFSET_MS)
-  return { start, end: new Date(start.getTime() + DAY_MS - 1) }
-}
+// Eski içe aktarmalar (rota ve testler) bozulmasın diye buradan da dışa verilir; asıl yer lib/time.ts.
+export { istanbulDayBounds }
 
 export interface TrialStatus {
   endsAt: string

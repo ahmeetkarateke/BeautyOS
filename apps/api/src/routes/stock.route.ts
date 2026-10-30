@@ -134,6 +134,7 @@ export function createStockRouter(): Router {
   // GET /inventory — list, with currentStock
   router.get('/inventory', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!requireOwnerOrManager(req, res)) return
       const tenantId = req.tenantId!
       const items = await db.inventoryItem.findMany({
         where: { tenantId },
@@ -148,6 +149,7 @@ export function createStockRouter(): Router {
   // GET /inventory/low-stock — items where quantity <= lowStockThreshold
   router.get('/inventory/low-stock', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!requireOwnerOrManager(req, res)) return
       const tenantId = req.tenantId!
       const rows = await db.$queryRaw<InventoryRow[]>`
         SELECT id, "tenantId", name, sku, quantity, "lowStockThreshold",
@@ -256,6 +258,7 @@ export function createStockRouter(): Router {
   // GET /inventory/:itemId/movements?type=&from=&to=
   router.get('/inventory/:itemId/movements', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!requireOwnerOrManager(req, res)) return
       const tenantId = req.tenantId!
       const { itemId } = req.params
       const item = await db.inventoryItem.findFirst({ where: { id: itemId, tenantId } })
@@ -502,6 +505,7 @@ export function createStockRouter(): Router {
 
   router.get('/services/:serviceId/inventory-recipes', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!requireOwnerOrManager(req, res)) return
       const tenantId = req.tenantId!
       const { serviceId } = req.params
       const service = await db.service.findFirst({ where: { id: serviceId, tenantId } })

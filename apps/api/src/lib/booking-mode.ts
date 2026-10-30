@@ -15,3 +15,12 @@ export function resolveBookingMode(): { phoneVerification: PhoneVerificationMode
     ? { phoneVerification: 'sms', bookingMode: 'verified' }
     : { phoneVerification: 'none', bookingMode: 'approval_required' }
 }
+
+const MANUAL_BY_DEFAULT: ReadonlySet<string> = new Set(['dentist', 'aesthetic_clinic'])
+
+/** T3: salon ayarı varsa o; yoksa klinik türleri elle onay, diğerleri otomatik. Yalnız sms (doğrulanmış) modunda geçerlidir. */
+export function resolveApprovalMode(tenant: { settings: unknown; businessType: string }): 'auto' | 'manual' {
+  const configured = (tenant.settings as { onlineBookingApproval?: unknown } | null)?.onlineBookingApproval
+  if (configured === 'auto' || configured === 'manual') return configured
+  return MANUAL_BY_DEFAULT.has(tenant.businessType) ? 'manual' : 'auto'
+}

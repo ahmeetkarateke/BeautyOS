@@ -6,11 +6,14 @@ import { db } from '../lib/db'
 import { getSlots } from '../lib/slots'
 import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
 import { normalizePhoneTR } from '../lib/sms'
-import { remindersQueue } from '../lib/queue'
+import { scheduleReminders } from '../lib/queue'
+import { initialAppointmentStatus } from '../lib/appointment-status'
+import { manageLink, newManageToken, showPricesOnline } from '../lib/booking-link'
 import { isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { logger } from '../lib/logger'
 import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
-import { resolveBookingMode } from '../lib/booking-mode'
+import { resolveBookingMode, resolveApprovalMode } from '../lib/booking-mode'
+import { checkSlot } from '../lib/slot-grid'
 import { ONLINE_LIMITS, computeExpiryAt, phoneVariants, scheduleOnlineExpiry } from '../lib/online-booking'
 import { resolveCustomerByPhone } from '../lib/customer-phone'
 
@@ -24,15 +27,6 @@ function applyApprovalLead<T extends { id: string; available: boolean }>(slots: 
   if (resolveBookingMode().phoneVerification === 'sms') return slots
   const limit = Date.now() + MIN_LEAD_FOR_APPROVAL_MS
   return slots.map((s) => (new Date(s.id.includes('Z') || s.id.includes('+') ? s.id : `${s.id}Z`).getTime() < limit ? { ...s, available: false } : s))
-}
-
-const MANUAL_BY_DEFAULT: ReadonlySet<string> = new Set(['dentist', 'aesthetic_clinic'])
-
-/** T3: salon ayarı varsa o; yoksa klinik türleri elle onay, diğerleri otomatik. Yalnız sms (doğrulanmış) modunda geçerlidir. */
-function resolveApprovalMode(tenant: { settings: unknown; businessType: string }): 'auto' | 'manual' {
-  const configured = (tenant.settings as { onlineBookingApproval?: unknown } | null)?.onlineBookingApproval
-  if (configured === 'auto' || configured === 'manual') return configured
-  return MANUAL_BY_DEFAULT.has(tenant.businessType) ? 'manual' : 'auto'
 }
 
 /**
@@ -85,16 +79,9 @@ async function resolveCustomerId(
   return customer.id
 }
 
-async function scheduleReminders(appointmentId: string, startDate: Date, nowMs: number): Promise<void> {
-  const delay24h = startDate.getTime() - nowMs - 24 * 60 * 60 * 1000
-  const delay2h = startDate.getTime() - nowMs - 2 * 60 * 60 * 1000
+async function scheduleAppointmentReminders(tenantId: string, appointmentId: string, startDate: Date, nowMs: number): Promise<void> {
   try {
-    if (delay24h > 0) {
-      await remindersQueue.add('reminder-24h', { type: 'reminder_24h', appointmentId }, { delay: delay24h, jobId: `reminder-24h-${appointmentId}` })
-    }
-    if (delay2h > 0) {
-      await remindersQueue.add('reminder-2h', { type: 'reminder_2h', appointmentId }, { delay: delay2h, jobId: `reminder-2h-${appointmentId}` })
-    }
+    await scheduleReminders({ appointmentId, tenantId, startAt: startDate, now: new Date(nowMs) })
   } catch (err) {
     // Randevu oluştu; hatırlatma kurulamadıysa yalnız log (kişisel veri yok).
     logger.error({ err, appointmentId }, 'Hatırlatma zamanlanamadı')
@@ -179,10 +166,11 @@ export function createPublicRouter(): Router {
         return res.status(403).json({ error: { code: 'BOOKING_DISABLED', message: 'Bu salon şu anda online rezervasyon kabul etmiyor.' } })
       }
 
+      const showPrice = showPricesOnline(tenant.settings, tenant.businessType)
       const services = await db.service.findMany({
         where: { tenantId: tenant.id, isActive: true, isOnlineBookable: true },
         orderBy: { name: 'asc' },
-        select: { id: true, name: true, durationMinutes: true, category: true },
+        select: { id: true, name: true, durationMinutes: true, category: true, ...(showPrice ? { price: true } : {}) },
       })
 
       return res.json({
@@ -191,6 +179,8 @@ export function createPublicRouter(): Router {
           name: s.name,
           durationMinutes: s.durationMinutes,
           category: s.category ?? null,
+          // Kapalıyken alan hiç bulunmaz (ADR-0043); klinik türlerinde varsayılan kapalı.
+          ...(showPrice && 'price' in s ? { price: Number((s as { price: unknown }).price) } : {}),
         })),
       })
     } catch (err) {
@@ -455,6 +445,15 @@ export function createPublicRouter(): Router {
         })
       }
 
+      // Mesai izgarası: istenen saat personelin çalışma saatlerinden üretilen uygun bir slot olmalı (gece/izin günü API ile atlatılamaz).
+      const slotCheck = await checkSlot({ tenantId: tenant.id, serviceId, staffId, startAt: startDate, requireAvailable: true })
+      if (slotCheck === 'off_grid') {
+        return res.status(400).json({ error: { code: 'INVALID_SLOT', message: 'Seçilen saat salonun çalışma saatleri dışında.' } })
+      }
+      if (slotCheck === 'unavailable') {
+        return res.status(409).json(SLOT_TAKEN_BODY)
+      }
+
       const endDate = new Date(startDate.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)
 
       const conflict = await db.appointment.findFirst({
@@ -499,8 +498,10 @@ export function createPublicRouter(): Router {
       const customerId = verifiedMode ? await resolveCustomerId(tenant.id, normalizedPhone, customerName, verifiedAt) : null
       // Müşteri bağlanamadıysa (doğrulanmamış talep ya da aynı telefonda birden çok kart) salon eşleştirmeden randevu onaylanmaz.
       const approvalRequired = customerId === null || resolveApprovalMode(tenant) === 'manual'
-      const status = approvalRequired ? 'pending' : 'confirmed'
+      const status = initialAppointmentStatus('web', { approvalRequired })
       const referenceCode = newReferenceCode(nowMs)
+      // Müşteri bağlantısı: token yalnız bu yanıtta döner, veritabanında yalnız özeti durur (ADR-0043, ADR-0046).
+      const manage = newManageToken()
 
       const appointment = await db.appointment.create({
         data: {
@@ -509,6 +510,7 @@ export function createPublicRouter(): Router {
           staffId,
           serviceId,
           referenceCode,
+          manageTokenHash: manage.tokenHash,
           requestedName: customerId ? null : customerName,
           requestedPhone: customerId ? null : normalizedPhone,
           status,
@@ -525,7 +527,7 @@ export function createPublicRouter(): Router {
       if (approvalRequired) {
         await scheduleOnlineExpiry(appointment.id, computeExpiryAt(new Date(nowMs), startDate), new Date(nowMs))
       }
-      if (customerId) await scheduleReminders(appointment.id, startDate, nowMs)
+      if (customerId) await scheduleAppointmentReminders(tenant.id, appointment.id, startDate, nowMs)
 
       return res.status(201).json({
         id: appointment.id,
@@ -534,6 +536,8 @@ export function createPublicRouter(): Router {
         status,
         approvalRequired,
         phoneVerified: verifiedMode,
+        manageLink: manageLink(manage.token),
+        ...(showPricesOnline(tenant.settings, tenant.businessType) ? { price: Number(service.price) } : {}),
       })
     } catch (err) {
       respondSlotTakenOr(err, res, next)

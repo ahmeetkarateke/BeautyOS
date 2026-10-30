@@ -1,6 +1,6 @@
 import { db } from './db'
 import { logger } from './logger'
-import { remindersQueue } from './queue'
+import { remindersQueue, scheduleReminders, cancelReminders } from './queue'
 import { Prisma } from '@prisma/client'
 import { normalizePhoneTR } from './sms/types'
 
@@ -77,6 +77,7 @@ export async function expireOnlineRequest(appointmentId: string): Promise<boolea
     where: { id: appointmentId, status: 'pending', OR: ONLINE_REQUEST_SCOPE },
     data: { status: 'cancelled', cancelReason: 'expired' },
   })
+  if (result.count > 0) await cancelReminders(appointmentId)
   return result.count > 0
 }
 
@@ -118,7 +119,7 @@ export async function anonymizeStaleRequests(now: Date = new Date()): Promise<nu
   return result.count
 }
 
-async function removeExpiryJob(appointmentId: string): Promise<void> {
+export async function removeExpiryJob(appointmentId: string): Promise<void> {
   try {
     await remindersQueue.remove(expiryJobId(appointmentId))
   } catch (err) {
@@ -211,13 +212,27 @@ class RequestNotPendingError extends Error {}
 export async function approveOnlineRequest(tenantId: string, appointmentId: string, input: ApproveInput = {}): Promise<ApproveResult> {
   const appointment = await db.appointment.findFirst({
     where: { id: appointmentId, tenantId, isDeleted: false },
-    select: { status: true, customerId: true, requestedName: true, requestedPhone: true },
+    select: { status: true, customerId: true, requestedName: true, requestedPhone: true, startAt: true },
   })
   if (!appointment) return 'not_found'
   if (appointment.status !== 'pending') return 'not_pending'
-  if (appointment.customerId) return confirmLinkedRequest(tenantId, appointmentId)
-  if (!appointment.requestedName || !appointment.requestedPhone) return 'not_found'
-  return confirmUnverifiedRequest(tenantId, appointmentId, { name: appointment.requestedName, phone: appointment.requestedPhone }, input)
+  let outcome: ApproveResult
+  if (appointment.customerId) {
+    outcome = await confirmLinkedRequest(tenantId, appointmentId)
+  } else if (!appointment.requestedName || !appointment.requestedPhone) {
+    return 'not_found'
+  } else {
+    outcome = await confirmUnverifiedRequest(tenantId, appointmentId, { name: appointment.requestedName, phone: appointment.requestedPhone }, input)
+  }
+  // Onay hatırlatmayı başlatır (ADR-0044). Kurulamazsa onay geçerli kalır; gece uzlaştırması telafi eder.
+  if (outcome === 'ok') {
+    try {
+      await scheduleReminders({ appointmentId, tenantId, startAt: appointment.startAt })
+    } catch (err) {
+      logger.warn({ err, appointmentId }, 'Onay sonrası hatırlatma işleri kurulamadı')
+    }
+  }
+  return outcome
 }
 
 export async function rejectOnlineRequest(tenantId: string, appointmentId: string, userId: string): Promise<DecisionResult> {
@@ -227,5 +242,6 @@ export async function rejectOnlineRequest(tenantId: string, appointmentId: strin
   })
   if (result.count === 0) return explainNoChange(tenantId, appointmentId)
   await removeExpiryJob(appointmentId)
+  await cancelReminders(appointmentId)
   return 'ok'
 }

@@ -27,3 +27,19 @@ export function istanbulDayRange(dateFrom: string, dateTo: string): DayRange {
   if (days > MAX_RANGE_DAYS) return { ok: false, reason: 'RANGE_TOO_LARGE' }
   return { ok: true, gte: new Date(from), lt: new Date(to + DAY_MS) }
 }
+
+/** Prim dönemi gibi 31 günü aşabilen aralıklar için: tavan yok, [from 00:00, to ertesi gün 00:00) (Istanbul). */
+export function istanbulPeriodBounds(dateFrom: string, dateTo: string): { gte: Date; lt: Date } | null {
+  const from = istanbulMidnightUtc(dateFrom)
+  const to = istanbulMidnightUtc(dateTo)
+  if (from === null || to === null || from > to) return null
+  return { gte: new Date(from), lt: new Date(to + DAY_MS) }
+}
+
+/** `now` anının İstanbul takvim gününün [başlangıç, bitiş] aralığı (UTC Date olarak; bitiş dahil, son milisaniye). */
+export function istanbulDayBounds(now: Date): { start: Date; end: Date } {
+  const shifted = now.getTime() + ISTANBUL_OFFSET_MS
+  const dayStartShifted = shifted - (((shifted % DAY_MS) + DAY_MS) % DAY_MS)
+  const start = new Date(dayStartShifted - ISTANBUL_OFFSET_MS)
+  return { start, end: new Date(start.getTime() + DAY_MS - 1) }
+}

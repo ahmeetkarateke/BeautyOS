@@ -183,6 +183,8 @@ export async function cleanupTenant(tenantId: string) {
     await db.supplier.deleteMany({ where: { tenantId } })
     await db.waitlist.deleteMany({ where: { tenantId } })
     await db.activityLog.deleteMany({ where: { tenantId } })
+    await db.correction.deleteMany({ where: { tenantId } })
+    await db.cashDayClosure.deleteMany({ where: { tenantId } })
 
     // Mevcut child'lar
     await db.notificationLog.deleteMany({ where: { tenantId } })
