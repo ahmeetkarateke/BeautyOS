@@ -1,8 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { emptyItem, invoiceActions, invoiceBody, invoiceStatusLabel, invoiceTotals, itemTotals, validateInvoice, type InvoiceValues, type ItemValues } from './logic'
+import {
+  emptyItem,
+  invoiceActions,
+  invoiceBody,
+  invoiceStatusLabel,
+  invoiceTotals,
+  itemTotals,
+  validateInvoice,
+  type InvoiceValues,
+  type ItemValues,
+} from './logic'
 
-const item = (over: Partial<ItemValues> = {}): ItemValues => ({ ...emptyItem(), name: 'Şampuan', quantityText: '10', priceText: '100', taxText: '20', discountText: '0', ...over })
-const values = (over: Partial<InvoiceValues> = {}): InvoiceValues => ({ supplierId: 's1', invoiceNumber: '', invoiceDate: '2026-10-29', dueDate: '', notes: '', items: [item()], postNow: false, ...over })
+const item = (over: Partial<ItemValues> = {}): ItemValues => ({
+  ...emptyItem(),
+  name: 'Şampuan',
+  quantityText: '10',
+  priceText: '100',
+  taxText: '20',
+  discountText: '0',
+  ...over,
+})
+const values = (over: Partial<InvoiceValues> = {}): InvoiceValues => ({
+  supplierId: 's1',
+  invoiceNumber: '',
+  invoiceDate: '2026-10-29',
+  dueDate: '',
+  notes: '',
+  items: [item()],
+  postNow: false,
+  ...over,
+})
 
 describe('W25 itemTotals (sunucu formülü: brüt - indirim, üstüne KDV)', () => {
   it('K1: 10 x 100, %20 KDV: ara toplam 1000, KDV 200, toplam 1200', () => {
@@ -30,7 +57,7 @@ describe('W25 invoiceTotals', () => {
 
 describe('W25 validateInvoice', () => {
   it('K3: geçerli fatura hatasızdır', () => {
-    expect(validateInvoice(values())).toEqual({ fields: {}, items: [] })
+    expect(validateInvoice(values())).toEqual({ fields: {}, items: [{}] })
   })
   it('K3: tedarikçi ve fatura tarihi zorunlu; vade tarihi fatura tarihinden önce olamaz', () => {
     expect(Object.keys(validateInvoice(values({ supplierId: '' })).fields)).toEqual(['supplierId'])
@@ -52,7 +79,11 @@ describe('W25 validateInvoice', () => {
 
 describe('W25 invoiceBody', () => {
   it('K5: sunucu alanları: sayılar çevrilir, boş isteğe bağlılar gönderilmez, post yalnız işaretliyse', () => {
-    expect(invoiceBody(values())).toEqual({ supplierId: 's1', invoiceDate: '2026-10-29', items: [{ name: 'Şampuan', quantity: 10, unitPrice: 100, taxRate: 20, discount: 0 }] })
+    expect(invoiceBody(values())).toEqual({
+      supplierId: 's1',
+      invoiceDate: '2026-10-29',
+      items: [{ name: 'Şampuan', quantity: 10, unitPrice: 100, taxRate: 20, discount: 0 }],
+    })
     const full = invoiceBody(values({ invoiceNumber: ' A-1 ', dueDate: '2026-11-15', notes: ' Not ', postNow: true }))
     expect(full).toMatchObject({ invoiceNumber: 'A-1', dueDate: '2026-11-15', notes: 'Not', post: true })
   })
