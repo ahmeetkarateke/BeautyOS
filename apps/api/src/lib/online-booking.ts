@@ -106,15 +106,17 @@ export const REQUEST_RETENTION_DAYS = 30
 export const ANONYMIZED = '-'
 
 /** Gece taraması: iptal/gelmedi olmuş musterisiz taleplerde requestedName/requestedPhone silinir (CHECK için '-' ile doldurulur). */
+// requestedPhone Telegram talebinde NULL olabilir (NOT NULL karşılaştırması satırı dışarıda bırakırdı): daha önce anonimleştirilmiş mi ad belirler.
+// CHECK (appointments_customer_or_request) en az bir kimlik ister: telefon '-' ile doldurulur, sohbet no silinir.
 export async function anonymizeStaleRequests(now: Date = new Date()): Promise<number> {
   const result = await db.appointment.updateMany({
     where: {
       customerId: null,
       status: { in: ['cancelled', 'no_show'] },
       updatedAt: { lte: new Date(now.getTime() - REQUEST_RETENTION_DAYS * 24 * HOUR_MS) },
-      NOT: { requestedPhone: ANONYMIZED },
+      NOT: { requestedName: ANONYMIZED },
     },
-    data: { requestedName: ANONYMIZED, requestedPhone: ANONYMIZED },
+    data: { requestedName: ANONYMIZED, requestedPhone: ANONYMIZED, requestedChatId: null },
   })
   return result.count
 }
@@ -170,7 +172,7 @@ async function confirmUnverifiedRequest(
       ? await db.customer.findFirst({ where: { id: input.customerId, tenantId }, select: { id: true, phone: true } })
       : null
     if (!customer) return { result: 'customer_not_found' }
-    if (normalizePhoneTR(customer.phone) !== requested.phone) return { result: 'customer_phone_mismatch' }
+    if (!customer.phone || normalizePhoneTR(customer.phone) !== requested.phone) return { result: 'customer_phone_mismatch' }
     const linked = await db.appointment.updateMany({
       where: { id: appointmentId, tenantId, status: 'pending', customerId: null, isDeleted: false },
       data: { customerId: customer.id, status: 'confirmed' },

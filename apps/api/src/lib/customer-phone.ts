@@ -43,6 +43,16 @@ export async function resolveCustomerByPhone(
   return { kind: 'multiple', ids: rows.map((r) => r.id) }
 }
 
+/** ADR-0039: Telegram sohbet no kiracıda tekildir (telegramChatId); telefon biçimleriyle aranmaz. */
+export async function resolveCustomerByChatId(
+  tx: { customer: { findMany(args: { where: { tenantId: string; telegramChatId: string }; take: number; select: { id: true } }): Promise<Array<{ id: string }>> } },
+  tenantId: string,
+  chatId: string,
+): Promise<PhoneResolution> {
+  const rows = await tx.customer.findMany({ where: { tenantId, telegramChatId: chatId }, take: 1, select: { id: true } })
+  return rows.length === 0 ? { kind: 'none' } : { kind: 'single', id: rows[0].id }
+}
+
 /** Panel yinelenen telefon kontrolü: aynı kiracıda (isteğe bağlı bir kart hariç) bu telefonla kayıtlı kart var mı? */
 export async function phoneInUse(
   tx: { customer: { findMany(args: unknown): Promise<Array<{ id: string }>> } },

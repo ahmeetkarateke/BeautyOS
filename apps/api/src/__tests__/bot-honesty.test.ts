@@ -191,11 +191,11 @@ describe('K4: iptal sahiplik ister', () => {
     expect(dbMock.appointment.update).not.toHaveBeenCalled()
   })
 
-  it('ADR-0038: Telegram kanalinda (exact) sohbet no normalize edilmez, yalniz tam eslesir', async () => {
+  it('ADR-0039: Telegram kanalinda (exact) kimlik sohbet no ile eslesir (telefon alanlariyla degil), normalize edilmez', async () => {
     dbMock.appointment.findFirst.mockResolvedValue(null)
     await cancelAppointmentByRef('t1', 'RDV-ABC', '905320000009', { exact: true })
     const where = dbMock.appointment.findFirst.mock.calls[0][0].where
-    expect(where.OR[0]).toEqual({ customer: { phone: { in: ['905320000009'] } } })
+    expect(where.OR).toEqual([{ customer: { telegramChatId: '905320000009' } }, { requestedChatId: '905320000009' }])
   })
 
   it('K4: sahibi kendi randevusunu iptal eder', async () => {

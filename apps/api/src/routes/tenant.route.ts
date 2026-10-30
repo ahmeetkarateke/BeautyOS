@@ -1061,7 +1061,7 @@ export function createTenantRouter(): Router {
           where: { id: appointmentId },
           include: {
             service: true,
-            customer: { select: { fullName: true, phone: true } },
+            customer: { select: { fullName: true, telegramChatId: true } },
             tenant: { select: { telegramBotToken: true, settings: true } },
           },
         })
@@ -1142,7 +1142,7 @@ export function createTenantRouter(): Router {
                     timeZone: 'Europe/Istanbul',
                   })
                   const text = `${appt.service.name} işleminiz tamamlandı! ${fu.label} kontrolünüz (${tarih}) takvime eklendi. Saat değişikliği için bize yazabilirsiniz.`
-                  if (appt.customer) await channel.sendText(appt.customer.phone, text)
+                  if (appt.customer?.telegramChatId) await channel.sendText(appt.customer.telegramChatId, text)
                 }
               } catch (err) {
                 logger.warn({ err, appointmentId }, 'Follow-up bildirimleri gönderilemedi')
@@ -2744,7 +2744,8 @@ export function createTenantRouter(): Router {
       ])
 
       return res.json({
-        data: conversations,
+        // Ham telefon / sohbet no yanıta çıkmaz (veri en azda tutulur); eski arayüz alan adını kullandığı için alan kalır, değer maskelidir.
+        data: conversations.map((c) => ({ ...c, customerRef: maskPhone(c.customerRef) })),
         meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       })
     } catch (err) {
@@ -2769,7 +2770,7 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Konuşma bulunamadı.' } })
       }
 
-      return res.json({ data: convo })
+      return res.json({ data: { ...convo, customerRef: maskPhone(convo.customerRef) } })
     } catch (err) {
       next(err)
     }

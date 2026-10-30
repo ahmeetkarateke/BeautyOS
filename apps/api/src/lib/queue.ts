@@ -165,7 +165,7 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
   }
 
   // Kanal: SMS (sağlayıcı gerçek ve telefon geçerli) → e-posta yedeği → atla.
-  const normalized = normalizePhoneTR(phone)
+  const normalized = phone ? normalizePhoneTR(phone) : null
   if (getSmsProvider().name !== 'mock' && normalized) {
     const { result } = await sendSms({
       tenantId: appointment.tenantId,

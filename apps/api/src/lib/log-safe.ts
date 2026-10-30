@@ -59,6 +59,8 @@ export const REDACT_KEYS = [
   'fullName', 'customerName', 'email', 'text', 'message_text', 'body',
   'password', 'passwordHash', 'token', 'accessToken', 'refreshToken', 'resetToken',
   'authorization', 'cookie', 'otp',
+  // TG1 (ADR-0039): Telegram sohbet no ve talep sahibi bilgileri kisisel veridir; nesne log'a dusse bile acik yazilmaz.
+  'telegramChatId', 'requestedChatId', 'requestedPhone', 'requestedName', 'customerRef',
 ] as const
 
 export const REDACT_PATHS: string[] = [

@@ -26,7 +26,8 @@ export function phoneSearchPattern(term: string): string {
 }
 
 /** "0532 *** ** 67" bicimi. Kisa ya da bos deger numara sizdirmamak icin "***" olur. */
-export function maskPhone(phone: string): string {
+export function maskPhone(phone: string | null): string {
+  if (!phone) return '***'
   let digits = phone.replace(/\D/g, '')
   if (digits.length === 12 && digits.startsWith('90')) digits = `0${digits.slice(2)}`
   else if (digits.length === 10 && digits.startsWith('5')) digits = `0${digits}`

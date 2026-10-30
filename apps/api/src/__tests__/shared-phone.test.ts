@@ -92,10 +92,10 @@ describe('bot createAppointment (ADR-0038)', () => {
     expect(dbMock.appointment.create.mock.calls[0][0].data).toMatchObject({ customerId: 'c-new', status: 'confirmed' })
   })
 
-  it('K-bot: Telegram kanalinda sohbet no telefon gibi normalize edilmez; WhatsApp kanalinda normalize aranir', async () => {
+  it('K-bot: Telegram kanalinda sohbet no telegramChatId ile aranir (telefon gibi normalize edilmez); WhatsApp kanalinda normalize telefon aranir', async () => {
     dbMock.customer.findMany.mockResolvedValue([])
     await createAppointment({ ...input, customerPhone: '905321234567', channel: 'telegram' })
-    expect(dbMock.customer.findMany.mock.calls[0][0].where.phone.in).toEqual(['905321234567'])
+    expect(dbMock.customer.findMany.mock.calls[0][0].where).toEqual({ tenantId: 't1', telegramChatId: '905321234567' })
     await createAppointment({ ...input, customerPhone: '905321234567', channel: 'whatsapp' })
     expect(dbMock.customer.findMany.mock.calls[1][0].where.phone.in).toContain('+905321234567')
   })
@@ -110,12 +110,14 @@ describe('bot createAppointment (ADR-0038)', () => {
     expect(queueMock.add).not.toHaveBeenCalled()
   })
 
-  it('ADR-0038 Onemli 2: WhatsApp multiple talebinde requestedPhone normalize saklanir (+90...), Telegram sohbet no oldugu gibi', async () => {
+  it('ADR-0038 Onemli 2: WhatsApp multiple talebinde requestedPhone normalize saklanir (+90...); Telegram requestedPhone yazmaz (ADR-0039)', async () => {
     dbMock.customer.findMany.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
     await createAppointment({ ...input, customerPhone: '905320000001', channel: 'whatsapp' })
     expect(dbMock.appointment.create.mock.calls[0][0].data.requestedPhone).toBe('+905320000001')
+    // Telegram'da kart sohbet no ile (tekil) cozulur, telefon alani doldurulmaz (ADR-0039).
     await createAppointment({ ...input, customerPhone: '905320000001', channel: 'telegram' })
-    expect(dbMock.appointment.create.mock.calls[1][0].data.requestedPhone).toBe('905320000001')
+    const tg = dbMock.appointment.create.mock.calls[1][0].data
+    expect(tg.requestedPhone).toBeNull()
   })
 
   it('ADR-0038 Onemli 2: WhatsApp none yolunda yeni musterinin telefonu normalize yazilir', async () => {

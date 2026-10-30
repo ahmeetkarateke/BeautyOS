@@ -19,7 +19,7 @@ vi.mock('../lib/customer-phone', () => ({ resolveCustomerByPhone: m.resolve, loo
 import { createAppointment } from '../bot/booking.service'
 
 const START = new Date(Date.now() + 72 * 3_600_000)
-const input = { tenantId: 't1', customerPhone: '05321234567', customerName: 'Ayse', serviceName: 'Sac', slotId: `${START.toISOString()}__staff1`, channel: 'telegram' as const }
+const input = { tenantId: 't1', customerPhone: '05321234567', customerName: 'Ayse', serviceName: 'Sac', slotId: `${START.toISOString()}__staff1`, channel: 'whatsapp' as const }
 
 beforeEach(() => {
   vi.clearAllMocks()
