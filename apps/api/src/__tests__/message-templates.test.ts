@@ -122,9 +122,14 @@ describe('migration', () => {
     expect(sql).toMatch(/CHECK \("body" IS NOT NULL OR \("templateKey" IS NOT NULL AND "templateVersion" IS NOT NULL\)\)/)
   })
 
-  it('mevcut govdeler bosaltilir; eslesmeyen amac legacy@0 olur', () => {
-    expect(sql).toMatch(/SET "body" = NULL/)
-    expect(sql).toMatch(/'legacy'/)
-    expect(sql).toMatch(/0/)
+  it('eski kayitlarin hepsi legacy@0 olur; reminder_*@1 ya da phone_verification@1 yazilmaz (metin sablondan uretilmedi)', () => {
+    expect(sql).not.toMatch(/'reminder_24h's*,s*1|'reminder_2h's*,s*1|THENs+'reminder_|THENs+'phone_verification'/)
+    expect(sql).toMatch(/SET "templateKey" = 'legacy', "templateVersion" = 0/)
+  })
+
+  it('govde yalniz sablonlu amaclarda (reminder_24h, reminder_2h, verification) bosaltilir; campaign ve transactional kalir', () => {
+    const update = sql.match(/UPDATE "message_deliveries" SET "body" = NULL[^;]*;/)?.[0] ?? ''
+    expect(update).toMatch(/WHERE "purpose" IN ('reminder_24h', 'reminder_2h', 'verification')/)
+    expect(update).not.toMatch(/campaign|transactional/)
   })
 })

@@ -330,10 +330,36 @@ describe('A8 cift gonderim onlemi (ADR-0044 risk)', () => {
 })
 
 describe('ADR-0047: hatirlatma teslim kaydi govde tasimaz', () => {
-  it('SMS yolu: sendSms sablon anahtari ve surumuyle cagrilir (klinikte bile teslim anahtari reminder_24h)', async () => {
-    m.appointment.findFirst.mockResolvedValue(appt({ tenant: { id: 't1', name: 'Salon', businessType: 'dentist' } }))
+  it('SMS yolu: sendSms sablon anahtari ve surumuyle cagrilir (guzellik: reminder_24h)', async () => {
+    m.appointment.findFirst.mockResolvedValue(appt())
     await processReminderJob(job)
     expect(m.sendSms.mock.calls[0][0].template).toEqual({ key: 'reminder_24h', version: 1 })
+  })
+
+  it('SMS yolu klinikte: teslim kaydi metni ureten sablonu tasir (reminder_24h_health@1, M-ileti-sablon-1 Kritik 1)', async () => {
+    m.appointment.findFirst.mockResolvedValue(appt({ tenant: { id: 't1', name: 'Salon', businessType: 'dentist' } }))
+    await processReminderJob(job)
+    expect(m.sendSms.mock.calls[0][0].template).toEqual({ key: 'reminder_24h_health', version: 1 })
+    expect(m.sendSms.mock.calls[0][0].body).not.toContain('Dis Beyazlatma')
+  })
+
+  it('e-posta yolu klinikte: teslim kaydinda reminder_2h_health@1, gonderilen metinde hizmet adi yok', async () => {
+    m.smsProvider.name = 'mock'
+    m.appointment.findFirst.mockResolvedValue(appt({ tenant: { id: 't1', name: 'Salon', businessType: 'aesthetic_clinic' } }))
+    await processReminderJob({ type: 'reminder_2h', appointmentId: 'a1', tenantId: 't1' })
+    expect(m.messageDelivery.create.mock.calls[0][0].data).toMatchObject({ body: null, templateKey: 'reminder_2h_health', templateVersion: 1 })
+    expect(m.sendReminderEmail.mock.calls[0][0].text).not.toContain('Dis Beyazlatma')
+  })
+
+  it('gece isi teslim kayitlarini saklama suresiyle anonimlestirir (anonymizeOldDeliveries baglantisi)', async () => {
+    const NOW = new Date('2026-10-30T00:00:00Z')
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+    await processReminderJob({ type: 'nightly_noshow' })
+    expect(m.messageDelivery.updateMany).toHaveBeenCalledTimes(1)
+    const args = m.messageDelivery.updateMany.mock.calls[0][0]
+    expect(args.where.createdAt.lt.getTime()).toBe(NOW.getTime() - 365 * 24 * 3600_000)
+    expect(args.data).toEqual({ phone: null, email: null, body: null })
   })
 
   it('e-posta yolu: teslim kaydinda body null, templateKey ve templateVersion dolu', async () => {
