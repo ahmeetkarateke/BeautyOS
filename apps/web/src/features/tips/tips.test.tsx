@@ -107,6 +107,7 @@ describe('W26 Bahşiş', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Bahşişi dağıt' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect((writes()[0][1] as Init).body).toEqual({
+      tipIds: ['1'],
       distributions: [
         { staffId: 'p1', shareWeight: 1 },
         { staffId: 'p2', shareWeight: 1 },
@@ -114,8 +115,22 @@ describe('W26 Bahşiş', () => {
     })
   })
 
+  it('K5c: kişiye bırakılan bahşiş havuza girmez; tipIds yalnız havuz kayıtlarını içerir', async () => {
+    tips = [tip('1'), tip('kisi', { staffId: 'p1', staffName: 'Derya Aksoy', amount: 300 })]
+    mount()
+    await screen.findByText('Bu ay toplam')
+    fireEvent.click(await screen.findByRole('button', { name: 'Dağıt' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Bahşişi dağıt' })
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Ece Kaya' }))
+    expect(within(dialog).getByRole('status').textContent).toContain('₺100')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bahşişi dağıt' }))
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    expect(((writes()[0][1] as Init).body as { tipIds: string[] }).tipIds).toEqual(['1'])
+  })
+
   it('K5: dağıtılacak bahşiş yoksa Dağıt kapalıdır; hata ve boş durum açıklayıcıdır', async () => {
     undistributed = 0
+    tips = [tip('2', { isDistributed: true })]
     mount()
     await screen.findByText('Bu ay toplam')
     expect((screen.getByRole('button', { name: 'Dağıt' }) as HTMLButtonElement).disabled).toBe(true)

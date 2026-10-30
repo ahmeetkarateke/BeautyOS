@@ -39,8 +39,14 @@ export function validateDistribute(staffIds: string[], pool: number): string | n
 }
 
 /** Eşit ağırlık: kişi başı tutarı ve kuruş farkını sunucu hesaplar. */
-export function distributeBody(staffIds: string[]) {
-  return { distributions: staffIds.map((staffId) => ({ staffId, shareWeight: 1 })) }
+export function distributeBody(staffIds: string[], tipIds: string[]) {
+  return { tipIds, distributions: staffIds.map((staffId) => ({ staffId, shareWeight: 1 })) }
+}
+
+/** Havuz: yalnız kişiye bağlanmamış, dağıtılmamış kayıtlar. Kişiye bırakılan bahşiş başkalarına bölünmez. */
+export function poolOf(tips: ReadonlyArray<{ id: string; amount: number; isDistributed: boolean; staffId?: string | null }>) {
+  const open = tips.filter((t) => !t.isDistributed && !t.staffId)
+  return { ids: open.map((t) => t.id), total: Math.round(open.reduce((sum, t) => sum + t.amount * 100, 0)) / 100 }
 }
 
 export function shareOf(pool: number, count: number): number | null {

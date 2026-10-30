@@ -17,7 +17,7 @@ import { Skeleton, SkeletonGroup } from '@/ui/skeleton'
 import { EmptyState, ErrorState, Forbidden } from '@/ui/states'
 import { useToast } from '@/ui/toast'
 import { createTip, distributeTips, fetchTips, fetchTipSummary } from './api'
-import { distributeBody, shareOf, sourceLabel, tipBody, validateDistribute, validateTip, type TipValues } from './logic'
+import { distributeBody, poolOf, shareOf, sourceLabel, tipBody, validateDistribute, validateTip, type TipValues } from './logic'
 
 // Bahşiş: aylık toplam, dağıtılmayan havuz, kayıtlar; bahşiş ekle ve seçilen personele eşit dağıt. Yetki sunucuda zorlanır.
 const message = (err: unknown) => (err instanceof ApiError ? err : new ApiError({ status: 0, code: 'NETWORK' })).text()
@@ -35,7 +35,7 @@ function TipsBody() {
   const summary = useApiQuery('tips-summary', (c, signal) => fetchTipSummary(c, slug, signal))
   const [adding, setAdding] = useState(false)
   const [distributing, setDistributing] = useState(false)
-  const pool = summary.data?.undistributedTotal ?? 0
+  const pool = poolOf(list.data ?? [])
   const refresh = () => {
     list.refetch()
     summary.refetch()
@@ -97,7 +97,7 @@ function TipsBody() {
         <h1 className="text-xl leading-7 font-semibold">Bahşiş</h1>
         {canRecord ? (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setDistributing(true)} disabled={pool <= 0}>
+            <Button variant="secondary" onClick={() => setDistributing(true)} disabled={pool.total <= 0}>
               Dağıt
             </Button>
             <Button onClick={() => setAdding(true)}>Bahşiş ekle</Button>
@@ -217,7 +217,7 @@ function AddSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
   )
 }
 
-function DistributeSheet({ pool, onClose, onSaved }: { pool: number; onClose: () => void; onSaved: () => void }) {
+function DistributeSheet({ pool, onClose, onSaved }: { pool: { ids: string[]; total: number }; onClose: () => void; onSaved: () => void }) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
   const toast = useToast()
@@ -226,17 +226,17 @@ function DistributeSheet({ pool, onClose, onSaved }: { pool: number; onClose: ()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
-  const share = shareOf(pool, picked.length)
+  const share = shareOf(pool.total, picked.length)
 
   async function save() {
     if (busy) return
-    const found = validateDistribute(picked, pool)
+    const found = validateDistribute(picked, pool.total)
     setError(found)
     if (found) return
     setBusy(true)
     setFailure(null)
     try {
-      await distributeTips(client, slug, distributeBody(picked))
+      await distributeTips(client, slug, distributeBody(picked, pool.ids))
       toast.show({ message: 'Bahşiş dağıtıldı.' })
       onSaved()
     } catch (err) {
@@ -253,7 +253,7 @@ function DistributeSheet({ pool, onClose, onSaved }: { pool: number; onClose: ()
         if (!open && !busy) onClose()
       }}
       title="Bahşişi dağıt"
-      description={`Dağıtılmamış ${formatMoney(pool)} seçtiğiniz personele eşit bölünür.`}
+      description={`Havuzdaki ${formatMoney(pool.total)} seçtiğiniz personele eşit bölünür.`}
       footer={
         <Button disabled={busy} loading={busy} loadingText="Dağıtılıyor…" onClick={() => void save()}>
           Bahşişi dağıt

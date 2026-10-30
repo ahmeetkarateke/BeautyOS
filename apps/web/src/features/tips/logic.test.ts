@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distributeBody, shareOf, sourceLabel, tipBody, validateDistribute, validateTip, type TipValues } from './logic'
+import { distributeBody, poolOf, shareOf, sourceLabel, tipBody, validateDistribute, validateTip, type TipValues } from './logic'
 
 const valid: TipValues = { staffId: 's1', amountText: '50', source: 'cash', notes: '' }
 
@@ -37,7 +37,17 @@ describe('W26 bahşiş dağıtımı', () => {
     expect(validateDistribute(['a'], 100)).toBeNull()
   })
   it('K5: gövde eşit ağırlıkla gider; tutarı sunucu böler', () => {
-    expect(distributeBody(['a', 'b'])).toEqual({ distributions: [{ staffId: 'a', shareWeight: 1 }, { staffId: 'b', shareWeight: 1 }] })
+    expect(distributeBody(['a', 'b'], ['t1'])).toEqual({ tipIds: ['t1'], distributions: [{ staffId: 'a', shareWeight: 1 }, { staffId: 'b', shareWeight: 1 }] })
+  })
+  it('K5b: havuz yalnız kişiye bağlanmamış, dağıtılmamış kayıtlardır', () => {
+    const tips = [
+      { id: 'h1', amount: 40.1, isDistributed: false, staffId: null },
+      { id: 'h2', amount: 20.2, isDistributed: false },
+      { id: 'kisi', amount: 100, isDistributed: false, staffId: 's1' },
+      { id: 'bitti', amount: 70, isDistributed: true, staffId: null },
+    ]
+    expect(poolOf(tips)).toEqual({ ids: ['h1', 'h2'], total: 60.3 })
+    expect(poolOf([])).toEqual({ ids: [], total: 0 })
   })
   it('K5: kişi başı payın önizlemesi kuruşa yuvarlanır; seçim yoksa null', () => {
     expect(shareOf(100, 3)).toBe(33.33)
