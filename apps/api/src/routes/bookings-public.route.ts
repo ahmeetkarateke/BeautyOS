@@ -8,7 +8,7 @@ import { computeExpiryAt, removeExpiryJob, scheduleOnlineExpiry } from '../lib/o
 import { resolveApprovalMode, resolveBookingMode } from '../lib/booking-mode'
 import { initialAppointmentStatus } from '../lib/appointment-status'
 import { SLOT_TAKEN_BODY, isSlotOverlapError } from '../lib/slot-conflict'
-import { getSlots } from '../lib/slots'
+import { checkSlot } from '../lib/slot-grid'
 import { MODIFY_WINDOW_MS, buildIcs, canModify, hashManageToken, modifyDeadline, showPricesOnline } from '../lib/booking-link'
 
 // A7 / ADR-0043 + ADR-0046: müşterinin randevu bağlantısı uçları. Token yalnız POST gövdesinde gelir (yolda ve sorguda değil);
@@ -157,10 +157,8 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
 
       // Mesai ve slot ızgarası: istenen saat, hedef personelin o günkü çalışma saatlerinden üretilen slotlardan biri olmalı.
       // Doluluk ayrıca aşağıda yapılır (kendi mevcut saati yüzünden slot dolu görünmesin diye uygunluk alanına bakılmaz).
-      const istanbulDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(newStart)
-      const daySlots = await getSlots({ tenantId: booking.tenantId, serviceId: booking.serviceId, staffId: targetStaffId, date: istanbulDate })
-      const onGrid = daySlots.some((slot) => new Date(slot.id.includes('Z') || slot.id.includes('+') ? slot.id : `${slot.id}Z`).getTime() === newStart.getTime())
-      if (!onGrid) {
+      const slotCheck = await checkSlot({ tenantId: booking.tenantId, serviceId: booking.serviceId, staffId: targetStaffId, startAt: newStart })
+      if (slotCheck !== 'ok') {
         return res.status(400).json({ error: { code: 'INVALID_SLOT', message: 'Seçilen saat salonun çalışma saatleri dışında.' } })
       }
 

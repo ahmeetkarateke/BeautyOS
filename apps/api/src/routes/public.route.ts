@@ -13,6 +13,7 @@ import { isTurnstileUnavailable, verifyTurnstile } from '../lib/turnstile'
 import { logger } from '../lib/logger'
 import { SLOT_TAKEN_BODY, respondSlotTakenOr } from '../lib/slot-conflict'
 import { resolveBookingMode, resolveApprovalMode } from '../lib/booking-mode'
+import { checkSlot } from '../lib/slot-grid'
 import { ONLINE_LIMITS, computeExpiryAt, phoneVariants, scheduleOnlineExpiry } from '../lib/online-booking'
 import { resolveCustomerByPhone } from '../lib/customer-phone'
 
@@ -442,6 +443,15 @@ export function createPublicRouter(): Router {
         return res.status(400).json({
           error: { code: 'TOO_SOON_FOR_APPROVAL', message: 'Onay beklenen randevular için en az 3 saat sonrası seçilmeli. Yakın saatler için lütfen salonu arayın.' },
         })
+      }
+
+      // Mesai izgarası: istenen saat personelin çalışma saatlerinden üretilen uygun bir slot olmalı (gece/izin günü API ile atlatılamaz).
+      const slotCheck = await checkSlot({ tenantId: tenant.id, serviceId, staffId, startAt: startDate, requireAvailable: true })
+      if (slotCheck === 'off_grid') {
+        return res.status(400).json({ error: { code: 'INVALID_SLOT', message: 'Seçilen saat salonun çalışma saatleri dışında.' } })
+      }
+      if (slotCheck === 'unavailable') {
+        return res.status(409).json(SLOT_TAKEN_BODY)
       }
 
       const endDate = new Date(startDate.getTime() + (service.durationMinutes + service.bufferMinutes) * 60 * 1000)

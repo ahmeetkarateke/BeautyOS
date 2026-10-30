@@ -44,6 +44,11 @@ const H = 60 * 60 * 1000
 const SERVICE_ID = '11111111-1111-4111-8111-111111111111'
 const STAFF_ID = '22222222-2222-4222-8222-222222222222'
 
+// /book artik mesai izgarasini sinar: test saatleri ceyrek saate oturur.
+function aligned(offsetMs: number): Date {
+  return new Date(Math.ceil((Date.now() + offsetMs) / 900_000) * 900_000)
+}
+
 function isoNoMs(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
@@ -60,7 +65,7 @@ function validBody(overrides: Record<string, unknown> = {}) {
   return {
     serviceId: SERVICE_ID,
     staffId: STAFF_ID,
-    startAt: isoNoMs(new Date(Date.now() + 72 * H)),
+    startAt: isoNoMs(aligned(72 * H)),
     customerName: 'Ayşe Yılmaz',
     customerPhone: '0555 111 22 33',
     captchaToken: 'tok',
@@ -88,6 +93,10 @@ beforeEach(() => {
   delete process.env.NETGSM_USERCODE
   counts = { active: 0, phonePending: 0, tenantPending: 0 }
   setTenant()
+  slotsMock.getSlots.mockReset().mockImplementation(async ({ date }: { date: string }) => {
+    const base = Date.parse(`${date}T00:00:00+03:00`)
+    return Array.from({ length: 96 }, (_, i) => ({ id: new Date(base + i * 900_000).toISOString(), label: '', available: true }))
+  })
   dbMock.service.findFirst.mockReset().mockResolvedValue({ id: SERVICE_ID, durationMinutes: 60, bufferMinutes: 0, price: 150 })
   dbMock.staffProfile.findFirst.mockReset().mockResolvedValue({ id: STAFF_ID })
   dbMock.appointment.findFirst.mockReset().mockResolvedValue(null)
@@ -168,14 +177,15 @@ describe('S2 none modu: dogrulamasiz online talep', () => {
   })
 
   it('K3: randevu yakinsa sure dolumu randevudan 2 saat once olur', async () => {
-    await book(makeApp(), validBody({ startAt: isoNoMs(new Date(Date.now() + 5 * H)) }))
+    await book(makeApp(), validBody({ startAt: isoNoMs(aligned(5 * H)) }))
     const call = queueMock.add.mock.calls.find((c) => c[0] === 'online-expire')!
+    // Saat ceyrek saate yuvarlandigi icin (mesai izgarasi) en cok 15 dk fazla olabilir.
     expect(call[2].delay).toBeGreaterThan(3 * H - 10_000)
-    expect(call[2].delay).toBeLessThanOrEqual(3 * H)
+    expect(call[2].delay).toBeLessThanOrEqual(3 * H + 15 * 60_000)
   })
 
   it('K3: dolum suresi kisa kalan randevu (2,5 saatten yakin) kabul edilmez: 400 TOO_SOON_FOR_APPROVAL, kayit olusmaz', async () => {
-    const res = await book(makeApp(), validBody({ startAt: isoNoMs(new Date(Date.now() + 2 * H)) }))
+    const res = await book(makeApp(), validBody({ startAt: isoNoMs(aligned(2 * H)) }))
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('TOO_SOON_FOR_APPROVAL')
     expect(dbMock.appointment.create).not.toHaveBeenCalled()
@@ -472,5 +482,32 @@ describe('A7 (ADR-0043): online fiyat ve musteri baglantisi', () => {
     expect((await book(makeApp())).body.price).toBe(150)
     setTenant({}, 'dentist')
     expect(await book(makeApp()).then((r) => r.body)).not.toHaveProperty('price')
+  })
+})
+
+describe('S-book-calisma-saati: /book mesai izgarasini ve uygunlugu sinar', () => {
+  it('mesai disi / izgarada olmayan saat 400 INVALID_SLOT, randevu yazilmaz (baska her sey gecerli)', async () => {
+    slotsMock.getSlots.mockResolvedValue([])
+    const res = await book(makeApp())
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_SLOT')
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+  })
+
+  it('izgarada ama uygun olmayan (izinli/dolu) slot 409 SLOT_TAKEN, randevu yazilmaz', async () => {
+    const body = validBody()
+    slotsMock.getSlots.mockResolvedValue([{ id: new Date(String(body.startAt)).toISOString(), label: '', available: false }])
+    const res = await book(makeApp(), body)
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('SLOT_TAKEN')
+    expect(dbMock.appointment.create).not.toHaveBeenCalled()
+  })
+
+  it('slot sorgusu kiraci, hizmet ve personelle, Istanbul gunuyle yapilir', async () => {
+    const body = validBody()
+    await book(makeApp(), body)
+    const arg = slotsMock.getSlots.mock.calls[0][0]
+    expect(arg).toMatchObject({ tenantId: 't1', serviceId: SERVICE_ID, staffId: STAFF_ID })
+    expect(arg.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
