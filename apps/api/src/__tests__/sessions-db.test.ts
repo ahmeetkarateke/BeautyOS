@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../app'
 import { db } from '../lib/db'
+import { hashToken } from '../lib/sessions'
 import { uniqueSuffix, createTestTenant, createTestOwner, createTestStaff, cleanupTenant } from './helpers/setup'
 
 // S6 (gercek PG, api-test.sh yigini): gercek giris, yenileme dondurme, aile iptali ve anlik pasiflestirme.
@@ -63,11 +64,14 @@ describe('S6: durumlu oturum (gercek PG)', () => {
     const c1 = refreshCookie(first)
     expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)).status).toBe(200) // asil dondurme
     expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)).status).toBe(200) // tek yeniden basim
-    const marked = await db.session.findMany({ where: { userId: owner.user.id, reissuedAt: { not: null } } })
-    expect(marked.length).toBeGreaterThanOrEqual(1)
+    // Aile, c1 cerezinin kendi oturum satirindan bulunur (kullanicinin onceki testlerden kalan oturumlari karismaz).
+    const original = await db.session.findUniqueOrThrow({ where: { tokenHash: hashToken(c1.slice('refreshToken='.length)) } })
+    const before = await db.session.findMany({ where: { familyId: original.familyId } })
+    expect(before.filter((s) => s.reissuedAt !== null)).toHaveLength(1)
+    expect(before.filter((s) => s.reissuedAt !== null)[0].id).toBe(original.id)
     const third = await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)
     expect(third.status).toBe(401)
-    const family = await db.session.findMany({ where: { familyId: marked[marked.length - 1].familyId } })
+    const family = await db.session.findMany({ where: { familyId: original.familyId } })
     expect(family.length).toBeGreaterThanOrEqual(3)
     expect(family.every((s) => s.revokedAt !== null)).toBe(true)
   })
