@@ -97,7 +97,7 @@ describe('PATCH /appointments/:id/reschedule', () => {
       const res = await request(app).patch(URL).set(as(role)).send({ startAt: START, staffId: SP_OTHER })
       expect(res.status, role).toBe(200)
       expect(dbMock.appointment.update.mock.calls.at(-1)![0].data).toMatchObject({ staffId: SP_OTHER })
-      expect(dbMock.staffProfile.findFirst.mock.calls[0][0].where).toMatchObject({ id: SP_OTHER, tenantId: 't1', serviceAssignments: { some: { serviceId: 'sv1', isActive: true } } })
+      expect(dbMock.staffProfile.findFirst.mock.calls[0][0].where).toMatchObject({ id: SP_OTHER, tenantId: 't1', serviceAssignments: { some: { serviceId: 'sv1', isActive: true } }, user: { isActive: true } })
       expect(dbMock.appointment.findFirst.mock.calls[1][0].where).toMatchObject({ staffId: SP_OTHER, tenantId: 't1' })
     }
   })

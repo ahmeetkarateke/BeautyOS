@@ -1212,7 +1212,7 @@ export function createTenantRouter(): Router {
       const targetStaffId = parsed.data.staffId ?? existing.staffId
       if (targetStaffId !== existing.staffId) {
         const assignable = await db.staffProfile.findFirst({
-          where: { id: targetStaffId, tenantId, serviceAssignments: { some: { serviceId: existing.serviceId, isActive: true } } },
+          where: { id: targetStaffId, tenantId, serviceAssignments: { some: { serviceId: existing.serviceId, isActive: true } }, user: { isActive: true } },
           select: { id: true },
         })
         if (!assignable) {
