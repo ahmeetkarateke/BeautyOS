@@ -47,7 +47,7 @@ beforeEach(() => {
   request.mockReset()
   listError = null
   writeError = null
-  packages = [pk('p1', 'Cilt 6 seans'), pk('p2', 'Eski paket', { isActive: false })]
+  packages = [pk('p1', 'Cilt 6 seans', { description: 'Ilk seans ucretsiz' }), pk('p2', 'Eski paket', { isActive: false })]
   request.mockImplementation(async (path: string, init?: Init) => {
     if (init?.method) {
       if (writeError) throw writeError
@@ -137,5 +137,17 @@ describe('W26 Paketler', () => {
     listError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
     mount()
     expect((await screen.findByRole('alert')).textContent).toContain('Paketler yüklenemedi.')
+  })
+})
+
+describe('W26-1 açıklama silme', () => {
+  it('K7: düzenlemede açıklama boşaltılınca PATCH description:null gönderir (açıklama silinebilir)', async () => {
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: /^Cilt 6 seans/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Paketi düzenle' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /Açıklama/ }), { target: { value: '' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Değişiklikleri kaydet' }))
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    expect((writes()[0][1] as Init).body).toEqual({ description: null })
   })
 })

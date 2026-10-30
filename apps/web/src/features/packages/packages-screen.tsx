@@ -163,7 +163,9 @@ function PackageSheet({ pkg, onClose, onSaved }: { pkg: PackageRow | null; onClo
       return
     }
     const before = packageBody(toPackageValues(pkg))
-    const patch = Object.fromEntries(Object.entries(body).filter(([key, value]) => before[key] !== value))
+    const patch: Record<string, unknown> = Object.fromEntries(Object.entries(body).filter(([key, value]) => before[key] !== value))
+    // Boşaltılan açıklama gövdede anahtarsız kalır: silmek için açıkça null gider.
+    if (before.description && body.description === undefined) patch.description = null
     if (Object.keys(patch).length === 0) {
       toast.show({ message: 'Değişiklik yapmadınız.' })
       return
