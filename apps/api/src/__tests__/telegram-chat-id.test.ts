@@ -5,6 +5,7 @@ const dbMock = vi.hoisted(() => ({
   customer: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   service: { findFirst: vi.fn() },
   appointment: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  messageDelivery: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
 }))
 const smsMock = vi.hoisted(() => ({ sendSms: vi.fn() }))
 vi.mock('../lib/db', () => ({ db: dbMock }))
@@ -18,6 +19,7 @@ vi.mock('../lib/online-booking', async (orig) => ({
   anonymizeStaleRequests: vi.fn(),
 }))
 vi.mock('../lib/sessions', () => ({ purgeExpiredSessions: vi.fn() }))
+vi.mock('../lib/invitations', () => ({ purgeStaleInvitations: vi.fn() }))
 
 import { createAppointment, cancelAppointmentByRef } from '../bot/booking.service'
 import { processReminderJob } from '../lib/queue'
@@ -91,27 +93,25 @@ describe('K2: iptal sahipligi kanal kimligine gore', () => {
 
 describe('K3: phone bos kartta gonderim denenmez ve hata vermez', () => {
   it('K3: hatirlatma isi telefonsuz (Telegram) musteri icin SMS gondermez, hata atmaz', async () => {
-    dbMock.appointment.findUnique.mockResolvedValue({
-      id: 'a1', tenantId: 't1', status: 'confirmed', startAt: new Date(Date.now() + 3600_000),
-      customer: { id: 'c1', fullName: 'Ayse', phone: null, telegramChatId: '5321234567', marketingConsentSms: false },
-      service: { name: 'Saç Kesimi' }, tenant: { id: 't1', name: 'Salon' },
+    dbMock.appointment.findFirst.mockResolvedValue({
+      id: 'a1', tenantId: 't1', status: 'confirmed', isDeleted: false, updatedAt: new Date(Date.now() - 3600_000), startAt: new Date(Date.now() + 3600_000),
+      customer: { id: 'c1', fullName: 'Ayse', phone: null, email: null, telegramChatId: '5321234567' },
+      service: { name: 'Saç Kesimi' }, tenant: { id: 't1', name: 'Salon', businessType: 'hair_salon' },
     })
-    await expect(processReminderJob({ type: 'reminder_24h', appointmentId: 'a1' })).resolves.toBeUndefined()
+    dbMock.messageDelivery.findFirst.mockResolvedValue(null)
+    await expect(processReminderJob({ type: 'reminder_24h', appointmentId: 'a1', tenantId: 't1' })).resolves.toBeUndefined()
     expect(smsMock.sendSms).not.toHaveBeenCalled()
+    // Veri gercekten islendi (erken donus degil): kayit okundu.
+    expect(dbMock.appointment.findFirst).toHaveBeenCalled()
   })
 
-  it('K3: gece gelmedi taramasi telefonsuz musteriye SMS denemez, diger randevulara devam eder', async () => {
-    const mk = (id: string, phone: string | null) => ({
-      id, startAt: new Date(), tenantId: 't1',
-      customer: { id: `c${id}`, fullName: 'X', phone }, service: { name: 'S' }, tenant: { id: 't1', name: 'Salon' },
-    })
-    dbMock.appointment.findMany.mockResolvedValue([mk('a1', null), mk('a2', '05320000001')])
-    dbMock.appointment.update.mockResolvedValue({})
-    smsMock.sendSms.mockResolvedValue({ result: { success: true, providerName: 'mock' } })
+  it('K3: gece gelmedi taramasi telefonsuz kartta da calisir ve hicbir musteriye SMS gondermez (A8 sonrasi tarama yalniz durumu gunceller)', async () => {
+    dbMock.appointment.findMany.mockResolvedValue([{ id: 'a1', tenantId: 't1' }, { id: 'a2', tenantId: 't1' }])
+    dbMock.appointment.updateMany.mockResolvedValue({ count: 1 })
+    dbMock.messageDelivery.updateMany.mockResolvedValue({ count: 0 })
     await processReminderJob({ type: 'nightly_noshow' })
-    expect(dbMock.appointment.update).toHaveBeenCalledTimes(2)
-    expect(smsMock.sendSms).toHaveBeenCalledTimes(1)
-    expect(smsMock.sendSms.mock.calls[0][0].customerId).toBe('ca2')
+    expect(dbMock.appointment.updateMany.mock.calls.filter((c) => c[0].data?.status === 'no_show')).toHaveLength(2)
+    expect(smsMock.sendSms).not.toHaveBeenCalled()
   })
 
   it('K3: maskPhone bos degerde "***" doner (panel listesi null phone ile patlamaz)', () => {
