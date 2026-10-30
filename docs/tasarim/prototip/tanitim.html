@@ -117,7 +117,7 @@
         const rr = V.RANDEVULAR.filter((r) => r.p === p.id && !['iptal', 'gelmedi'].includes(r.durum));
         if (rr.some((r) => P.dk(r.bas) <= s && P.dk(r.bit) > s)) return null;
         const n = rr.filter((r) => P.dk(r.bas) > s).sort((a, b) => P.dk(a.bas) - P.dk(b.bas))[0];
-        return `${p.kisa} (${n ? n.bas : '20:00'}’e kadar)`;
+        return `${p.kisa} (${P.kadar(n ? n.bas : '20:00')})`;
       }).filter(Boolean).join(', ');
     }
     function seritHtml() {

@@ -47,6 +47,18 @@ Her önemli teknik karar (dil, framework, veritabanı, kimlik doğrulama, çok k
 | ADR-0034 | SMS sağlayıcısı yokken online randevu doğrulamasız, zorunlu salon onayıyla | kabul edildi (müdür, 2026-10-29; kurucu kararı 5) | 2026-10-29 |
 | ADR-0035 | Sürüm etiketleri gizli olmayan `surum.conf`'ta; yayın yalnız `yayinla.sh` ile | kabul edildi (müdür, 2026-10-29; kurucu kararı 3) | 2026-10-29 |
 | ADR-0036 | Eski arayüzün W1 sonrası gerçekten Inter ile çizilmesi kabul edildi | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0037 | Doğrulanmamış online talep müşteri kaydına bağlanmaz; eşleştirme salonun onayda açık seçimiyle | kabul edildi (mimar, kalıcı izin 4; S2 denetimi + hukuk-uyum). **`create` çakışma kuralı ve CHECK biçimi yerini aldı: ADR-0038** | 2026-10-29 |
+| ADR-0038 | Aynı telefonla birden çok müşteri olabilir; telefon tek yardımcıyla çözülür, belirsizlikte otomatik bağlama yok | kabul edildi (mimar, kalıcı izin 4; W10 denetimi Kritik 2) | 2026-10-29 |
+| ADR-0039 | Telegram sohbet numarası telefon alanında değil `telegramChatId`'de; bot müşterisi telefonsuz olabilir | kabul edildi (mimar, kalıcı izin 4; inceleme M9 / gelistirici #5) | 2026-10-29 |
+| ADR-0040 | zod 3 yüksek danışma kaydı geçici kabul; zod 4 geçişi ayrı görev | kabul edildi (müdür, 2026-10-29) | 2026-10-29 |
+| ADR-0041 | Randevu taşıma ikiye ayrılır: saat/gün (`appointment.reschedule`, uzman yalnız kendi randevusu) ve personel değiştirme (`appointment.reassign_staff`) | kabul edildi (kurucu kararı R3; mimar kaydı, kalıcı izin 4) | 2026-10-29 |
+| ADR-0042 | Personel daveti: tek kullanımlık, hash'li, 7 günlük bağlantı; kullanıcı ve profil kabulde oluşur | kabul edildi (mimar, kalıcı izin 4; kurucu kararı R8). **Bağlantı/uç biçimi ve profil kuralı yerini aldı: ADR-0046** | 2026-10-29 |
+| ADR-0043 | Müşterinin randevu bağlantısı: sunucuda hash'li rastgele token (HMAC değil); değiştir/iptal 2 saat kuralı; online fiyat ayarı | kabul edildi (mimar, kalıcı izin 4; kurucu kararları M1, T2/K-varsayılanlar). **Uç biçimi yerini aldı: ADR-0046** | 2026-10-29 |
+| ADR-0044 | Hatırlatma işleri: geçici hata yeniden denenir, kalıcı hata ve geçersiz randevu atlanır; klinikte hizmet adı yok; gece uzlaştırma | kabul edildi (mimar, kalıcı izin 4; kurucu kararı M2). Ek: ADR-0045 | 2026-10-29 |
+| ADR-0045 | Personelin panelden açtığı randevu `confirmed` başlar (ADR-0044'e ek); `pending` yalnız onay bekleyen online talep demektir | kabul edildi (müdür kararı; teknik yol mimar) | 2026-10-29 |
+| ADR-0046 | Gizli bağlantı tokenları URL yolunda taşınmaz: web'de `#` parçası, API'de istek gövdesi (ADR-0042 ve ADR-0043'ün uç biçimlerinin yerini alır); davette profil yalnız `staff` rolüne | kabul edildi (mimar, kalıcı izin 4; denetim A3-1 Önemli 1) | 2026-10-29 |
+| ADR-0047 | Şablonlu iletilerde gövde saklanmaz: `message_deliveries` şablon anahtarı + sürümü tutar; şablonlar kodda sürümlü ve değişmez; teslim kaydı 1 yıl sonra anonimleşir | kabul edildi (mimar, kalıcı izin 4; hukuk-uyum KVKK kararı) | 2026-10-29 |
+| ADR-0048 | Kayıtta sözleşme ve rıza kabulleri `legal_acceptances` tablosunda belge başına ayrı satır | kabul edildi (gelistirici, kalıcı izin 4; W30) | 2026-10-30 |
 
 ---
 
@@ -1092,6 +1104,419 @@ Eski arayüzdeki Inter görünümü olduğu gibi kabul edilir; ek düzeltme yap�
 - **Olumlu:** Eski arayüz tasarlandığı yazı tipiyle çiziliyor; bir taşma kendiliğinden düzeldi.
 - **Olumsuz:** Canlıya çıkınca kullanıcılar küçük bir görsel fark görür.
 - **Riskler:** Başka bir ekranda taşma. Önlem: eski arayüz dumanı ve ekran görüntüleri (T1).
+
+---
+
+## ADR-0037: Doğrulanmamış online talep müşteri kaydına bağlanmaz; eşleştirme salonun onayda açık seçimiyle
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). ADR-0034'ü tamamlar. **`create` çakışmada 409 kuralının ve CHECK biçiminin yerini aldı: ADR-0038.** Geri kalanı geçerli.
+- **Karar verenler:** mimar; istek: denetçi (`raporlar/denetim/beautyos-S2-1.md` Kritik 2) ve hukuk-uyum (KVKK m.4 doğruluk ilkesi)
+
+### Bağlam
+ADR-0034'teki `none` modunda telefon doğrulanmıyor. S2'nin ilk sürümü talebi telefonu eşleşen mevcut müşteriye bağlıyor ve girilen adı atıyordu. Bu durumda başkasının numarasıyla açılan talep gerçek müşterinin kartına yazılır. Kısıtlar:
+- `appointments.customerId` NOT NULL.
+- `customers` üzerinde `unique(tenantId, phone)`.
+- Panel listeleri `customer.fullName`'i okuyor.
+
+### Alternatifler
+- **customerId zorunlu kalsın, eşleşen müşteriye bağlansın, yalnız `requestedName` eklensin:** sorunu çözmez; denetçi ve hukuk-uyum yetersiz buldu.
+- **Onayda en eski eşleşen müşteriye otomatik bağlama:** doğrulanmamış telefonla sessiz bağlamayı yalnızca onay anına taşır.
+
+### Karar
+- **Şema:**
+  - `appointments.customerId` boş olabilir; `requestedName` ve `requestedPhone` (normalize) sütunları eklenir.
+  - `CHECK (customer_id IS NOT NULL OR (phone_verified = false AND requested_name IS NOT NULL AND requested_phone IS NOT NULL))`.
+- **Onay:** `customerAction` alanı `create` ya da `link` olur.
+  - `create`: requested* alanlarıyla yeni müşteri oluşturur. Telefon kiracıda kayıtlıysa 409 `CUSTOMER_MATCH_REQUIRED` döner.
+  - `link`: kiracıda bulunan ve normalize telefonu talepteki telefonla aynı olan `customerId` ister; aksi halde 409.
+  - Aday listesi `GET /appointments/:id/customer-candidates` ucundan gelir.
+  - Yazım koşullu ve atomiktir (`status='pending' AND customerId IS NULL`).
+- **Eski arayüz:** durum ucunun gövdesiz onayı `create` gibi çalışır.
+- **Reddedilen ya da süresi dolan talep** müşteri oluşturmaz.
+- **Bağlanmamış talep:**
+  - Listelerde `{fullName: requestedName, phone: requestedPhone, unverified: true}` olarak görünür.
+  - Müşteri araması, müşteri kartı, anamnez, sayaçlar ve dışa aktarma bu talepleri görmez.
+  - Log'a requested* alanları yazılmaz.
+
+### Sonuçlar
+- **Olumlu:** Doğrulanmamış veri, bir insan seçmeden gerçek kişinin kaydına girmez.
+- **Olumsuz:** Randevu sorgularının müşterisiz satıra dayanıklı olması gerekir. Telefonu kayıtlı bir talebi eski arayüz onaylayamaz (409); gerçek kullanıcı olmadığı için kabul edildi, yeni arayüzde aday seçimi var (W10/W14).
+- **Riskler:** Reddedilen ve süresi dolan taleplerde kişisel veri birikir. Önlem: requested* alanları L4 saklama işiyle temizlenir; süreyi hukuk-uyum verir.
+
+---
+
+## ADR-0038: Aynı telefonla birden çok müşteri olabilir; telefon tek yardımcıyla çözülür, belirsizlikte otomatik bağlama yok
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). ADR-0037'nin `create` çakışma kuralının ve CHECK biçiminin yerini alır.
+- **Karar verenler:** mimar; istek: denetçi (`raporlar/denetim/beautyos-W10-1-ek.md` Kritik 2), frontend-gelistirici
+
+### Bağlam
+ADR-0037'ye göre onayda `create`, aynı telefonlu bir aday varsa 409 dönüyordu. Ayrıca `customers` tablosunda `@@unique([tenantId, phone])` var. Salonlarda aile içinde telefon paylaşımı olağan bir durum (ör. anne kızı için kendi numarasıyla randevu alır). Gerçek kişi adaylar arasında değilse salonun önünde iki yol kalıyordu: talebi reddetmek ya da yanlış karta bağlamak. Telefon biçim farkları (`05…` / `+905…`) zaten tekilliği fiilen delmişti.
+
+### Alternatifler
+- **Aday varken arayüzden "Yeni müşteri" seçeneğini kaldırmak:** sorun sürer; denetçi bunu Kritik saydı.
+- **Telefonsuz yeni müşteri oluşturmak:** iletişim bilgisi kaybolur.
+
+### Karar
+- **Şema:** `@@unique([tenantId, phone])` → `@@index([tenantId, phone])`. Telefon her yerde normalize edilmiş biçimde saklanır ve aranır.
+- **Tek yardımcı:** `resolveCustomerByPhone` sonucu `none`, `single` ya da `multiple` olur.
+  - Herkese açık randevu ve bot: `none` → yeni müşteri oluşturulur. `single` → yalnız doğrulanmış kanalda bağlanır (`sms` modu; bot bugünkü davranışıyla). `multiple` → hiçbir kanal otomatik bağlamaz; talep `requested*` alanlarıyla `pending` bekler ve salon eşleştirir.
+  - CHECK kısıtı: `customer_id IS NOT NULL OR (requested_name IS NOT NULL AND requested_phone IS NOT NULL)`.
+- **Onay:** `create` aday kontrolü yapmadan yeni müşteri oluşturur; `link` kuralı ADR-0037'deki gibi kalır.
+- **Panel:** müşteri oluşturma ve güncellemede varsayılan 409 `DUPLICATE_PHONE` korunur (eski arayüz değişmez). `allowSharedPhone: true` gönderilirse kayıt yapılır; yeni arayüz bunu "Yine de ekle" onayıyla gönderir.
+
+### Sonuçlar
+- **Olumlu:** Gerçek hayattaki paylaşılan telefon durumu doğru kaydedilir. Belirsizlikte karar insanda kalır.
+- **Olumsuz:** Telefonla arama birden çok sonuç döndürebilir. Hatırlatmalar paylaşılan numaraya her kişi için ayrı gider.
+- **Riskler:**
+  - Gereksiz tekrar kayıtlar. Önlem: panelde varsayılan 409 ve açık onay; ileride müşteri birleştirme aracı.
+  - Geri alma: tekrarlı telefon varken `unique` yeniden eklenemez. Migration notunda tekrar taraması adımı yazılı.
+
+---
+
+## ADR-0039: Telegram sohbet numarası telefon alanında değil `telegramChatId`'de; bot müşterisi telefonsuz olabilir
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). ADR-0038'deki randevu CHECK biçimini genişletir.
+- **Karar verenler:** mimar; öneri: gelistirici
+
+### Bağlam
+Bot, Telegram müşterisinin sohbet numarasını `customer.phone`'a yazıyor (inceleme M9, gelistirici #5). Bunun sonuçları:
+- SMS normalizasyonu bozuluyor.
+- Telefonla eşleştirme yanlış kartları birleştirebiliyor: sohbet numarası 5 ile başlayan 10 haneli olabilir ve geçerli bir TR telefonuna benziyor.
+- İptal sahipliği belirsiz kalıyor.
+`customer.phone` bugün NOT NULL.
+
+### Alternatifler
+- **Sohbet numarasını `phone`'da önek ile tutmak (`tg:…`):** tür karışıklığı sürer; her telefon kullanımında ayrım gerekir.
+- **Ayrı kanal-kimlik tablosu:** M8'deki `channel_accounts` işiyle birlikte düşünülmeli; bugün için fazla.
+
+### Karar
+- **Müşteri:** `Customer.telegramChatId String?` + `@@unique([tenantId, telegramChatId])`. `Customer.phone` boş olabilir, ama `CHECK (phone IS NOT NULL OR telegram_chat_id IS NOT NULL)`. Panel uçlarında telefon zorunlu kalır.
+- **Randevu:** `Appointment.requestedChatId String?`. CHECK: `customer_id IS NOT NULL OR (requested_name IS NOT NULL AND (requested_phone IS NOT NULL OR requested_chat_id IS NOT NULL))`.
+- **Bot:** müşteriyi yalnız `telegramChatId` ile, tam eşleşmeyle çözer; telefonla bağlamaz. İptal sahipliği sohbet numarasıyla doğrulanır. Telefon ileride `request_contact` ile alınacaksa ayrı karar gerekir (paylaşılan kişi gönderenin kendisi olmalı).
+- **Telefonu olmayan müşteri:** hatırlatma ve SMS denenmez; iş başarısız sayılmaz.
+- **Veri migration'ı (ayrı adım):** bir kart yalnız iki koşul birlikte sağlanırsa taşınır: tüm randevuları `bookingChannel = telegram` ve en az bir randevusu var. Taşınan kartta `phone` → `telegramChatId`, `phone` NULL olur. Telefon biçimi ölçüt alınmaz. Sayım log'a yazılır, kişisel veri yazılmaz. Canlıda beklenen sayı 0 (bot canlıda kapalı).
+
+### Sonuçlar
+- **Olumlu:** Telefon alanı yalnız telefon tutar. Bot ve panel kimlikleri birbirine karışmaz.
+- **Olumsuz:** Telefon kullanan her kod null'a dayanıklı olmalı. Eski web'de null'da patlayan yerler taranıp frontend-gelistirici'ye bildirilir; bot canlıda kapalı olduğu için eski web düzeltilmez.
+- **Riskler:** Yanlış kartın taşınması. Önlem: randevu kanalına dayalı ölçüt ve "telegram dışı randevusu olan taşınmaz" testi. `telegramChatId` kişisel veri envanterine girer (hukuk-uyum'a bildirilir).
+
+---
+
+## ADR-0040: zod 3'teki yüksek önemli danışma kaydı geçici olarak kabul edildi; zod 4 geçişi ayrı görev
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür, 2026-10-29)
+- **Karar verenler:** müdür (risk kabulü); gelistirici (etki analizi); denetçi (kayıt isteği)
+
+### Bağlam
+S10 (`7b09372`) sonrası `npm audit --omit=dev` kritik bulgu vermiyor; tek yüksek bulgu zod 3.25.76. zod 4 kırıcı değişiklikler içeriyor (hata biçimi, `nativeEnum`, `refine`/`preprocess`) ve 36 dosyada kullanılıyor (gelistirici etki notu, `raporlar/denetim/beautyos-S10-2.md`). Girdi koleksiyonları `.max()` ile sınırlı olduğundan sömürü riski düşük değerlendirildi.
+
+### Alternatifler
+- **Hemen zod 4'e geçmek:** güvenlik ve arayüz işini birlikte bloke eder; 36 dosyada davranış değişikliği riski.
+
+### Karar
+zod 3 bulgusu geçici olarak kabul edilir. zod 4 geçişi Faz 1 sonunda ayrı görev olarak yapılır; o zamana kadar her yeni şemada dizi/metin girdileri `.max()` ile sınırlanır.
+
+### Sonuçlar
+- **Olumlu:** Güvenlik ve arayüz işleri beklemez.
+- **Olumsuz:** Bilinen bir yüksek bulgu bir süre açık kalır.
+- **Riskler:** Sınırsız girdi eklenmesi. Önlem: denetçi her yeni şemada `.max()` arar.
+
+---
+
+## ADR-0041: Randevu taşıma ikiye ayrılır: saat/gün (`appointment.reschedule`, uzman yalnız kendi randevusu) ve personel değiştirme (`appointment.reassign_staff`)
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (kurucu kararı R3; mimar kaydı, kalıcı izin 4). Uygulama: `gorev/R-uzman-tasima` @ `335ce12`.
+- **Karar verenler:** kurucu (R3: uzman kendi randevusunu taşır, fiyatı değiştiremez); gelistirici (uygulama); mimar (kayıt)
+
+### Bağlam
+Taşıma (`roller-ve-akislar.md` §1.4 satır 6) bugün yalnız sahip ve müdüre açıktı. R3'e göre uzman da kendi randevusunu taşıyabilmeli. Ama taşıma uzmana tek izin olarak verilirse, uzman randevuyu başka bir personele de aktarabilir; bu da başkasının takvimine yazmak demektir (ADR-0030 ilkesine aykırı).
+
+### Alternatifler
+- **Tek `appointment.reschedule` izni + rotada "uzman staffId gönderemez" kuralı:** kural izin tablosunda görünmez; menü ile sunucu ayrışabilir.
+- **Uzmana taşımayı hiç vermemek:** R3'e aykırı.
+
+### Karar
+- **`appointment.reschedule`:** tüm personel rollerinde var.
+  - Kapsam rotada uygulanır: `reassign_staff` izni olmayan rol yalnız kendi randevusunu taşır.
+  - Bu rol yalnız başlangıç saatini ve günü değiştirir.
+  - Gövdede mevcut personelden farklı bir `staffId` gelirse 403 döner. Başkasının randevusunu taşımaya çalışırsa da 403 döner.
+- **`appointment.reassign_staff`** (sahip, müdür, resepsiyon): aynı uçta (`PATCH …/reschedule`, isteğe bağlı `staffId`) randevunun personelini de değiştirir.
+  - Hedef personel aynı kiracıda olmalı ve o hizmete etkin olarak atanmış olmalı; değilse 400 `STAFF_NOT_ASSIGNABLE` döner.
+- Çakışma, hedef personelin takviminde aranır ve iki yolda da tek kodla döner (`SLOT_TAKEN`; veritabanı kısıtı S3).
+- Ön yüz bu iki izni ayrı okur: uzmanın "Saati değiştir" katmanında personel seçimi gösterilmez (W14). Sürükle-bırakta uzman randevuyu başka personelin sütununa bırakamaz (W15).
+
+### Sonuçlar
+- **Olumlu:** R3 karşılanır; personel değiştirme yetkisi izin tablosunda açıkça görünür.
+- **Olumsuz:** Taşıma rotası iki izni birlikte değerlendirir.
+- **Riskler:** Uzmanın gövdeye `staffId` koyarak başka sütuna yazması. Önlem: rotada izin kontrolü ve bunu sınayan negatif test (`appointment-reschedule.test.ts`).
+
+---
+
+## ADR-0042: Personel daveti: tek kullanımlık, hash'li, 7 günlük bağlantı; kullanıcı ve profil kabulde oluşur
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). Görev A3 (`docs/kodlama-plani.md`). **Bağlantı ve uç biçimi ile "profil kabulde, her rol için" kuralı yerini aldı: ADR-0046.** Geri kalanı geçerli.
+- **Karar verenler:** kurucu (R8: davet bağlantısı, personel kendi şifresini belirler); mimar
+
+### Bağlam
+Bugün sahip personelin şifresini kendisi belirliyor (`POST /staff`). Kimlik modeli kiracı başına kullanıcı: `users.tenantId` ve `@@unique([tenantId, email])`. Personel eklenirken e-posta küresel olarak kontrol ediliyor (S7). Ortak üyelik modeli (M5) yok. E-posta gönderimi (Resend) çalışmayabilir, bu yüzden bağlantı kopyalanıp WhatsApp ile iletilebilmeli. `StaffProfile.userId` zorunlu.
+
+### Alternatifler
+- **İmzalı JWT bağlantı:** iptal edilemez ve yeni bir gizli anahtar ister.
+- **Davette kullanıcı açıp şifresiz bırakmak:** yarım hesap oluşur, girişte özel durum gerekir.
+
+### Karar
+- **Tablo `invitations`:**
+  - Alanlar: `id uuid`, `tenantId` (FK), `email` (küçük harf), `fullName`, `role` (`manager | receptionist | staff`), `title`, `invitedById` (FK users), `tokenHash` (sha-256 hex, UNIQUE), `expiresAt` (oluşturma + 7 gün), `acceptedAt?`, `acceptedUserId?`, `revokedAt?`, `createdAt`.
+  - İndeksler: `(tenantId, createdAt)` ve `(tenantId, email)`.
+  - Token 32 bayt rastgele değerdir (base64url). Veritabanına yalnız hash'i yazılır; token log'a yazılmaz.
+- **İzin:** `staff.invite` yalnız sahipte (`roller-ve-akislar.md` §1.4 satır 31). `owner` ve `superadmin` davet edilemez (zod enum).
+- **Sahip uçları (kiracı içi):**
+  - `POST /invitations {email, fullName, role, title}` → 201 `{id, link, expiresAt, emailSent}`.
+    - `link` = `FRONTEND_URL/invite/<token>`; yalnız bu yanıtta ve yeniden göndermede bir kez döner.
+    - Aynı kiracıda etkin kullanıcı ya da bekleyen davet aynı e-postayla varsa 409 `DUPLICATE_EMAIL` döner (sahip kendi personelini zaten görüyor).
+  - `GET /invitations` → bekleyen ve süresi dolmuş davetler, token olmadan.
+  - `POST /invitations/:id/resend` → eski hash iptal edilir, yeni token ve 7 gün verilir.
+  - `DELETE /invitations/:id` → `revokedAt` yazılır.
+  - Kiracı başına günde en çok 20 davet.
+- **Herkese açık uçlar** (IP başına 15 dakikada 20 istek):
+  - `GET /auth/invitations/:token` → `{tenantName, role, email, fullName, expiresAt}`.
+  - `POST /auth/invitations/:token/accept {password, fullName?, phone?}`:
+    - Şifre için `strongPassword` kuralı uygulanır.
+    - Tek işlemde koşullu kabul yapılır: `updateMany where tokenHash, acceptedAt null, revokedAt null, expiresAt > now` → `count === 1`.
+    - Aynı işlemde `User` (rol davetten, e-posta davetten; değiştirilemez) ve `StaffProfile` (unvan davetten) oluşturulur.
+    - Ardından S6 oturumu açılır; yanıt girişle aynıdır.
+  - Geçersiz, süresi dolmuş, kullanılmış ya da iptal edilmiş bağlantıların hepsi tek yanıt döner: 404 `INVITATION_INVALID`.
+  - E-posta başka kiracıda kayıtlıysa kabul 409 `INVITATION_EMAIL_IN_USE` döner (S7 küresel kontrolü).
+- **E-posta:** gönderim yapılandırılmışsa davet e-postası kuyruğa atılır; sonuç `emailSent` alanına yazılır. Gönderilemezse yeni arayüz bağlantıyı kopyalatır.
+- **Personel listesi:** `GET /staff` yalnız profili olan kullanıcıları döndürür; bekleyen davetler ayrı listelenir (W21).
+- **Saklama:** süresi dolan ya da iptal edilen davetler 30 gün sonra silinir (L4).
+
+### Sonuçlar
+- **Olumlu:** Personel kendi şifresini belirler; yarım hesap oluşmaz; bağlantı iptal edilebilir.
+- **Olumsuz:** Hizmet ataması ve çalışma saatleri yalnız kabulden sonra girilebilir.
+- **Riskler:**
+  - **Hesap varlığı sızıntısı:** kötü niyetli bir salon sahibi, başka bir kiracıdaki e-postanın varlığını kabul adımında öğrenebilir. Bugün `POST /staff` (S7) de aynı bilgiyi veriyor. Önlem: günlük davet tavanı. Kalıcı çözüm, kiracı başına kullanıcı yerine ortak üyelik modeline (M5) geçmek.
+  - **Bağlantının yanlış kişiye gitmesi:** tek kullanımlık ve 7 günlük; sahip iptal edebilir. Davet sayfasında `Referrer-Policy: no-referrer`.
+
+---
+
+## ADR-0043: Müşterinin randevu bağlantısı: sunucuda hash'li rastgele token (HMAC değil); değiştir/iptal 2 saat kuralı; online fiyat ayarı
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). Görev A7. **Uç biçimi (token yolda) yerini aldı: ADR-0046.** Geri kalanı geçerli.
+- **Uygulama notu (A7 `45ddccb`, mimar uygun buldu):** `showPricesOnline` ayrı sütunda değil, mevcut `tenants.settings` (jsonb) içinde tutulur; migration gerekmez. Anlam aynıdır:
+  - Anahtar yoksa ya da değeri boolean değilse varsayılan uygulanır: `isHealthRegulated` doğruysa kapalı, değilse açık.
+  - Okuma tek yardımcıdan yapılır (`lib/booking-link.ts` `showPricesOnline`). Yazma, ayarlar ucunda zod (`z.boolean().optional()`) ile ve mevcut ayarlarla birleştirilerek yapılır.
+  - Kabul edilen sınır: eşzamanlı iki ayar güncellemesinde son yazan kazanır. Ayarları yalnız sahip ve müdür, nadiren değiştirir.
+- **Karar verenler:** kurucu (M1: randevudan 2 saat öncesine kadar değiştir/iptal; klinikte online fiyat varsayılan kapalı); mimar
+
+### Bağlam
+Müşteri hesabı yok. SMS yokken müşteri randevusunu yalnız onay ekranında aldığı bağlantıyla yönetebilir (ADR-0034). Online sayfada bugün fiyat hiç dönmüyor (B5). Klinik türlerinde online fiyat varsayılan olarak gizli (`tasarim.md` §7.2). Bilgi taşıyan HMAC bağlantı iptal edilemez ve yeni bir gizli anahtar ister.
+
+### Alternatifler
+- **HMAC imzalı bağlantı (yeni `BOOKING_LINK_SECRET`):** iptal edilemez; anahtar döndürmek tüm bağlantıları bozar.
+- **Telefon koduyla yönetim:** SMS yok.
+
+### Karar
+- **Token:**
+  - 32 bayt rastgele değer (base64url).
+  - `appointments.manageTokenHash` (sha-256, UNIQUE, nullable) olarak saklanır.
+  - Yalnız online randevu oluşturulunca üretilir ve yalnız oluşturma yanıtında döner.
+  - Randevu başlangıcına kadar geçerlidir.
+  - Yeni ortam değişkeni **yok**.
+  - Taşımada token aynı kalır.
+  - Panel randevuları için token üretimi, hatırlatmaya bağlantı eklendiğinde ayrıca kararlaştırılır.
+- **Uçlar** (`/public/bookings/:token`, IP başına 15 dakikada 30 istek; tokenlar ve kişisel veri log'a yazılmaz):
+  - **`GET`** → `{tenant {name, slug, phone, address}, appointment {referenceCode, status, startAt, endAt, serviceName, staffName, price?}, canModify, modifyDeadline}`.
+    - `modifyDeadline` = `startAt - 2 saat`.
+    - Klinikte `serviceName` döner; ekranı yalnız bağlantı sahibi görür.
+  - **`POST …/cancel`** → 200 `{status: 'cancelled'}`.
+    - İptal nedeni `cancelled_by_customer` olarak kaydedilir.
+    - Hatırlatma ve süre dolumu işleri silinir.
+  - **`POST …/reschedule {startAt, staffId?}`** → 200.
+    - Boş saat ve çakışma kuralı panelle aynıdır (S3).
+    - Durum yeni online talep kuralıyla yeniden belirlenir: `approval_required` modunda ya da T3 "Ben onaylayayım" ise `pending`, aksi halde T3'e göre.
+    - İşler yeniden kurulur.
+  - **`GET …/calendar.ics`** → `text/calendar`.
+    - İçerik: UID `<appointmentId>@beautyossapp.com`, başlangıç ve bitiş UTC, konum olarak salon adresi.
+    - `SUMMARY`: salon adı + hizmet adı; klinikte yalnız "Randevu".
+    - Fiyat ve müşteri bilgisi yer almaz.
+  - **Hata kodları:**
+    - 404 `BOOKING_NOT_FOUND`: geçersiz ya da süresi dolmuş token, tek yanıt.
+    - 409 `MODIFY_WINDOW_CLOSED`: randevuya 2 saatten az kalmış; ekranda "salonu arayın" gösterilir.
+    - 409 `BOOKING_NOT_MODIFIABLE`: tamamlanmış, iptal edilmiş ya da gelinmemiş randevu.
+    - 409 `SLOT_TAKEN`.
+- **Fiyat:**
+  - `tenants.showPricesOnline Boolean?`. Değer null ise varsayılan uygulanır: `isHealthRegulated(businessType)` doğruysa kapalı, değilse açık. Bu yardımcı `packages/shared`'e taşınır.
+  - Açıkken `price` şu uçlarda döner: `/public/services`, oluşturma yanıtı, `GET /public/bookings/:token`. Kapalıyken bu uçların hiçbirinde alan **bulunmaz**; `null` olarak da dönmez.
+  - Ayarı ayarlar izni olan rol değiştirir. Klinikte açarken yeni arayüz uyarı penceresi gösterir.
+
+### Sonuçlar
+- **Olumlu:** İptal edilebilir bağlantı, yeni gizli anahtar yok, M1 karşılanır.
+- **Olumsuz:** Bağlantıyı kaybeden müşteri salonu aramak zorunda; SMS açılınca bağlantı hatırlatmayla gönderilebilir.
+- **Riskler:** Bağlantının paylaşılması. Önlem: bağlantı yalnız bu randevuyu yönetir, süre randevu başlangıcıyla sınırlı, hız sınırı var. Sayfada `Referrer-Policy: no-referrer`.
+
+---
+
+## ADR-0044: Hatırlatma işleri: geçici hata yeniden denenir, kalıcı hata ve geçersiz randevu atlanır; klinikte hizmet adı yok; gece uzlaştırma
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). Görev A8.
+- **Karar verenler:** kurucu (M2: SMS, e-posta yedek); mimar
+
+### Bağlam
+Bugünkü kuyruk yapılandırması `attempts: 3` ve 5 sn'den başlayan üssel bekleme kullanıyor, ama işçi başarısızlıkta hata fırlatmıyor. Bu yüzden yeniden deneme hiç çalışmıyor (gelistirici incelemesi #6). Ayrıca silinmiş randevuya da gönderim yapılıyor. No-show işi UTC gün sınırıyla çalışıyor, koşulsuz güncelleme yapıyor ve yanlış "iptal" SMS'i gönderiyor (#7). Klinikte mesajda hizmet adı geçmemeli (hukuk-uyum). Redis yedeklenmiyor (ADR-0005).
+
+### Alternatifler
+- **Redis'i yedeklemek:** uzlaştırma işi hem daha sade hem daha sağlam.
+
+### Karar
+- **Yeniden deneme:** `attempts: 5`, üssel bekleme 60 sn'den başlar (yaklaşık 1, 2, 4, 8, 16 dk).
+  - Geçici hata (ağ, zaman aşımı, sağlayıcıdan 5xx) fırlatılır ve iş yeniden denenir.
+  - Kalıcı hata (geçersiz ya da eksik telefon, sağlayıcının kalıcı kodları) `UnrecoverableError` olur.
+- **İşlemeden önce kontrol:** iş verisindeki `tenantId` ile randevu `findFirst({id, tenantId, isDeleted: false})` ile okunur. Durum `confirmed` değilse iş başarılı sayılır ve atlanır (bekleyen, iptal edilmiş, tamamlanmış ya da gelinmemiş randevuya hatırlatma gitmez). Log'a yalnız `appointmentId` ve neden yazılır.
+- **Kanal seçimi:** SMS sağlayıcısı varsa ve telefon geçerliyse SMS gider. Yoksa müşterinin e-postası var ve e-posta yapılandırılmışsa e-posta gider (M2 yedeği). İkisi de yoksa iş atlanır.
+- **İçerik:** `isHealthRegulated(businessType)` doğruysa mesajda hizmet adı yer almaz ("Yarın 14:30'da {işletme} randevunuz var."). Şablon metinlerini teknik-yazar onaylar.
+- **İşlerin kurulması ve silinmesi:** onay, taşıma, iptal ve onay ret/süre dolumu olaylarında tek yardımcı kullanılır (`scheduleReminders`, `cancelReminders`, belirlenimci iş kimlikleriyle).
+- **No-show gece işi:**
+  - "Bugün" `lib/time.ts` ile İstanbul gün sınırına göre hesaplanır.
+  - Güncelleme koşulludur: `updateMany where id, tenantId, status IN ('pending','confirmed')`. `in_progress` hariç tutulur.
+  - **Müşteriye SMS gönderilmez:** "gelmedi" mesajı ayrı bir ürün kararıdır.
+- **Gece uzlaştırma işi:** önümüzdeki 48 saatteki `confirmed` randevular için hatırlatma işleri belirlenimci kimlikle yeniden eklenir. Var olan iş tekrarlanmaz; Redis kaybında hatırlatmalar geri gelir.
+- **Paylaşılan yardımcı:** `isHealthRegulated` `packages/shared/src/business-types.ts`'e taşınır. Dosya sahibi gelistirici'dir; gelistirici-2 onunla hizalanır.
+
+### Sonuçlar
+- **Olumlu:** Hatırlatma güvenilir hâle gelir, yanlış mesaj gitmez, Redis kaybı telafi edilir.
+- **Olumsuz:** Uzlaştırma işi gece kısa bir yük getirir.
+- **Riskler:** Aynı hatırlatmanın iki kez gitmesi. Önlem: belirlenimci iş kimliği; gönderim kaydında `(appointmentId, tür)` için tekil kısıt ya da gönderim öncesi kontrol.
+
+---
+
+## ADR-0045: Personelin panelden açtığı randevu `confirmed` başlar (ADR-0044'e ek); `pending` yalnız onay bekleyen online talep demektir
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (müdür kararı: panelde açılan randevu hatırlatma alır; teknik yol mimar). ADR-0044'ü değiştirmez, tamamlar.
+- **Karar verenler:** müdür; mimar; istek: denetçi (`raporlar/denetim/beautyos-A8-1.md` Önemli 1)
+
+### Bağlam
+ADR-0044 hatırlatmayı yalnız `confirmed` randevuya gönderiyor. Panelde oluşturulan randevu (`tenant.route.ts`, `bookingChannel: 'manual'`) ise `pending` açılıyor. Salon ayrıca onaylamazsa müşteri hatırlatma almıyor. `pending` aynı zamanda online talebin "salon onayı bekliyor" anlamını taşıyor (ADR-0034); iki anlam karışıyor.
+
+### Alternatifler
+- **Hatırlatma kuralına "`pending` + müşteri bağlı + kanal web değil" eklemek:** `pending` iki anlamda kalır; Bugün ekranındaki onay listesi ve sayaçlar kanal ayrımı yapmak zorunda kalır.
+- **ADR'yi aynen bırakıp ekranda uyarı göstermek:** salon her randevuyu iki kez işler; müdür kararına aykırı.
+
+### Karar
+- Personelin açtığı randevu `confirmed` başlar ve hatırlatma işleri oluşturulduğu anda kurulur. Bu kural iki yolu kapsar:
+  - panelden randevu oluşturma,
+  - bekleme listesinden "randevuya çevir".
+- `pending` yalnız online talebin salon onayı beklediği durumdur (ADR-0034, T3). Bot randevusu bugünkü gibi `confirmed` açılır.
+- Hatırlatma kuralı (ADR-0044) değişmez: yalnız `confirmed` randevuya gider.
+- Personel bir randevuyu elle `pending`'e çekerse hatırlatma işleri silinir.
+- Veri dönüşümü yapılmaz. Canlıda gerçek kullanıcı yok; staging'deki eski `pending` panel randevuları demo verisidir (gerekirse T3 betiği yeniden çalıştırılır).
+
+### Ekranlara etkisi
+- **W13 (Randevu oluştur):** kod değişikliği gerekmez. Yeni randevu takvimde ve ayrıntıda "Onaylandı" görünür. "Bekliyor" bekleyen testler ve görüntüler güncellenir.
+- **W10 (Bugün):**
+  - "Onay bekliyor" şeridi ve onay listesi artık yalnız online talepleri gösterir.
+  - Liste sorgusu yalnız `status = pending` ile yeterlidir; yine de `bookingChannel = web` koşulu eklenir (ileride başka `pending` kaynağı çıkarsa diye).
+  - Panel randevularında "Onayla" eylemi görünmez.
+  - E2E `kabul/w10-bugun.spec.ts:202` online talep (`Aday Uc`) için `pending` bekliyor ve doğru kalır.
+- **W14 (Randevu ayrıntısı):** "Onayla" eylemi yalnız `pending` randevuda görünür. Yeni panel randevularında görünmez.
+- **Eski arayüz:** panel randevusu "Onaylandı" olarak açılır; ek değişiklik gerekmez.
+
+### Sonuçlar
+- **Olumlu:** Durum tek anlama iner. Panel randevusu ek işlem olmadan hatırlatma alır.
+- **Olumsuz:** Panel randevularında "Bekliyor → Onaylandı" adımı kalkar. Bunun ürün değeri yoktu: randevuyu açan salonun kendisi.
+- **Riskler:** Başka bir oluşturma yolunun `pending` bırakılması. Önlem: oluşturma yolları tek yardımcıyı kullanır ve kanal başına durumu sınayan bir tablo testi yazılır (manual / waitlist / bot → `confirmed`; web → `bookingMode`/T3 kuralı).
+
+---
+
+## ADR-0046: Gizli bağlantı tokenları URL yolunda taşınmaz: web'de `#` parçası, API'de istek gövdesi; davette profil yalnız `staff` rolüne
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). ADR-0042'nin bağlantı ve uç biçiminin ve profil kuralının yerini alır. ADR-0043'ün uç biçiminin yerini alır.
+- **Karar verenler:** mimar; öneri: denetçi (`raporlar/denetim/beautyos-A3-1.md` Önemli 1)
+
+### Bağlam
+ADR-0042 (`/invite/<token>`, `/auth/invitations/:token`) ve ADR-0043 (`/public/bookings/:token`) tokenı URL yolunda taşıyor. Yol; Caddy, Next ve API erişim log'larına, Sentry'ye ve tarayıcı geçmişine düşüyor. Bu, iki ADR'deki "token log'a yazılmaz" kuralıyla çelişiyor. Caddy ve Sentry maskelemesi yalnız kısa vadeli bir önlem. URL parçası (`#…`) sunucuya hiç gönderilmez.
+
+### Alternatifler
+- **Yalnız log maskelemesi:** her yeni log noktasında unutulabilir; tarayıcı geçmişi ve önbellek yine tokenı tutar.
+- **Sorgu dizgisi (`?t=`):** log'a düşer; yolla aynı sorun.
+
+### Karar
+- **Web bağlantıları:** davet `FRONTEND_URL/invite#<token>`, randevu yönetimi `FRONTEND_URL/book/manage#<token>`.
+  - Sayfa tokenı `location.hash`'ten okur ve hemen `history.replaceState` ile adresten siler.
+  - Token yalnız bellekte tutulur. `Referrer-Policy: no-referrer` kalır.
+- **API: token yalnız JSON gövdesinde, yalnız POST ile:**
+  - Davet: `POST /auth/invitations/lookup {token}` (eski `GET …/:token`) ve `POST /auth/invitations/accept {token, password, fullName?, phone?}`.
+  - Randevu: `POST /public/bookings/lookup {token}`, `POST /public/bookings/cancel {token}`, `POST /public/bookings/reschedule {token, startAt, staffId?}`, `POST /public/bookings/calendar {token}`.
+    - `calendar` yanıtı `text/calendar` gövdesidir. Web bunu Blob olarak indirir; doğrudan `.ics` bağlantısı yoktur.
+  - Hata kodları, hız sınırları ve "tek yanıt" kuralları ADR-0042 ve ADR-0043'teki gibidir.
+  - İstek gövdesi log'a yazılmaz. Mevcut Sentry gövde temizliği (G5-K5) bunu zaten sağlıyor.
+- **Kısa vadeli maskeleme:** Caddy ve Sentry'deki maskeleme kalır (savunma derinliği), ama artık tek önlem değildir.
+- **Profil kuralı:** davet kabulünde `StaffProfile` yalnız `staff` (Uzman) rolüne açılır. `manager` ve `receptionist` profilsiz açılır (A2 ile tutarlı). Hizmet veren bir müdür ya da resepsiyon için profil açmak ayrı karardır.
+
+### Sonuçlar
+- **Olumlu:** Token sunucu log'larına, ara katmanlara ve geçmişe düşmez.
+- **Olumsuz:** Bağlantıyı açan sayfanın JavaScript çalıştırması gerekir. `.ics` tek tıkla açılmaz; indirme düğmesiyle alınır.
+- **Riskler:** Eski biçimli (yol tokenlı) bağlantıların dolaşımda kalması. Önlem: A3 henüz canlıda değil, A7 başlamadı; eski yol uçları hiç yayınlanmaz ya da 404 döner. Test: Caddy ve API log'larında token dizgisinin geçmediği bir E2E kontrolü (test-muhendisi).
+
+---
+
+## ADR-0047: Şablonlu iletilerde gövde saklanmaz: `message_deliveries` şablon anahtarı + sürümü tutar; şablonlar kodda sürümlü ve değişmez; teslim kaydı 1 yıl sonra anonimleşir
+
+- **Tarih:** 2026-10-29
+- **Durum:** kabul edildi (mimar kararı, kalıcı izin 4). Dayanak: hukuk-uyum KVKK kararı (`docs/kvkk-tasima-degerlendirmesi.md` E9 ve §5; taslak, avukat görüşü değil).
+- **Karar verenler:** hukuk-uyum (veri ilkesi); mimar (teknik biçim)
+
+### Bağlam
+`message_deliveries.body` (NOT NULL) her SMS'in ve e-postanın tam metnini saklıyor; doğrulama kodu da buna dahil (denetim #22). A8 ile e-posta hatırlatmaları başladı ve panel randevuları da hatırlatma alıyor (ADR-0045), yani hacim artıyor. Metin; şablon, randevu ve salon bilgisinden yeniden üretilebilir. Hukuk-uyum veri en aza indirme gereği gövdenin saklanmamasını, ama ispat için şablonların sürümlü ve değiştirilemez tutulmasını istiyor.
+
+### Alternatifler
+- **Gövdeyi 1 yıl saklayıp sonra boşaltmak:** gereksiz kişisel veri bir yıl durur; OTP de saklanmış olur.
+- **Şablonları veritabanı tablosunda tutmak:** değişmezliği uygulama kuralıyla sağlamak gerekir. Kodda sürümlü sabit ve hash kilidi daha sade.
+
+### Karar
+- **Şema (migration):**
+  - `message_deliveries.body` boş olabilir; `templateKey` ve `templateVersion` (int) eklenir.
+  - `CHECK (body IS NOT NULL OR (template_key IS NOT NULL AND template_version IS NOT NULL))`.
+- **Şablon kaydı:** `apps/api/src/lib/messages/templates.ts`.
+  - Her şablon `(key, version)` olarak durur (ör. `reminder_24h@1`, `reminder_24h_health@1`, `phone_verification@1`).
+  - Bir sürümün metni bir kez yayınlandıktan sonra **değişmez**; değişiklik yeni sürüm olarak eklenir.
+  - Bir test, her `(key, version)` metninin sha-256 özetini sabit listeyle karşılaştırır. Mevcut sürümün metni değişirse test kırmızı olur.
+- **Gönderim:** şablonlu iletilerde (hatırlatma, doğrulama, onay, iptal) `body = null` olur; anahtar ve sürüm yazılır. İletinin tekrar üretilmesi `appointmentId` + şablon sürümüyle yapılır.
+- **OTP:** doğrulama kodu hiçbir kanalda saklanmaz: ne gövdede ne log'da. `phone_verifications`'ta yalnız kodun hash'i tutulur.
+- **Serbest metinli ileti:** ileride gelirse (salonun kendi yazdığı mesaj) yalnız onun gövdesi saklanır ve 1 yıl sonra boşaltılır.
+- **Bir kerelik veri geçişi:** şablonlu amaçlardaki mevcut kayıtlarda `body` boşaltılır, uygun anahtar ve sürüm yazılır. Eşleşmeyen kayıtlarda anahtar `legacy`, sürüm `0` olur.
+  - Staging'de serbestçe çalışır.
+  - Canlıda veri silme sayılır; kurucu onaylı canlı yayınla (`yayinla.sh --onayli`) birlikte çalışır.
+- **Saklama (L4):** gece işi, 1 yılı geçmiş teslim kayıtlarında `phone` ve `email` alanlarını NULL yapar ve varsa gövdeyi boşaltır. Kanal, amaç, durum, zaman ve maliyet kalır (sayım ve fatura için).
+
+### Sonuçlar
+- **Olumlu:** İleti içeriği ve OTP veritabanında birikmez; ispat şablon sürümüyle yapılır.
+- **Olumsuz:** "Tam olarak ne gönderildi" sorusu metni yeniden üreterek cevaplanır. Randevu sonradan değiştiyse üretilen metin gönderim anındakinden farklı olabilir.
+- **Riskler:**
+  - Şablon metninin sessizce değiştirilmesi. Önlem: hash kilidi testi.
+  - Randevu verisinin sonradan değişmesi. Önlem: gerekirse gönderim anındaki değişkenler (saat, salon adı; kişisel veri değil) ayrı bir `templateParams` jsonb alanında tutulur. Bu ilk sürümde yok; ihtiyaç doğarsa ayrı karar.
+
+---
+
+## ADR-0048: Kayıtta sözleşme ve rıza kabulleri `legal_acceptances` tablosunda belge başına ayrı satır olarak saklanır
+
+- **Durum:** kabul edildi (gelistirici, kalıcı izin 4; kaynak `tasarim-girdisi/yasal-ekran-gereksinimleri.md` K1/K3). Görev W30.
+- **Bağlam:** Yeni kayıt ekranı K1 (zorunlu: Kullanım Şartları + Veri İşleme Sözleşmesi) ve K3 (isteğe bağlı: ürün/kampanya e-postası) kutularını gösterir; sunucuda bunları saklayan alan yoktu. Ticari ileti onayı sözleşme kabulüne bağlanamaz; kabul kaydı her belge için ayrı satır olmalıdır.
+- **Karar (hukuk-uyum W30-1 ile güncellendi):** İki yalnız-ekleme tablo (UPDATE tetikleyiciyle engelli): `legal_acceptances` (tenantId, userId, documentType `terms|dpa|privacy_notice`, documentVersion, acceptedAt, ipAddress, userAgent, channel `signup|reaccept`, labelVersion; belge başına ayrı satır) ve `marketing_consents` (K3; channel email, status `granted|revoked`, source `signup_form`, consentTextVersion, at, ipAddress, userAgent). `POST /auth/register` gövdesine isteğe bağlı `consents: { terms: true, termsVersion, dpaVersion, labelVersion, marketingEmail? }` eklenir; sürümler sunucu sabitleriyle (`GET /auth/legal-versions`) eşleşmezse `400 LEGAL_VERSION_MISMATCH`, `terms` true değilse 400. Kayıt ve kabuller aynı işlemdedir; K3 işaretsizse satır yazılmaz. `consents` yoksa (canlıdaki eski arayüz) kabul satırı yazılmaz; eski arayüz kalkınca zorunlu yapılır. Kampanya e-postası İYS netleşene kadar gönderilmez. IP ve user-agent kabul kanıtı olarak saklanır (hukuk-uyum). Saklama süreleri hukuk-uyum teyidine bağlı.
+- **Sonuçlar:** Geri çekme ve yeniden kabul (G1) yeni satırdır; satırlar güncellenmez. Tablo `tenantId` taşır, kiracı silinince düşer (KVKK silme). `docs/kvkk` envanterine "kabul kaydı: belge, sürüm, zaman" eklenmeli (hukuk-uyum). Migration `20261030090000_legal_acceptances`, geri alma DROP TABLE.
+- **Güncelleme (2026-10-30, müdür kararı):** Kayıtlar kiracı/kullanıcı silinince düşmez (saklama 10 yıl kabul, 3 yıl ticari ileti izni): `tenantId`/`userId` yabancı anahtarları `ON DELETE SET NULL`, satırda `tenantSlug`, `tenantName`, `userEmail` anlık görüntü olarak saklanır; yalnız-ekleme tetikleyicisi yalnız SET NULL'un yaptığı `tenantId`/`userId` -> NULL güncellemesine izin verir. Migration `20261030100000_legal_records_set_null`. Yukarıdaki "kiracı silinince düşer" cümlesi bu güncellemeyle geçersizdir.
 
 ---
 

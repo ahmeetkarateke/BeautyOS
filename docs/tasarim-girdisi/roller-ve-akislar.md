@@ -563,6 +563,28 @@ Klinikte ek farklar: (1) sağlık verisi **ek koruma** istiyor: yetkisiz çıkt�
 - **Klinik modunda varsayılan kapalı/gizli:** kampanya (ticari ileti), tanıtımda fotoğraf kullanımı (F2), mesaj asistanı, online randevu sayfasında fiyat gösterimi. **Hatırlatma SMS'lerinde hizmet adı yer almaz.** Muayenehane için aynı kurallar. Kurulumda "İşletme türü" adımı; klinik seçilince kurallar devreye girer (bu, 3.1 adım 5'e eklenir).
 - **Tasarım sonucu:** iki mod (Salon / Klinik) gerekir: terim sözlüğü + varsayılanlar + rıza/onam akışı + rol seti farklıdır. Ekran envanterine "Onamlar", "Erişim geçmişi", "Düzeltme ekle", "Kaydı kapat", 2 adımlı doğrulama, oturum kilidi eklenir.
 
+### 8.3c Tür eşleme tablosu (hukuk-uyum bilgisi, 2026-10-29)
+
+> **KURUCU REDDETTİ (2026-10-29): saç ekimi salon modunda kalır.** Saç ekimini klinik kural setine alma önerisi geçersizdir; aşağıdaki tablo ve sonuçlar uygulanmaz (tarihçe olarak kalır). Tek istisna sürüyor: saç ekiminde hazır mesajlarda (hatırlatma vb.) hizmet adı geçmez; kod tarafında bu kural `isHealthRegulated` kapsamında uygulanır, 2FA, fotoğraf, klinik notu ve Hasta terimi klinik türlerine özgü kalır (estetik kliniği, diş hekimi).
+
+Kural seti anahtarı **klinik** olan türler (`isHealthRegulated`): estetik kliniği, diş kliniği ve **saç ekimi** (hekimce yapılan cerrahi işlem). Bu türlerde klinik kurallarının hepsi geçerlidir: mesajda hizmet adı yok, kampanya ve tanıtım fotoğrafı (F2) varsayılan kapalı, 2FA zorunlu, klinik notu ve kayıt kapatma. Terim seti (Müşteri / Danışan / Hasta) ayrı bir seçimdir ve kural setini etkilemez.
+
+| Kayıtta seçilen tür | Veri modeli (`BusinessType`) | Kural seti | Varsayılan terim |
+|---|---|---|---|
+| Kuaför | `hair_salon` | Salon | Müşteri |
+| Berber | `barbershop` | Salon | Müşteri |
+| Güzellik merkezi | `beauty_center` | Salon | Müşteri |
+| Diğer › Tırnak stüdyosu | `nail_studio` | Salon | Müşteri |
+| Diğer › Spa | `spa` | Salon | Müşteri |
+| Diğer › Masaj | `massage` | Salon | Müşteri |
+| Diğer › Dövme ve piercing | `tattoo_piercing` | Salon | Müşteri |
+| Diğer › Başka | `other` | Salon | Müşteri |
+| Estetik kliniği | `aesthetic_clinic` | **Klinik** | Hasta (sahip Danışan'a geçebilir) |
+| Diş hekimi | `dentist` | **Klinik** | Hasta |
+| **Saç ekimi** (hekimli) | `hair_transplant` | **Klinik** | Hasta (sahip Danışan'a geçebilir) |
+
+Sonuçlar: (1) Saç ekimi kayıtta "Diğer" altında değil, klinik grubunda (ya da klinik seçildikten sonraki alt tür listesinde) görünür; Ayarlar'daki tür değiştirme penceresinde de klinik türüne geçiş uyarısı (2FA zorunlu) saç ekimini kapsar. (2) Kodda tek yardımcı fonksiyon: `isHealthRegulated(type)` = `aesthetic_clinic`, `dentist`, `hair_transplant`; kural kontrolleri terim setine değil buna bakar. (3) Kuaför, güzellik merkezi gibi türlerde anamnez bugün de var; klinik kuralları bu türlere uygulanmaz (salon modu rıza kapısı, bkz. 5.2). (4) Kurucu K3 listesinde saç ekimi ayrıca anılmamıştı; kural kümesi daha sıkı olduğundan bilgi olarak müdürden iletilir, karar gerekmez.
+
 ### 8.4 Yeni açık sorular (kurucuya, müdür aracılığıyla)
 
 1. Klinik tarafında **ilk hedef** hangisi: diş hekimi mi, estetik klinik mi? (Anamnez ve terim önceliği buna göre.)

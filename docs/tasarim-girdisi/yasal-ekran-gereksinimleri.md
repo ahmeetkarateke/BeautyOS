@@ -63,6 +63,15 @@ Bugünkü durum: iki adım var (`signup/page.tsx`), adım 2'de ad, telefon, e-po
 **Kabul kaydı (arka uç için; tasarımda görünmez ama Ayarlar'da gösterilir, bkz. §2.8):** her belge için ayrı satır:
 `belge türü (kullanım şartları / DPA / ticari ileti) · belge sürümü · kabul eden kullanıcı · salon (tenant) · tarih-saat (UTC) · IP adresi · tarayıcı bilgisi · kanal (web kayıt / yeniden kabul) · kutu etiketinin sürümü`. Aydınlatma için "gösterildi" kaydı (sürüm + tarih) tutulması önerilir, kabul olarak değil.
 
+**Sunucu tarafı asgari kayıt (2026-10-30, denetim W30-1):**
+- **Kabul zorunluluğu sunucuda da uygulanır:** İstek `termsAccepted=true` içermiyorsa ya da gönderilen belge sürümü sunucudaki güncel sürümle eşleşmiyorsa kayıt reddedilir.
+- **Kabul kayıtları:** Kayıtlar yalnız eklenir, değiştirilmez. Kullanım Şartları ve DPA için ayrı satır tutulur. Zaman sunucu saatinden (UTC) alınır.
+- **K3 izni:** Ayrı bir izin kaydında tutulur. Alanlar: kanal (e-posta), durum (verildi / geri alındı), kaynak (kayıt formu), izin metni sürümü, zaman, IP adresi, tarayıcı bilgisi. Geri alma eski kaydın üzerine yazılmaz, yeni satır olarak eklenir. Her e-postada tek tıkla ret bağlantısı bulunur.
+- **İYS:** Kayıt ve yükleme yükümlülüğü teyit edilene ve BeautyOS İYS'ye kaydolana kadar kampanya e-postası gönderilmez.
+- **Saklama süreleri:**
+  - Kabul kayıtları: sözleşme süresi + 10 yıl (TBK genel zamanaşımı; teyit).
+  - İzin kayıtları: iznin sona ermesinden itibaren 3 yıl (Ticari İletişim ve Ticari Elektronik İletiler Hakkında Yönetmelik; teyit).
+
 ### 1.2 Sözleşme sürümü değişince yeniden kabul ekranı (yeni)
 
 Kullanım Şartları ya da DPA'nın yeni sürümü yayınlandığında, salon sahibi (yalnız `owner`) girişten sonra tam ekran bir bildirimle karşılaşır:
@@ -439,6 +448,7 @@ Hepsi **öneri ve taslaktır**; teknik-yazar ses ve üslup için düzeltebilir, 
 
 - Kurulum sihirbazının ilk adımında `İşletme türü` sorulur: `Kuaför / berber`, `Güzellik merkezi`, `Estetik kliniği`, `Diş kliniği / muayenehane`, `Diğer (randevuyla çalışan)`. Seçim sonradan yalnız sahip tarafından ve uyarıyla değiştirilebilir.
 - **Terimler (teknik-yazar ile, 2026-10-28):** "Hasta" ve "Hekim" yalnız klinik modunda kullanılır. "Hekim" unvanı rol adından gelir, kullanıcı seçemez. "Danışan" her modda kullanılabilir. Ürünün kendi metinlerinde "Tedavi" yerine "İşlem" ya da "Hizmet" kullanılır, not alanının adı "Klinik notu"dur. "Hasta dosyası", "Tıbbi kayıt", "e-Nabız", "Reçete" ve "Teşhis/Tanı" hiçbir modda kullanılmaz.
+- **Saç ekimi (`hair_transplant`), müdür kararı 2026-10-29:** Şimdilik yalnız mesaj kuralı uygulanır; hatırlatma ve hazır mesajlarda (SMS, wa.me) hizmet adı yer almaz. **Kurucu kararı (urun-analisti bildirimi, 2026-10-29; `roller-ve-akislar.md` §8.3c):** Saç ekimi salon modunda kalır. Tek istisna, hazır mesajlarda hizmet adının geçmemesidir. Tam klinik kuralları (2FA zorunlu, F2 ve kampanya varsayılan kapalı, klinik notu ve kayıt kapatma) uygulanmaz. Kayıtlı kalan risk notu (hukuk-uyum önerisi): Saç ekimi hekimce yapılan cerrahi bir işlem olduğu için tam klinik kural seti uygulanmalı. Bu yapılmazsa sağlık verisi salon düzeyindeki korumayla işlenir.
 - Seçim **dil** dışında **kuralları** da belirler. Klinik türü seçilince §10.4–§10.7'deki öğeler etkinleşir. (Brif S1: "sağlık verisi kuralları en sıkı hâliyle uygulanır.")
 - Klinik seçilince sihirbaza bir adım eklenir: `Sağlık kuruluşu bilgileri`. Alanlar: kuruluş adı, ruhsat/tescil numarası, mesul müdür ya da sorumlu hekim adı, meslek odası sicil no (alanlar teyit; isteğe bağlı, "sonra tamamla"). Bu bilgiler aydınlatma metninde ve online randevu sayfasının alt bilgisinde kullanılır.
 - Klinik seçiminde tek seferlik bilgilendirme ekranı (onay kutusu değil, `Anladım` düğmesi): `BeautyOS randevu ve klinik operasyonu için bir araçtır. e-Nabız bildirimleri ve yasal tıbbi kayıt yükümlülükleriniz için kullandığınız sistemin yerine geçmez.` Bu ekranın gösterildiği kaydedilir.
@@ -489,6 +499,7 @@ Hepsi **öneri ve taslaktır**; teknik-yazar ses ve üslup için düzeltebilir, 
 ### 10.7 İletişim, online randevu ve bot: klinikte nasıl değişir
 
 - **Bilgilendirme SMS'leri ve e-postaları (doğrulama, onay, hatırlatma) hizmet adı içermez.** Kilit ekranında görünen "İmplant kontrolü" ya da "Botoks" gibi bir ifade sağlık verisini ifşa eder. Önerilen hatırlatma metni: `[Klinik Adı]: 14 Kasım Cuma 14:30 randevunuzu hatırlatırız. Değişiklik için: [telefon]`. Salonda hizmet adı kalabilir. Klinik modunda şablon düzenleme alanında hizmet adı değişkeni sunulmaz.
+- **Hazır mesaj önerileri de aynı kurala tabidir (2026-10-29, denetim W22):** Bekleme listesindeki "Müşteriye haber ver" gibi, WhatsApp (`wa.me`) ya da SMS ile personelin gönderdiği hazır metinlerde klinik modunda hizmet adı bulunmaz. Önerilen metin: `Merhaba [ilk ad], [Klinik Adı]: beklediğiniz randevu için uygun bir saat açıldı: [gün saat]. Uygunsa bu mesaja yanıt verin ya da [telefon] numarasını arayın.` Salonda hizmet adı kalabilir. Bu metinlerde hiçbir modda tanıtım ya da indirim içeriği olmaz. (Uygulanan metin, 2026-10-29, W22-2: `Merhaba [ad], [Klinik]: beklediğiniz randevu için uygun bir saat açıldı. Uygunsa bu mesaja yanıt verin ya da bizi arayın.` Gün, saat ve telefon bu ekranda bilinmediği için metinde yok; uygun bulundu.)
 - **Kampanya / ticari ileti (§2.4) klinik modunda varsayılan olarak kapalı ve gizlidir.** Sağlık hizmetlerinde reklam ve indirim duyurusu kısıtlı olduğu için (teyit) online randevu sayfasındaki R2 kutusu klinikte gösterilmez. Sahip açmak isterse §10.4'tekine benzer bir uyarı gösterilir.
 - **Online randevu sayfası (§3) klinikte:**
   - Alt bilgide kuruluş adı, ruhsat/tescil no ve sorumlu hekim (§10.3; teyit) yer alır.

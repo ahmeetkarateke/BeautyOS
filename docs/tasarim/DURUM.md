@@ -22,6 +22,7 @@ Plan: yeni dosya `prototip/tanitim-derinlik.css` (tanitim.html'de satır içi st
 5. A1 hareketleri korunur; ışık lekeleri `html.hareket-durdu` ile durur; kapanış kartı tüm sayfalarda ortak kabukta.
 
 ## Kapanmamış (bilinçli bekleyenler)
+- KARAR VERİLDİ (urun-analisti, kurucu kararı): saç ekimi salon modunda kalır, tasarım değişmez. Tek istisna: saç ekiminde hazır mesaj şablonlarında (hatırlatma vb.) hizmet adı geçmez; mesaj şablonu önizlemesinde bu türde işlem adı çıkarılmaz (prototipte mesaj önizlemesi hizmet adı içermiyor, uyuyor). Eski not, klinik kural seti seçilseydi: `tasarim.md` §7/§7.1, `giris.html:38/53`, `prototip.js:12`, `panel-ek.js:420` (tür değiştirme uyarısında 2FA). Geçerli olan: hatırlatma mesajında hizmet adı yok (prototipte zaten uyuyor).
 - Kesinleşti (kurucu T1–T3): kendi takvim bileşeni + sürükle-bırak, klinikte "Klinik görüntüleri", online randevu onayı işletme ayarı. E6, N2, N3 düzeltildi; frontend'e yeniden görüntüleme için bildirildi.
 - Kurucu kararı: fiyat/KDV, künye, [DESTEK_E-POSTASI], logo, yasal metin gövdeleri (avukat).
 - hukuk-uyum U10: künyede telefon/MERSİS/KEP ve DPA alt işleyen tablosu yer tutucuları (künye bilgisiyle birlikte).

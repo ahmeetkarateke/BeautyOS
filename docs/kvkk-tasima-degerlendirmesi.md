@@ -30,11 +30,30 @@ BeautyOS'un rolü: Salonların müşterileri ve personeli bakımından **veri i�
 | E6 | Randevu / hizmet geçmişi | `appointments`, `waitlist`, `customer_packages`, `package_usages` | Hayır (hizmet türü dolaylı sağlık bilgisi verebilir: ör. medikal cilt bakımı) | DO FRA1 + B2 | NetGSM (hatırlatma SMS'i), Telegram (bot) |
 | E7 | Müşteri fotoğrafı | `customer_photos.url` (dış URL; dosya bizde değil) | Hayır (biyometrik işleme yok). Ancak öncesi/sonrası fotoğrafları hassas | Dosya **bilinmeyen dış depoda** | URL'nin barındığı servis belirsiz (bkz. §6 S3) |
 | E8 | Bot konuşmaları | `bot_conversations.messages`, `customerRef` (telefon/chat ID), `bot_sessions` | Serbest metin; müşteri sağlık bilgisi yazabilir | DO FRA1 + B2 | **Telegram** (ABD dışı, BAE merkezli), **Google Gemini** (son 4 mesaj + yeni mesaj) |
-| E9 | İleti kayıtları | `message_deliveries` (phone, email, **body**), `notification_logs`, `phone_verifications` (phone, ipAddress) | Hayır | DO FRA1 + B2 | NetGSM, Resend |
+| E9 | İleti kayıtları (güncelleme 2026-10-29, A8 / ADR-0044–0046) | `message_deliveries` (channel, phone ya da email, purpose, appointmentId, customerId, durum; **body yalnız gerekli amaçlarda**, aşağıya bakın), `notification_logs`, `phone_verifications` (phone, ipAddress) | Hayır. Klinik türlerinde hizmet adı içerikte yok (ADR-0044) | DO FRA1 + B2 | NetGSM (TR, SMS); **Resend (ABD, e-posta: salon müşterisine hatırlatma, salon kullanıcısına hesap e-postaları)**. Yurt dışı aktarım: m.9 standart sözleşme kurulmadı (H12, avukat) |
+
+**E9 ayrıntısı (2026-10-29):**
+- **Gönderim ve kapsam:** Hatırlatmalar SMS yoksa salon müşterisinin e-postasına Resend üzerinden gider; bugün fiilen tek kanal bu. Panelden açılan randevular da hatırlatma alır (ADR-0045). Rol: salon veri sorumlusu, BeautyOS veri işleyen, Resend alt işleyen.
+- **Hukuki sebep (salon için):** Sözleşmenin ifası (m.5/2-c). Hatırlatma bir bilgilendirme iletisidir, İYS onayı gerekmez ve tanıtım içeriği eklenmez.
+- **Gövde saklama:** Hatırlatma ve doğrulama iletilerinde `body` **saklanmaz** (mimar önerisi kabul, 2026-10-29). Yerine şablon anahtarı ve şablon sürümü tutulur. Şablonlar sürümlü ve değiştirilemez olarak saklanır, böylece hangi içeriğin gittiği ispatlanabilir. Doğrulama kodu (OTP) hiçbir kanalda saklanmaz. İleride kampanya iletileri gelirse aynı model kullanılır (şablon + sürüm + izin kaydı); salonun serbest yazdığı metin varsa yalnız o gövde saklanır ve 1 yılın sonunda boşaltılır.
+- **Resend ayarları:** Açılma ve tıklama izleme (tracking pixel, link tracking) **kapalı** olmalı. Bu izleme ayrı bir kişisel veri işleme demek ve rıza gerektirir. Resend panelindeki içerik ve log saklama süresi mümkün olan en kısa değere çekilmeli (devops). Resend, alt işleyen listesine "e-posta gönderimi · ABD" olarak yazılmalı.
+- **Mesaj içeriği:** Randevu yönetim bağlantısı (token) mesajlarda yok (ADR-0046). İçerik salon adı, tarih ve saatle sınırlı.
 | E10 | Ticari ileti izni | `customers.marketingConsent*` | Hayır | DO FRA1 | (İYS kaydı salonun yükümlülüğü) |
 | E11 | Finans | `transactions`, `financial_transactions`, `current_account_entries`, `staff_payouts`, `tip_entries`/`tip_distributions` (personel geliri), `suppliers` (yetkili telefonu/e-postası) | Hayır | DO FRA1 + B2 | Yok (Sentry hata anında) |
 | E12 | Erişim / denetim izi | `activity_logs` (userId, ipAddress, userAgent, metadata eski/yeni değer) | Hayır (ama metadata'ya sağlık verisi düşebilir) | DO FRA1 + B2 | Yok |
 | E13 | Trafik / ağ verisi | IP, user agent, çerez, Turnstile sinyalleri | Hayır | Caddy/Docker log (sunucu), Cloudflare | Cloudflare (proxy + Turnstile) |
+| E14 | Doğrulanmamış online randevu talebi (2026-10-29, S2 `d9b44a7`) | `appointments.requestedName`, `appointments.requestedPhone` (`customerId` boş; SMS doğrulaması olmayan modda) | Hayır. Klinikte talebin varlığı ve işlem adı sağlık verisine dair çıkarım sağlayabilir | DO FRA1 + B2 | Cloudflare (geçiş + Turnstile), Sentry (hata olursa, maskeli) |
+
+**E14 ayrıntısı:** Talebi giren kişi, numaranın sahibi olmayabilir.
+- **Amaç:** Salonun talebi değerlendirmesi ve onaylaması. Rol: salon veri sorumlusu, BeautyOS veri işleyen.
+- **Hukuki sebep (salon için):** Sözleşmenin kurulması için gerekli olması (m.5/2-c).
+- **Paylaşım:** Yalnız salon paneli. Müşteri kaydına bağlanmaz; panelde "doğrulanmamış" olarak görünür.
+- **Saklama:**
+  - Onaylanırsa salon müşteri kaydıyla eşleştirir ya da yeni kayıt açar. Bundan sonra veri E3'ün süresine tabidir.
+  - Reddedilen ya da süresi dolan talepte ad ve telefon, gece taramasıyla 30 gün sonra anonimleştirilir (`'-'`; testli).
+- **Yurt dışı aktarım:** Ayrı bir aktarım yok; E13 ile aynı (Cloudflare).
+- **Güvenlik tedbirleri:** Herkese açık uçta yanıt, slot ve süre telefona göre değişmez. Telefon tavanı yok. Sınırlar: IP başına saatte 3, işletme başına günde 20 talep, Turnstile, salon onayı (denetim `raporlar/denetim/beautyos-S2-2.md`).
+- `docs/kvkk.md` henüz yok; ürün veri envanteri bu tabloda tutuluyor.
 
 **Saklama süresi:** Kodda müşteri silme / anonimleştirme uç noktası ve otomatik imha işi **yok** (yalnız anamnez cevabı ve fotoğraf tek tek silinebiliyor). Saklama süreleri sözleşme döneminde salonun talimatına bağlıdır; abonelik bitince silme/iade kuralı DPA'da yazılmalı (§6 M-4).
 
@@ -180,7 +199,7 @@ Aktarım zinciri şöyle: **Salon (VS, Türkiye) → BeautyOS (Vİ, Türkiye) �
 | Eski platformların silinmesi | Supabase (kendi otomatik yedekleri dahil), Railway (log'larda telefon numarası olabilir, R10), Vercel, Upstash, GitHub `DATABASE_URL` sırrı. **Her silme bir imha işlemidir:** tarih, ne silindi, kim onayladı bilgisiyle kısa bir **imha tutanağı** `sirket/` altında tutulur (içerik değil, kayıt). |
 | Docker log'ları | 10 MB × 3 rotasyon yeterli. Log'a kişisel veri yazılmaması asıl kural (R10). |
 | Sentry olay saklama | Sağlayıcı varsayılanı (genelde 30–90 gün) kabul. Gövde temizliği şartıyla (§3.2). |
-| Uygulama içi saklama süreleri (ilk müşteriden önce) | Öneriler: `bot_conversations` 90 gün; `phone_verifications` 30 gün; `message_deliveries.body` 1 yıl (sonra içerik boşaltılır); `activity_logs` 2 yıl; `bot_sessions` süre dolunca. Müşteri kaydı: salon silene ya da abonelik bitip iade süresi (öneri 30 gün) dolana kadar. Bu süreler salonla DPA'da kararlaştırılır. Kod: gece imha işi + müşteri silme/anonimleştirme uç noktası. |
+| Uygulama içi saklama süreleri (ilk müşteriden önce) | Öneriler: `bot_conversations` 90 gün; `phone_verifications` 30 gün; `message_deliveries`: hatırlatma ve doğrulamada gövde hiç saklanmaz (şablon anahtarı + sürüm; 2026-10-29). Teslim kaydı 1 yıl tutulur, sonra alıcı alanları (phone, email) anonimleştirilir; sayım ve durum kalabilir. Mevcut kayıtlardaki `body` bir kerelik geçişle boşaltılır. Serbest metinli ileti olursa gövdesi 1 yıl sonra boşaltılır; `activity_logs` 2 yıl; `bot_sessions` süre dolunca. Müşteri kaydı: salon silene ya da abonelik bitip iade süresi (öneri 30 gün) dolana kadar. Bu süreler salonla DPA'da kararlaştırılır. Kod: gece imha işi + müşteri silme/anonimleştirme uç noktası. |
 
 ---
 

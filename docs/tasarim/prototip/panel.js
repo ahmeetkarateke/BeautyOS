@@ -128,7 +128,7 @@
       const b = bosAraliklar(p.id);
       return `<div class="doluluk__satir kisi-${p.ton}">
         <span class="doluluk__ad">${P.avatar(p, 'avatar--kucuk')}<span>${p.kisa}</span></span>
-        <div class="doluluk__iz" data-eylem="serit-bos" data-p="${p.id}" role="group" aria-label="${p.ad}: ${b.simdi === 'boş' ? 'şu an boş, ' + b.kadar + '’e kadar' : 'şu an meşgul, ' + b.bitis + '’e kadar'}">
+        <div class="doluluk__iz" data-eylem="serit-bos" data-p="${p.id}" role="group" aria-label="${p.ad}: ${b.simdi === 'boş' ? 'şu an boş, ' + P.kadar(b.kadar) : 'şu an meşgul, ' + P.kadar(b.bitis)}">
           ${rr.map((r) => `<button class="doluluk__blok ${r.durum === 'suruyor' ? 'doluluk__blok--suruyor' : ''} ${r.durum === 'bekliyor' ? 'doluluk__blok--bekliyor' : ''} ${['bitti', 'gelmedi'].includes(r.durum) ? 'doluluk__blok--bitti' : ''}" style="left:${yuzde(P.dk(r.bas))}%;width:${(r.sure / GUN_UZ) * 100}%" data-eylem="randevu-ac" data-id="${r.id}" aria-label="${r.bas} – ${r.bit}, ${r.musteri}, ${r.hizmet}, ${P.DURUM_ADI[r.durum]}" tabindex="-1"></button>`).join('')}
           <span class="doluluk__simdi" style="left:${s}%" aria-hidden="true"></span>
         </div></div>`;
@@ -160,12 +160,12 @@
       <ul class="liste sirada">${[...suruyor, ...siradaki].map((r) => {
         const p = per(r.p);
         const eylem = r.durum === 'suruyor' ? `<button class="dugme dugme--birincil dugme--kucuk" data-eylem="tamamla" data-id="${r.id}">Tamamla</button>` : r.durum === 'bekliyor' ? `<button class="dugme dugme--ikincil dugme--kucuk" data-eylem="onayla" data-id="${r.id}">Onayla</button>` : `<button class="dugme dugme--ikincil dugme--kucuk" data-eylem="baslat" data-id="${r.id}">Başlat</button>`;
-        return `<li><div class="satir" style="cursor:default">${P.avatar(p)}<button class="satir__ana" style="background:none;border:0;padding:0;text-align:left;cursor:pointer" data-eylem="randevu-ac" data-id="${r.id}"><span class="satir__ust"><span class="sayi">${r.bas}</span> · ${r.musteri}</span><span class="satir__alt">${r.hizmet} · ${p.kisa}${r.durum === 'suruyor' ? ` · ${r.bit}’e kadar` : ''}</span></button><span class="satir__sag">${P.durumEtiketi(r.durum)}</span>${eylem}</div></li>`;
+        return `<li><div class="satir" style="cursor:default">${P.avatar(p)}<button class="satir__ana" style="background:none;border:0;padding:0;text-align:left;cursor:pointer" data-eylem="randevu-ac" data-id="${r.id}"><span class="satir__ust"><span class="sayi">${r.bas}</span> · ${r.musteri}</span><span class="satir__alt">${r.hizmet} · ${p.kisa}${r.durum === 'suruyor' ? ` · ${P.kadar(r.bit)}` : ''}</span></button><span class="satir__sag">${P.durumEtiketi(r.durum)}</span>${eylem}</div></li>`;
       }).join('')}</ul></section>`;
 
     const serit = `<section class="kart" aria-labelledby="b-serit">${H.kartBaslik('<span id="b-serit">Personelin günü</span>', `<span class="metin-kucuk metin-soluk">Boş saate dokunun.</span>`)}
       <div class="kart__govde yigin" style="gap:12px">
-        <p class="metin-14" data-testid="simdi-bos"><strong>Şu an boş:</strong> ${bosNow.length ? bosNow.map((x) => `${x.p.kisa} (${x.b.kadar}’e kadar)`).join(', ') : 'kimse yok'}.</p>
+        <p class="metin-14" data-testid="simdi-bos"><strong>Şu an boş:</strong> ${bosNow.length ? bosNow.map((x) => `${x.p.kisa} (${P.kadar(x.b.kadar)})`).join(', ') : 'kimse yok'}.</p>
         ${H.doluluk(hizmetVerenler)}
       </div></section>`;
 

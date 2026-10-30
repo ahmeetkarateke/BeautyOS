@@ -134,7 +134,15 @@
 
   // Marka işareti (yer tutucu; kurucu logosu gelince değişir): halka = gün, pudra yay = dolu randevu dilimi
   P.isaret = (boy = 28) => `<svg class="marka__isaret" width="${boy}" height="${boy}" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5" fill="none" stroke="#1F3E47" stroke-width="3.5"/><path d="M16 3.5A12.5 12.5 0 0 1 28.5 16" fill="none" stroke="#E89B96" stroke-width="3.5" stroke-linecap="round"/><circle cx="16" cy="16" r="2.4" fill="#1F3E47"/></svg>`;
-  P.marka = (href = '#') => `<a class="marka" href="${href}" aria-label="BeautyOS ana sayfa">${P.isaret()}<span class="marka__ad">BeautyOS</span></a>`;
+  // "16:00’ya kadar", "09:30’a kadar", "20:00’ye kadar": ek, saatin okunuşuna göre (dakika 00 ise saat, değilse dakika okunur)
+  P.kadar = (t) => {
+    const [h, m] = t.split(':').map(Number);
+    const U = { 1: 'e', 2: 'ye', 3: 'e', 4: 'e', 5: 'e', 6: 'ya', 7: 'ye', 8: 'e', 9: 'a' }, T = { 1: 'a', 2: 'ye', 3: 'a', 4: 'a', 5: 'ye' };
+    const s = m ? m : h;
+    const ek = s < 10 ? (s ? U[s] : 'a') : s % 10 ? U[s % 10] : T[s / 10];
+    return `${t}’${ek} kadar`;
+  };
+  P.marka =(href = '#') => `<a class="marka" href="${href}" aria-label="BeautyOS ana sayfa">${P.isaret()}<span class="marka__ad">BeautyOS</span></a>`;
 
   P.avatar = (p, cls = '') => `<span class="avatar kisi-${p.ton} ${cls}" aria-hidden="true">${p.bas}</span>`;
   P.durumEtiketi = (d) => {

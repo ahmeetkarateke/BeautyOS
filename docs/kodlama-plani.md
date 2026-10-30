@@ -301,6 +301,8 @@ Sahibi: frontend-gelistirici. Ekranlar `src/features/<alan>/**` ve `app/(v2)/pan
 
 **gelistirici (Faz 2):** A2–A6'yı bitirir. W-ekranlarından gelen sözleşme sorularını yanıtlar. G1 (CI'da Postgres) push kararına kadar bekler.
 
+**Sonraya ertelenenler (müdür kararı 2026-10-29; şimdi yapılmaz):** (1) Slot kimliğinin `Z`'li ISO'ya geçmesi (A4 maddesinin slot parçası) ve B14 hata sözleşmesi (alan hataları, istek numarası, her 429'da `retryAfterSec`). (2) A2 denetim notu: müdür ve resepsiyon hesapları uzman profili olmadan oluştuğu için `GET /staff` listesinde görünmez; profil dışı kullanıcı listesi ve pasifleştirme A3 (davet) ile S6 K2 turunda çözülecek. (3) Panel özeti ucu `GET /panel-summary` (menü sayaçları, deneme, bugünkü kasa, ilk kurulum 6 adım) A7 olarak eklendi; `lib/time.ts` gelince `istanbulDayBounds` oraya taşınır.
+
 ### 3.5 Faz 3 — Panelin geri kalanı (7–12 gün)
 
 | No | Ekran | Bağımlı |
