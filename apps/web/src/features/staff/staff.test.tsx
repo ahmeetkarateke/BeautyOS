@@ -70,6 +70,7 @@ beforeEach(() => {
           { id: 's2', name: 'Boya', durationMinutes: 90 },
         ],
       }
+    if (path.endsWith('/invitations')) return { data: [] }
     if (path.endsWith('/leaves')) return { data: leaves }
     if (path.endsWith('/settings'))
       return { settings: { workingHours: { monday: { start: '10:00', end: '19:00' }, tuesday: { start: '10:00', end: '19:00' } } } }
@@ -79,7 +80,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('W21 Personel listesi', () => {
-  it('K1: personel ad, unvan ve hizmet sayısıyla listelenir; satır ayrıntıya bağlanır; davet "Yakında"', async () => {
+  it('K1: personel ad, unvan ve hizmet sayısıyla listelenir; satır ayrıntıya bağlanır; sahipte davet düğmesi var', async () => {
     mount(<StaffScreen />)
     const list = await screen.findByRole('list', { name: 'Personel' })
     expect(
@@ -89,7 +90,7 @@ describe('W21 Personel listesi', () => {
     ).toBe('/panel/defne/personel-detay/p1')
     expect(list.textContent).toContain('Kuaför · 1 hizmet')
     expect(list.textContent).toContain('0 hizmet')
-    expect(screen.getByText('Yakında')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Personel davet et' })).toBeTruthy()
   })
   it('K2: sahip ve müdür dışındaki rol yetkisiz ekran görür, istek atılmaz', () => {
     mount(<StaffScreen />, makeMe('receptionist'))
