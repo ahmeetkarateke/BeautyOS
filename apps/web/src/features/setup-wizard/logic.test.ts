@@ -6,6 +6,7 @@ import {
   pickToServiceValues,
   prevStep,
   readyTasks,
+  salonSetupIncomplete,
   stepProgress,
   stepsFor,
   suggestionsFor,
@@ -15,10 +16,10 @@ import {
 import { validateService } from '@/features/services/logic'
 
 describe('W31 Kurulum sihirbazı mantığı', () => {
-  it('K1: adımlar tasarım sırasındadır ve yalnız tür, salon ve hazır zorunludur', () => {
+  it('K1: adımlar tasarım sırasındadır ve yalnız hazır adımı atlanamaz (müdür kararı: her adımda Şimdilik atla)', () => {
     const steps = stepsFor('hair_salon')
     expect(steps.map((s) => s.id)).toEqual(['type', 'salon', 'hours', 'services', 'staff', 'legal', 'ready'])
-    expect(steps.filter((s) => !s.skippable).map((s) => s.id)).toEqual(['type', 'salon', 'ready'])
+    expect(steps.filter((s) => !s.skippable).map((s) => s.id)).toEqual(['ready'])
   })
 
   it('K2: nextStep ve prevStep uçlarda taşmaz', () => {
@@ -85,5 +86,19 @@ describe('W31 salon gövdesi', () => {
     const { salonBody } = await import('./logic')
     expect(salonBody({ name: ' Defne ', phone: '  ', address: ' Atatürk Cad. 5 ' })).toEqual({ name: 'Defne', address: 'Atatürk Cad. 5' })
     expect(salonBody({ name: 'Defne', phone: ' 0532 111 22 33 ', address: 'Atatürk Cad. 5' })).toMatchObject({ phone: '0532 111 22 33' })
+  })
+})
+
+describe('W31 salon bilgileri eksikliği', () => {
+  const full = { name: 'Defne Berber', phone: '05321234567', address: 'Atatürk Cad. 5, Kadıköy' }
+  it('K14: ad ve adres tamamsa eksik sayılmaz; telefon isteğe bağlıdır', () => {
+    expect(salonSetupIncomplete(full)).toBe(false)
+    expect(salonSetupIncomplete({ ...full, phone: '' })).toBe(false)
+  })
+  it('K14: adres boşsa eksiktir (yalnız adres bozuk, ad geçerli)', () => {
+    expect(salonSetupIncomplete({ ...full, address: '' })).toBe(true)
+  })
+  it('K14: ad çok kısaysa eksiktir (yalnız ad bozuk, adres geçerli)', () => {
+    expect(salonSetupIncomplete({ ...full, name: 'D' })).toBe(true)
   })
 })

@@ -235,3 +235,74 @@ describe('W31 Kurulum sihirbazı', () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe('W31 Şimdilik atla (müdür kararı)', () => {
+  it('K15: işletme türü adımı da atlanır; hiçbir şey yazılmaz, salon adımı açılır', async () => {
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })
+    expect(writes()).toHaveLength(0)
+  })
+
+  async function skipToReady() {
+    for (const heading of ['Salon bilgileri', 'Çalışma saatleri', 'Hizmetler']) {
+      await screen.findByRole('heading', { level: 1, name: heading })
+      click('Şimdilik atla')
+    }
+    await screen.findByRole('heading', { level: 1, name: 'Personel' })
+    click('Sadece ben')
+    await screen.findByRole('heading', { level: 1, name: 'Yasal bilgiler' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Hazır' })
+  }
+
+  it('K16: salon adımında zorunlu alan eksikken atlanırsa hazır ekranı Ayarlar bağlantısıyla uyarır; hiçbir şey yazılmaz', async () => {
+    request.mockImplementation(async (_path: string, init?: Init) => {
+      if (init?.method) return {}
+      return { name: 'Defne Berber', settings: { phone: null, address: null, workingHours: null } }
+    })
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    click('Şimdilik atla')
+    await skipToReady()
+    expect(screen.getByText(/Salon bilgileriniz eksik/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Salon bilgilerini tamamlayın' }).getAttribute('href')).toBe('/panel/defne/ayarlar')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('K17: salon bilgileri tamamsa atlanınca uyarı çıkmaz', async () => {
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    click('Şimdilik atla')
+    await skipToReady()
+    expect(screen.queryByText(/Salon bilgileriniz eksik/)).toBeNull()
+  })
+
+  it('K18: salon kaydedildikten sonra geri dönüp atlamak uyarı çıkarmaz', async () => {
+    request.mockImplementation(async (_path: string, init?: Init) => {
+      if (init?.method) return {}
+      return { name: 'Defne Berber', settings: { phone: null, address: null, workingHours: null } }
+    })
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })
+    fill(screen.getByLabelText('Adres'), 'Atatürk Cad. 5, Kadıköy')
+    click('Kaydet ve devam et')
+    await screen.findByRole('heading', { level: 1, name: 'Çalışma saatleri' })
+    click('Geri')
+    await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Çalışma saatleri' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Hizmetler' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Personel' })
+    click('Sadece ben')
+    await screen.findByRole('heading', { level: 1, name: 'Yasal bilgiler' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Hazır' })
+    expect(screen.queryByText(/Salon bilgileriniz eksik/)).toBeNull()
+  })
+})
