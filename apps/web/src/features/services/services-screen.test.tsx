@@ -106,7 +106,7 @@ describe('W20 Hizmetler', () => {
     fill(within(dialog).getByRole('textbox', { name: /Süre/ }), '30')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hizmet ekle' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
-    expect(writes()[0][1].body).toEqual({ name: 'Manikür', durationMinutes: 30, price: 400, bufferMinutes: 0 })
+    expect(writes()[0][1].body).toEqual({ name: 'Manikür', durationMinutes: 30, price: 400, bufferMinutes: 0, isOnlineBookable: true })
     expect(await screen.findByText('Hizmet eklendi.')).toBeTruthy()
   })
 
