@@ -28,6 +28,7 @@ import {
   prevStep,
   readyTasks,
   salonBody,
+  salonSetupIncomplete,
   serviceCreateBody,
   stepProgress,
   stepsFor,
@@ -41,7 +42,7 @@ import {
 // Kurulum sihirbazı (W31, tasarim.md §8.3). Yalnız sahip ve müdür; her adım kendi isteğini atar, atlanan adım hiçbir şey yazmaz.
 const failureText = (err: unknown) => (err instanceof ApiError ? err : new ApiError({ status: 0, code: 'NETWORK' })).text()
 
-type StepProps = { settings: SalonSettings; businessType: string; onTypeSaved: (type: string) => void; onDone: () => void; onSkip: () => void; onBack: () => void }
+type StepProps = { settings: SalonSettings; businessType: string; onTypeSaved: (type: string) => void; onDone: () => void; onSkip: () => void; onBack: () => void; salonIncomplete: boolean }
 
 function Actions({
   busy,
@@ -94,7 +95,7 @@ function useStepSave() {
   return { busy, failure, run }
 }
 
-function TypeStep({ businessType, onTypeSaved, onDone }: StepProps) {
+function TypeStep({ businessType, onTypeSaved, onDone, onSkip }: StepProps) {
   const client = useApiClient()
   const me = useMe()
   const [value, setValue] = useState(businessType)
@@ -119,6 +120,7 @@ function TypeStep({ businessType, onTypeSaved, onDone }: StepProps) {
       <Actions
         busy={busy}
         submitLabel="Devam et"
+        onSkip={onSkip}
         onSubmit={() =>
           void run(async () => {
             if (canChange && value !== businessType) await patchSettings(client, me.tenant.slug, { businessType: value })
@@ -133,7 +135,7 @@ function TypeStep({ businessType, onTypeSaved, onDone }: StepProps) {
   )
 }
 
-function SalonStep({ settings, onDone, onBack }: StepProps) {
+function SalonStep({ settings, onDone, onSkip, onBack }: StepProps) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
   const [values, setValues] = useState({ name: settings.name, phone: settings.settings?.phone ?? '', address: settings.settings?.address ?? '' })
@@ -162,6 +164,9 @@ function SalonStep({ settings, onDone, onBack }: StepProps) {
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <Button type="submit" loading={busy} loadingText="Kaydediliyor…">
           Kaydet ve devam et
+        </Button>
+        <Button variant="text" onClick={onSkip} disabled={busy}>
+          Şimdilik atla
         </Button>
         <Button variant="secondary" onClick={onBack} disabled={busy}>
           Geri
@@ -422,7 +427,7 @@ function LegalStep({ onDone, onSkip, onBack }: StepProps) {
   )
 }
 
-function ReadyStep({ onBack }: StepProps) {
+function ReadyStep({ onBack, salonIncomplete }: StepProps) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
   const toast = useToast()
@@ -452,6 +457,14 @@ function ReadyStep({ onBack }: StepProps) {
   return (
     <div className="grid gap-4">
       {failure ? <Banner tone="error">{failure}</Banner> : null}
+      {salonIncomplete ? (
+        <Banner tone="warning">
+          Salon bilgileriniz eksik. Online randevu ve müşteri iletişimi için Ayarlar bölümünden tamamlayın.{' '}
+          <Link href={`/panel/${encodeURIComponent(slug)}/ayarlar`} className="font-semibold text-inherit underline underline-offset-2">
+            Salon bilgilerini tamamlayın
+          </Link>
+        </Banner>
+      ) : null}
       <p className="text-text-muted">Salonunuz hazır. İlk adımlar:</p>
       <ul className="m-0 grid list-none gap-2 p-0">
         {readyTasks(slug).map((task) => (
@@ -498,6 +511,9 @@ export function SetupWizard() {
   const [step, setStep] = useState<StepId>('type')
   // Kaydedilen tür yerel tutulur: oturum bilgisi (useMe) sayfa yenilenene dek eskidir.
   const [businessType, setBusinessType] = useState(me.tenant.businessType)
+  // Salon adımı kaydedildiyse sonradan atlamak eksiklik sayılmaz; atlanırsa kayıtlı değerlere bakılır (yazılıp gönderilmemiş girdi kaybolur).
+  const [salonSaved, setSalonSaved] = useState(false)
+  const [salonSkipped, setSalonSkipped] = useState(false)
   const heading = useRef<HTMLHeadingElement>(null)
   const first = useRef(true)
   useEffect(() => {
@@ -517,6 +533,7 @@ export function SetupWizard() {
       </SkeletonGroup>
     )
 
+  const saved = query.data
   const steps = stepsFor(businessType)
   const current = steps.find((s) => s.id === step) ?? steps[0]
   const { index, total } = stepProgress(step, businessType)
@@ -527,8 +544,20 @@ export function SetupWizard() {
       setBusinessType(type)
       setStep(nextStep(step, type))
     },
-    onDone: () => setStep(nextStep(step, businessType)),
-    onSkip: () => setStep(nextStep(step, businessType)),
+    onDone: () => {
+      if (step === 'salon') {
+        setSalonSaved(true)
+        setSalonSkipped(false)
+      }
+      setStep(nextStep(step, businessType))
+    },
+    onSkip: () => {
+      if (step === 'salon' && !salonSaved) {
+        setSalonSkipped(salonSetupIncomplete({ name: saved.name, phone: saved.settings?.phone ?? '', address: saved.settings?.address ?? '' }))
+      }
+      setStep(nextStep(step, businessType))
+    },
+    salonIncomplete: salonSkipped,
     onBack: () => setStep(prevStep(step, businessType)),
   }
   return (

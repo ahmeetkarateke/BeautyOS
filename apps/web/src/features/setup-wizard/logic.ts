@@ -1,4 +1,5 @@
 import { toCreateBody, type ServiceValues } from '@/features/services/logic'
+import { validateSalon } from '@/features/settings/logic'
 import { isClinicMode } from '@/lib/v2/business-type'
 
 // Kurulum sihirbazı saf mantığı (W31, tasarim.md §8.3). Adım sırası ve atlanabilirlik burada; ağ çağrıları api/ekranda.
@@ -8,9 +9,9 @@ export type PickedService = { name: string; category: string; durationText: stri
 export type InviteValues = { fullName: string; email: string; role: 'manager' | 'receptionist' | 'staff' }
 
 const STEPS: readonly Step[] = [
-  { id: 'type', label: 'İşletme türü', skippable: false },
+  { id: 'type', label: 'İşletme türü', skippable: true },
   { id: 'clinic', label: 'Sağlık kuruluşu bilgileri', skippable: true },
-  { id: 'salon', label: 'Salon bilgileri', skippable: false },
+  { id: 'salon', label: 'Salon bilgileri', skippable: true },
   { id: 'hours', label: 'Çalışma saatleri', skippable: true },
   { id: 'services', label: 'Hizmetler', skippable: true },
   { id: 'staff', label: 'Personel', skippable: true },
@@ -129,3 +130,6 @@ export function salonBody(values: { name: string; phone: string; address: string
   const phone = values.phone.trim()
   return { name: values.name.trim(), ...(phone ? { phone } : {}), address: values.address.trim() }
 }
+
+/** Kayıtlı salon bilgileri zorunlu alanları (ad, adres) karşılamıyorsa kurulum Ayarlar'dan tamamlanır. */
+export const salonSetupIncomplete = (saved: { name: string; phone: string; address: string }): boolean => Object.keys(validateSalon(saved)).length > 0
