@@ -223,18 +223,18 @@ describe('W27b Salon bilgileri: e-posta ve aydınlatma metni', () => {
   it('K22: sahip e-posta ve aydınlatma metnini görür; herkese açık notu yazar', async () => {
     mount(<SettingsSection section="salon" />)
     expect(await screen.findByRole('textbox', { name: 'E-posta' })).toBeTruthy()
-    expect(screen.getByRole('textbox', { name: 'Aydınlatma metni' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: /^Aydınlatma metni/ })).toBeTruthy()
     expect(screen.getByText('Bu bilgiler online randevu sayfasında herkese açık görünür.')).toBeTruthy()
   })
   it('K23: müdür e-postayı görür, aydınlatma metnini göremez', async () => {
     mount(<SettingsSection section="salon" />, makeMe('manager'))
     expect(await screen.findByRole('textbox', { name: 'E-posta' })).toBeTruthy()
-    expect(screen.queryByRole('textbox', { name: 'Aydınlatma metni' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: /^Aydınlatma metni/ })).toBeNull()
   })
   it('K24: yazılan e-posta ve metin PATCH ile gider; yalnız değişenler', async () => {
     mount(<SettingsSection section="salon" />)
     fireEvent.change(await screen.findByRole('textbox', { name: 'E-posta' }), { target: { value: 'salon@ornek.com' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Aydınlatma metni' }), { target: { value: 'Veri sorumlusu salondur.' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /^Aydınlatma metni/ }), { target: { value: 'Veri sorumlusu salondur.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect((writes()[0][1] as Init).body).toEqual({ email: 'salon@ornek.com', privacyText: 'Veri sorumlusu salondur.' })
@@ -242,7 +242,7 @@ describe('W27b Salon bilgileri: e-posta ve aydınlatma metni', () => {
   it('K25: geçersiz e-posta ve işaretleme istek atmaz, nedenini yazar', async () => {
     mount(<SettingsSection section="salon" />)
     fireEvent.change(await screen.findByRole('textbox', { name: 'E-posta' }), { target: { value: 'salon@' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Aydınlatma metni' }), { target: { value: '<b>x</b>' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /^Aydınlatma metni/ }), { target: { value: '<b>x</b>' } })
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
     expect(await screen.findByText('E-posta adresini kontrol edin. Örnek: ad@ornek.com')).toBeTruthy()
     expect(screen.getByText('Metne HTML işaretleri (< >) yazılamaz.')).toBeTruthy()
@@ -254,7 +254,7 @@ describe('W27b Salon bilgileri: e-posta ve aydınlatma metni', () => {
     const email = (await screen.findByRole('textbox', { name: 'E-posta' })) as HTMLInputElement
     expect(email.value).toBe('eski@ornek.com')
     fireEvent.change(email, { target: { value: '' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Aydınlatma metni' }), { target: { value: '' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /^Aydınlatma metni/ }), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect((writes()[0][1] as Init).body).toEqual({ email: null, privacyText: null })

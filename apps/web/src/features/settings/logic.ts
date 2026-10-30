@@ -89,3 +89,30 @@ export function moduleToggle(active: readonly string[], key: string, on: boolean
   if (on) return active.includes(key) ? [...active] : [...active, key]
   return locked ? [...active] : active.filter((k) => k !== key)
 }
+
+export type ContactValues = { email: string; privacyText: string }
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MARKUP_RE = /<[^>]*>/
+
+/** Salonun iletişim e-postası herkese açık sayfada görünür; aydınlatma metnini yalnız sahip yazar (sunucu kuralı: en çok 5000, işaretleme yok). */
+export function validateContact(values: ContactValues, isOwner: boolean): Record<string, string> {
+  const errors: Record<string, string> = {}
+  const email = values.email.trim()
+  if (email !== '' && (!EMAIL_RE.test(email) || email.length > 254)) errors.email = 'E-posta adresini kontrol edin. Örnek: ad@ornek.com'
+  if (isOwner) {
+    if (values.privacyText.length > 5000) errors.privacyText = 'Aydınlatma metni en çok 5000 karakter olabilir.'
+    else if (MARKUP_RE.test(values.privacyText)) errors.privacyText = 'Metne HTML işaretleri (< >) yazılamaz.'
+  }
+  return errors
+}
+
+export function contactPatch(values: ContactValues, original: ContactValues, isOwner: boolean): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  const email = values.email.trim()
+  if (email !== original.email.trim()) patch.email = email === '' ? null : email
+  if (isOwner) {
+    const text = values.privacyText.trim()
+    if (text !== original.privacyText.trim()) patch.privacyText = text === '' ? null : text
+  }
+  return patch
+}

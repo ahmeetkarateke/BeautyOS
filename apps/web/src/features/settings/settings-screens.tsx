@@ -17,7 +17,7 @@ import { EmptyState, ErrorState, Forbidden } from '@/ui/states'
 import { StatusBadge } from '@/ui/status-badge'
 import { useToast } from '@/ui/toast'
 import { fetchSettings, patchSettings, type SalonSettings } from './api'
-import { MODULES, moduleToggle, onlinePatch, salonPatch, sectionsFor, validateOnline, validateSalon, type OnlineValues, type SalonValues } from './logic'
+import { contactPatch, MODULES, moduleToggle, onlinePatch, salonPatch, sectionsFor, validateContact, validateOnline, validateSalon, type ContactValues, type OnlineValues, type SalonValues } from './logic'
 
 // Ayarlar (tasarim.md §8.1 `ayarlar`, `ayarlar/<bölüm>`): sahip ve müdür; Modüller ve Terimler yalnız sahip.
 // Kapsam bu parçada: Salon bilgileri, Online randevu (onay ayarı dahil), Çalışma saatleri, Modüller; Terimler "Yakında".
@@ -137,11 +137,18 @@ function useSave(onSaved: () => void) {
 
 function SalonForm({ data, onSaved }: { data: SalonSettings; onSaved: () => void }) {
   const original: SalonValues = { name: data.name, phone: data.settings?.phone ?? '', address: data.settings?.address ?? '' }
+  const isOwner = useMe().role === 'owner'
+  const originalContact: ContactValues = { email: data.settings?.email ?? '', privacyText: data.settings?.privacyText ?? '' }
+  const [contact, setContact] = useState<ContactValues>(originalContact)
   const [values, setValues] = useState<SalonValues>(original)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { busy, failure, save } = useSave(onSaved)
   const set = (key: keyof SalonValues, value: string) => {
     setValues((current) => ({ ...current, [key]: value }))
+    setErrors((current) => ({ ...current, [key]: '' }))
+  }
+  const setContactField = (key: keyof ContactValues, value: string) => {
+    setContact((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: '' }))
   }
   return (
@@ -170,14 +177,35 @@ function SalonForm({ data, onSaved }: { data: SalonSettings; onSaved: () => void
           onChange={(event) => set('address', event.target.value)}
           error={errors.address || undefined}
         />
+        <InputField
+          label="E-posta"
+          type="email"
+          maxLength={254}
+          autoComplete="off"
+          spellCheck={false}
+          value={contact.email}
+          onChange={(event) => setContactField('email', event.target.value)}
+          error={errors.email || undefined}
+        />
+        {isOwner ? (
+          <TextareaField
+            label="Aydınlatma metni"
+            optional
+            hint="Müşterilere online randevu formunda gösterilir. Boş bırakırsanız taslak bir metin görünür."
+            value={contact.privacyText}
+            onChange={(event) => setContactField('privacyText', event.target.value)}
+            error={errors.privacyText || undefined}
+          />
+        ) : null}
+        <p className="text-sm text-text-muted">Bu bilgiler online randevu sayfasında herkese açık görünür.</p>
         <div>
           <Button
             loading={busy}
             loadingText="Kaydediliyor…"
             onClick={() => {
-              const found = validateSalon(values)
+              const found = { ...validateSalon(values), ...validateContact(contact, isOwner) }
               setErrors(found)
-              if (Object.keys(found).length === 0) void save(salonPatch(values, original), 'Salon bilgileri kaydedildi.')
+              if (Object.keys(found).length === 0) void save({ ...salonPatch(values, original), ...contactPatch(contact, originalContact, isOwner) }, 'Salon bilgileri kaydedildi.')
             }}
           >
             Kaydet

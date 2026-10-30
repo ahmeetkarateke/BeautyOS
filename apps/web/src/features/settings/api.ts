@@ -10,6 +10,8 @@ const settingsSchema = z.object({
     .object({
       phone: z.string().nullish(),
       address: z.string().nullish(),
+      email: z.string().nullish(),
+      privacyText: z.string().nullish(),
       workingHours: z.unknown().optional(),
       publicBookingEnabled: z.boolean().nullish(),
       onlineBookingApproval: z.enum(['auto', 'manual']).nullish(),
