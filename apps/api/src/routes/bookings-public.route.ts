@@ -81,6 +81,8 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
           status: booking.status,
           startAt: booking.startAt,
           endAt: booking.endAt,
+          serviceId: booking.serviceId,
+          staffId: booking.staffId,
           serviceName: booking.service.name,
           staffName: booking.staff.user.fullName,
           // Kapalıyken alan hiç bulunmaz (null da dönmez).
