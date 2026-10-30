@@ -139,6 +139,8 @@ export function createPublicRouter(): Router {
         publicBookingEnabled: isPublicBookingEnabled(tenant.settings),
         address: settings.address ?? null,
         phone: settings.phone ?? null,
+        email: settings.email ?? null,
+        privacyText: settings.privacyText ?? null,
         whatsappNumber: settings.whatsappNumber ?? null,
         mapsUrl: settings.mapsUrl ?? null,
         workingHours: settings.workingHours ?? null,

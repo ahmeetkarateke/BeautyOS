@@ -1345,6 +1345,9 @@ export function createTenantRouter(): Router {
     // null = kayıtlı telefonu temizle; doluysa 7-20 kuralı sürer.
     phone: z.string().trim().min(7).max(20).nullable().optional(),
     address: z.string().trim().min(5).max(255).optional(),
+    // Salonun iletişim e-postası ve müşteriye gösterilen aydınlatma metni (yalnız sahip yazar); null = temizle.
+    email: z.string().trim().email().max(254).transform(normalizeEmail).nullable().optional(),
+    privacyText: noXss(5000).nullable().optional(),
     workingHours: z.union([
       z.string().trim().min(1).max(200),
       z.record(z.string(), z.object({ start: z.string(), end: z.string() }).nullable()),
@@ -1399,7 +1402,7 @@ export function createTenantRouter(): Router {
 
       // activeModules (R7), businessType (klinik KVKK korumalarını belirler) ve terim ayarları (A5) yalnız sahibe aittir.
       // Rol adı kasıtlı: bu alanlar için izin anahtarı yok; izin tablosu başka dalda değişiyor.
-      if (role !== 'owner' && (parsed.data.activeModules !== undefined || parsed.data.businessType !== undefined || parsed.data.termSet !== undefined || parsed.data.termOverrides !== undefined)) {
+      if (role !== 'owner' && (parsed.data.activeModules !== undefined || parsed.data.businessType !== undefined || parsed.data.termSet !== undefined || parsed.data.termOverrides !== undefined || parsed.data.privacyText !== undefined)) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu ayarı yalnızca salon sahibi değiştirebilir.' } })
       }
 
@@ -1415,7 +1418,9 @@ export function createTenantRouter(): Router {
         ...(existing.settings as object),
         ...settingsPatch,
       }
-      if (settingsPatch.phone === null) delete (mergedSettings as { phone?: unknown }).phone
+      for (const key of ['phone', 'email', 'privacyText'] as const) {
+        if (settingsPatch[key] === null) delete (mergedSettings as Record<string, unknown>)[key]
+      }
 
       const updated = await db.tenant.update({
         where: { id: tenantId },
