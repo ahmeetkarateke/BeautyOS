@@ -77,7 +77,7 @@ beforeEach(() => {
     }
     return [...sums.values()]
   })
-  dbMock.financialAccount.findFirst.mockImplementation(async ({ where }: { where: { id: string; isActive?: boolean } }) => {
+  dbMock.financialAccount.findFirst.mockImplementation(async ({ where }: { where: { id: string; tenantId?: string; isActive?: boolean } }) => {
     const a = A().find((x) => x.id === where.id)
     if (!a) return null
     if (where.isActive !== undefined && a.isActive !== where.isActive) return null
