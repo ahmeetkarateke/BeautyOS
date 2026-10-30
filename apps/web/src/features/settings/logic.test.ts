@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MODULES, moduleToggle, onlinePatch, salonPatch, sectionsFor, validateOnline, validateSalon, type OnlineValues, type SalonValues } from './logic'
+import { contactPatch, MODULES, moduleToggle, onlinePatch, salonPatch, sectionsFor, validateContact, validateOnline, validateSalon, type OnlineValues, type SalonValues } from './logic'
 
 const salon: SalonValues = { name: 'Defne Güzellik', phone: '0532 111 22 33', address: 'Bahçelievler Mah. 12. Sok. No:4' }
 const online: OnlineValues = { enabled: true, approval: 'manual', whatsapp: '', about: '' }
@@ -88,5 +88,30 @@ describe('W27 Modüller', () => {
 describe('H3 kayıtlı telefon', () => {
   it('H3b: kayıtlı telefon boşaltılabilir; doğrulama hata vermez', () => {
     expect(validateSalon({ ...salon, phone: '' }, salon)).toEqual({})
+  })
+})
+
+describe('W27b salon iletişim e-postası ve aydınlatma metni', () => {
+  const ok = { email: 'salon@ornek.com', privacyText: 'Veri sorumlusu salondur.' }
+  it('K20: geçerli değerler hatasızdır; boş e-posta ve boş metin geçerlidir', () => {
+    expect(validateContact(ok, true)).toEqual({})
+    expect(validateContact({ email: '', privacyText: '' }, true)).toEqual({})
+  })
+  it('K20: e-posta, metin uzunluğu ve işaretleme her biri tek başına işaretlenir', () => {
+    expect(Object.keys(validateContact({ ...ok, email: 'salon@' }, true))).toEqual(['email'])
+    expect(Object.keys(validateContact({ ...ok, privacyText: 'a'.repeat(5001) }, true))).toEqual(['privacyText'])
+    expect(Object.keys(validateContact({ ...ok, privacyText: 'Merhaba <b>dünya</b>' }, true))).toEqual(['privacyText'])
+  })
+  it('K20: sahip olmayan için aydınlatma metni doğrulanmaz', () => {
+    expect(validateContact({ ...ok, privacyText: 'a'.repeat(5001) }, false)).toEqual({})
+  })
+  it('K21: yalnız değişen alan gider; temizlenen kayıtlı değer null ile silinir', () => {
+    expect(contactPatch(ok, ok, true)).toEqual({})
+    expect(contactPatch({ ...ok, email: ' yeni@ornek.com ' }, ok, true)).toEqual({ email: 'yeni@ornek.com' })
+    expect(contactPatch({ email: '', privacyText: '' }, ok, true)).toEqual({ email: null, privacyText: null })
+    expect(contactPatch({ email: '', privacyText: '' }, { email: '', privacyText: '' }, true)).toEqual({})
+  })
+  it('K21: sahip olmayan aydınlatma metnini hiç göndermez', () => {
+    expect(contactPatch({ email: ok.email, privacyText: 'başka' }, ok, false)).toEqual({})
   })
 })
