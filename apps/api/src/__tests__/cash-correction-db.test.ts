@@ -157,7 +157,8 @@ describe('A6b: kasa kapanisi ve duzeltme (gercek PG)', () => {
         startAt: start, endAt: new Date(start.getTime() + 1800_000), priceCharged: 200, status: 'confirmed',
       },
     })
-    expect((await api('post', tenant.slug, '/finance/reopen-day', owner).send({ date: today, reason: 'Yaris denemesi' })).status).toBe(200)
+    // K-R5 6 gunu yeniden acarak bitti; yarisa acik gunle baslanir (ikinci reopen DAY_NOT_CLOSED 409 verir).
+    expect(await db.cashDayClosure.count({ where: { tenantId: tenant.id, isClosed: true } })).toBe(0)
     const [close, complete] = await Promise.all([
       api('post', tenant.slug, `/finance/close-day?date=${today}`, owner).send({}),
       api('patch', tenant.slug, `/appointments/${second.id}/status`, owner).send({ status: 'completed', paymentMethod: 'cash' }),
