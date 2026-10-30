@@ -262,6 +262,7 @@ model Tenant {
   financialAccounts           FinancialAccount[]
   financialTransactions       FinancialTransaction[]
   invitations                 Invitation[]
+  legalAcceptances            LegalAcceptance[]
   messageDeliveries           MessageDelivery[]
   phoneVerifications          PhoneVerification[]
   staffPayouts                StaffPayout[]
@@ -294,6 +295,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   sessions            Session[]
   invitationsSent     Invitation[]          @relation("InvitedBy")
+  legalAcceptances    LegalAcceptance[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1216,4 +1218,20 @@ model Invitation {
   @@index([tenantId, createdAt])
   @@index([tenantId, email])
   @@map("invitations")
+}
+
+// ADR-0048: kayıtta verilen sözleşme ve rıza kabulleri. Her belge ayrı satır; satırlar değiştirilmez, geri çekme yeni satır olur.
+model LegalAcceptance {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  userId     String   @db.Uuid
+  document   String
+  version    String
+  acceptedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("legal_acceptances")
 }

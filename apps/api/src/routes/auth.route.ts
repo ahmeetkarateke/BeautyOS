@@ -10,6 +10,7 @@ import { seedDefaultAnamnesisQuestions } from '../lib/anamnesis-seeder'
 import crypto from 'crypto'
 import { comparePassword, normalizeEmail } from '../lib/credentials'
 import { strongPassword } from '../lib/password-policy'
+import { acceptanceRows } from '../lib/legal-acceptance'
 import { createSession, rotateSession, revokeByToken, revokeFamily, revokeUserSessions, SESSION_TTL_MS } from '../lib/sessions'
 
 // E-posta şemada küçük harfe çevrilir ve TAM eşitlikle aranır. 'insensitive' (ILIKE) kullanılmaz: '_' ve '%' joker olur,
@@ -21,9 +22,18 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+const slugField = z.string().trim().regex(/^[a-z0-9-]{3,30}$/, 'Slug sadece küçük harf, rakam ve tire içerebilir (3-30 karakter).')
+
+// Yeni arayüz rızaları (ADR-0048). Alan yoksa eski arayüz yoludur ve kabul kaydı oluşmaz; varsa terms true olmalıdır (K1).
+const consentsSchema = z.object({
+  terms: z.literal(true, { errorMap: () => ({ message: "Devam etmek için Kullanım Şartları'nı ve Veri İşleme Sözleşmesi'ni kabul etmeniz gerekir." }) }),
+  marketingEmail: z.boolean().optional(),
+})
+
 const registerSchema = z.object({
   salonName: z.string().trim().min(2).max(100),
-  slug: z.string().trim().regex(/^[a-z0-9-]{3,30}$/, 'Slug sadece küçük harf, rakam ve tire içerebilir (3-30 karakter).'),
+  slug: slugField,
+  consents: consentsSchema.optional(),
   ownerFullName: z.string().trim().min(2).max(100),
   phone: z.string().trim().regex(/^[0-9+\s()-]{7,20}$/, 'Geçerli bir telefon numarası girin.').optional(),
   email: emailField,
@@ -66,7 +76,7 @@ export function signAccessToken(secret: string, claims: { userId: string; tenant
   return jwt.sign({ ...claims, sid }, secret, { expiresIn: ACCESS_EXPIRY })
 }
 
-export function createAuthRouter(options?: { registerLimitMax?: number }): Router {
+export function createAuthRouter(options?: { registerLimitMax?: number; resetLimitMax?: number; slugCheckLimitMax?: number }): Router {
   const router = Router()
 
   const registerLimiter = rateLimit({
@@ -86,6 +96,28 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.' } },
   })
 
+  const resetRequestLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: options?.resetLimitMax ?? 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' } },
+  })
+  const resetConfirmLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: options?.resetLimitMax ?? 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' } },
+  })
+  const slugLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: options?.slugCheckLimitMax ?? 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMIT', message: 'Çok fazla deneme. Biraz sonra tekrar deneyin.' } },
+  })
+
   router.post('/register', registerLimiter, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = registerSchema.safeParse(req.body)
@@ -93,7 +125,7 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz kayıt verisi.' } })
       }
 
-      const { salonName, slug, ownerFullName, phone, email, password, businessType } = parsed.data
+      const { salonName, slug, ownerFullName, phone, email, password, businessType, consents } = parsed.data
 
       const slugExists = await db.tenant.findUnique({ where: { slug }, select: { id: true } })
       if (slugExists) {
@@ -131,6 +163,9 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
             isActive: true,
           },
         })
+        if (consents) {
+          await tx.legalAcceptance.createMany({ data: acceptanceRows(tenant.id, user.id, consents) })
+        }
         return { tenant, user }
       })
 
@@ -290,7 +325,8 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
     }
   })
 
-  router.post('/forgot-password', async (req: Request, res: Response, next: NextFunction) => {
+  // Eski arayüz bağlantıyı ?token= ile, yeni arayüz #token= ile alır (ADR-0046); iş mantığı ortaktır.
+  const handleForgot = (buildLink: (frontendUrl: string, rawToken: string) => string) => async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = z.object({ email: emailField }).safeParse(req.body)
       if (!parsed.success) {
@@ -321,15 +357,15 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
 
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000'
       // Adres isteğe değil kayıtlı hesaba gönderilir: eşleşme ne olursa olsun bağlantı yalnız hesap sahibine gider.
-      void sendPasswordResetEmail(user.email, `${frontendUrl}/reset-password?token=${rawToken}`)
+      void sendPasswordResetEmail(user.email, buildLink(frontendUrl, rawToken))
 
       return res.json({ ok: true })
     } catch (err) {
       next(err)
     }
-  })
+  }
 
-  router.post('/reset-password', async (req: Request, res: Response, next: NextFunction) => {
+  const handleReset = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = z.object({
         token: z.string().min(1).max(128),
@@ -361,6 +397,24 @@ export function createAuthRouter(options?: { registerLimitMax?: number }): Route
       await revokeUserSessions(resetToken.userId)
 
       return res.json({ ok: true })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  router.post('/forgot-password', handleForgot((base, raw) => `${base}/reset-password?token=${raw}`))
+  router.post('/reset-password', handleReset)
+  // Yeni arayüz: token URL'nin # parçasında gider (sunucu günlüklerine ve Referer'a düşmez), API'ye gövdede gelir.
+  router.post('/password-reset/request', resetRequestLimiter, handleForgot((base, raw) => `${base}/reset-password#token=${raw}`))
+  router.post('/password-reset/confirm', resetConfirmLimiter, handleReset)
+
+  // Kimliksiz uygunluk kontrolü (kayıt formu önizlemesi). Yalnız var/yok döner; başka alan sızdırmaz.
+  router.get('/slug-available', slugLimiter, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = slugField.safeParse(req.query.slug)
+      if (!parsed.success) return res.json({ available: false, reason: 'invalid' })
+      const taken = await db.tenant.findUnique({ where: { slug: parsed.data }, select: { id: true } })
+      return res.json(taken ? { available: false, reason: 'taken' } : { available: true })
     } catch (err) {
       next(err)
     }
