@@ -31,6 +31,7 @@ const consentsSchema = z.object({
   labelVersion: z.string().max(40),
   terms: z.literal(true, { errorMap: () => ({ message: "Devam etmek için Kullanım Şartları'nı ve Veri İşleme Sözleşmesi'ni kabul etmeniz gerekir." }) }),
   marketingEmail: z.boolean().optional(),
+  marketingTextVersion: z.string().max(40).optional(),
 })
 
 const registerSchema = z.object({

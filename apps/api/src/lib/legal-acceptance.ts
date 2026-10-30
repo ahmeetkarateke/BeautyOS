@@ -12,6 +12,8 @@ export interface RegistrationConsents {
   dpaVersion: string
   labelVersion: string
   marketingEmail?: boolean
+  /** K3 kutusu isaretliyse zorunlu: istemcinin gordugu izin metni surumu. */
+  marketingTextVersion?: string
 }
 
 export interface RequestEvidence {
@@ -19,8 +21,10 @@ export interface RequestEvidence {
   userAgent: string | null
 }
 
-export function versionsMatch(c: Pick<RegistrationConsents, 'termsVersion' | 'dpaVersion' | 'labelVersion'>): boolean {
-  return c.termsVersion === LEGAL_VERSIONS.termsVersion && c.dpaVersion === LEGAL_VERSIONS.dpaVersion && c.labelVersion === LEGAL_VERSIONS.labelVersion
+// Izin metni surumu yalniz K3 isaretliyse aranir: izin, kullanicinin gordugu metin surumuyle kaydedilmeli (ispat).
+export function versionsMatch(c: Pick<RegistrationConsents, 'termsVersion' | 'dpaVersion' | 'labelVersion' | 'marketingEmail' | 'marketingTextVersion'>): boolean {
+  const marketingOk = !c.marketingEmail || c.marketingTextVersion === LEGAL_VERSIONS.marketingTextVersion
+  return c.termsVersion === LEGAL_VERSIONS.termsVersion && c.dpaVersion === LEGAL_VERSIONS.dpaVersion && c.labelVersion === LEGAL_VERSIONS.labelVersion && marketingOk
 }
 
 // Kayıt anının anlık görüntüsü: kiracı ya da kullanıcı silinse de kabul kaydı kanıt olarak okunabilir kalır (ADR-0048, SET NULL).
@@ -41,7 +45,7 @@ export function acceptanceRows(tenantId: string, userId: string, c: Registration
 // K3: yalnız kutu işaretliyse satır yazılır; varsayılan "izin yok".
 export function marketingRows(tenantId: string, userId: string, c: RegistrationConsents, ev: RequestEvidence, snap: RecordSnapshot) {
   if (!c.marketingEmail) return []
-  return [{ tenantId, userId, channel: 'email', status: 'granted', source: 'signup_form', consentTextVersion: LEGAL_VERSIONS.marketingTextVersion, ...ev, ...snap }]
+  return [{ tenantId, userId, channel: 'email', status: 'granted', source: 'signup_form', consentTextVersion: c.marketingTextVersion ?? LEGAL_VERSIONS.marketingTextVersion, ...ev, ...snap }]
 }
 
 export function requestEvidence(req: { ip?: string; get(name: string): string | undefined }): RequestEvidence {
