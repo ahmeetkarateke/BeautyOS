@@ -34,9 +34,10 @@ export const BUSINESS_TYPE_OPTIONS: { value: string; label: string }[] = [
 export const stepsFor = (_businessType: string): Step[] => STEPS.map((s) => ({ ...s }))
 
 const ids = STEPS.map((s) => s.id)
-export const nextStep = (id: StepId): StepId => ids[Math.min(ids.indexOf(id) + 1, ids.length - 1)]
-export const prevStep = (id: StepId): StepId => ids[Math.max(ids.indexOf(id) - 1, 0)]
-export const stepProgress = (id: StepId) => ({ index: ids.indexOf(id) + 1, total: ids.length })
+export const nextStep = (id: StepId, _t?: string): StepId => ids[Math.min(ids.indexOf(id) + 1, ids.length - 1)]
+export const prevStep = (id: StepId, _t?: string): StepId => ids[Math.max(ids.indexOf(id) - 1, 0)]
+export const serviceCreateBody = (_p: PickedService): Record<string, unknown> => ({})
+export const stepProgress = (id: StepId, _t?: string) => ({ index: ids.indexOf(id) + 1, total: ids.length })
 
 type Suggestion = { name: string; category: string; durationText: string }
 const SUGGESTIONS: Record<string, Suggestion[]> = {

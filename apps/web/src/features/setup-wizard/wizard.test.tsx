@@ -43,6 +43,19 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
+async function toStaff() {
+  mount()
+  await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+  click('Devam et')
+  await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })
+  click('Kaydet ve devam et')
+  await screen.findByRole('heading', { level: 1, name: 'Çalışma saatleri' })
+  click('Şimdilik atla')
+  await screen.findByRole('heading', { level: 1, name: 'Hizmetler' })
+  click('Şimdilik atla')
+  await screen.findByRole('heading', { level: 1, name: 'Personel' })
+}
+
 async function toSalon() {
   mount()
   await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
@@ -51,6 +64,62 @@ async function toSalon() {
 }
 
 describe('W31 Kurulum sihirbazı', () => {
+  it('K9: e-posta gitmediyse (emailSent false) uyarı ve kopyalanabilir bağlantı gösterilir; gittiyse "Davet gönderildi"', async () => {
+    request.mockImplementation(async (path: string, init?: Init) => {
+      if (path.endsWith('/invitations')) return { id: 'i1', link: 'https://x.test/invite#abc', emailSent: init?.body?.email === 'gider@ornek.com' }
+      if (init?.method) return {}
+      return { name: 'Defne Berber', settings: { phone: '05321234567', address: 'Atatürk Cad. 5, Kadıköy', workingHours: null } }
+    })
+    await toStaff()
+    fill(screen.getByLabelText('Ad soyad'), 'Ayşe Demir')
+    fill(screen.getByLabelText('E-posta'), 'gitmez@ornek.com')
+    click('Daveti gönder')
+    expect(await screen.findByText(/E-posta gönderilemedi/)).toBeTruthy()
+    expect((screen.getByLabelText('Davet bağlantısı') as HTMLInputElement).value).toBe('https://x.test/invite#abc')
+    fill(screen.getByLabelText('Ad soyad'), 'Can Er')
+    fill(screen.getByLabelText('E-posta'), 'gider@ornek.com')
+    click('Daveti gönder')
+    expect(await screen.findByText(/Davet gönderildi: Can Er/)).toBeTruthy()
+  })
+
+  it('K10: müdür davet gönderemez (staff.invite yalnız sahipte): form yok, salon sahibi bilgisi var', async () => {
+    mount(makeMe('manager', { businessType: 'barbershop' }))
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    click('Devam et')
+    await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })
+    click('Kaydet ve devam et')
+    await screen.findByRole('heading', { level: 1, name: 'Çalışma saatleri' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Hizmetler' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Personel' })
+    expect(screen.queryByLabelText('E-posta')).toBeNull()
+    expect(screen.getByText('Personel davetini salon sahibi gönderir.')).toBeTruthy()
+  })
+
+  it('K11: işletme türü değişince hizmet önerileri yeni türe göre gelir', async () => {
+    mount()
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    fireEvent.change(screen.getByLabelText('İşletme türü'), { target: { value: 'nail_studio' } })
+    click('Devam et')
+    await screen.findByRole('heading', { level: 1, name: 'Salon bilgileri' })
+    click('Kaydet ve devam et')
+    await screen.findByRole('heading', { level: 1, name: 'Çalışma saatleri' })
+    click('Şimdilik atla')
+    await screen.findByRole('heading', { level: 1, name: 'Hizmetler' })
+    expect(screen.getByLabelText('Manikür (45 dk)')).toBeTruthy()
+    expect(screen.queryByLabelText('Sakal tıraşı (20 dk)')).toBeNull()
+    expect(writes()[0].body).toEqual({ businessType: 'nail_studio' })
+  })
+
+  it('K12: klinik hesapta tür adımından sonra sağlık kuruluşu bilgi adımı açılır', async () => {
+    mount(makeMe('owner', { businessType: 'dentist' }))
+    await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
+    click('Devam et')
+    await screen.findByRole('heading', { level: 1, name: 'Sağlık kuruluşu bilgileri' })
+    expect(screen.getByText(/henüz hazır değil/)).toBeTruthy()
+  })
+
   it('K1: ilk adım işletme türüdür, ilerleme çizgisi 1/7 der; tür değişmediyse istek atılmaz', async () => {
     mount()
     await screen.findByRole('heading', { level: 1, name: 'İşletme türü' })
@@ -92,11 +161,11 @@ describe('W31 Kurulum sihirbazı', () => {
     click('Kaydet ve devam et')
     expect(await screen.findByText(/Fiyatı rakamlarla yazın/)).toBeTruthy()
     expect(writes().some((w) => w.path.endsWith('/services'))).toBe(false)
-    fill(screen.getByLabelText('Sakal tıraşı fiyatı (TL)'), '250')
+    fill(screen.getByLabelText('Sakal tıraşı fiyatı (TL)'), '850.50')
     click('Kaydet ve devam et')
     await screen.findByRole('heading', { level: 1, name: 'Personel' })
     const post = writes().find((w) => w.path.endsWith('/services'))
-    expect(post?.body).toMatchObject({ name: 'Sakal tıraşı', durationMinutes: 20, price: 250 })
+    expect(post?.body).toMatchObject({ name: 'Sakal tıraşı', durationMinutes: 20, price: 850.5 })
   })
 
   it('K5: personel adımında geçersiz e-posta reddedilir; "Sadece ben" davet göndermeden ilerler', async () => {
