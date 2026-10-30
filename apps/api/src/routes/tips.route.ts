@@ -571,6 +571,8 @@ export function createTipsRouter(): Router {
         const tipsWhere: Prisma.TipEntryWhereInput = {
           tenantId,
           isDistributed: false,
+          // Varsayılan havuz yalnız kişiye atanmamış bahşiştir; kişiye bırakılan bahşiş başkalarına bölünmez.
+          ...(tipIds && tipIds.length > 0 ? {} : { staffId: null }),
           ...(tipIds && tipIds.length > 0 ? { id: { in: tipIds } } : {}),
         }
         const targetTips = await tx.tipEntry.findMany({
@@ -655,7 +657,7 @@ export function createTipsRouter(): Router {
         )
 
         await tx.tipEntry.updateMany({
-          where: { id: { in: targetTips.map((t) => t.id) } },
+          where: { tenantId, id: { in: targetTips.map((t) => t.id) } },
           data: { isDistributed: true },
         })
 
