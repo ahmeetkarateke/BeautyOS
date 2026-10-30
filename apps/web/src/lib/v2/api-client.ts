@@ -38,6 +38,8 @@ export type RequestOptions = {
   body?: unknown
   query?: Record<string, string | number | boolean | undefined>
   signal?: AbortSignal
+  /** 'text': yanıt JSON değildir (ör. takvim dosyası), düz metin döner. */
+  responseType?: 'text'
 }
 
 export type ApiClientConfig = {
@@ -153,6 +155,7 @@ export function createApiClient(config: ApiClientConfig) {
     }
     if (res.status === 204) return undefined as T
     const text = await res.text()
+    if (options.responseType === 'text') return text as T
     return (text ? JSON.parse(text) : undefined) as T
   }
 

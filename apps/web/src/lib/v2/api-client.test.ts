@@ -232,3 +232,10 @@ describe('apiClient: yenilemesiz uçlar açık liste (denetim W5-1 Önemli)', ()
     await expect(client.request('/api/v1/x')).rejects.toMatchObject({ status: 429, code: 'RATE_LIMIT' })
   })
 })
+
+describe('W32 düz metin yanıtı', () => {
+  it('responseType text: JSON olmayan yanıt (takvim dosyası) çözümlenmeden metin olarak döner', async () => {
+    const { client } = setup(() => new Response('BEGIN:VCALENDAR\r\nEND:VCALENDAR', { status: 200, headers: { 'content-type': 'text/calendar' } }))
+    await expect(client.request<string>('/api/v1/public/bookings/calendar', { method: 'POST', body: { token: 't' }, responseType: 'text' })).resolves.toContain('BEGIN:VCALENDAR')
+  })
+})
