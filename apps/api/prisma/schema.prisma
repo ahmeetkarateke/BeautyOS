@@ -262,6 +262,7 @@ model Tenant {
   purchaseInvoices            PurchaseInvoice[]
   financialAccounts           FinancialAccount[]
   financialTransactions       FinancialTransaction[]
+  invitations                 Invitation[]
   messageDeliveries           MessageDelivery[]
   phoneVerifications          PhoneVerification[]
   staffPayouts                StaffPayout[]
@@ -293,6 +294,7 @@ model User {
   staffProfile        StaffProfile?
   passwordResetTokens PasswordResetToken[]
   sessions            Session[]
+  invitationsSent     Invitation[]          @relation("InvitedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1191,4 +1193,29 @@ model MessageDelivery {
   @@index([customerId])
   @@index([appointmentId])
   @@map("message_deliveries")
+}
+
+// ─── Invitation (Personel daveti, A3 / ADR-0042) ─────────────────────────────
+
+model Invitation {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  email          String // kucuk harf
+  fullName       String
+  role           UserRole
+  title          String?
+  invitedById    String?   @db.Uuid // davet eden silinirse davet kalir (SET NULL)
+  tokenHash      String    @unique // sha-256 hex; token'in kendisi saklanmaz
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  acceptedUserId String?   @db.Uuid
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitedBy User?  @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, email])
+  @@map("invitations")
 }

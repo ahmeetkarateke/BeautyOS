@@ -75,7 +75,11 @@ const TEXTS: Record<string, Entry> = {
     default: 'Bu kayıt artık işlem kabul etmiyor.',
     appointment: 'Tamamlanan veya iptal edilen randevu değiştirilemez.',
   },
-  APPOINTMENT_LOCKED: 'Tamamlanan veya “Gelmedi” işaretli randevu silinemez.',
+  // Metin rehberinde yok: W16/W19 ile eklendi, denetçi/teknik-yazar onayına işaretli.
+  DAY_CLOSED: 'Bu günün kasası kapatılmış. Sahip ya da müdür günü yeniden açtıktan sonra işlem yapılabilir.',
+  DAY_NOT_CLOSED: 'Bu gün zaten açık.',
+  NOT_COMPLETED: 'Bu randevu henüz tamamlanmadığı için ödeme düzeltmesi yapılamaz.',
+  APPOINTMENT_LOCKED:'Tamamlanan veya “Gelmedi” işaretli randevu silinemez.',
   PACKAGE_NOT_ACTIVE: 'Bu paket aktif değil.',
   NO_SESSIONS_LEFT: 'Bu pakette kalan seans yok. Yeni paket satabilirsiniz.',
   PACKAGE_EXPIRED: 'Paketin süresi dolmuş.',

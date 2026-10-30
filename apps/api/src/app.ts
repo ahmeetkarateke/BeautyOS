@@ -4,6 +4,7 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { createAuthRouter } from './routes/auth.route'
 import { createBookingManageRouter } from './routes/bookings-public.route'
+import { createInvitationsRouter, createPublicInvitationsRouter } from './routes/invitations.route'
 import { createMeRouter } from './routes/me.route'
 import { createTenantRouter } from './routes/tenant.route'
 import { createPublicRouter } from './routes/public.route'
@@ -81,6 +82,8 @@ export function createApp(options?: { rateLimitMax?: number }) {
   // Musteri randevu baglantisi (ADR-0043/0046): kiracisiz, token govdede; kendi hiz siniri var.
   app.use('/api/v1/public/bookings', createBookingManageRouter())
 
+  // Davet kabul uclarinin kendi siniri var (IP basina 15 dk / 20); genel authLimiter'dan once baglanir.
+  app.use('/api/v1/auth/invitations', createPublicInvitationsRouter({ limitMax: options?.rateLimitMax }))
   app.use('/api/v1/auth', authLimiter, createAuthRouter({ registerLimitMax: options?.rateLimitMax }))
   app.use('/api/v1/admin', createAdminRouter())
   app.use('/api/v1/tenants/:slug/public', createPublicRouter())
@@ -95,6 +98,7 @@ export function createApp(options?: { rateLimitMax?: number }) {
   app.use('/api/v1/tenants/:slug', createFinancialAccountsRouter())
   app.use('/api/v1/tenants/:slug', createStockRouter())
   app.use('/api/v1/tenants/:slug', createAppointmentApprovalRouter())
+  app.use('/api/v1/tenants/:slug', createInvitationsRouter())
   app.use('/api/v1/tenants/:slug/panel-summary', createPanelSummaryRouter())
   app.use('/api/v1/tenants/:slug', createTenantRouter())
 

@@ -75,7 +75,7 @@ describe('Randevu endpointleri', () => {
     expect(res.body).toHaveProperty('referenceCode')
     expect(res.body.referenceCode).toMatch(/^APT-/)
     expect(res.body).toHaveProperty('id')
-    expect(res.body.status).toBe('pending')
+    expect(res.body.status).toBe('confirmed')
     createdAppointmentId = res.body.id
   })
 

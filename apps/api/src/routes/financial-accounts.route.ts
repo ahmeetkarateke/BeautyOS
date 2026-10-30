@@ -237,10 +237,11 @@ export function createFinancialAccountsRouter(): Router {
             data: {
               tenantId,
               accountId: account.id,
-              type: FinancialTransactionType.opening_balance,
+              // amount her zaman pozitiftir, yönü type belirler: eksi açılış (borç) gider yönünde kaydedilir.
+              type: data.openingBalance > 0 ? FinancialTransactionType.opening_balance : FinancialTransactionType.expense,
               amount: new Prisma.Decimal(Math.abs(data.openingBalance)),
               date: new Date(),
-              description: 'Açılış bakiyesi',
+              description: data.openingBalance > 0 ? 'Açılış bakiyesi' : 'Açılış bakiyesi (borç)',
               createdBy: userId,
             },
           })
@@ -436,8 +437,8 @@ export function createFinancialAccountsRouter(): Router {
       const data = parsed.data
 
       const [from, to] = await Promise.all([
-        db.financialAccount.findFirst({ where: { id: data.fromAccountId, tenantId }, select: { id: true, name: true } }),
-        db.financialAccount.findFirst({ where: { id: data.toAccountId, tenantId }, select: { id: true, name: true } }),
+        db.financialAccount.findFirst({ where: { id: data.fromAccountId, tenantId, isActive: true }, select: { id: true, name: true } }),
+        db.financialAccount.findFirst({ where: { id: data.toAccountId, tenantId, isActive: true }, select: { id: true, name: true } }),
       ])
       if (!from || !to) {
         return res.status(400).json({ error: { code: 'INVALID_ACCOUNT', message: 'Hesap(lar) bulunamadı.' } })

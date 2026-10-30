@@ -16,6 +16,7 @@ import { StatusBadge } from '@/ui/status-badge'
 import { useToast } from '@/ui/toast'
 import { availableActions, isLocked, whatsappHref, type DetailAction } from './actions'
 import { deleteAppointment } from './api'
+import { CompleteSheet } from '@/features/payment/complete-sheet'
 import { RescheduleSheet } from './reschedule-sheet'
 
 // Randevu ayrıntısı (tasarim.md §5): bilgi + iletişim + duruma göre eylemler. Tamamlama ve ödeme W16'dadır.
@@ -34,7 +35,7 @@ export function AppointmentDetailSheet({ appointment, today, now, onClose, onCha
   )
 }
 
-type Pending = Exclude<DetailAction, 'start' | 'reschedule'> | null
+type Pending = Exclude<DetailAction, 'start' | 'complete' | 'reschedule'> | null
 
 const CONFIRM: Record<Exclude<Pending, null>, { title: string; description: (a: DayAppointment) => string; label: string; loading: string; destructive: boolean }> = {
   cancel: {
@@ -71,6 +72,7 @@ function DetailBody({ appointment, today, now, onClose, onChanged }: { appointme
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Pending>(null)
   const [rescheduling, setRescheduling] = useState(false)
+  const [completing, setCompleting] = useState(false)
 
   const locked = isLocked(appointment.status)
   const actions = availableActions(appointment.status, { canReschedule, canDelete, hasService: appointment.serviceId !== null })
@@ -97,7 +99,7 @@ function DetailBody({ appointment, today, now, onClose, onChanged }: { appointme
     }
   }
 
-  const label: Record<DetailAction, string> = { start: 'Başlat', reschedule: 'Saati değiştir', noShow: 'Gelmedi', cancel: 'İptal et', delete: 'Sil' }
+  const label: Record<DetailAction, string> = { start: 'Başlat', complete: 'Tamamla ve ödeme al', reschedule: 'Saati değiştir', noShow: 'Gelmedi', cancel: 'İptal et', delete: 'Sil' }
 
   return (
     <div className="grid gap-4 pb-2">
@@ -159,6 +161,10 @@ function DetailBody({ appointment, today, now, onClose, onChanged }: { appointme
               <Button key={action} loading={busy === 'start'} loadingText="Başlatılıyor…" disabled={busy !== null} onClick={() => void run('start')}>
                 {label[action]}
               </Button>
+            ) : action === 'complete' ? (
+              <Button key={action} disabled={busy !== null} onClick={() => setCompleting(true)}>
+                {label[action]}
+              </Button>
             ) : action === 'reschedule' ? (
               <Button key={action} variant="secondary" disabled={busy !== null} onClick={() => setRescheduling(true)}>
                 {label[action]}
@@ -185,6 +191,19 @@ function DetailBody({ appointment, today, now, onClose, onChanged }: { appointme
           loadingText={CONFIRM[pending].loading}
           destructive={CONFIRM[pending].destructive}
           onConfirm={() => void run(pending)}
+        />
+      ) : null}
+
+      {completing ? (
+        <CompleteSheet
+          appointment={appointment}
+          onClose={() => setCompleting(false)}
+          onStale={onChanged}
+          onDone={() => {
+            setCompleting(false)
+            onChanged()
+            onClose()
+          }}
         />
       ) : null}
 

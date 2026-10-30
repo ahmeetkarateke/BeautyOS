@@ -18,6 +18,8 @@ export type DayAppointment = {
   customerPhone: string
   /** Müşteri kaydıyla eşleşmemiş (telefonu doğrulanmamış) online talep. */
   unverified: boolean
+  /** Kaynak: web (online talep), manual (panel), bot. API göndermiyorsa tanımsız. */
+  bookingChannel?: string
   serviceName: string
   start: Date
   end: Date
@@ -68,6 +70,7 @@ const rowSchema = z.object({
   customerName: z.string(),
   customerPhone: z.string().optional(),
   unverified: z.boolean().optional(),
+  bookingChannel: z.string().optional(),
   serviceName: z.string(),
   staffName: z.string(),
   staffId: z.string().optional(),
@@ -94,6 +97,7 @@ export function parseDayAppointment(input: unknown): DayAppointment {
     customerName: row.customerName,
     customerPhone: row.customerPhone ?? '',
     unverified: row.unverified ?? false,
+    bookingChannel: row.bookingChannel,
     serviceName: row.serviceName,
     start,
     end,
@@ -156,8 +160,11 @@ export function occupancyPercent(appointments: readonly DayAppointment[], staffC
   return Math.round((booked / (staffCount * (range.endMin - range.startMin))) * 100)
 }
 
+/** ADR-0045: pending yalnız onay bekleyen online talep demektir; panelden açılan (manual) randevu confirmed başlar. Kanal bilinmiyorsa talep kaybolmasın diye online sayılır. */
+export const isOnlineRequest = (a: Pick<DayAppointment, 'status' | 'bookingChannel'>): boolean => a.status === 'pending' && a.bookingChannel !== 'manual'
+
 export const pendingRequests = (appointments: readonly DayAppointment[]): DayAppointment[] =>
-  appointments.filter((a) => a.status === 'pending').sort((a, b) => a.start.getTime() - b.start.getTime())
+  appointments.filter(isOnlineRequest).sort((a, b) => a.start.getTime() - b.start.getTime())
 
 /** Beklenen tutar: henüz tahsil edilmemiş açık randevuların fiyatı. */
 export const expectedRevenue = (appointments: readonly DayAppointment[]): number =>

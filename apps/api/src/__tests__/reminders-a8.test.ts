@@ -39,6 +39,7 @@ vi.mock('../lib/online-booking', () => ({
   anonymizeStaleRequests: vi.fn(), expireOnlineRequest: vi.fn(), sweepExpiredOnlineRequests: vi.fn(),
 }))
 vi.mock('../lib/sessions', () => ({ purgeExpiredSessions: vi.fn() }))
+vi.mock('../lib/invitations', () => ({ purgeStaleInvitations: vi.fn() }))
 
 import { UnrecoverableError } from 'bullmq'
 import { processReminderJob, remindersQueue, scheduleReminders, cancelReminders } from '../lib/queue'

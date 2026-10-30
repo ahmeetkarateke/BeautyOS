@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchRangeAppointments, fetchStaff } from '@/features/appointments/api'
-import { addDaysToDateStr, istanbulDateStr, istanbulMinutes, stripRange, type DayAppointment } from '@/features/appointments/day-logic'
+import { addDaysToDateStr, isOnlineRequest, istanbulDateStr, istanbulMinutes, stripRange, type DayAppointment } from '@/features/appointments/day-logic'
 import { attachStaff, type StaffMember } from '@/features/appointments/staff'
 import { toneForIndex } from '@/features/appointments/tones'
 import { ApprovalSheet } from '@/features/today/approval-sheet'
@@ -203,7 +203,7 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
   const openAppointment = (id: string) => {
     const found = appointments.find((a) => a.id === id)
     if (!found) return
-    if (found.status === 'pending' && canApprove) setReviewing(found)
+    if (isOnlineRequest(found) && canApprove) setReviewing(found)
     else setPeeking(found)
   }
 

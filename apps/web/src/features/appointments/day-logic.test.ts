@@ -7,6 +7,7 @@ import {
   nameKey,
   occupancyPercent,
   parseDayAppointment,
+  isOnlineRequest,
   pendingRequests,
   percentOf,
   periodRange,
@@ -144,10 +145,7 @@ describe('W10: şu an boş / meşgul', () => {
   })
 
   it('iptal ve gelmedi randevular kişiyi meşgul saymaz', () => {
-    const list = [
-      appt({ id: '1', from: '14:00', to: '15:00', status: 'cancelled' }),
-      appt({ id: '2', from: '14:10', to: '14:50', status: 'no_show' }),
-    ]
+    const list = [appt({ id: '1', from: '14:00', to: '15:00', status: 'cancelled' }), appt({ id: '2', from: '14:10', to: '14:50', status: 'no_show' })]
     expect(staffState(list, 'p1', now, range)).toEqual({ kind: 'free', until: '20:00' })
   })
 
@@ -235,5 +233,21 @@ describe('W10: dönem aralığı', () => {
   it('ay: ayın ilk ve son günü (şubat, artık yıl)', () => {
     expect(periodRange('month', '2028-02-10')).toEqual({ from: '2028-02-01', to: '2028-02-29' })
     expect(periodRange('month', '2026-10-28')).toEqual({ from: '2026-10-01', to: '2026-10-31' })
+  })
+})
+
+describe('ADR-0045: pending yalnız onay bekleyen online talep demektir', () => {
+  it('K1: panelden açılmış (manual) pending kayıt online talep sayılmaz ve bekleyen listeden düşer', () => {
+    const manual = { ...appt({ id: 'm', from: '10:00', to: '11:00', status: 'pending' }), bookingChannel: 'manual' }
+    const web = { ...appt({ id: 'w', from: '12:00', to: '13:00', status: 'pending' }), bookingChannel: 'web' }
+    expect(isOnlineRequest(manual)).toBe(false)
+    expect(isOnlineRequest(web)).toBe(true)
+    expect(pendingRequests([manual, web]).map((a) => a.id)).toEqual(['w'])
+  })
+  it('K2: kanal alanı gelmediyse (API henüz göndermiyor) pending online talep sayılır: kayıp talep olmaz', () => {
+    expect(isOnlineRequest(appt({ id: 'x', from: '10:00', to: '11:00', status: 'pending' }))).toBe(true)
+  })
+  it('K3: confirmed kayıt kanalı ne olursa olsun online talep değildir', () => {
+    expect(isOnlineRequest({ ...appt({ id: 'c', from: '10:00', to: '11:00' }), bookingChannel: 'web' })).toBe(false)
   })
 })
