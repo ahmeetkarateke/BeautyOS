@@ -98,17 +98,28 @@ describe('OTP hicbir yerde saklanmaz', () => {
 describe('L4: 1 yil sonra alici anonimlesir', () => {
   it('createdAt tam 1 yil oncesinden eski kayitlarda phone, email ve govde NULL; bir gun sonrasi dokunulmaz', async () => {
     const now = new Date('2027-10-29T20:30:00Z')
-    expect(await anonymizeOldDeliveries(now)).toBe(2)
-    const call = dbMock.messageDelivery.updateMany.mock.calls[0][0]
+    expect(await anonymizeOldDeliveries(now)).toBe(4)
     const cutoff = new Date(now.getTime() - DELIVERY_RETENTION_MS)
     expect(DELIVERY_RETENTION_MS).toBe(365 * 86_400_000)
-    expect(call.where.createdAt).toEqual({ lt: cutoff })
-    expect(call.data).toEqual({ phone: null, email: null, body: null })
+    const calls = dbMock.messageDelivery.updateMany.mock.calls.map((c: unknown[]) => c[0] as { where: Record<string, unknown>; data: Record<string, unknown> })
+    expect(calls).toHaveLength(2)
+    for (const call of calls) expect(call.where.createdAt).toEqual({ lt: cutoff })
+    const templated = calls.find((c) => JSON.stringify(c.where.templateKey) === JSON.stringify({ not: null }))
+    expect(templated?.data).toEqual({ phone: null, email: null, body: null })
+  })
+
+  it('sablonsuz satir govdeyle birlikte legacy@0 olur; CHECK (govde ya da anahtar+surum) bozulmaz', async () => {
+    await anonymizeOldDeliveries(new Date())
+    const calls = dbMock.messageDelivery.updateMany.mock.calls.map((c: unknown[]) => c[0] as { where: Record<string, unknown>; data: Record<string, unknown> })
+    const untemplated = calls.find((c) => c.where.templateKey === null)
+    expect(untemplated?.data).toEqual({ phone: null, email: null, body: null, templateKey: 'legacy', templateVersion: 0 })
   })
 
   it('zaten anonim kayitlar yeniden yazilmaz (phone/email/body bos olmayan satirlar)', async () => {
     await anonymizeOldDeliveries(new Date())
-    expect(dbMock.messageDelivery.updateMany.mock.calls[0][0].where.OR).toEqual([{ phone: { not: null } }, { email: { not: null } }, { body: { not: null } }])
+    for (const [arg] of dbMock.messageDelivery.updateMany.mock.calls) {
+      expect(arg.where.OR).toEqual([{ phone: { not: null } }, { email: { not: null } }, { body: { not: null } }])
+    }
   })
 })
 
