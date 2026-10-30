@@ -22,7 +22,7 @@ const { mockSendSms, mockQueueAdd } = vi.hoisted(() => ({
 // Hatırlatma SMS ile gider (bbd71c6). Dış sağlayıcı sahtelenir; telefon normalleştirme gerçektir.
 vi.mock('../lib/sms', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/sms')>()
-  return { ...actual, sendSms: mockSendSms }
+  return { ...actual, sendSms: mockSendSms, getSmsProvider: () => ({ name: 'netgsm' }) }
 })
 
 vi.mock('../lib/queue', async (importOriginal) => {
@@ -30,6 +30,16 @@ vi.mock('../lib/queue', async (importOriginal) => {
   return {
     ...actual,
     remindersQueue: { add: mockQueueAdd },
+    // Gercek scheduleReminders kendi modulundeki kuyrugu kullanir (mock'lanamaz); ayni is adlari ve kimlikleriyle mockQueueAdd'e yazar.
+    scheduleReminders: async (i: { appointmentId: string; tenantId: string; startAt: Date; now?: Date }) => {
+      const nowMs = (i.now ?? new Date()).getTime()
+      for (const [kind, hours] of [['24h', 24], ['2h', 2]] as const) {
+        const delay = i.startAt.getTime() - hours * 3_600_000 - nowMs
+        if (delay > 0) {
+          await mockQueueAdd(`reminder-${kind}`, { type: `reminder_${kind}`, appointmentId: i.appointmentId, tenantId: i.tenantId }, { delay, jobId: `reminder-${kind}-${i.appointmentId}` })
+        }
+      }
+    },
   }
 })
 
@@ -89,7 +99,7 @@ describe('BullMQ hatırlatma sistemi', () => {
         endAt: new Date(futureStart.getTime() + 60 * 60 * 1000),
         priceCharged: 150,
         referenceCode: `APT-TEST-${suffix}`,
-        status: 'pending',
+        status: 'confirmed',
         bookingChannel: 'manual',
       },
     })
@@ -161,7 +171,7 @@ describe('BullMQ hatırlatma sistemi', () => {
       await processReminderJob({ type: 'reminder_24h', appointmentId })
       expect(mockSendSms).not.toHaveBeenCalled()
     } finally {
-      await db.appointment.update({ where: { id: appointmentId }, data: { status: 'pending' } })
+      await db.appointment.update({ where: { id: appointmentId }, data: { status: 'confirmed' } })
     }
   })
 
@@ -180,7 +190,7 @@ describe('BullMQ hatırlatma sistemi', () => {
         endAt: new Date(start.getTime() + 60 * 60 * 1000),
         priceCharged: 150,
         referenceCode: `APT-BOZUK-${suffix}`,
-        status: 'pending',
+        status: 'confirmed',
         bookingChannel: 'manual',
       },
     })

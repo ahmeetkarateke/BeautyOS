@@ -35,3 +35,11 @@ export function istanbulPeriodBounds(dateFrom: string, dateTo: string): { gte: D
   if (from === null || to === null || from > to) return null
   return { gte: new Date(from), lt: new Date(to + DAY_MS) }
 }
+
+/** `now` anının İstanbul takvim gününün [başlangıç, bitiş] aralığı (UTC Date olarak; bitiş dahil, son milisaniye). */
+export function istanbulDayBounds(now: Date): { start: Date; end: Date } {
+  const shifted = now.getTime() + ISTANBUL_OFFSET_MS
+  const dayStartShifted = shifted - (((shifted % DAY_MS) + DAY_MS) % DAY_MS)
+  const start = new Date(dayStartShifted - ISTANBUL_OFFSET_MS)
+  return { start, end: new Date(start.getTime() + DAY_MS - 1) }
+}

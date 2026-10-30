@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs'
 import rateLimit from 'express-rate-limit'
 import { db } from '../lib/db'
 import { logger } from '../lib/logger'
-import { remindersQueue } from '../lib/queue'
+import { scheduleReminders, cancelReminders } from '../lib/queue'
+import { initialAppointmentStatus } from '../lib/appointment-status'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 import { TelegramChannel } from '../channels/telegram.channel'
 import { getSlots } from '../lib/slots'
@@ -435,6 +436,7 @@ export function createTenantRouter(): Router {
           customerName: a.customer?.fullName ?? a.requestedName ?? '',
           customerPhone: a.customer?.phone ?? a.requestedPhone ?? '',
           unverified: a.customer === null,
+          bookingChannel: a.bookingChannel,
           serviceName: a.service.name,
           serviceCategory: a.service.category ?? '',
           staffName: a.staff.user.fullName,
@@ -724,7 +726,7 @@ export function createTenantRouter(): Router {
           referenceCode,
           notes,
           bookingChannel: 'manual',
-          status: 'pending',
+          status: initialAppointmentStatus('manual'),
         },
         include: {
           customer: { select: { fullName: true } },
@@ -736,30 +738,8 @@ export function createTenantRouter(): Router {
       // Hatırlatma job'larını fire-and-forget olarak ekle
       void (async () => {
         try {
-          const now = Date.now()
-          const startMs = appointment.startAt.getTime()
-          const delay24h = startMs - 24 * 60 * 60 * 1000 - now
-          const delay2h = startMs - 2 * 60 * 60 * 1000 - now
-
-          if (delay24h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_24h', appointmentId: appointment.id },
-              { delay: delay24h, jobId: `reminder-24h-${appointment.id}` },
-            )
-          } else {
-            logger.info({ appointmentId: appointment.id }, '24h hatırlatma zamanı geçmiş, eklenmedi')
-          }
-
-          if (delay2h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_2h', appointmentId: appointment.id },
-              { delay: delay2h, jobId: `reminder-2h-${appointment.id}` },
-            )
-          } else {
-            logger.info({ appointmentId: appointment.id }, '2h hatırlatma zamanı geçmiş, eklenmedi')
-          }
+          // Bekleyen randevuda iş zamanı gelince durum kontrolü atlatır; onaylanmışsa hatırlatma gider (ADR-0044).
+          await scheduleReminders({ appointmentId: appointment.id, tenantId, startAt: appointment.startAt })
         } catch (err) {
           logger.warn({ err, appointmentId: appointment.id }, 'Hatırlatma job eklenemedi')
         }
@@ -1060,6 +1040,19 @@ export function createTenantRouter(): Router {
       }
       const updated = { id: appointmentId, status, cancellationReason: cancellationReason ?? existing.cancellationReason }
 
+      // ADR-0044/0045: onaylıya geçince hatırlatma işleri kurulur; bekleyene, iptale, tamamlandıya ya da gelmediye geçince silinir.
+      void (async () => {
+        try {
+          if (status === 'confirmed' && existing.status !== 'confirmed') {
+            await scheduleReminders({ appointmentId, tenantId, startAt: existing.startAt })
+          } else if (status !== 'confirmed' && status !== 'in_progress') {
+            await cancelReminders(appointmentId)
+          }
+        } catch (err) {
+          logger.warn({ err, appointmentId }, 'Durum değişiminde hatırlatma işleri güncellenemedi')
+        }
+      })()
+
       let followUpAppointments: Array<{ id: string; startAt: string; label: string }> = []
 
       if (status === 'completed') {
@@ -1116,7 +1109,7 @@ export function createTenantRouter(): Router {
                       serviceId: appt.serviceId,
                       startAt: fuStart,
                       endAt: fuEnd,
-                      status: 'pending',
+                      status: initialAppointmentStatus('manual'),
                       notes: entry.label,
                       bookingChannel: 'manual',
                       referenceCode: `APT-${Date.now().toString(36).toUpperCase()}-F${entry.day}`,
@@ -1130,6 +1123,8 @@ export function createTenantRouter(): Router {
               }
               if (!fuAppt) continue
               followUpAppointments.push({ id: fuAppt.id, startAt: fuStart.toISOString(), label: entry.label })
+              // Takip randevusu da onaylı açılır (ADR-0045); hatırlatma işleri kurulur.
+              await scheduleReminders({ appointmentId: fuAppt.id, tenantId, startAt: fuStart }).catch((err) => logger.warn({ err, appointmentId: fuAppt!.id }, 'Takip randevusu hatırlatması kurulamadı'))
             }
 
             // Bildirimleri fire-and-forget gönder
@@ -1250,28 +1245,8 @@ export function createTenantRouter(): Router {
       // Eski reminder job'larını sil, yeni zamana göre yeniden planla
       void (async () => {
         try {
-          await remindersQueue.remove(`reminder-24h-${appointmentId}`)
-          await remindersQueue.remove(`reminder-2h-${appointmentId}`)
-
-          const now = Date.now()
-          const startMs = newStart.getTime()
-          const delay24h = startMs - 24 * 60 * 60 * 1000 - now
-          const delay2h = startMs - 2 * 60 * 60 * 1000 - now
-
-          if (delay24h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_24h', appointmentId },
-              { delay: delay24h, jobId: `reminder-24h-${appointmentId}` },
-            )
-          }
-          if (delay2h > 0) {
-            await remindersQueue.add(
-              'reminder',
-              { type: 'reminder_2h', appointmentId },
-              { delay: delay2h, jobId: `reminder-2h-${appointmentId}` },
-            )
-          }
+          await cancelReminders(appointmentId)
+          await scheduleReminders({ appointmentId, tenantId: updated.tenantId, startAt: newStart })
         } catch (err) {
           logger.warn({ err, appointmentId }, 'Reschedule sonrası hatırlatma job güncellenemedi')
         }
@@ -1381,6 +1356,7 @@ export function createTenantRouter(): Router {
     botFaqs: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })).max(20).optional(),
     botHidePrices: z.boolean().optional(),
     publicBookingEnabled: z.boolean().optional(),
+    showPricesOnline: z.boolean().optional(),
     onlineBookingApproval: z.enum(['auto', 'manual']).optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Geçerli bir hex renk (ör. #6B48FF)').optional(),
     logoUrl: httpsOnlyUrl().optional().or(z.literal('')),
