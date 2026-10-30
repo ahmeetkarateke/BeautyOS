@@ -2419,26 +2419,36 @@ export function createTenantRouter(): Router {
       if (revenueDate !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
-      if (await isDayClosed(db, tenantId, revenueDate)) return res.status(409).json(DAY_CLOSED_BODY)
       const completedAt = istanbulInstantOnDay(revenueDate)
 
-      const revenue = await db.transaction.create({
-        data: {
-          tenantId,
-          appointmentId: null,
-          staffId: null,
-          grossAmount: amount,
-          commissionRate: 0,
-          commissionAmount: 0,
-          paymentMethod,
-          cashAmount: paymentMethod === 'cash' ? amount : 0,
-          cardAmount: paymentMethod === 'card' ? amount : 0,
-          status: 'completed',
-          notes: description,
-          completedAt,
-        },
-        select: { id: true, grossAmount: true, paymentMethod: true },
-      })
+      // Kapanışla yarışmasın: gün kilidi, kapalı kontrolü ve yazma aynı işlemde (kapanış sırasında kayıt düşmez).
+      const revenue = await db
+        .$transaction(async (tx) => {
+          await lockCashDay(tx, tenantId, revenueDate)
+          if (await isDayClosed(tx, tenantId, revenueDate)) throw new DayClosedError()
+          return tx.transaction.create({
+            data: {
+              tenantId,
+              appointmentId: null,
+              staffId: null,
+              grossAmount: amount,
+              commissionRate: 0,
+              commissionAmount: 0,
+              paymentMethod,
+              cashAmount: paymentMethod === 'cash' ? amount : 0,
+              cardAmount: paymentMethod === 'card' ? amount : 0,
+              status: 'completed',
+              notes: description,
+              completedAt,
+            },
+            select: { id: true, grossAmount: true, paymentMethod: true },
+          })
+        })
+        .catch((e: unknown) => {
+          if (e instanceof DayClosedError) return null
+          throw e
+        })
+      if (!revenue) return res.status(409).json(DAY_CLOSED_BODY)
 
       return res.status(201).json({ id: revenue.id, amount: Number(revenue.grossAmount), paymentMethod: revenue.paymentMethod })
     } catch (err) {
