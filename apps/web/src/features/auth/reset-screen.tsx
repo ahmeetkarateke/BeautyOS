@@ -27,10 +27,10 @@ function ExpiredLink({ title }: { title: string }) {
   )
 }
 
-// Belirteç # parçasından okunur (ADR-0046); sunucu e-postayı ?token= ile göndermeye devam ederse o da kabul edilir ve adresten silinir.
+// Belirteç # parçasından okunur (ADR-0046): `#token=<değer>`.
 export function ResetScreen() {
   const client = useApiClient()
-  const tokenState = useHashToken('token')
+  const tokenState = useHashToken()
   const formRef = useRef<HTMLFormElement>(null)
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')

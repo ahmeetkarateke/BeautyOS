@@ -92,7 +92,7 @@ export function validateLogin(v: { email: string; password: string }): Errors {
 const minChars = (value: string, min: number, message: string) => (value.trim().length >= min ? null : message)
 
 export type Step1 = { salonName: string; slug: string; type: string; otherType: string }
-export type Step2 = { fullName: string; phone: string; email: string; password: string; acceptTerms: boolean }
+export type Step2 = { fullName: string; phone: string; email: string; password: string; acceptTerms: boolean; marketingOptIn: boolean }
 
 export function validateStep1(v: Step1): Errors {
   return collect([
@@ -120,6 +120,8 @@ export type RegisterBody = {
   email: string
   password: string
   businessType: string
+  // Yeni arayüz rızaları HER ZAMAN gönderir (alan yoksa sunucu eski arayüz sayar ve kabul kaydı yazmaz). K1 zorunlu, K3 yalnız işaretliyse.
+  consents: { terms: true; marketingEmail?: true }
 }
 
 export function toRegisterBody(step1: Step1, step2: Step2): RegisterBody {
@@ -131,6 +133,7 @@ export function toRegisterBody(step1: Step1, step2: Step2): RegisterBody {
     email: step2.email.trim(),
     password: step2.password,
     businessType: resolveBusinessType(step1.type, step1.otherType),
+    consents: { terms: true, ...(step2.marketingOptIn ? { marketingEmail: true as const } : {}) },
   }
 }
 

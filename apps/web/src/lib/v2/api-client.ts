@@ -52,7 +52,7 @@ export type ApiClientConfig = {
 const REFRESH_PATH = '/api/v1/auth/refresh'
 // Bu uçlarda 401 "yanlış şifre / geçersiz bağlantı / çıkış" demektir; oturum yenilemesi denenmez.
 // Açık liste: /auth/me burada DEĞİLDİR (süresi dolan token ile çağrılır, yenilenmesi gerekir).
-const NO_REFRESH_PATHS: readonly string[] = ['login', 'register', 'refresh', 'forgot-password', 'reset-password', 'admin-login', 'logout', 'invitations/lookup', 'invitations/accept'].map(
+const NO_REFRESH_PATHS: readonly string[] = ['login', 'register', 'refresh', 'password-reset/request', 'password-reset/confirm', 'admin-login', 'logout', 'invitations/lookup', 'invitations/accept'].map(
   (name) => `/api/v1/auth/${name}`,
 )
 const isAuthPath = (path: string) => NO_REFRESH_PATHS.some((p) => path === p || path.startsWith(`${p}?`))

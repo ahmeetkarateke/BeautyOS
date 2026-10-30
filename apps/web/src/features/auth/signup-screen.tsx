@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { GENERIC_ERROR } from '@/content/errors'
 import { ApiError } from '@/lib/v2/api-client'
@@ -10,13 +10,14 @@ import { Banner } from '@/ui/banner'
 import { Button } from '@/ui/button'
 import { LegalCheckbox } from '@/ui/choice'
 import { focusFirstInvalid, InputField, PasswordField, PhoneField, SelectField } from '@/ui/field'
-import { register } from './api'
+import { checkSlug, register } from './api'
 import { AuthShell } from './auth-shell'
-import { MAIN_BUSINESS_TYPES, OTHER_BUSINESS_TYPES, panelPathFor, slugify, toRegisterBody, validateStep1, validateStep2 } from './logic'
+import { MAIN_BUSINESS_TYPES, OTHER_BUSINESS_TYPES, panelPathFor, slugify, toRegisterBody, validateSlug, validateStep1, validateStep2 } from './logic'
 
 type Navigate = (path: string) => void
 const defaultNavigate: Navigate = (path) => window.location.assign(path)
 type Errors = Record<string, string>
+const TAKEN_SLUG_TEXT = 'Bu adres kullanımda. Başka bir adres deneyin.'
 
 // Kayıt iki adımdır (tasarim.md §8.3). Adres önerisi işletme adından üretilir; kullanıcı adrese dokununca öneri durur.
 export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Navigate }) {
@@ -33,11 +34,27 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [acceptTerms, setAcceptTerms] = useState(false)
-  // K3 (isteğe bağlı ticari ileti izni): sunucu alanı gelene kadar yalnız arayüzde tutulur, API'ye gönderilmez.
+  // K3: isteğe bağlı ticari ileti izni; işaretliyse consents.marketingEmail olarak gider.
   const [marketingOptIn, setMarketingOptIn] = useState(false)
+  const [takenSlug, setTakenSlug] = useState<string | null>(null)
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+
+  // Adres uygunluğu: yazma durunca sorulur (ipucu); ağ ya da hız sınırı hatası sessizce yok sayılır, kesin sonuç kayıt isteğindedir.
+  useEffect(() => {
+    if (validateSlug(slug) !== null) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      checkSlug(client, slug, controller.signal)
+        .then((result) => setTakenSlug(result === 'taken' ? slug : null))
+        .catch(() => undefined)
+    }, 400)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [client, slug])
 
   const focusInvalid = () => requestAnimationFrame(() => formRef.current && focusFirstInvalid(formRef.current))
 
@@ -49,6 +66,7 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
   function nextStep(event: FormEvent) {
     event.preventDefault()
     const found = validateStep1({ salonName, slug, type, otherType })
+    if (!found.slug && takenSlug === slug) found.slug = TAKEN_SLUG_TEXT
     setErrors(found)
     if (Object.keys(found).length > 0) return focusInvalid()
     setStep(2)
@@ -57,13 +75,13 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
   async function create(event: FormEvent) {
     event.preventDefault()
     if (pending) return
-    const found = validateStep2({ fullName, phone, email, password, acceptTerms })
+    const found = validateStep2({ fullName, phone, email, password, acceptTerms, marketingOptIn })
     setErrors(found)
     setFailure(null)
     if (Object.keys(found).length > 0) return focusInvalid()
     setPending(true)
     try {
-      const session = await register(client, toRegisterBody({ salonName, slug, type, otherType }, { fullName, phone, email, password, acceptTerms }))
+      const session = await register(client, toRegisterBody({ salonName, slug, type, otherType }, { fullName, phone, email, password, acceptTerms, marketingOptIn }))
       navigate(panelPathFor(session.tenantSlug))
     } catch (error) {
       setPending(false)
@@ -116,7 +134,7 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
               setSlugTouched(true)
               setSlug(e.target.value.toLowerCase())
             }}
-            error={errors.slug}
+            error={errors.slug ?? (takenSlug === slug ? TAKEN_SLUG_TEXT : undefined)}
           />
           <Button type="submit" fullWidth>
             Devam et

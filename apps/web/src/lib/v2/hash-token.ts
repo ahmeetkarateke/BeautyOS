@@ -7,34 +7,26 @@ import { useEffect, useRef, useState } from 'react'
 
 /**
  * # parçasını okur ve adresten siler. Boş ya da yoksa null. Yüzde kodu çözülmez: belirteç olduğu gibi sunucuya gider.
- * `legacyQueryParam`: sunucu bağlantıyı # yerine ?param= ile gönderiyorsa (şifre sıfırlama e-postaları) geçici geri dönüş; o da adresten silinir.
+ * Şifre sıfırlama e-postası `#token=<değer>` biçiminde gelir; `token=` öneki atılır. Sorgu (`?token=`) artık okunmaz: sunucu günlüğüne düşerdi.
  */
-export function takeHashToken(legacyQueryParam?: string): string | null {
+export function takeHashToken(): string | null {
   const { hash, pathname, search } = window.location
-  if (hash !== '') {
-    window.history.replaceState(null, '', pathname + search)
-    return hash.length > 1 ? hash.slice(1) : null
-  }
-  if (!legacyQueryParam) return null
-  const params = new URLSearchParams(search)
-  const token = params.get(legacyQueryParam)
-  if (token === null) return null
-  params.delete(legacyQueryParam)
-  const rest = params.toString()
-  window.history.replaceState(null, '', pathname + (rest ? `?${rest}` : ''))
-  return token === '' ? null : token
+  if (hash === '') return null
+  window.history.replaceState(null, '', pathname + search)
+  const value = hash.slice(1).replace(/^token=/, '')
+  return value === '' ? null : value
 }
 
 export type HashTokenState = { status: 'reading' } | { status: 'missing' } | { status: 'ready'; token: string }
 
 /** Belirteci bir kez alır. StrictMode'un çift efekti aynı sonucu kullanır (ikinci okuma hash'i artık bulamaz). */
-export function useHashToken(legacyQueryParam?: string): HashTokenState {
+export function useHashToken(): HashTokenState {
   const [state, setState] = useState<HashTokenState>({ status: 'reading' })
   const taken = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    if (taken.current === undefined) taken.current = takeHashToken(legacyQueryParam)
+    if (taken.current === undefined) taken.current = takeHashToken()
     const token = taken.current
     setState(token ? { status: 'ready', token } : { status: 'missing' })
-  }, [legacyQueryParam])
+  }, [])
   return state
 }

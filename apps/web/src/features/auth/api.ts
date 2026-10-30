@@ -30,11 +30,11 @@ export async function register(client: ApiClient, payload: RegisterBody): Promis
 }
 
 export async function requestPasswordReset(client: ApiClient, email: string): Promise<void> {
-  await client.request<unknown>('/api/v1/auth/forgot-password', { method: 'POST', body: { email: email.trim() } })
+  await client.request<unknown>('/api/v1/auth/password-reset/request', { method: 'POST', body: { email: email.trim() } })
 }
 
 export async function resetPassword(client: ApiClient, input: { token: string; password: string }): Promise<void> {
-  await client.request<unknown>('/api/v1/auth/reset-password', { method: 'POST', body: input })
+  await client.request<unknown>('/api/v1/auth/password-reset/confirm', { method: 'POST', body: input })
 }
 
 const invitationSchema = z.object({
@@ -58,4 +58,13 @@ export async function acceptInvitation(
 ): Promise<SessionStart> {
   const body = await client.request<unknown>('/api/v1/auth/invitations/accept', { method: 'POST', body: input })
   return start(client, body)
+}
+
+export type SlugAvailability = 'available' | 'taken' | 'invalid'
+const slugSchema = z.object({ available: z.boolean(), reason: z.enum(['taken', 'invalid']).optional() })
+
+/** Anlık uygunluk ipucudur; kesin sonuç kayıt isteğinin 409'udur. */
+export async function checkSlug(client: ApiClient, slug: string, signal?: AbortSignal): Promise<SlugAvailability> {
+  const body = slugSchema.parse(await client.request<unknown>('/api/v1/auth/slug-available', { query: { slug }, signal }))
+  return body.available ? 'available' : (body.reason ?? 'taken')
 }
