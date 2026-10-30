@@ -37,7 +37,14 @@ describe('W26 validatePayout', () => {
 describe('W26 createBody / etiketler', () => {
   it('K3: gövde sunucu alanlarıyla; boş ek/kesinti/not gönderilmez', () => {
     expect(createBody(valid)).toEqual({ staffId: 's1', periodStart: '2026-10-01', periodEnd: '2026-10-28' })
-    expect(createBody({ ...valid, bonusText: '250', deductionsText: '10,5', notes: ' Not ' })).toEqual({ staffId: 's1', periodStart: '2026-10-01', periodEnd: '2026-10-28', bonus: 250, deductions: 10.5, notes: 'Not' })
+    expect(createBody({ ...valid, bonusText: '250', deductionsText: '10,5', notes: ' Not ' })).toEqual({
+      staffId: 's1',
+      periodStart: '2026-10-01',
+      periodEnd: '2026-10-28',
+      bonus: 250,
+      deductions: 10.5,
+      notes: 'Not',
+    })
   })
   it('K4: durum ve yöntem metinleri Türkçe', () => {
     expect(payoutStatusLabel('pending')).toBe('Bekliyor')
