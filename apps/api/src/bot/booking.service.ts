@@ -2,7 +2,7 @@ import { db } from '../lib/db'
 import { logger } from '../lib/logger'
 import { getSlots } from '../lib/slots'
 import { SlotTakenError, isSlotOverlapError } from '../lib/slot-conflict'
-import { resolveCustomerByPhone, lookupValues } from '../lib/customer-phone'
+import { resolveCustomerByPhone, resolveCustomerByChatId, lookupValues } from '../lib/customer-phone'
 import { computeExpiryAt, scheduleOnlineExpiry, ONLINE_LIMITS } from '../lib/online-booking'
 import { normalizePhoneTR } from '../lib/sms/types'
 import { scheduleReminders } from '../lib/queue'
@@ -199,13 +199,15 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 
   // ADR-0038: telefon -> none (oluştur) | single (bağla) | multiple (bağlama, requested* ile pending)
   // Telefon her yerde normalize saklanir (ADR-0038). Telegram'da sohbet no telefon degildir: oldugu gibi kalir.
-  const identity = channel === 'telegram' ? customerPhone : (normalizePhoneTR(customerPhone) ?? customerPhone)
-  const found = await resolveCustomerByPhone(db, tenantId, identity, { exact: channel === 'telegram' })
+  // ADR-0039: Telegram sohbet no customers.telegramChatId'de tutulur (telefon değildir, telefonla eşleşmez); diğer kanallar telefonla çözülür.
+  const isTelegram = channel === 'telegram'
+  const identity = isTelegram ? customerPhone : (normalizePhoneTR(customerPhone) ?? customerPhone)
+  const found = isTelegram ? await resolveCustomerByChatId(db, tenantId, identity) : await resolveCustomerByPhone(db, tenantId, identity)
   const customerId =
     found.kind === 'single'
       ? found.id
       : found.kind === 'none'
-        ? (await db.customer.create({ data: { tenantId, phone: identity, fullName: customerName }, select: { id: true } })).id
+        ? (await db.customer.create({ data: isTelegram ? { tenantId, telegramChatId: identity, fullName: customerName } : { tenantId, phone: identity, fullName: customerName }, select: { id: true } })).id
         : null
   // Eşleşmeyi bekleyen talep randevudan 2 saat önce düşer; daha yakın saatte talep hemen düşerdi, bu yüzden hiç yazılmaz.
   if (!customerId && startAt.getTime() - Date.now() < ONLINE_LIMITS.expiryLeadHours * 60 * 60 * 1000) {
@@ -222,7 +224,8 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         tenantId,
         customerId,
         requestedName: customerId ? null : customerName,
-        requestedPhone: customerId ? null : identity,
+        requestedPhone: customerId || isTelegram ? null : identity,
+        requestedChatId: customerId || !isTelegram ? null : identity,
         staffId,
         serviceId: service.id,
         referenceCode,
@@ -281,14 +284,20 @@ export async function cancelAppointmentByRef(
 ): Promise<CancelResult> {
   if (!customerPhone.trim()) return { ok: false, reason: 'not_found' }
 
-  // Kimlik, randevunun kart telefonuyla ya da (müşterisiz talepte) requestedPhone ile eşleşmeli; WhatsApp biçim farkı (905… / +905…) önemsiz.
-  const values = lookupValues(customerPhone, options.exact === true)
+  // Kimlik, randevunun kart kimliğiyle ya da (müşterisiz talepte) requested* ile eşleşmeli. Telegram (exact): sohbet no, telefonla karışmaz (ADR-0039);
+  // WhatsApp: biçim farkı (905… / +905…) önemsiz.
+  const identityMatch = options.exact === true
+    ? [{ customer: { telegramChatId: customerPhone } }, { requestedChatId: customerPhone }]
+    : (() => {
+        const values = lookupValues(customerPhone, false)
+        return [{ customer: { phone: { in: values } } }, { requestedPhone: { in: values } }]
+      })()
   const appointment = await db.appointment.findFirst({
     where: {
       tenantId,
       referenceCode,
       status: { in: ['pending', 'confirmed'] },
-      OR: [{ customer: { phone: { in: values } } }, { requestedPhone: { in: values } }],
+      OR: identityMatch,
     },
   })
 

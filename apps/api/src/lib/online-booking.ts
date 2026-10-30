@@ -170,7 +170,7 @@ async function confirmUnverifiedRequest(
       ? await db.customer.findFirst({ where: { id: input.customerId, tenantId }, select: { id: true, phone: true } })
       : null
     if (!customer) return { result: 'customer_not_found' }
-    if (normalizePhoneTR(customer.phone) !== requested.phone) return { result: 'customer_phone_mismatch' }
+    if (!customer.phone || normalizePhoneTR(customer.phone) !== requested.phone) return { result: 'customer_phone_mismatch' }
     const linked = await db.appointment.updateMany({
       where: { id: appointmentId, tenantId, status: 'pending', customerId: null, isDeleted: false },
       data: { customerId: customer.id, status: 'confirmed' },

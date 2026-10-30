@@ -1061,7 +1061,7 @@ export function createTenantRouter(): Router {
           where: { id: appointmentId },
           include: {
             service: true,
-            customer: { select: { fullName: true, phone: true } },
+            customer: { select: { fullName: true, telegramChatId: true } },
             tenant: { select: { telegramBotToken: true, settings: true } },
           },
         })
@@ -1142,7 +1142,7 @@ export function createTenantRouter(): Router {
                     timeZone: 'Europe/Istanbul',
                   })
                   const text = `${appt.service.name} işleminiz tamamlandı! ${fu.label} kontrolünüz (${tarih}) takvime eklendi. Saat değişikliği için bize yazabilirsiniz.`
-                  if (appt.customer) await channel.sendText(appt.customer.phone, text)
+                  if (appt.customer?.telegramChatId) await channel.sendText(appt.customer.telegramChatId, text)
                 }
               } catch (err) {
                 logger.warn({ err, appointmentId }, 'Follow-up bildirimleri gönderilemedi')
