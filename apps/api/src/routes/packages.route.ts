@@ -165,7 +165,12 @@ export function createPackagesRouter(): Router {
       if (parsed.data.validityDays !== undefined) data.validityDays = parsed.data.validityDays
       if (parsed.data.description !== undefined) data.description = parsed.data.description
       if (parsed.data.isActive !== undefined) data.isActive = parsed.data.isActive
-      if (parsed.data.serviceId !== undefined) {
+      if (parsed.data.serviceId !== undefined && parsed.data.serviceId !== existing.serviceId) {
+        // Satılmış paketin seansları başka hizmete düşmesin: aktif müşteri paketi varken hizmet değişmez.
+        const inUse = await db.customerPackage.count({ where: { packageId: id, tenantId, status: PackageStatus.active } })
+        if (inUse > 0) {
+          return res.status(409).json({ error: { code: 'PACKAGE_IN_USE', message: `Bu paketi kullanan ${inUse} aktif müşteri paketi var; hizmeti değiştirilemez. Yeni bir paket oluşturun.` } })
+        }
         const svc = await db.service.findFirst({ where: { id: parsed.data.serviceId, tenantId } })
         if (!svc) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hizmet bulunamadı.' } })
         data.service = { connect: { id: parsed.data.serviceId } }
