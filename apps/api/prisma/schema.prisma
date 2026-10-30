@@ -1229,7 +1229,9 @@ model MessageDelivery {
   purpose           DeliveryPurpose
   phone             String?
   email             String?
-  body              String
+  body              String? // yalniz serbest metinli iletide dolu; sablonlu iletide NULL (ADR-0047)
+  templateKey       String? // sablon anahtari (ornek reminder_24h); govde yoksa zorunlu
+  templateVersion   Int? // degismez sablon surumu
   status            DeliveryStatus  @default(queued)
   providerName      String?                            // 'netgsm', 'resend' vb.
   providerMessageId String?                            // sağlayıcı reference

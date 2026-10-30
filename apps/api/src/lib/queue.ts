@@ -8,6 +8,8 @@ import { sendReminderEmail, isEmailConfigured } from './email'
 import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests } from './online-booking'
 import { purgeExpiredSessions } from './sessions'
 import { isHealthRegulated } from '@beautyos/shared'
+import { renderTemplate } from './messages/templates'
+import { anonymizeOldDeliveries } from './message-retention'
 import { istanbulDayBounds } from './time'
 import { purgeStaleInvitations } from './invitations'
 
@@ -83,23 +85,13 @@ export async function cancelReminders(appointmentId: string): Promise<void> {
   }
 }
 
-function reminderText(
-  type: 'reminder_24h' | 'reminder_2h',
-  parts: { salonName: string; fullName: string; time: string; serviceName: string | null },
-): string {
-  // Klinik türlerinde hizmet adı mesajda geçmez (hukuk-uyum §10.7): serviceName null gelir.
-  const service = parts.serviceName ? ` ${parts.serviceName}` : ''
-  return type === 'reminder_24h'
-    ? `${parts.salonName}: Sayın ${parts.fullName}, yarın saat ${parts.time}'de${service} randevunuz bulunmaktadır. Bilginize.`
-    : `${parts.salonName}: Sayın ${parts.fullName}, bugün saat ${parts.time}'de${service} randevunuz vardır. Sizi bekliyoruz.`
-}
-
 export async function processReminderJob(data: ReminderJobData): Promise<void> {
   if (data.type === 'nightly_noshow') {
     await sweepExpiredOnlineRequests()
     await anonymizeStaleRequests()
     await purgeExpiredSessions()
     await purgeStaleInvitations()
+    await anonymizeOldDeliveries()
     await processNightlyNoShow()
     await reconcileReminders()
     return
@@ -147,8 +139,11 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     timeZone: 'Europe/Istanbul',
   })
   const salonName = appointment.tenant.name
-  const serviceName = isHealthRegulated(appointment.tenant.businessType) ? null : appointment.service.name
-  const text = reminderText(type, { salonName, fullName, time, serviceName })
+  // Klinik türlerinde hizmet adı yok (hukuk-uyum §10.7): ayrı şablon. Metin şablondan üretilir; teslim kaydında yalnız (anahtar, sürüm) saklanır (ADR-0047).
+  const health = isHealthRegulated(appointment.tenant.businessType)
+  // Metni üreten şablon ile teslim kaydındaki şablon aynı referanstır: kayıttan ileti yeniden üretildiğinde gönderilenle aynı metin çıkar.
+  const deliveryTemplate = { key: `${type}${health ? '_health' : ''}`, version: 1 }
+  const text = renderTemplate(deliveryTemplate, { salon: salonName, name: fullName, time, service: appointment.service.name })
 
   const purpose = type === 'reminder_24h' ? DeliveryPurpose.reminder_24h : DeliveryPurpose.reminder_2h
 
@@ -178,6 +173,7 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
       appointmentId,
       to: normalized,
       body: text,
+      template: deliveryTemplate,
       purpose,
     })
     if (result.success) {
@@ -198,7 +194,7 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     // E-posta teslim kaydı: sonraki deneme ya da uzlaştırma aynı hatırlatmayı tekrar göndermesin.
     await db.messageDelivery
       .create({
-        data: { tenantId: appointment.tenantId, customerId, appointmentId, channel: 'email', purpose, email, body: text, status: 'sent', providerName: 'resend', sentAt: new Date() },
+        data: { tenantId: appointment.tenantId, customerId, appointmentId, channel: 'email', purpose, email, body: null, templateKey: deliveryTemplate.key, templateVersion: deliveryTemplate.version, status: 'sent', providerName: 'resend', sentAt: new Date() },
       })
       .catch((err) => logger.warn({ err, appointmentId }, 'E-posta teslim kaydı yazılamadı'))
     logger.info({ appointmentId, type, channel: 'email' }, 'Hatırlatma e-postası gönderildi')

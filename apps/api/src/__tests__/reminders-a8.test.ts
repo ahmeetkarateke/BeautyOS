@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const m = vi.hoisted(() => ({
   queues: [] as Array<{ opts: Record<string, unknown>; add: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> }>,
   appointment: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
-  messageDelivery: { findFirst: vi.fn(), create: vi.fn() },
+  messageDelivery: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
   sendSms: vi.fn(),
   smsProvider: { name: 'netgsm' },
   sendReminderEmail: vi.fn(),
@@ -67,6 +67,7 @@ beforeEach(() => {
   m.appointment.findMany.mockResolvedValue([])
   m.messageDelivery.findFirst.mockResolvedValue(null)
   m.messageDelivery.create.mockResolvedValue({})
+  m.messageDelivery.updateMany.mockResolvedValue({ count: 0 })
 })
 afterEach(() => vi.useRealTimers())
 
@@ -325,5 +326,55 @@ describe('A8 cift gonderim onlemi (ADR-0044 risk)', () => {
     expect(m.messageDelivery.create.mock.calls[0][0].data).toMatchObject({
       tenantId: 't1', appointmentId: 'a1', channel: 'email', purpose: 'reminder_24h', status: 'sent',
     })
+  })
+})
+
+describe('ADR-0047: hatirlatma teslim kaydi govde tasimaz', () => {
+  it('SMS yolu: sendSms sablon anahtari ve surumuyle cagrilir (guzellik: reminder_24h)', async () => {
+    m.appointment.findFirst.mockResolvedValue(appt())
+    await processReminderJob(job)
+    expect(m.sendSms.mock.calls[0][0].template).toEqual({ key: 'reminder_24h', version: 1 })
+  })
+
+  it('SMS yolu klinikte: teslim kaydi metni ureten sablonu tasir (reminder_24h_health@1, M-ileti-sablon-1 Kritik 1)', async () => {
+    m.appointment.findFirst.mockResolvedValue(appt({ tenant: { id: 't1', name: 'Salon', businessType: 'dentist' } }))
+    await processReminderJob(job)
+    expect(m.sendSms.mock.calls[0][0].template).toEqual({ key: 'reminder_24h_health', version: 1 })
+    expect(m.sendSms.mock.calls[0][0].body).not.toContain('Dis Beyazlatma')
+  })
+
+  it('e-posta yolu klinikte: teslim kaydinda reminder_2h_health@1, gonderilen metinde hizmet adi yok', async () => {
+    m.smsProvider.name = 'mock'
+    m.appointment.findFirst.mockResolvedValue(appt({ tenant: { id: 't1', name: 'Salon', businessType: 'aesthetic_clinic' } }))
+    await processReminderJob({ type: 'reminder_2h', appointmentId: 'a1', tenantId: 't1' })
+    expect(m.messageDelivery.create.mock.calls[0][0].data).toMatchObject({ body: null, templateKey: 'reminder_2h_health', templateVersion: 1 })
+    expect(m.sendReminderEmail.mock.calls[0][0].text).not.toContain('Dis Beyazlatma')
+  })
+
+  it('gece isi teslim kayitlarini saklama suresiyle anonimlestirir (anonymizeOldDeliveries baglantisi)', async () => {
+    const NOW = new Date('2026-10-30T00:00:00Z')
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+    await processReminderJob({ type: 'nightly_noshow' })
+    expect(m.messageDelivery.updateMany).toHaveBeenCalledTimes(2)
+    const cutoff = NOW.getTime() - 365 * 24 * 3600_000
+    for (const [args] of m.messageDelivery.updateMany.mock.calls) expect(args.where.createdAt.lt.getTime()).toBe(cutoff)
+    const datas = m.messageDelivery.updateMany.mock.calls.map((c: unknown[]) => (c[0] as { data: unknown }).data)
+    expect(datas).toContainEqual({ phone: null, email: null, body: null })
+    expect(datas).toContainEqual({ phone: null, email: null, body: null, templateKey: 'legacy', templateVersion: 0 })
+  })
+
+  it('e-posta yolu: teslim kaydinda body null, templateKey ve templateVersion dolu', async () => {
+    m.smsProvider.name = 'mock'
+    m.appointment.findFirst.mockResolvedValue(appt())
+    await processReminderJob({ type: 'reminder_2h', appointmentId: 'a1', tenantId: 't1' })
+    expect(m.messageDelivery.create.mock.calls[0][0].data).toMatchObject({ body: null, templateKey: 'reminder_2h', templateVersion: 1 })
+  })
+
+  it('klinikte e-posta metni klinik sablonundan uretilir (hizmet adi yok)', async () => {
+    m.smsProvider.name = 'mock'
+    m.appointment.findFirst.mockResolvedValue(appt({ tenant: { id: 't1', name: 'Salon', businessType: 'aesthetic_clinic' } }))
+    await processReminderJob(job)
+    expect(m.sendReminderEmail.mock.calls[0][0].text).toBe("Salon: Sayın Ayse Yilmaz, yarın saat 12:00'de randevunuz bulunmaktadır. Bilginize.")
   })
 })
