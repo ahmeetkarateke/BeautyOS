@@ -64,17 +64,20 @@ describe('useHashToken', () => {
   })
 })
 
-describe('takeHashToken geçici sorgu geri dönüşü', () => {
-  it('K8: # yoksa ?token= okunur ve diğer sorgu parametreleri korunarak adresten silinir', () => {
-    setUrl('/reset-password?token=eski&x=1')
-    expect(takeHashToken('token')).toBe('eski')
-    expect(window.location.search).toBe('?x=1')
+describe('takeHashToken biçimleri', () => {
+  it('K8: sunucunun gönderdiği #token=<değer> biçiminde ön ek atılır ve adres temizlenir', () => {
+    setUrl('/reset-password#token=abc123')
+    expect(takeHashToken()).toBe('abc123')
+    expect(window.location.hash).toBe('')
   })
 
-  it('K9: # varsa # önceliklidir; sorgu parametresi verilmediyse sorguya bakılmaz', () => {
-    setUrl('/reset-password?token=eski#yeni')
-    expect(takeHashToken('token')).toBe('yeni')
+  it('K9: eski ?token= sorgusu artık okunmaz ve belirteç çıkarılmaz', () => {
     setUrl('/reset-password?token=eski')
+    expect(takeHashToken()).toBeNull()
+  })
+
+  it('K10: yalnız "token=" yazan parça boş sayılır', () => {
+    setUrl('/reset-password#token=')
     expect(takeHashToken()).toBeNull()
   })
 })

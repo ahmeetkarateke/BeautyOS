@@ -14,7 +14,7 @@ import {
   validateStep2,
 } from './logic'
 
-const valid2 = { fullName: 'Defne Kaya', phone: '5321234567', email: 'defne@ornek.com', password: 'sifre1234', acceptTerms: true }
+const valid2 = { fullName: 'Defne Kaya', phone: '5321234567', email: 'defne@ornek.com', password: 'sifre1234', acceptTerms: true, marketingOptIn: false }
 
 describe('işletme türü', () => {
   it('K1: altı seçenek sunulur ve sonuncusu "Diğer"dir', () => {
@@ -159,7 +159,14 @@ describe('toRegisterBody', () => {
       email: 'defne@ornek.com',
       password: 'sifre1234',
       businessType: 'spa',
+      consents: { terms: true },
     })
+  })
+
+  it('K7: ticari ileti izni işaretliyse consents.marketingEmail true gider; işaretsizse alan hiç gitmez', () => {
+    const step1 = { salonName: 'Defne', slug: 'defne', type: 'hair_salon', otherType: '' }
+    expect(toRegisterBody(step1, { ...valid2, marketingOptIn: true }).consents).toEqual({ terms: true, marketingEmail: true })
+    expect(toRegisterBody(step1, valid2).consents).toEqual({ terms: true })
   })
 })
 

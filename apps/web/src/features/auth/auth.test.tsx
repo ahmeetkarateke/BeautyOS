@@ -127,7 +127,7 @@ describe('SignupScreen', () => {
     expect(calls()[0].body).toMatchObject({ businessType: 'hair_transplant', slug: 'defne-spa', salonName: 'Defne Spa' })
   })
 
-  it('K6: iki adımda hesap oluşturulur; gövde sunucu şemasına uyar ve ticari ileti izni gönderilmez', async () => {
+  it('K6: iki adımda hesap oluşturulur; gövde sunucu şemasına uyar ve rızalar (şart + ticari ileti) consents içinde gider', async () => {
     request.mockResolvedValue(session)
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
@@ -148,8 +148,20 @@ describe('SignupScreen', () => {
         email: 'defne@ornek.com',
         password: 'sifre1234',
         businessType: 'hair_salon',
+        consents: { terms: true, marketingEmail: true },
       },
     })
+  })
+
+  it('K5: adres uygunluğu beklenip sorulur; "kullanımda" ise ikinci adıma geçilmez', async () => {
+    request.mockImplementation(async (path: string) => (path.includes('slug-available') ? { available: false, reason: 'taken' } : session))
+    mount(<SignupScreen navigate={navigate} />)
+    fillStep1()
+    expect(await screen.findByText('Bu adres kullanımda. Başka bir adres deneyin.', undefined, { timeout: 2000 })).toBeTruthy()
+    expect(request.mock.calls[0][0]).toBe('/api/v1/auth/slug-available')
+    expect(request.mock.calls[0][1]).toMatchObject({ query: { slug: 'defne-guzellik' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
+    expect(screen.queryByText('Adım 2/2')).toBeNull()
   })
 
   it('K6: kullanım şartları işaretlenmeden hesap oluşturulmaz (kutu başta işaretsizdir)', async () => {
@@ -196,7 +208,7 @@ describe('ForgotScreen', () => {
     type('E-posta', 'kimse@ornek.com')
     fireEvent.click(screen.getByRole('button', { name: 'Bağlantı gönder' }))
     expect(await screen.findByText(/Bu e-posta adresiyle bir hesap varsa/)).toBeTruthy()
-    expect(calls()[0]).toEqual({ path: '/api/v1/auth/forgot-password', body: { email: 'kimse@ornek.com' } })
+    expect(calls()[0]).toEqual({ path: '/api/v1/auth/password-reset/request', body: { email: 'kimse@ornek.com' } })
   })
 
   it('K7: bozuk e-posta istek atmadan reddedilir', async () => {
@@ -226,7 +238,7 @@ describe('ResetScreen', () => {
     type('Yeni şifre (tekrar)', 'yeni12345')
     fireEvent.click(await screen.findByRole('button', { name: 'Şifreyi değiştir' }))
     expect(await screen.findByText('Şifreniz değişti')).toBeTruthy()
-    expect(calls()[0]).toEqual({ path: '/api/v1/auth/reset-password', body: { token: 'tok123', password: 'yeni12345' } })
+    expect(calls()[0]).toEqual({ path: '/api/v1/auth/password-reset/confirm', body: { token: 'tok123', password: 'yeni12345' } })
     expect(window.location.hash).toBe('')
   })
 
@@ -258,16 +270,23 @@ describe('ResetScreen', () => {
     expect(screen.queryByLabelText('Yeni şifre')).toBeNull()
   })
 
-  it('K8: e-postadaki eski ?token= bağlantısı da çalışır ve belirteç adresten silinir', async () => {
-    window.history.replaceState(null, '', '/reset-password?token=eskibicim')
+  it('K8: sunucunun #token=<değer> bağlantısı çalışır; belirteç adresten silinir ve gövdede gider', async () => {
+    window.history.replaceState(null, '', '/reset-password#token=abcdef')
     request.mockResolvedValue({ ok: true })
     mount(<ResetScreen />)
     type('Yeni şifre', 'yeni12345')
     type('Yeni şifre (tekrar)', 'yeni12345')
     fireEvent.click(await screen.findByRole('button', { name: 'Şifreyi değiştir' }))
     await screen.findByText('Şifreniz değişti')
-    expect(calls()[0].body).toEqual({ token: 'eskibicim', password: 'yeni12345' })
-    expect(window.location.search).toBe('')
+    expect(calls()[0].body).toEqual({ token: 'abcdef', password: 'yeni12345' })
+    expect(window.location.hash).toBe('')
+  })
+
+  it('K9: eski ?token= bağlantısı kabul edilmez: geçersiz bağlantı ekranı', async () => {
+    window.history.replaceState(null, '', '/reset-password?token=eskibicim')
+    mount(<ResetScreen />)
+    expect(await screen.findByText('Bu bağlantının süresi dolmuş. Yeni bir bağlantı isteyin.')).toBeTruthy()
+    expect(request).not.toHaveBeenCalled()
   })
 })
 
