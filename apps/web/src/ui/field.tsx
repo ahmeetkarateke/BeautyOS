@@ -1,6 +1,6 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { ChevronDown, CircleAlert } from 'lucide-react'
+import { ChevronDown, CircleAlert, Eye, EyeOff } from 'lucide-react'
 import { cn } from './cn'
 import { formatNationalPhone, toNationalDigits } from './phone'
 
@@ -78,6 +78,37 @@ export function InputField({ label, optional, hint, error, className, ...inputPr
   return (
     <FieldFrame {...{ label, optional, hint, error, className, hintId, errorId }} controlId={control.id}>
       <input {...inputProps} {...control} className={controlClass} />
+    </FieldFrame>
+  )
+}
+
+export type PasswordFieldProps = Omit<InputFieldProps, 'type'>
+
+/** Şifre alanı: göster/gizle düğmesi (aria-pressed). Tarayıcı şifre yöneticisi için autoComplete çağıran ekranda verilir. */
+export function PasswordField({ label, optional, hint, error, className, ...inputProps }: PasswordFieldProps) {
+  const { control, hintId, errorId } = useField({ hint, error })
+  const [visible, setVisible] = useState(false)
+  return (
+    <FieldFrame {...{ label, optional, hint, error, className, hintId, errorId }} controlId={control.id}>
+      <div className="relative">
+        <input
+          {...inputProps}
+          {...control}
+          type={visible ? 'text' : 'password'}
+          spellCheck={false}
+          autoCapitalize="none"
+          className={cn(controlClass, 'pr-12')}
+        />
+        <button
+          type="button"
+          aria-label={visible ? 'Şifreyi gizle' : 'Şifreyi göster'}
+          aria-pressed={visible}
+          onClick={() => setVisible((v) => !v)}
+          className="absolute top-1/2 right-1 grid size-9 -translate-y-1/2 cursor-pointer place-content-center rounded-control text-text-secondary hover:bg-surface-active hover:text-text"
+        >
+          {visible ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+        </button>
+      </div>
     </FieldFrame>
   )
 }
