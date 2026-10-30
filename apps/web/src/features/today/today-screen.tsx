@@ -12,6 +12,7 @@ import {
   istanbulMinutes,
   minutesLabel,
   occupancyPercent,
+  isOnlineRequest,
   pendingRequests,
   staffState,
   stripRange,
@@ -92,7 +93,9 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
   const [startingId, setStartingId] = useState<string | null>(null)
 
   const dayQuery = useApiQuery(isExpert ? null : `day:${today}`, (c, signal) => fetchDayAppointments(c, slug, today, signal))
-  const pendingQuery = useApiQuery(isExpert || !canApprove ? null : `pending:${today}`, (c, signal) => fetchPendingRequests(c, slug, today, addDaysToDateStr(today, PENDING_DAYS), signal))
+  const pendingQuery = useApiQuery(isExpert || !canApprove ? null : `pending:${today}`, (c, signal) =>
+    fetchPendingRequests(c, slug, today, addDaysToDateStr(today, PENDING_DAYS), signal),
+  )
   const staffQuery = useApiQuery(isExpert ? null : 'staff', (c, signal) => fetchStaff(c, slug, signal))
   const dayLoaded = dayQuery.data !== undefined
   const dayEmpty = dayQuery.data !== undefined && dayQuery.data.length === 0
@@ -115,7 +118,8 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
 
   const range = stripRange(appointments)
   const pending = pendingRequests(pendingQuery.data ?? [])
-  const requestLabel = (r: DayAppointment) => (istanbulDateStr(r.start) === today ? clockLabel(r.start) : `${formatDate(r.start, 'short')} ${clockLabel(r.start)}`)
+  const requestLabel = (r: DayAppointment) =>
+    istanbulDateStr(r.start) === today ? clockLabel(r.start) : `${formatDate(r.start, 'short')} ${clockLabel(r.start)}`
   const occupancy = occupancyPercent(appointments, stripStaff.length, range)
 
   async function start(appointment: DayAppointment) {
@@ -133,7 +137,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
 
   const openAppointment = (id: string) => {
     const found = appointments.find((a) => a.id === id)
-    if (found?.status === 'pending' && canApprove) setReviewing(found)
+    if (found && isOnlineRequest(found) && canApprove) setReviewing(found)
     else router.push(`${base}/takvim?randevu=${encodeURIComponent(id)}`)
   }
   const createAppointment = () => router.push(`${base}/takvim?yeni=1`)
@@ -183,10 +187,14 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
   )
   const approvalSheet = (
     <>
-      <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={() => {
+      <ApprovalSheet
+        request={reviewing}
+        onClose={() => setReviewing(null)}
+        onChanged={() => {
           dayQuery.refetch()
           pendingQuery.refetch()
-        }} />
+        }}
+      />
       {quickSale ? (
         <QuickSaleSheet
           onClose={() => setQuickSale(false)}
@@ -234,7 +242,13 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
       <div className="grid gap-4">
         {header}
         <Card>
-          <ErrorState subject="Personel listesi" onRetry={staffQuery.refetch} retrying={staffQuery.loading} lastLoadedAt={staffQuery.loadedAt} className="px-0" />
+          <ErrorState
+            subject="Personel listesi"
+            onRetry={staffQuery.refetch}
+            retrying={staffQuery.loading}
+            lastLoadedAt={staffQuery.loadedAt}
+            className="px-0"
+          />
         </Card>
         {pendingBanners}
         {approvalSheet}
@@ -310,10 +324,17 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
               <ul className="m-0 grid list-none divide-y divide-border-subtle p-0">
                 {queue.map((a) => (
                   <li key={a.id} className="flex items-center gap-3 py-2">
-                    <span aria-hidden="true" className={cn('inline-grid size-9 flex-none place-items-center rounded-full text-xs font-semibold', toneClasses[toneOf(a)].avatar)}>
+                    <span
+                      aria-hidden="true"
+                      className={cn('inline-grid size-9 flex-none place-items-center rounded-full text-xs font-semibold', toneClasses[toneOf(a)].avatar)}
+                    >
                       {staffById.get(a.staffKey)?.initials ?? '?'}
                     </span>
-                    <button type="button" onClick={() => openAppointment(a.id)} className="grid min-w-0 flex-1 cursor-pointer gap-0.5 bg-transparent p-0 text-left text-text">
+                    <button
+                      type="button"
+                      onClick={() => openAppointment(a.id)}
+                      className="grid min-w-0 flex-1 cursor-pointer gap-0.5 bg-transparent p-0 text-left text-text"
+                    >
                       <span className="truncate font-medium">
                         <span className="tabular-nums">{clockLabel(a.start)}</span> · {a.customerName}
                       </span>
@@ -332,7 +353,7 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
                         <Button size="sm" variant="secondary" onClick={() => setCompleting(a)}>
                           Tamamla
                         </Button>
-                      ) : a.status === 'pending' && canApprove ? (
+                      ) : isOnlineRequest(a) && canApprove ? (
                         <Button size="sm" variant="secondary" onClick={() => setReviewing(a)}>
                           Gözden geçir
                         </Button>
@@ -355,7 +376,14 @@ export function TodayScreen({ now: fixedNow }: { now?: Date }) {
               <p data-testid="simdi-bos" className="text-sm">
                 <strong>Şu an boş:</strong> {freeSentence(stripStaff, appointments, nowMin, range)}.
               </p>
-              <OccupancyStrip staff={stripStaff} appointments={appointments} range={range} nowMin={nowMin} onOpenAppointment={openAppointment} onPickFree={pickFree} />
+              <OccupancyStrip
+                staff={stripStaff}
+                appointments={appointments}
+                range={range}
+                nowMin={nowMin}
+                onOpenAppointment={openAppointment}
+                onPickFree={pickFree}
+              />
             </div>
           </Card>
 
