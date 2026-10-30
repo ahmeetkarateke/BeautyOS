@@ -92,7 +92,7 @@ export function legacyPathFor(rest: readonly string[]): string | null {
 const PANEL_SCREENS: ReadonlySet<string> = new Set([
   'bugun', 'gunum', 'takvim', 'musteriler', 'musteri-yeni', 'musteri', 'hizmetler', 'personel', 'personel-detay', 'primim',
   'kasa', 'bekleme', 'raporlar', 'hesaplar', 'cari', 'faturalar', 'fatura-yeni', 'tedarikciler', 'stok', 'paketler',
-  'odemeler', 'bahsis', 'asistan', 'ayarlar', 'hesabim', 'abonelik-bitti', 'menu',
+  'odemeler', 'bahsis', 'asistan', 'ayarlar', 'hesabim', 'abonelik-bitti', 'menu', 'kurulum',
 ])
 
 export function isKnownPanelScreen(rest: readonly string[]): boolean {
