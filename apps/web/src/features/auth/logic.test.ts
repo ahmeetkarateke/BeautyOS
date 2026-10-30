@@ -6,6 +6,8 @@ import {
   resolveBusinessType,
   slugify,
   toRegisterBody,
+  LABEL_VERSION,
+  MARKETING_TEXT_VERSION,
   validateEmail,
   validateLogin,
   validateNewPassword,
@@ -14,7 +16,7 @@ import {
   validateStep2,
 } from './logic'
 
-const legal = { termsVersion: 't1', dpaVersion: 'd1', labelVersion: 'l1' }
+const legal = { termsVersion: 't1', dpaVersion: 'd1' }
 const valid2 = { fullName: 'Defne Kaya', phone: '5321234567', email: 'defne@ornek.com', password: 'sifre1234', acceptTerms: true, marketingOptIn: false }
 
 describe('işletme türü', () => {
@@ -160,14 +162,14 @@ describe('toRegisterBody', () => {
       email: 'defne@ornek.com',
       password: 'sifre1234',
       businessType: 'spa',
-      consents: { terms: true, ...legal },
+      consents: { terms: true, ...legal, labelVersion: LABEL_VERSION },
     })
   })
 
   it('K7: ticari ileti izni işaretliyse consents.marketingEmail true gider; işaretsizse alan hiç gitmez', () => {
     const step1 = { salonName: 'Defne', slug: 'defne', type: 'hair_salon', otherType: '' }
-    expect(toRegisterBody(step1, { ...valid2, marketingOptIn: true }, legal).consents).toEqual({ terms: true, ...legal, marketingEmail: true })
-    expect(toRegisterBody(step1, valid2, legal).consents).toEqual({ terms: true, ...legal })
+    expect(toRegisterBody(step1, { ...valid2, marketingOptIn: true }, legal).consents).toEqual({ terms: true, ...legal, labelVersion: LABEL_VERSION, marketingEmail: true, marketingTextVersion: MARKETING_TEXT_VERSION })
+    expect(toRegisterBody(step1, valid2, legal).consents).toEqual({ terms: true, ...legal, labelVersion: LABEL_VERSION })
   })
 })
 

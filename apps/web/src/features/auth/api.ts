@@ -24,7 +24,7 @@ export async function login(client: ApiClient, credentials: { email: string; pas
   return start(client, body)
 }
 
-const legalSchema = z.object({ termsVersion: z.string(), dpaVersion: z.string(), labelVersion: z.string() })
+const legalSchema = z.object({ termsVersion: z.string(), dpaVersion: z.string() })
 
 export async function fetchLegalVersions(client: ApiClient): Promise<LegalVersions> {
   return legalSchema.parse(await client.request<unknown>('/api/v1/auth/legal-versions'))

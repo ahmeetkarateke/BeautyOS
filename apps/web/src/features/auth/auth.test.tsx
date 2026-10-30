@@ -24,7 +24,7 @@ function mount(node: React.ReactNode) {
 
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 const session = { token: 'jwt', user: { tenantSlug: 'defne' } }
-const versions = { termsVersion: 't1', dpaVersion: 'd1', labelVersion: 'l1', marketingTextVersion: 'm1' }
+const versions = { termsVersion: 't1', dpaVersion: 'd1', labelVersion: '2026-10-30', marketingTextVersion: '2026-10-30' }
 const registerCalls = () => calls().filter((c) => c.path.endsWith('/register'))
 const mockSignup = () => request.mockImplementation(async (path: string) => (path.includes('legal-versions') ? versions : session))
 
@@ -151,7 +151,7 @@ describe('SignupScreen', () => {
         email: 'defne@ornek.com',
         password: 'sifre1234',
         businessType: 'hair_salon',
-        consents: { terms: true, termsVersion: 't1', dpaVersion: 'd1', labelVersion: 'l1', marketingEmail: true },
+        consents: { terms: true, termsVersion: 't1', dpaVersion: 'd1', labelVersion: '2026-10-30', marketingEmail: true, marketingTextVersion: '2026-10-30' },
       },
     })
   })
@@ -161,25 +161,57 @@ describe('SignupScreen', () => {
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
     expect(await screen.findByText('Bu adres kullanımda. Başka bir adres deneyin.', undefined, { timeout: 2000 })).toBeTruthy()
-    expect(request.mock.calls[0][0]).toBe('/api/v1/auth/slug-available')
-    expect(request.mock.calls[0][1]).toMatchObject({ query: { slug: 'defne-guzellik' } })
+    expect(request.mock.calls.find(([p]: [string]) => p.includes('slug-available'))?.[0]).toBe('/api/v1/auth/slug-available')
+    expect(request.mock.calls.find(([p]: [string]) => p.includes('slug-available'))?.[1]).toMatchObject({ query: { slug: 'defne-guzellik' } })
     fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
     expect(screen.queryByText('Adım 2/2')).toBeNull()
   })
 
-  it('K6: sürüm uyuşmazlığında (LEGAL_VERSION_MISMATCH) sayfayı yenileme uyarısı gösterilir ve yönlenilmez', async () => {
+  it('K6: sürümler ekran açılınca alınır; gönderimden önce sunucu v2 olsa bile istek gövdesinde kullanıcının gördüğü v1 gider', async () => {
+    let current = { ...versions, termsVersion: 'v1' }
+    request.mockImplementation(async (path: string) => (path.includes('legal-versions') ? current : session))
+    mount(<SignupScreen navigate={navigate} />)
+    await waitFor(() => expect(request.mock.calls.some(([p]: [string]) => p.includes('legal-versions'))).toBe(true))
+    current = { ...versions, termsVersion: 'v2' }
+    fillStep1()
+    fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
+    fillStep2()
+    fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
+    fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
+    await waitFor(() => expect(navigate).toHaveBeenCalled())
+    expect(registerCalls()[0].body.consents).toMatchObject({ termsVersion: 'v1' })
+    expect(calls().filter((c) => c.path.includes('legal-versions'))).toHaveLength(1)
+  })
+
+  it('K6: LEGAL_VERSION_MISMATCH gelince sürümler yenilenir, şart kutusu temizlenir ve yeniden onay istenir', async () => {
+    let current = { ...versions, termsVersion: 'v1' }
     request.mockImplementation(async (path: string) => {
-      if (path.includes('legal-versions')) return versions
+      if (path.includes('legal-versions')) return current
       throw new ApiError({ status: 400, code: 'LEGAL_VERSION_MISMATCH' })
     })
+    mount(<SignupScreen navigate={navigate} />)
+    await waitFor(() => expect(request).toHaveBeenCalled())
+    fillStep1()
+    fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
+    fillStep2()
+    fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
+    current = { ...versions, termsVersion: 'v2' }
+    fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
+    expect((await screen.findByText(/Belgeler güncellendi/)).textContent).toContain('yeniden işaretleyin')
+    expect((screen.getByLabelText(/okudum, kabul ediyorum/) as HTMLInputElement).checked).toBe(false)
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('K6: sürümler alınamadıysa hesap oluşturulmaz; anlaşılır uyarı verilir', async () => {
+    request.mockRejectedValue(new ApiError({ status: 0, code: 'NETWORK' }))
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
     fillStep2()
     fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
     fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
-    expect((await screen.findByRole('alert')).textContent).toContain('Sayfayı yenileyip')
-    expect(navigate).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toContain('Belge sürümleri alınamadı')
+    expect(registerCalls()).toHaveLength(0)
   })
 
   it('K6: kullanım şartları işaretlenmeden hesap oluşturulmaz (kutu başta işaretsizdir)', async () => {
@@ -190,11 +222,14 @@ describe('SignupScreen', () => {
     expect((screen.getByLabelText(/okudum, kabul ediyorum/) as HTMLInputElement).checked).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
     expect(await screen.findByText(/kullanım şartları ve gizlilik belgelerini kabul etmelisiniz/)).toBeTruthy()
-    expect(request).not.toHaveBeenCalled()
+    expect(registerCalls()).toHaveLength(0)
   })
 
   it('K6: adres çakışmasında birinci adıma dönülür ve hata adres alanında görünür', async () => {
-    request.mockRejectedValue(new ApiError({ status: 409, code: 'DUPLICATE_SLUG' }))
+    request.mockImplementation(async (path: string) => {
+      if (path.includes('legal-versions')) return versions
+      throw new ApiError({ status: 409, code: 'DUPLICATE_SLUG' })
+    })
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
@@ -207,7 +242,10 @@ describe('SignupScreen', () => {
   })
 
   it('K6: e-posta çakışmasında ikinci adımda kalınır ve hata e-posta alanında görünür', async () => {
-    request.mockRejectedValue(new ApiError({ status: 409, code: 'DUPLICATE_EMAIL' }))
+    request.mockImplementation(async (path: string) => {
+      if (path.includes('legal-versions')) return versions
+      throw new ApiError({ status: 409, code: 'DUPLICATE_EMAIL' })
+    })
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))

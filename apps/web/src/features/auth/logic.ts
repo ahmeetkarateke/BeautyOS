@@ -121,11 +121,14 @@ export type RegisterBody = {
   password: string
   businessType: string
   // Yeni arayüz rızaları HER ZAMAN gönderir (alan yoksa sunucu eski arayüz sayar ve kabul kaydı yazmaz). K1 zorunlu, K3 yalnız işaretliyse.
-  consents: { terms: true; termsVersion: string; dpaVersion: string; labelVersion: string; marketingEmail?: true }
+  consents: { terms: true; termsVersion: string; dpaVersion: string; labelVersion: string; marketingEmail?: true; marketingTextVersion?: string }
 }
 
 /** Kabul edilen belge sürümleri: sunucudan (GET /auth/legal-versions) alınır, uyuşmazsa kayıt 400 LEGAL_VERSION_MISMATCH ile döner. */
-export type LegalVersions = { termsVersion: string; dpaVersion: string; labelVersion: string }
+// Kutu etiketlerinin (K1/K3) sürümü web'dedir: etiket metni değişince bu sabit de değişir. Şart ve DPA sürümleri sunucudan, ekran açılırken alınır.
+export const LABEL_VERSION = '2026-10-30'
+export const MARKETING_TEXT_VERSION = '2026-10-30'
+export type LegalVersions = { termsVersion: string; dpaVersion: string }
 
 export function toRegisterBody(step1: Step1, step2: Step2, legal: LegalVersions): RegisterBody {
   return {
@@ -136,7 +139,7 @@ export function toRegisterBody(step1: Step1, step2: Step2, legal: LegalVersions)
     email: step2.email.trim(),
     password: step2.password,
     businessType: resolveBusinessType(step1.type, step1.otherType),
-    consents: { terms: true, termsVersion: legal.termsVersion, dpaVersion: legal.dpaVersion, labelVersion: legal.labelVersion, ...(step2.marketingOptIn ? { marketingEmail: true as const } : {}) },
+    consents: { terms: true, termsVersion: legal.termsVersion, dpaVersion: legal.dpaVersion, labelVersion: LABEL_VERSION, ...(step2.marketingOptIn ? { marketingEmail: true as const, marketingTextVersion: MARKETING_TEXT_VERSION } : {}) },
   }
 }
 

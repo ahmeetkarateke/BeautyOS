@@ -12,6 +12,7 @@ import { LegalCheckbox } from '@/ui/choice'
 import { focusFirstInvalid, InputField, PasswordField, PhoneField, SelectField } from '@/ui/field'
 import { checkSlug, fetchLegalVersions, register } from './api'
 import { AuthShell } from './auth-shell'
+import type { LegalVersions } from './logic'
 import { MAIN_BUSINESS_TYPES, OTHER_BUSINESS_TYPES, panelPathFor, slugify, toRegisterBody, validateSlug, validateStep1, validateStep2 } from './logic'
 
 type Navigate = (path: string) => void
@@ -56,6 +57,19 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
     }
   }, [client, slug])
 
+  // Belge sürümleri ekran açılınca bir kez alınır; kayıt, kullanıcının o anda gördüğü sürümle gönderilir.
+  // Gönderimde yeniden çekilseydi sunucudaki sürüm denetimi hiç tetiklenmez, görmediği metin "kabul edildi" sayılırdı.
+  const legalRef = useRef<Promise<LegalVersions> | null>(null)
+  const startLegalFetch = () => {
+    const promise = fetchLegalVersions(client)
+    promise.catch(() => undefined)
+    legalRef.current = promise
+  }
+  useEffect(() => {
+    if (!legalRef.current) startLegalFetch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnız açılışta
+  }, [])
+
   const focusInvalid = () => requestAnimationFrame(() => formRef.current && focusFirstInvalid(formRef.current))
 
   function changeName(value: string) {
@@ -81,14 +95,25 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
     if (Object.keys(found).length > 0) return focusInvalid()
     setPending(true)
     try {
-      // Sürümler gönderim anında alınır: kullanıcının gördüğü belgeyle kaydedilen belge aynı olsun.
-      const legal = await fetchLegalVersions(client)
+      let legal: LegalVersions
+      try {
+        legal = await (legalRef.current ?? fetchLegalVersions(client))
+      } catch {
+        startLegalFetch()
+        setPending(false)
+        return setFailure('Belge sürümleri alınamadı. Bağlantınızı kontrol edip tekrar deneyin.')
+      }
       const session = await register(client, toRegisterBody({ salonName, slug, type, otherType }, { fullName, phone, email, password, acceptTerms, marketingOptIn }, legal))
       navigate(panelPathFor(session.tenantSlug))
     } catch (error) {
       setPending(false)
       if (!(error instanceof ApiError)) return setFailure(GENERIC_ERROR)
       // Alanla ilgili çakışmalar kullanıcıyı doğru alana götürür.
+      if (error.code === 'LEGAL_VERSION_MISMATCH') {
+        startLegalFetch()
+        setAcceptTerms(false)
+        return setFailure('Belgeler güncellendi. Kullanım şartları ve veri işleme sözleşmesini yeniden işaretleyin.')
+      }
       if (error.code === 'DUPLICATE_SLUG') {
         setErrors({ slug: error.text() })
         setStep(1)
