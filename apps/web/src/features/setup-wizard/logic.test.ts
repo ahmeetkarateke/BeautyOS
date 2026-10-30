@@ -79,3 +79,11 @@ describe('W31 Kurulum sihirbazı mantığı', () => {
     expect(tasks[1].href).toBeNull()
   })
 })
+
+describe('W31 salon gövdesi', () => {
+  it('K13: boş telefon PATCH gövdesine girmez (sunucu en az 7 karakter ister); dolu telefon kırpılarak gider', async () => {
+    const { salonBody } = await import('./logic')
+    expect(salonBody({ name: ' Defne ', phone: '  ', address: ' Atatürk Cad. 5 ' })).toEqual({ name: 'Defne', address: 'Atatürk Cad. 5' })
+    expect(salonBody({ name: 'Defne', phone: ' 0532 111 22 33 ', address: 'Atatürk Cad. 5' })).toMatchObject({ phone: '0532 111 22 33' })
+  })
+})

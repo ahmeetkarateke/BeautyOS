@@ -123,3 +123,9 @@ export function readyTasks(slug: string): ReadyTask[] {
     { id: 'review-hours', label: 'Çalışma saatlerini gözden geçirin', href: `${base}/ayarlar/calisma-saatleri` },
   ]
 }
+
+/** Salon adımı PATCH gövdesi: telefon isteğe bağlıdır, boşsa hiç gönderilmez. */
+export function salonBody(values: { name: string; phone: string; address: string }): Record<string, string> {
+  const phone = values.phone.trim()
+  return { name: values.name.trim(), ...(phone ? { phone } : {}), address: values.address.trim() }
+}

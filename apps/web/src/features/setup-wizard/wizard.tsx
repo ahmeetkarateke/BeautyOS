@@ -27,6 +27,7 @@ import {
   pickToServiceValues,
   prevStep,
   readyTasks,
+  salonBody,
   serviceCreateBody,
   stepProgress,
   stepsFor,
@@ -150,7 +151,7 @@ function SalonStep({ settings, onDone, onBack }: StepProps) {
         const found = validateSalon(values)
         setErrors(found)
         if (Object.keys(found).length === 0)
-          void run(() => patchSettings(client, slug, { name: values.name.trim(), phone: values.phone.trim(), address: values.address.trim() }), onDone)
+          void run(() => patchSettings(client, slug, salonBody(values)), onDone)
       }}
     >
       {failure ? <Banner tone="error">{failure}</Banner> : null}
