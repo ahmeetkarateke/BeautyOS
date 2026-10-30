@@ -204,6 +204,24 @@ describe('apiClient: yenilemesiz uçlar açık liste (denetim W5-1 Önemli)', ()
     },
   )
 
+  it('W28-1: 401 INVALID_PASSWORD yanlış şifredir; oturum yenilenmez, istek tekrarlanmaz', async () => {
+    let refreshCalls = 0
+    const { client, calls } = setup((url) => {
+      if (url.endsWith('/auth/refresh')) {
+        refreshCalls++
+        return json(200, { token: 'yeni' })
+      }
+      return json(401, { error: { code: 'INVALID_PASSWORD', message: 'x' } })
+    })
+    client.setAccessToken('gecerli')
+    await expect(client.request('/api/v1/tenants/salon/users/u1/password', { method: 'PATCH', body: {} })).rejects.toMatchObject({
+      status: 401,
+      code: 'INVALID_PASSWORD',
+    })
+    expect(refreshCalls).toBe(0)
+    expect(calls).toHaveLength(1)
+  })
+
   it('ADR-UI-11: 429 yanıtında sunucunun kendi hata kodu ezilmez', async () => {
     const { client } = setup(() => json(429, { error: { code: 'TENANT_DAILY_LIMIT', message: 'x' } }))
     await expect(client.request('/api/v1/public/book', { method: 'POST', body: {} })).rejects.toMatchObject({ status: 429, code: 'TENANT_DAILY_LIMIT' })
