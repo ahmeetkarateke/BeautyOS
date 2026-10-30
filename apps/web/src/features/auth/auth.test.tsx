@@ -24,6 +24,9 @@ function mount(node: React.ReactNode) {
 
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 const session = { token: 'jwt', user: { tenantSlug: 'defne' } }
+const versions = { termsVersion: 't1', dpaVersion: 'd1', labelVersion: 'l1', marketingTextVersion: 'm1' }
+const registerCalls = () => calls().filter((c) => c.path.endsWith('/register'))
+const mockSignup = () => request.mockImplementation(async (path: string) => (path.includes('legal-versions') ? versions : session))
 
 beforeEach(() => {
   request.mockReset()
@@ -114,7 +117,7 @@ describe('SignupScreen', () => {
   })
 
   it('K5: "Diğer" seçilince alt tür sorulur ve seçilen alt tür API değeri olur', async () => {
-    request.mockResolvedValue(session)
+    mockSignup()
     mount(<SignupScreen navigate={navigate} />)
     type('İşletme adı', 'Defne Spa')
     fireEvent.change(screen.getByLabelText('İşletme türü'), { target: { value: 'other' } })
@@ -124,11 +127,11 @@ describe('SignupScreen', () => {
     fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
     fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/bugun'))
-    expect(calls()[0].body).toMatchObject({ businessType: 'hair_transplant', slug: 'defne-spa', salonName: 'Defne Spa' })
+    expect(registerCalls()[0].body).toMatchObject({ businessType: 'hair_transplant', slug: 'defne-spa', salonName: 'Defne Spa' })
   })
 
   it('K6: iki adımda hesap oluşturulur; gövde sunucu şemasına uyar ve rızalar (şart + ticari ileti) consents içinde gider', async () => {
-    request.mockResolvedValue(session)
+    mockSignup()
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
@@ -138,7 +141,7 @@ describe('SignupScreen', () => {
     fireEvent.click(screen.getByLabelText(/duyurularını e-postayla/))
     fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/bugun'))
-    expect(calls()[0]).toEqual({
+    expect(registerCalls()[0]).toEqual({
       path: '/api/v1/auth/register',
       body: {
         salonName: 'Defne Güzellik',
@@ -148,13 +151,13 @@ describe('SignupScreen', () => {
         email: 'defne@ornek.com',
         password: 'sifre1234',
         businessType: 'hair_salon',
-        consents: { terms: true, marketingEmail: true },
+        consents: { terms: true, termsVersion: 't1', dpaVersion: 'd1', labelVersion: 'l1', marketingEmail: true },
       },
     })
   })
 
   it('K5: adres uygunluğu beklenip sorulur; "kullanımda" ise ikinci adıma geçilmez', async () => {
-    request.mockImplementation(async (path: string) => (path.includes('slug-available') ? { available: false, reason: 'taken' } : session))
+    request.mockImplementation(async (path: string) => (path.includes('slug-available') ? { available: false, reason: 'taken' } : path.includes('legal-versions') ? versions : session))
     mount(<SignupScreen navigate={navigate} />)
     fillStep1()
     expect(await screen.findByText('Bu adres kullanımda. Başka bir adres deneyin.', undefined, { timeout: 2000 })).toBeTruthy()
@@ -162,6 +165,21 @@ describe('SignupScreen', () => {
     expect(request.mock.calls[0][1]).toMatchObject({ query: { slug: 'defne-guzellik' } })
     fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
     expect(screen.queryByText('Adım 2/2')).toBeNull()
+  })
+
+  it('K6: sürüm uyuşmazlığında (LEGAL_VERSION_MISMATCH) sayfayı yenileme uyarısı gösterilir ve yönlenilmez', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path.includes('legal-versions')) return versions
+      throw new ApiError({ status: 400, code: 'LEGAL_VERSION_MISMATCH' })
+    })
+    mount(<SignupScreen navigate={navigate} />)
+    fillStep1()
+    fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
+    fillStep2()
+    fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
+    fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('Sayfayı yenileyip')
+    expect(navigate).not.toHaveBeenCalled()
   })
 
   it('K6: kullanım şartları işaretlenmeden hesap oluşturulmaz (kutu başta işaretsizdir)', async () => {

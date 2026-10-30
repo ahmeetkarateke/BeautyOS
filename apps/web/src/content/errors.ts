@@ -49,6 +49,7 @@ const TEXTS: Record<string, Entry> = {
   DUPLICATE_SLUG: 'Bu salon adresi kullanımda. Başka bir adres deneyin.',
   DUPLICATE_PHONE: 'Bu telefon numarasıyla kayıtlı bir müşteri var.',
   INVITE_LIMIT: 'Günlük davet sınırına ulaşıldı. Yarın tekrar deneyin.',
+  LEGAL_VERSION_MISMATCH: 'Kullanım şartları güncellendi. Sayfayı yenileyip tekrar deneyin.',
   INVITATION_INVALID: 'Bu bağlantı geçersiz ya da süresi dolmuş.',
   INVITATION_EMAIL_IN_USE: 'Bu e-posta adresi başka bir hesapta kayıtlı. Giriş yapmayı deneyin.',
   INVALID_ACCOUNT: 'Seçilen hesap bulunamadı. Hesabı yeniden seçin.',

@@ -121,10 +121,13 @@ export type RegisterBody = {
   password: string
   businessType: string
   // Yeni arayüz rızaları HER ZAMAN gönderir (alan yoksa sunucu eski arayüz sayar ve kabul kaydı yazmaz). K1 zorunlu, K3 yalnız işaretliyse.
-  consents: { terms: true; marketingEmail?: true }
+  consents: { terms: true; termsVersion: string; dpaVersion: string; labelVersion: string; marketingEmail?: true }
 }
 
-export function toRegisterBody(step1: Step1, step2: Step2): RegisterBody {
+/** Kabul edilen belge sürümleri: sunucudan (GET /auth/legal-versions) alınır, uyuşmazsa kayıt 400 LEGAL_VERSION_MISMATCH ile döner. */
+export type LegalVersions = { termsVersion: string; dpaVersion: string; labelVersion: string }
+
+export function toRegisterBody(step1: Step1, step2: Step2, legal: LegalVersions): RegisterBody {
   return {
     salonName: step1.salonName.trim(),
     slug: step1.slug,
@@ -133,7 +136,7 @@ export function toRegisterBody(step1: Step1, step2: Step2): RegisterBody {
     email: step2.email.trim(),
     password: step2.password,
     businessType: resolveBusinessType(step1.type, step1.otherType),
-    consents: { terms: true, ...(step2.marketingOptIn ? { marketingEmail: true as const } : {}) },
+    consents: { terms: true, termsVersion: legal.termsVersion, dpaVersion: legal.dpaVersion, labelVersion: legal.labelVersion, ...(step2.marketingOptIn ? { marketingEmail: true as const } : {}) },
   }
 }
 

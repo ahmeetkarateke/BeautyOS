@@ -14,6 +14,7 @@ import {
   validateStep2,
 } from './logic'
 
+const legal = { termsVersion: 't1', dpaVersion: 'd1', labelVersion: 'l1' }
 const valid2 = { fullName: 'Defne Kaya', phone: '5321234567', email: 'defne@ornek.com', password: 'sifre1234', acceptTerms: true, marketingOptIn: false }
 
 describe('işletme türü', () => {
@@ -150,7 +151,7 @@ describe('validateStep2', () => {
 
 describe('toRegisterBody', () => {
   it('K7: API gövdesini kurar, telefona +90 ekler, e-postayı kırpar', () => {
-    const body = toRegisterBody({ salonName: ' Defne ', slug: 'defne', type: 'other', otherType: 'spa' }, { ...valid2, email: ' defne@ornek.com ' })
+    const body = toRegisterBody({ salonName: ' Defne ', slug: 'defne', type: 'other', otherType: 'spa' }, { ...valid2, email: ' defne@ornek.com ' }, legal)
     expect(body).toEqual({
       salonName: 'Defne',
       slug: 'defne',
@@ -159,14 +160,14 @@ describe('toRegisterBody', () => {
       email: 'defne@ornek.com',
       password: 'sifre1234',
       businessType: 'spa',
-      consents: { terms: true },
+      consents: { terms: true, ...legal },
     })
   })
 
   it('K7: ticari ileti izni işaretliyse consents.marketingEmail true gider; işaretsizse alan hiç gitmez', () => {
     const step1 = { salonName: 'Defne', slug: 'defne', type: 'hair_salon', otherType: '' }
-    expect(toRegisterBody(step1, { ...valid2, marketingOptIn: true }).consents).toEqual({ terms: true, marketingEmail: true })
-    expect(toRegisterBody(step1, valid2).consents).toEqual({ terms: true })
+    expect(toRegisterBody(step1, { ...valid2, marketingOptIn: true }, legal).consents).toEqual({ terms: true, ...legal, marketingEmail: true })
+    expect(toRegisterBody(step1, valid2, legal).consents).toEqual({ terms: true, ...legal })
   })
 })
 

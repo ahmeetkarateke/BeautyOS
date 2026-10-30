@@ -10,7 +10,7 @@ import { Banner } from '@/ui/banner'
 import { Button } from '@/ui/button'
 import { LegalCheckbox } from '@/ui/choice'
 import { focusFirstInvalid, InputField, PasswordField, PhoneField, SelectField } from '@/ui/field'
-import { checkSlug, register } from './api'
+import { checkSlug, fetchLegalVersions, register } from './api'
 import { AuthShell } from './auth-shell'
 import { MAIN_BUSINESS_TYPES, OTHER_BUSINESS_TYPES, panelPathFor, slugify, toRegisterBody, validateSlug, validateStep1, validateStep2 } from './logic'
 
@@ -81,7 +81,9 @@ export function SignupScreen({ navigate = defaultNavigate }: { navigate?: Naviga
     if (Object.keys(found).length > 0) return focusInvalid()
     setPending(true)
     try {
-      const session = await register(client, toRegisterBody({ salonName, slug, type, otherType }, { fullName, phone, email, password, acceptTerms, marketingOptIn }))
+      // Sürümler gönderim anında alınır: kullanıcının gördüğü belgeyle kaydedilen belge aynı olsun.
+      const legal = await fetchLegalVersions(client)
+      const session = await register(client, toRegisterBody({ salonName, slug, type, otherType }, { fullName, phone, email, password, acceptTerms, marketingOptIn }, legal))
       navigate(panelPathFor(session.tenantSlug))
     } catch (error) {
       setPending(false)

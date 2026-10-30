@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { ApiClient } from '@/lib/v2/api-client'
-import type { RegisterBody } from './logic'
+import type { LegalVersions, RegisterBody } from './logic'
 
 // Kimlik uçları. Sunucu yanıtı güvenilmez girdi sayılır: zod ile doğrulanır; token yalnız bellekteki istemciye verilir.
 const sessionSchema = z.object({
@@ -22,6 +22,12 @@ export async function login(client: ApiClient, credentials: { email: string; pas
     body: { email: credentials.email.trim(), password: credentials.password },
   })
   return start(client, body)
+}
+
+const legalSchema = z.object({ termsVersion: z.string(), dpaVersion: z.string(), labelVersion: z.string() })
+
+export async function fetchLegalVersions(client: ApiClient): Promise<LegalVersions> {
+  return legalSchema.parse(await client.request<unknown>('/api/v1/auth/legal-versions'))
 }
 
 export async function register(client: ApiClient, payload: RegisterBody): Promise<SessionStart> {
