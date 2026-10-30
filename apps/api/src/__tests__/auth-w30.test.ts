@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   tenants: [] as Array<Record<string, unknown>>,
   resetTokens: [] as Array<Record<string, unknown>>,
   acceptances: [] as Array<Record<string, unknown>>,
+  marketing: [] as Array<Record<string, unknown>>,
   mails: [] as string[],
 }))
 
@@ -52,6 +53,12 @@ vi.mock('../lib/db', () => {
     legalAcceptance: {
       createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
         state.acceptances.push(...data)
+        return { count: data.length }
+      },
+    },
+    marketingConsent: {
+      createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
+        state.marketing.push(...data)
         return { count: data.length }
       },
     },
@@ -97,6 +104,7 @@ beforeEach(async () => {
   state.store = createFakeSessionDb()
   state.resetTokens = []
   state.acceptances = []
+  state.marketing = []
   state.mails = []
   state.tenants = [{ id: 't0', slug: 'dolu-salon' }]
   state.users = [
@@ -105,12 +113,13 @@ beforeEach(async () => {
 })
 
 describe('K-sifre: token # parcasinda (ADR-0046)', () => {
-  it('K-sifre: yeni istek ucu baglantiyi #token= ile gonderir, ?token= icermez', async () => {
+  it('K-sifre: yeni istek ucu baglantiyi #<token> ile gonderir, ?token= icermez', async () => {
     const res = await request(makeApp()).post('/api/v1/auth/password-reset/request').send({ email: 'sahip@test.local' })
     expect(res.status).toBe(200)
     expect(state.mails).toHaveLength(1)
-    expect(state.mails[0]).toMatch(/^https:\/\/yeni\.test\/reset-password#token=[0-9a-f]{64}$/)
+    expect(state.mails[0]).toMatch(/^https:\/\/yeni\.test\/reset-password#[0-9a-f]{64}$/)
     expect(state.mails[0]).not.toContain('?token=')
+    expect(state.mails[0]).not.toContain('#token=')
   })
 
   it('K-sifre: eski forgot-password ucu ?token= baglantisini korur (canli eski arayuz)', async () => {
@@ -129,7 +138,7 @@ describe('K-sifre: token # parcasinda (ADR-0046)', () => {
   it('K-sifre: confirm gövdedeki token ile sifreyi degistirir; ayni token ikinci kez 400 INVALID_TOKEN', async () => {
     const app = makeApp()
     await request(app).post('/api/v1/auth/password-reset/request').send({ email: 'sahip@test.local' })
-    const token = state.mails[0].split('#token=')[1]
+    const token = state.mails[0].split('#')[1]
     const ok = await request(app).post('/api/v1/auth/password-reset/confirm').send({ token, password: 'Yepyeni1234' })
     expect(ok.status).toBe(200)
     expect(await bcrypt.compare('Yepyeni1234', state.users[0].passwordHash as string)).toBe(true)
@@ -155,42 +164,75 @@ describe('K-sifre: token # parcasinda (ADR-0046)', () => {
   })
 })
 
-describe('K1/K3: kayitta rizalar (ADR-0048)', () => {
+const V = { termsVersion: '2026-10-30', dpaVersion: '2026-10-30', labelVersion: '2026-10-30' }
+const consentsOf = (extra: Record<string, unknown> = {}) => ({ terms: true, ...V, ...extra })
+const register = (consents: unknown, ua = 'TestAgent/1.0') =>
+  request(makeApp()).post('/api/v1/auth/register').set('User-Agent', ua).send({ ...REGISTER, consents })
+
+describe('K1/K3: kayitta rizalar (ADR-0048, hukuk-uyum W30-1)', () => {
   it('K1: consents.terms false ise 400 ve tenant/kullanici olusmaz', async () => {
-    const res = await request(makeApp()).post('/api/v1/auth/register').send({ ...REGISTER, consents: { terms: false } })
+    const res = await register(consentsOf({ terms: false }))
     expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('VALIDATION_ERROR')
     expect(res.body.error.message).toContain('kabul etmeniz gerekir')
     expect(state.tenants).toHaveLength(1)
     expect(state.acceptances).toHaveLength(0)
   })
 
-  it('K1: terms true ise Kullanim Sartlari ve DPA icin ayri kabul satirlari yazilir; K3 verilmediyse pazarlama satiri yok', async () => {
-    const res = await request(makeApp()).post('/api/v1/auth/register').send({ ...REGISTER, consents: { terms: true } })
+  it('K1: eski sartlar surumuyle gelen istek 400 LEGAL_VERSION_MISMATCH, kayit olusmaz', async () => {
+    const res = await register(consentsOf({ termsVersion: '2020-01-01' }))
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('LEGAL_VERSION_MISMATCH')
+    expect(state.tenants).toHaveLength(1)
+  })
+
+  it('K1: eski DPA surumuyle gelen istek 400 LEGAL_VERSION_MISMATCH', async () => {
+    const res = await register(consentsOf({ dpaVersion: '2020-01-01' }))
+    expect(res.body.error.code).toBe('LEGAL_VERSION_MISMATCH')
+  })
+
+  it('K1: surum alanlari eksikse 400', async () => {
+    const res = await register({ terms: true })
+    expect(res.status).toBe(400)
+    expect(state.tenants).toHaveLength(1)
+  })
+
+  it('K1: basarili kayitta terms ve dpa icin iki kabul satiri, sunucu alanlariyla (kanal, ip, user-agent, etiket surumu)', async () => {
+    const res = await register(consentsOf())
     expect(res.status).toBe(201)
-    expect(state.acceptances.map((a) => a.document).sort()).toEqual(['dpa', 'terms'])
+    expect(state.acceptances).toHaveLength(2)
+    expect(state.acceptances.map((a) => a.documentType).sort()).toEqual(['dpa', 'terms'])
     for (const a of state.acceptances) {
-      expect(a.tenantId).toBe(state.tenants[1].id)
-      expect(a.userId).toBe(state.users[1].id)
-      expect(typeof a.version).toBe('string')
+      expect(a).toMatchObject({ tenantId: state.tenants[1].id, userId: state.users[1].id, documentVersion: V.termsVersion, channel: 'signup', labelVersion: V.labelVersion, userAgent: 'TestAgent/1.0' })
+      expect(typeof a.ipAddress).toBe('string')
     }
   })
 
-  it('K3: marketingEmail true ise ayri marketing_email satiri yazilir', async () => {
-    const res = await request(makeApp()).post('/api/v1/auth/register').send({ ...REGISTER, consents: { terms: true, marketingEmail: true } })
+  it('K3: marketingEmail true ise marketing_consents tablosuna tek granted satiri', async () => {
+    const res = await register(consentsOf({ marketingEmail: true }))
     expect(res.status).toBe(201)
-    expect(state.acceptances.map((a) => a.document).sort()).toEqual(['dpa', 'marketing_email', 'terms'])
+    expect(state.marketing).toHaveLength(1)
+    expect(state.marketing[0]).toMatchObject({ userId: state.users[1].id, channel: 'email', status: 'granted', source: 'signup_form', userAgent: 'TestAgent/1.0' })
+    expect(typeof state.marketing[0].consentTextVersion).toBe('string')
+    expect(state.acceptances.map((a) => a.documentType)).not.toContain('marketing_email')
   })
 
-  it('K3: marketingEmail false ise pazarlama satiri yazilmaz', async () => {
-    await request(makeApp()).post('/api/v1/auth/register').send({ ...REGISTER, consents: { terms: true, marketingEmail: false } })
-    expect(state.acceptances.map((a) => a.document)).not.toContain('marketing_email')
+  it('K3: marketingEmail false ise 0 izin satiri', async () => {
+    await register(consentsOf({ marketingEmail: false }))
+    expect(state.marketing).toHaveLength(0)
   })
 
-  it('K1: consents alani olmayan eski arayuz kaydi 201 doner, kabul satiri yazmaz', async () => {
+  it('K1: consents alani olmayan eski arayuz kaydi 201 doner, kabul ve izin satiri yazmaz', async () => {
     const res = await request(makeApp()).post('/api/v1/auth/register').send(REGISTER)
     expect(res.status).toBe(201)
     expect(state.acceptances).toHaveLength(0)
+    expect(state.marketing).toHaveLength(0)
+  })
+
+  it('K-surum: GET /legal-versions guncel surum sabitlerini kimliksiz doner', async () => {
+    const res = await request(makeApp()).get('/api/v1/auth/legal-versions')
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject(V)
+    expect(typeof res.body.marketingTextVersion).toBe('string')
   })
 })
 
