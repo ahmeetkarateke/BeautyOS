@@ -3,6 +3,7 @@ import request from 'supertest'
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import { createFakeSessionDb, matches } from './helpers/fake-session-db'
+import { LEGAL_VERSIONS } from '../lib/legal-acceptance'
 
 // W30 / ADR-0046, ADR-0048: #token ile sifre sifirlama, kayitta rizalar, slug uygunluk. db bellek ici sahte.
 const state = vi.hoisted(() => ({
@@ -164,7 +165,9 @@ describe('K-sifre: token # parcasinda (ADR-0046)', () => {
   })
 })
 
-const V = { termsVersion: '2026-10-30', dpaVersion: '2026-10-30', labelVersion: '2026-10-30' }
+// Dort surum sabiti birbirinden farkli olsun: bir satira yanlis surum yazan ya da bir surumu denetlemeyen mutant testte yakalanir (denetim W30-API-2).
+Object.assign(LEGAL_VERSIONS, { termsVersion: 'T-2026-10-30', dpaVersion: 'D-2026-10-31', labelVersion: 'L-2026-11-01', marketingTextVersion: 'M-2026-11-02' })
+const V = { termsVersion: LEGAL_VERSIONS.termsVersion, dpaVersion: LEGAL_VERSIONS.dpaVersion, labelVersion: LEGAL_VERSIONS.labelVersion }
 const consentsOf = (extra: Record<string, unknown> = {}) => ({ terms: true, ...V, ...extra })
 const register = (consents: unknown, ua = 'TestAgent/1.0') =>
   request(makeApp()).post('/api/v1/auth/register').set('User-Agent', ua).send({ ...REGISTER, consents })
@@ -190,6 +193,14 @@ describe('K1/K3: kayitta rizalar (ADR-0048, hukuk-uyum W30-1)', () => {
     expect(res.body.error.code).toBe('LEGAL_VERSION_MISMATCH')
   })
 
+  it('K1: eski etiket surumuyle gelen istek 400 LEGAL_VERSION_MISMATCH, kayit olusmaz', async () => {
+    const res = await register(consentsOf({ labelVersion: '2020-01-01' }))
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('LEGAL_VERSION_MISMATCH')
+    expect(state.tenants).toHaveLength(1)
+    expect(state.acceptances).toHaveLength(0)
+  })
+
   it('K1: surum alanlari eksikse 400', async () => {
     const res = await register({ terms: true })
     expect(res.status).toBe(400)
@@ -201,8 +212,11 @@ describe('K1/K3: kayitta rizalar (ADR-0048, hukuk-uyum W30-1)', () => {
     expect(res.status).toBe(201)
     expect(state.acceptances).toHaveLength(2)
     expect(state.acceptances.map((a) => a.documentType).sort()).toEqual(['dpa', 'terms'])
+    const versionOf = (type: string) => state.acceptances.find((a) => a.documentType === type)?.documentVersion
+    expect(versionOf('terms')).toBe(V.termsVersion)
+    expect(versionOf('dpa')).toBe(V.dpaVersion)
     for (const a of state.acceptances) {
-      expect(a).toMatchObject({ tenantId: state.tenants[1].id, userId: state.users[1].id, documentVersion: V.termsVersion, channel: 'signup', labelVersion: V.labelVersion, userAgent: 'TestAgent/1.0' })
+      expect(a).toMatchObject({ tenantId: state.tenants[1].id, userId: state.users[1].id, channel: 'signup', labelVersion: V.labelVersion, userAgent: 'TestAgent/1.0' })
       expect(typeof a.ipAddress).toBe('string')
       // ADR-0048 (SET NULL): kiraci/kullanici silinse de kanit okunur kalsin diye anlik goruntu satirla birlikte yazilir.
       expect(a).toMatchObject({ tenantSlug: 'yeni-salon', tenantName: 'Yeni Salon', userEmail: 'yeni@test.local' })
@@ -210,12 +224,29 @@ describe('K1/K3: kayitta rizalar (ADR-0048, hukuk-uyum W30-1)', () => {
   })
 
   it('K3: marketingEmail true ise marketing_consents tablosuna tek granted satiri', async () => {
-    const res = await register(consentsOf({ marketingEmail: true }))
+    const res = await register(consentsOf({ marketingEmail: true, marketingTextVersion: LEGAL_VERSIONS.marketingTextVersion }))
     expect(res.status).toBe(201)
     expect(state.marketing).toHaveLength(1)
     expect(state.marketing[0]).toMatchObject({ userId: state.users[1].id, channel: 'email', status: 'granted', source: 'signup_form', userAgent: 'TestAgent/1.0', tenantSlug: 'yeni-salon', tenantName: 'Yeni Salon', userEmail: 'yeni@test.local' })
-    expect(typeof state.marketing[0].consentTextVersion).toBe('string')
+    expect(state.marketing[0].consentTextVersion).toBe(LEGAL_VERSIONS.marketingTextVersion)
     expect(state.acceptances.map((a) => a.documentType)).not.toContain('marketing_email')
+  })
+
+  it('K3: marketingEmail true iken izin metni surumu eksik ya da eski ise 400 LEGAL_VERSION_MISMATCH, kayit ve izin olusmaz', async () => {
+    for (const extra of [{ marketingEmail: true }, { marketingEmail: true, marketingTextVersion: '2020-01-01' }]) {
+      const res = await register(consentsOf(extra))
+      expect(res.status).toBe(400)
+      expect(res.body.error.code).toBe('LEGAL_VERSION_MISMATCH')
+    }
+    expect(state.tenants).toHaveLength(1)
+    expect(state.marketing).toHaveLength(0)
+    expect(state.acceptances).toHaveLength(0)
+  })
+
+  it('K3: marketingEmail false iken izin metni surumu aranmaz, kayit 201 olur', async () => {
+    const res = await register(consentsOf({ marketingEmail: false, marketingTextVersion: '2020-01-01' }))
+    expect(res.status).toBe(201)
+    expect(state.marketing).toHaveLength(0)
   })
 
   it('K3: marketingEmail false ise 0 izin satiri', async () => {
