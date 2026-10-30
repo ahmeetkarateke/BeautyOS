@@ -123,13 +123,13 @@ describe('migration', () => {
   })
 
   it('eski kayitlarin hepsi legacy@0 olur; reminder_*@1 ya da phone_verification@1 yazilmaz (metin sablondan uretilmedi)', () => {
-    expect(sql).not.toMatch(/'reminder_24h's*,s*1|'reminder_2h's*,s*1|THENs+'reminder_|THENs+'phone_verification'/)
+    expect(sql).not.toMatch(/THEN\s+'reminder_|THEN\s+'phone_verification'|"templateVersion"\s*=\s*1/)
     expect(sql).toMatch(/SET "templateKey" = 'legacy', "templateVersion" = 0/)
   })
 
   it('govde yalniz sablonlu amaclarda (reminder_24h, reminder_2h, verification) bosaltilir; campaign ve transactional kalir', () => {
     const update = sql.match(/UPDATE "message_deliveries" SET "body" = NULL[^;]*;/)?.[0] ?? ''
-    expect(update).toMatch(/WHERE "purpose" IN ('reminder_24h', 'reminder_2h', 'verification')/)
+    expect(update).toMatch(/WHERE "purpose" IN \('reminder_24h', 'reminder_2h', 'verification'\)/)
     expect(update).not.toMatch(/campaign|transactional/)
   })
 })

@@ -141,11 +141,9 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
   const salonName = appointment.tenant.name
   // Klinik türlerinde hizmet adı yok (hukuk-uyum §10.7): ayrı şablon. Metin şablondan üretilir; teslim kaydında yalnız (anahtar, sürüm) saklanır (ADR-0047).
   const health = isHealthRegulated(appointment.tenant.businessType)
-  const text = renderTemplate(
-    { key: `${type}${health ? '_health' : ''}`, version: 1 },
-    { salon: salonName, name: fullName, time, service: appointment.service.name },
-  )
-  const deliveryTemplate = { key: type, version: 1 }
+  // Metni üreten şablon ile teslim kaydındaki şablon aynı referanstır: kayıttan ileti yeniden üretildiğinde gönderilenle aynı metin çıkar.
+  const deliveryTemplate = { key: `${type}${health ? '_health' : ''}`, version: 1 }
+  const text = renderTemplate(deliveryTemplate, { salon: salonName, name: fullName, time, service: appointment.service.name })
 
   const purpose = type === 'reminder_24h' ? DeliveryPurpose.reminder_24h : DeliveryPurpose.reminder_2h
 
