@@ -226,3 +226,64 @@ describe('Salon rengi', () => {
     expect((second.container.firstElementChild as HTMLElement).style.getPropertyValue('--color-primary')).toBe('')
   })
 })
+
+describe('BookingScreen: bot koruması ve aydınlatma', () => {
+  let issued = 0
+  beforeEach(() => {
+    issued = 0
+    ;(window as unknown as { turnstile: unknown }).turnstile = {
+      render: (_el: HTMLElement, options: { callback: (token: string) => void }) => {
+        issued += 1
+        options.callback(`tok-${issued}`)
+        return `w${issued}`
+      },
+      remove: () => {},
+    }
+  })
+  afterEach(() => {
+    delete (window as unknown as { turnstile?: unknown }).turnstile
+  })
+
+  it('K17: istek aynı adımda hata alınca yeni Turnstile belirteci alınır ve ikinci istekte o gider', async () => {
+    let calls = 0
+    api({
+      book: () => {
+        calls += 1
+        if (calls === 1) throw new ApiError({ status: 400, code: 'INVALID_PHONE' })
+        return booked
+      },
+    })
+    mount(<BookingScreen slug="defne" turnstileSiteKey="site-key" />)
+    await toInfo()
+    fireEvent.click(screen.getByRole('button', { name: 'Randevu talebi gönder' }))
+    await screen.findByLabelText('Ad soyad')
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Randevu talebi gönder' }))
+    expect(await screen.findByRole('heading', { name: 'Randevu talebiniz alındı' })).toBeTruthy()
+    const tokens = request.mock.calls.filter(([p]: [string]) => p.endsWith('/public/book')).map(([, init]) => init.body.captchaToken)
+    expect(tokens).toEqual(['tok-1', 'tok-2'])
+  })
+
+  it('K18: aydınlatma bağlantısı sayfadan çıkarmaz; salon bilgisiyle doldurulan taslak metin açılır, boş alan işaretlenir', async () => {
+    api({ tenant: { address: 'Moda Cad. 5, Kadıköy' } })
+    mount(<BookingScreen slug="defne" />)
+    await toInfo()
+    expect(document.querySelector('a[href="/kvkk"]')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Aydınlatma metni' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toContain('Taslak metin')
+    expect(dialog.textContent).toContain('Defne Güzellik')
+    expect(dialog.textContent).toContain('Moda Cad. 5, Kadıköy')
+    expect(dialog.textContent).toContain('[Salon henüz girmedi]')
+  })
+
+  it('K19: salon kendi metnini girdiyse taslak yerine o gösterilir', async () => {
+    api({ tenant: { privacyText: 'Salonun kendi aydınlatma metni.' } })
+    mount(<BookingScreen slug="defne" />)
+    await toInfo()
+    fireEvent.click(screen.getByRole('button', { name: 'Aydınlatma metni' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toContain('Salonun kendi aydınlatma metni.')
+    expect(dialog.textContent).not.toContain('Taslak metin')
+  })
+})
