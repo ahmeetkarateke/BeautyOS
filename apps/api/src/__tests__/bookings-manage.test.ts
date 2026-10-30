@@ -360,3 +360,41 @@ describe('hiz siniri', () => {
     expect(last).toBe(429)
   })
 })
+
+describe('A7 mutant kapatma: cakisma durumlari, personel atamasi, onay suresi isi, token basliklari', () => {
+  const newStart = () => new Date(Math.ceil((Date.now() + 96 * H) / 900_000) * 900_000)
+
+  it('M2: cakisma sorgusu pending, confirmed ve in_progress randevulari sayar (bekleyen talep de saati tutar)', async () => {
+    await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    const where = m.db.appointment.findFirst.mock.calls[1][0].where
+    expect([...where.status.in].sort()).toEqual(['confirmed', 'in_progress', 'pending'])
+    expect(where.isDeleted).toBe(false)
+  })
+
+  it('M3: hedef personel hizmeti veren ve aktif atamali olmali (serviceAssignments kosulu)', async () => {
+    await post('reschedule', { token: TOKEN, startAt: newStart().toISOString(), staffId: '00000000-0000-4000-8000-000000000009' })
+    const where = m.db.staffProfile.findFirst.mock.calls[0][0].where
+    expect(where.serviceAssignments).toEqual({ some: { serviceId: 'sv1', isActive: true } })
+    expect(where).toMatchObject({ id: '00000000-0000-4000-8000-000000000009', tenantId: 't1', acceptsOnlineBooking: true })
+  })
+
+  it('M4: tasimada eski onay suresi isi silinir; yeniden pending olursa yenisi kurulur', async () => {
+    const res = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    expect(res.status).toBe(200)
+    expect(m.removeExpiryJob).toHaveBeenCalledWith('a1')
+  })
+
+  it('M10: tum uclar (basari ve hata) Referrer-Policy no-referrer ve Cache-Control no-store tasir', async () => {
+    const ok = await post('lookup')
+    const cancel = await post('cancel')
+    const reschedule = await post('reschedule', { token: TOKEN, startAt: newStart().toISOString() })
+    const calendar = await post('calendar')
+    setBooking(null)
+    const notFound = await post('lookup')
+    expect(notFound.status).toBe(404)
+    for (const res of [ok, cancel, reschedule, calendar, notFound]) {
+      expect(res.headers['referrer-policy']).toBe('no-referrer')
+      expect(res.headers['cache-control']).toBe('no-store')
+    }
+  })
+})
