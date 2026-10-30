@@ -8,9 +8,14 @@ const dbMock = vi.hoisted(() => {
     appointment: { updateMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     transaction: { create: vi.fn() },
     cashDayClosure: { findUnique: vi.fn() },
+    $queryRaw: vi.fn(),
   }
   return {
     ...tx,
+    // Disaridan (islem disi) yapilan kasa/kilit cagrilari ayri sahtelerde toplanir: A5 mutanti (tx yerine db) burada yakalanir.
+    transaction: { create: vi.fn() },
+    cashDayClosure: { findUnique: vi.fn() },
+    $queryRaw: vi.fn(),
     staffProfile: { findFirst: vi.fn() },
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
     _tx: tx,
@@ -51,6 +56,7 @@ beforeEach(() => {
   dbMock.staffProfile.findFirst.mockResolvedValue({ id: SP_ME })
   tx.appointment.updateMany.mockResolvedValue({ count: 1 })
   tx.cashDayClosure.findUnique.mockReset().mockResolvedValue(null)
+  tx.$queryRaw.mockReset().mockResolvedValue([])
   tx.transaction.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'tx1', completedAt: new Date('2026-11-20T10:00:00Z'), ...data }))
   firstExisting()
 })
@@ -63,7 +69,25 @@ describe('PATCH /appointments/:id/status completed', () => {
     const where = dbMock._tx.appointment.updateMany.mock.calls[0][0].where
     expect(where).toMatchObject({ id: 'a1', tenantId: 't1', status: { notIn: ['completed', 'cancelled', 'no_show'] } })
     expect(dbMock._tx.transaction.create).toHaveBeenCalledTimes(1)
+    expect(dbMock.transaction.create).not.toHaveBeenCalled()
+    expect(dbMock.cashDayClosure.findUnique).not.toHaveBeenCalled()
+    expect(dbMock._tx.$queryRaw).toHaveBeenCalled()
     expect(res.body).toMatchObject({ id: 'a1', status: 'completed', payment: { transactionId: 'tx1', paymentMethod: 'card', grossAmount: 100.1, cashAmount: 0, cardAmount: 100.1 } })
+  })
+
+  it('K-A6: kasa kaydi nakit/kart dagilimini yazar: nakit -> cashAmount tutar, cardAmount 0; kart -> tersi (A6 mutanti)', async () => {
+    await request(app).patch(URL).set(as('owner')).send({ status: 'completed', paymentMethod: 'cash' })
+    const cash = dbMock._tx.transaction.create.mock.calls[0][0].data
+    expect(cash.paymentMethod).toBe('cash')
+    expect(String(cash.cashAmount)).toBe('100.1')
+    expect(cash.cardAmount).toBe(0)
+    dbMock._tx.transaction.create.mockClear()
+    firstExisting()
+    await request(app).patch(URL).set(as('owner')).send({ status: 'completed', paymentMethod: 'card' })
+    const card = dbMock._tx.transaction.create.mock.calls[0][0].data
+    expect(card.paymentMethod).toBe('card')
+    expect(String(card.cardAmount)).toBe('100.1')
+    expect(card.cashAmount).toBe(0)
   })
 
   it('K-A6: komisyon Decimal ile hesaplanir (100.10 x 0.3 = 30.03 tam; float 30.029999...)', async () => {

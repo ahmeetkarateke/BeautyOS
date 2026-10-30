@@ -13,6 +13,8 @@ const dbMock = vi.hoisted(() => ({
   cashDayClosure: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
   correction: { create: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
+  endMark: vi.fn(),
 }))
 vi.mock('../lib/db', () => ({ db: dbMock }))
 vi.mock('../lib/queue', () => ({ remindersQueue: { add: vi.fn(), remove: vi.fn() } }))
@@ -40,9 +42,23 @@ const txRow = (over: Record<string, unknown> = {}) => ({
   cashAmount: 500, cardAmount: 0, status: 'completed', completedAt: new Date(`${DAY}T10:00:00+03:00`), ...over,
 })
 
+// Cagri sirasi ile islem sinirlari: bir yazma $transaction ile endMark arasindaysa islem icindedir (denetci mutanti A5).
+function insideTx(fn: { mock: { invocationCallOrder: number[] } }): boolean {
+  const at = fn.mock.invocationCallOrder.at(-1)
+  const start = dbMock.$transaction.mock.invocationCallOrder.at(-1)
+  const end = dbMock.endMark.mock.invocationCallOrder.at(-1)
+  return at !== undefined && start !== undefined && end !== undefined && at > start && at < end
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
-  dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => fn(dbMock))
+  dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => {
+    const result = await fn(dbMock)
+    dbMock.endMark()
+    return result
+  })
+  dbMock.$queryRaw.mockResolvedValue([])
+  dbMock.transaction.aggregate.mockResolvedValue({ _sum: { cashAmount: 0 } })
   dbMock.transaction.findMany.mockResolvedValue([])
   dbMock.expense.findMany.mockResolvedValue([])
   dbMock.staffProfile.findMany.mockResolvedValue([])
@@ -63,6 +79,7 @@ describe('izin', () => {
 
 describe('POST /finance/close-day kapanisi kaydeder', () => {
   it('K-R5: gun kapanisi kiraciya ve gune bagli upsert edilir; sayim farki doner', async () => {
+    dbMock.transaction.aggregate.mockResolvedValue({ _sum: { cashAmount: 300 } })
     dbMock.transaction.findMany.mockResolvedValue([
       { id: 'x', grossAmount: 300, cashAmount: 300, cardAmount: 0, paymentMethod: 'cash', commissionAmount: 30, staffId: null, completedAt: new Date(), notes: null, appointment: null },
     ])
@@ -81,6 +98,38 @@ describe('POST /finance/close-day kapanisi kaydeder', () => {
   })
 })
 
+describe('close-day zaten kapali gunde (A6b-1 Kritik)', () => {
+  const closed = { isClosed: true, closedAt: new Date('2026-11-20T18:00:00Z'), closedById: 'u-eski', expectedCash: 300, countedCash: 290, note: 'ilk sayim' }
+
+  it('K-R5: kapali gunde ikinci kapatma sayimi, notu ve kapatani DEGISTIRMEZ; mevcut kapanis doner; yazma ve duzeltme kaydi yok (resepsiyon ve sahip)', async () => {
+    for (const role of ['receptionist', 'owner']) {
+      dbMock.cashDayClosure.findUnique.mockResolvedValue(closed)
+      const res = await request(app).post(`${BASE}/finance/close-day?date=${NOW_DAY}`).set(as(role)).send({ countedCash: 1, note: 'ezilmis' })
+      expect(res.status, role).toBe(200)
+      expect(res.body.closure, role).toMatchObject({ isClosed: true, expectedCash: 300, countedCash: 290, difference: -10 })
+    }
+    expect(dbMock.cashDayClosure.upsert).not.toHaveBeenCalled()
+    expect(dbMock.cashDayClosure.update).not.toHaveBeenCalled()
+    expect(dbMock.correction.create).not.toHaveBeenCalled()
+  })
+
+  it('K-R5: kapanis gun anahtariyla advisory kilit altinda yazilir (tamamlama ile yaris): kilit sorgusu kapanis islemindedir', async () => {
+    await request(app).post(`${BASE}/finance/close-day?date=${NOW_DAY}`).set(as('owner')).send({})
+    expect(dbMock.$queryRaw).toHaveBeenCalled()
+    expect(insideTx(dbMock.$queryRaw)).toBe(true)
+    expect(insideTx(dbMock.cashDayClosure.upsert)).toBe(true)
+  })
+
+  it('K-R5: yeniden acma kaydi kapanisin TAM anlik goruntusunu tasir (sayim, beklenen, not, kapatan)', async () => {
+    dbMock.cashDayClosure.findUnique.mockResolvedValue(closed)
+    dbMock.cashDayClosure.update.mockResolvedValue({})
+    await request(app).post(`${BASE}/finance/reopen-day`).set(as('owner')).send({ date: DAY, reason: 'Sayim hatali' })
+    expect(dbMock.correction.create.mock.calls[0][0].data.oldValue).toEqual({
+      isClosed: true, closedAt: '2026-11-20T18:00:00.000Z', closedById: 'u-eski', expectedCash: 300, countedCash: 290, note: 'ilk sayim',
+    })
+  })
+})
+
 describe('DAY_CLOSED: kapali gune yazma', () => {
   it('K-R5: bugun kapaliysa randevu tamamlama 409 DAY_CLOSED (kasa kaydi yok, kosullu guncelleme yok)', async () => {
     dbMock.appointment.findFirst.mockResolvedValue({ id: 'a1', tenantId: 't1', staffId: 'sp', customerId: 'c1', status: 'confirmed' })
@@ -91,6 +140,9 @@ describe('DAY_CLOSED: kapali gune yazma', () => {
     expect(dbMock.appointment.updateMany).not.toHaveBeenCalled()
     expect(dbMock.transaction.create).not.toHaveBeenCalled()
     expect(dbMock.cashDayClosure.findUnique.mock.calls[0][0].where.tenantId_date.tenantId).toBe('t1')
+    // Kapanisla yaris: tamamlama da ayni gun kilidini alir (kilit sorgusu islem icinde ve kapali-gun okumasindan once).
+    expect(dbMock.$transaction.mock.invocationCallOrder[0]).toBeLessThan(dbMock.$queryRaw.mock.invocationCallOrder[0])
+    expect(dbMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(dbMock.cashDayClosure.findUnique.mock.invocationCallOrder[0])
   })
 
   it('K-R5: kapali gune manuel gelir (POST /revenues) 409 DAY_CLOSED; acik/kayitsiz gunde 201', async () => {
@@ -119,6 +171,8 @@ describe('POST /finance/reopen-day', () => {
       expect(res.body).toMatchObject({ date: DAY, isClosed: false })
       expect(dbMock.$transaction).toHaveBeenCalled()
       expect(dbMock.cashDayClosure.update.mock.calls.at(-1)![0].data).toMatchObject({ isClosed: false, reopenedById: 'u-me' })
+      expect(insideTx(dbMock.cashDayClosure.update)).toBe(true)
+      expect(insideTx(dbMock.correction.create)).toBe(true)
       expect(dbMock.correction.create.mock.calls[0][0].data).toMatchObject({
         tenantId: 't1', kind: 'day_reopen', createdById: 'u-me', reason: body.reason, oldValue: { isClosed: true }, newValue: { isClosed: false },
       })
@@ -160,11 +214,17 @@ describe('POST /appointments/:id/correction', () => {
     expect(String(upd.data.commissionAmount)).toBe('45')
     expect(String(upd.data.cashAmount)).toBe('450')
     expect(upd.data.cardAmount).toBe(0)
+    expect(upd.data.paymentMethod).toBe('cash')
     expect(dbMock.appointment.update.mock.calls[0][0].data.priceCharged).toBeDefined()
     const rec = dbMock.correction.create.mock.calls[0][0].data
     expect(rec).toMatchObject({ tenantId: 't1', kind: 'payment', transactionId: 'tx1', appointmentId: 'a1', createdById: 'u-me', reason: body.reason })
     expect(rec.oldValue).toMatchObject({ grossAmount: 500, paymentMethod: 'cash' })
     expect(rec.newValue).toMatchObject({ grossAmount: 450, paymentMethod: 'cash' })
+    // A5 mutanti: odeme guncellemesi, randevu fiyati ve duzeltme kaydi AYNI islemde olmali
+    expect(insideTx(dbMock.transaction.update)).toBe(true)
+    expect(insideTx(dbMock.appointment.update)).toBe(true)
+    expect(insideTx(dbMock.correction.create)).toBe(true)
+    expect(dbMock.appointment.update.mock.calls[0][0].where).toEqual({ id: 'a1', tenantId: 't1' })
   })
 
   it('K-R5: yontem duzeltmesi nakit -> kart tutari ilgili alana tasir', async () => {

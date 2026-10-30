@@ -6,7 +6,9 @@ import { can } from '@beautyos/shared'
 // A2-1 denetim duzeltmesi: resepsiyon icin gecmis gun/prim sizintisi, saglik verisi (R9) ve rol-adiyla-ret kalibi.
 // db ve kimlik katmani sahtelenir; DB/Redis gerekmez.
 const dbMock = vi.hoisted(() => ({
-  transaction: { findMany: vi.fn(), create: vi.fn() },
+  transaction: { findMany: vi.fn(), create: vi.fn(), aggregate: vi.fn() },
+  $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
   expense: { findMany: vi.fn() },
   cashDayClosure: { findUnique: vi.fn(), upsert: vi.fn() },
   staffProfile: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
@@ -48,7 +50,10 @@ beforeEach(() => {
   ])
   dbMock.expense.findMany.mockResolvedValue([])
   dbMock.cashDayClosure.findUnique.mockResolvedValue(null)
-  dbMock.cashDayClosure.upsert.mockResolvedValue({})
+  dbMock.cashDayClosure.upsert.mockResolvedValue({ closedAt: new Date(), expectedCash: 100, countedCash: null })
+  dbMock.transaction.aggregate.mockResolvedValue({ _sum: { cashAmount: 100 } })
+  dbMock.$queryRaw.mockResolvedValue([])
+  dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => fn(dbMock))
   dbMock.staffProfile.findMany.mockResolvedValue([{ id: 'sp1', userId: 'u1' }])
   dbMock.user.findMany.mockResolvedValue([{ id: 'u1', fullName: 'Uzman' }])
   dbMock.transaction.create.mockResolvedValue({ id: 'r1', grossAmount: 50, paymentMethod: 'cash' })

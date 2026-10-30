@@ -126,4 +126,48 @@ describe('A6b: kasa kapanisi ve duzeltme (gercek PG)', () => {
     expect((await api('post', other.slug, `/finance/close-day?date=${today}`, otherOwner)).status).toBe(200)
     expect(await db.cashDayClosure.count({ where: { tenantId: tenant.id, isClosed: true } })).toBe(0)
   })
+
+  it('K-R5 6 (A6b-1 Kritik): kapali gunde ikinci kapatma sayimi/notu ezmez ve duzeltme kaydi eklemez; resepsiyon da', async () => {
+    const first = await api('post', tenant.slug, `/finance/close-day?date=${today}`, owner).send({ countedCash: 500, note: 'ilk sayim' })
+    expect(first.status).toBe(200)
+    const before = await db.correction.count({ where: { tenantId: tenant.id } })
+    for (const token of [reception, owner]) {
+      const again = await api('post', tenant.slug, `/finance/close-day?date=${today}`, token).send({ countedCash: 1, note: 'ezilmis' })
+      expect(again.status).toBe(200)
+      expect(again.body.closure.countedCash).toBe(500)
+    }
+    const row = await db.cashDayClosure.findFirstOrThrow({ where: { tenantId: tenant.id } })
+    expect(Number(row.countedCash)).toBe(500)
+    expect(row.note).toBe('ilk sayim')
+    expect(await db.correction.count({ where: { tenantId: tenant.id } })).toBe(before)
+    // yeniden acma kaydi ilk sayimin tam goruntusunu saklar
+    expect((await api('post', tenant.slug, '/finance/reopen-day', owner).send({ date: today, reason: 'Sayim hatali' })).status).toBe(200)
+    const reopenRec = await db.correction.findFirstOrThrow({ where: { tenantId: tenant.id, kind: 'day_reopen' }, orderBy: { createdAt: 'desc' } })
+    expect(reopenRec.oldValue).toMatchObject({ isClosed: true, countedCash: 500, note: 'ilk sayim' })
+  })
+
+  it('K-R5 7 (A6b-1 Onemli 2): kapanis ile tamamlama paralel: kapanisin beklenen nakdi her zaman o gunun tahsilat toplamidir (tamamlama ya 200 ve toplamda ya 409)', async () => {
+    const service = await db.service.findFirstOrThrow({ where: { tenantId: tenant.id } })
+    const customer = await db.customer.findFirstOrThrow({ where: { tenantId: tenant.id } })
+    const start = new Date(Date.now() + 5 * 3600_000)
+    const second = await db.appointment.create({
+      data: {
+        tenantId: tenant.id, customerId: customer.id, staffId: staffProfileId, serviceId: service.id,
+        referenceCode: `K2-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+        startAt: start, endAt: new Date(start.getTime() + 1800_000), priceCharged: 200, status: 'confirmed',
+      },
+    })
+    expect((await api('post', tenant.slug, '/finance/reopen-day', owner).send({ date: today, reason: 'Yaris denemesi' })).status).toBe(200)
+    const [close, complete] = await Promise.all([
+      api('post', tenant.slug, `/finance/close-day?date=${today}`, owner).send({}),
+      api('patch', tenant.slug, `/appointments/${second.id}/status`, owner).send({ status: 'completed', paymentMethod: 'cash' }),
+    ])
+    expect(close.status).toBe(200)
+    expect([200, 409]).toContain(complete.status)
+    if (complete.status === 409) expect(complete.body.error.code).toBe('DAY_CLOSED')
+    const closure = await db.cashDayClosure.findFirstOrThrow({ where: { tenantId: tenant.id } })
+    const total = await db.transaction.aggregate({ where: { tenantId: tenant.id, status: 'completed' }, _sum: { cashAmount: true } })
+    expect(closure.isClosed).toBe(true)
+    expect(Number(closure.expectedCash)).toBe(Number(total._sum.cashAmount ?? 0))
+  })
 })

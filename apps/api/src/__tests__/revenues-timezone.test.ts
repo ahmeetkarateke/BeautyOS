@@ -5,6 +5,7 @@ import express from 'express'
 // W16b-1: POST /revenues gun hesabi Europe/Istanbul'a gore. DB ve kimlik katmani sahte; DB/Redis gerekmez.
 const dbMock = vi.hoisted(() => ({
   transaction: { create: vi.fn() },
+  cashDayClosure: { findUnique: vi.fn() },
 }))
 
 vi.mock('../lib/db', () => ({ db: dbMock }))
@@ -39,6 +40,7 @@ beforeEach(() => {
   process.env.TZ = 'UTC'
   vi.clearAllMocks()
   dbMock.transaction.create.mockResolvedValue({ id: 'r1', grossAmount: 500, paymentMethod: 'cash' })
+  dbMock.cashDayClosure.findUnique.mockResolvedValue(null)
 })
 afterEach(() => {
   vi.useRealTimers()

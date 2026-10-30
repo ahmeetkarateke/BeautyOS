@@ -103,6 +103,14 @@ async function isDayClosed(
   return row?.isClosed === true
 }
 
+/**
+ * Gün başına işlem kilidi (pg_advisory_xact_lock): kapanış, yeniden açma, düzeltme ve tamamlama aynı günde sıraya girer;
+ * kapanış sırasında commit edilen ödeme kapanmış güne yazılamaz. Void sütun Prisma'da okunamadığından alt sorgudan 1 seçilir.
+ */
+async function lockCashDay(tx: { $queryRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<unknown> }, tenantId: string, dateStr: string): Promise<void> {
+  await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${`cash-day:${tenantId}:${dateStr}`}))) AS l`
+}
+
 class DayClosedError extends Error {}
 
 const DAY_CLOSED_BODY = { error: { code: 'DAY_CLOSED', message: 'Bu günün kasası kapatılmış. Önce günü yeniden açın.' } } as const
@@ -996,7 +1004,10 @@ export function createTenantRouter(): Router {
       const method = parsed.data.paymentMethod ?? 'cash'
       const outcome = await db.$transaction(async (tx) => {
         // Ödeme bugünün kasasına yazılır; kapalıysa hiçbir şey değişmez (işlem geri alınır).
-        if (status === 'completed' && (await isDayClosed(tx, tenantId, getIstanbulDateStr()))) throw new DayClosedError()
+        if (status === 'completed') {
+          await lockCashDay(tx, tenantId, getIstanbulDateStr())
+          if (await isDayClosed(tx, tenantId, getIstanbulDateStr())) throw new DayClosedError()
+        }
         const claimed = await tx.appointment.updateMany({
           where: { id: appointmentId, tenantId, status: { notIn: TERMINAL_STATUSES as AppointmentStatus[] } },
           data: { status, ...(cancellationReason ? { cancellationReason } : {}) },
@@ -1023,7 +1034,7 @@ export function createTenantRouter(): Router {
           },
         })
         if (priceOverride) {
-          await tx.appointment.update({ where: { id: appointmentId }, data: { priceCharged: gross } })
+          await tx.appointment.update({ where: { id: appointmentId, tenantId }, data: { priceCharged: gross } })
         }
         return {
           payment: {
@@ -1856,6 +1867,7 @@ export function createTenantRouter(): Router {
       }
       const { date, reason } = parsed.data
       const reopened = await db.$transaction(async (tx) => {
+        await lockCashDay(tx, tenantId, date)
         const closure = await tx.cashDayClosure.findUnique({ where: { tenantId_date: { tenantId, date: dayKey(date) } } })
         if (!closure || !closure.isClosed) return false
         await tx.cashDayClosure.update({
@@ -1867,7 +1879,15 @@ export function createTenantRouter(): Router {
             tenantId,
             kind: 'day_reopen',
             date: dayKey(date),
-            oldValue: { isClosed: true, closedAt: closure.closedAt?.toISOString() ?? null },
+            // Tam kapanis goruntusu: yeniden kapaninca ilk sayim ezilse bile iz burada kalir.
+            oldValue: {
+              isClosed: true,
+              closedAt: closure.closedAt?.toISOString() ?? null,
+              closedById: closure.closedById ?? null,
+              expectedCash: closure.expectedCash === null ? null : Number(closure.expectedCash),
+              countedCash: closure.countedCash === null ? null : Number(closure.countedCash),
+              note: closure.note ?? null,
+            },
             newValue: { isClosed: false },
             reason,
             createdById: req.user!.userId,
@@ -1973,6 +1993,7 @@ export function createTenantRouter(): Router {
         })
         if (!txn) return 'not_completed' as const
         const txnDay = getIstanbulDateStr(txn.completedAt ?? new Date())
+        await lockCashDay(tx, tenantId, txnDay)
         if (await isDayClosed(tx, tenantId, txnDay)) return 'day_closed' as const
 
         const gross = new Prisma.Decimal(input.grossAmount ?? txn.grossAmount).toDecimalPlaces(2)
@@ -1996,7 +2017,7 @@ export function createTenantRouter(): Router {
           },
         })
         if (input.grossAmount !== undefined) {
-          await tx.appointment.update({ where: { id: appointmentId }, data: { priceCharged: gross } })
+          await tx.appointment.update({ where: { id: appointmentId, tenantId }, data: { priceCharged: gross } })
         }
         const snapshot = (v: { grossAmount: unknown; paymentMethod: string; cashAmount: unknown; cardAmount: unknown; commissionAmount: unknown }) => ({
           grossAmount: Number(v.grossAmount),
@@ -2043,6 +2064,38 @@ export function createTenantRouter(): Router {
       if (dateStr !== getIstanbulDateStr() && !can(req.user!.role, 'finance.report.range')) {
         return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' } })
       }
+
+      // A6b: kapanış kilit altında ve tek işlemde yazılır. Zaten kapalı günde sayım/not/kapatan DEĞİŞMEZ (düzeltme kaydı olmadan
+      // ezmek R5'i deler); mevcut kapanış döner, yeniden kapatma ancak reopen-day sonrası mümkündür.
+      const closeBody = closeDaySchema.safeParse(req.body ?? {})
+      if (!closeBody.success) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz kasa sayımı.' } })
+      }
+      const closureRow = await db.$transaction(async (tx) => {
+        await lockCashDay(tx, tenantId, dateStr)
+        const existingClosure = await tx.cashDayClosure.findUnique({ where: { tenantId_date: { tenantId, date: dayKey(dateStr) } } })
+        if (existingClosure?.isClosed) return existingClosure
+        const bounds = toTRBounds(dateStr)
+        const cash = await tx.transaction.aggregate({
+          where: { tenantId, status: 'completed', completedAt: { gte: bounds.start, lte: bounds.end } },
+          _sum: { cashAmount: true },
+        })
+        const fields = {
+          isClosed: true,
+          closedById: req.user!.userId,
+          closedAt: new Date(),
+          expectedCash: Number(cash._sum.cashAmount ?? 0),
+          countedCash: closeBody.data.countedCash ?? null,
+          note: closeBody.data.note ?? null,
+        }
+        return tx.cashDayClosure.upsert({
+          where: { tenantId_date: { tenantId, date: dayKey(dateStr) } },
+          create: { tenantId, date: dayKey(dateStr), ...fields },
+          update: fields,
+        })
+      })
+      const expectedCash = closureRow.expectedCash === null ? null : Number(closureRow.expectedCash)
+      const countedCash = closureRow.countedCash === null ? null : Number(closureRow.countedCash)
 
       const { start: dayStart, end: dayEnd } = toTRBounds(dateStr)
       const expenseDayStart = new Date(`${dateStr}T00:00:00.000Z`)
@@ -2116,35 +2169,14 @@ export function createTenantRouter(): Router {
         commissionMap.set(t.staffId, entry)
       }
 
-      // A6b: kapanış kaydedilir (gün yeniden açılana kadar o güne ödeme yazılamaz); sayım isteğe bağlıdır.
-      const closeBody = closeDaySchema.safeParse(req.body ?? {})
-      if (!closeBody.success) {
-        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz kasa sayımı.' } })
-      }
-      const countedCash = closeBody.data.countedCash ?? null
-      const closedAt = new Date()
-      const closureFields = {
-        isClosed: true,
-        closedById: req.user!.userId,
-        closedAt,
-        expectedCash: cashRevenue,
-        countedCash,
-        note: closeBody.data.note ?? null,
-      }
-      await db.cashDayClosure.upsert({
-        where: { tenantId_date: { tenantId, date: dayKey(dateStr) } },
-        create: { tenantId, date: dayKey(dateStr), ...closureFields },
-        update: closureFields,
-      })
-
       return res.json({
         date: dateStr,
         closure: {
           isClosed: true,
-          closedAt: closedAt.toISOString(),
-          expectedCash: cashRevenue,
+          closedAt: closureRow.closedAt?.toISOString() ?? null,
+          expectedCash,
           countedCash,
-          difference: countedCash === null ? null : Number((countedCash - cashRevenue).toFixed(2)),
+          difference: countedCash === null || expectedCash === null ? null : Number((countedCash - expectedCash).toFixed(2)),
         },
         totalRevenue,
         cashRevenue,

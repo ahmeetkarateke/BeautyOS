@@ -10,6 +10,7 @@ const dbMock = vi.hoisted(() => ({
   appointment: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   transaction: { create: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
   cashDayClosure: { findUnique: vi.fn(), upsert: vi.fn() },
   tipEntry: { aggregate: vi.fn(), groupBy: vi.fn() },
   tipDistribution: { groupBy: vi.fn() },
@@ -214,6 +215,7 @@ describe('R3: uzman fiyati degistiremez', () => {
   function completionMocks() {
     dbMock.$transaction.mockImplementation(async (fn: (t: typeof dbMock) => unknown) => fn(dbMock))
     dbMock.cashDayClosure.findUnique.mockResolvedValue(null)
+    dbMock.$queryRaw.mockResolvedValue([])
     dbMock.appointment.updateMany.mockResolvedValue({ count: 1 })
     dbMock.appointment.update.mockResolvedValue({})
     dbMock.transaction.create.mockResolvedValue({ id: 'tx1', completedAt: new Date() })
