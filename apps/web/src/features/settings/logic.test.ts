@@ -35,6 +35,17 @@ describe('W27 validateSalon', () => {
   })
 })
 
+describe('Telefon isteğe bağlı', () => {
+  it('H3: telefon boşsa hata yok; doluysa 7-20 kuralı sürer', () => {
+    expect(validateSalon({ ...salon, phone: '' })).toEqual({})
+    expect(validateSalon({ ...salon, phone: '   ' })).toEqual({})
+    expect(Object.keys(validateSalon({ ...salon, phone: '123' }))).toEqual(['phone'])
+  })
+  it('H3: boş telefon sunucuya gönderilmez (sunucu en az 7 karakter ister); diğer değişiklikler gider', () => {
+    expect(salonPatch({ ...salon, phone: '', name: 'Yeni' }, salon)).toEqual({ name: 'Yeni' })
+  })
+})
+
 describe('W27 salonPatch', () => {
   it('K3: yalnız değişen alan gider; kırpılır', () => {
     expect(salonPatch(salon, salon)).toEqual({})

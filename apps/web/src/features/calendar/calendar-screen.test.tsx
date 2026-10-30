@@ -139,6 +139,23 @@ describe('W12 Takvim', () => {
     expect(within(timeline).getByTestId('randevu-a2')).toBeTruthy()
   })
 
+  it('H2: ?randevu=<id> ile gelinince Randevu ayrıntısı penceresi o randevu için açılır; kapatınca adres temizlenir', async () => {
+    search = 'randevu=a1'
+    mount()
+    const dialog = await screen.findByRole('dialog', { name: 'Randevu ayrıntısı' })
+    expect(within(dialog).getByText(/Müşteri a1/)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Kapat/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Randevu ayrıntısı' })).toBeNull())
+    expect(replace).toHaveBeenCalledWith(expect.not.stringContaining('randevu='), expect.anything())
+  })
+
+  it('H2: listede olmayan kimlik pencere açmaz ve hata vermez', async () => {
+    search = 'randevu=yok'
+    mount()
+    await screen.findAllByText(/Müşteri a1/)
+    expect(screen.queryByRole('dialog', { name: 'Randevu ayrıntısı' })).toBeNull()
+  })
+
   it('K-telefon: durum süzgeci yalnız seçilen durumu gösterir', async () => {
     mount()
     const timeline = await screen.findByRole('region', { name: 'Saat çizelgesi' })
