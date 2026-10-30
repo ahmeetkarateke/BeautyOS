@@ -195,7 +195,7 @@ describe('apiClient: yenilemesiz uçlar açık liste (denetim W5-1 Önemli)', ()
     expect(refreshCalls).toBe(1)
   })
 
-  it.each(['login', 'register', 'refresh', 'forgot-password', 'reset-password', 'admin-login', 'logout'])(
+  it.each(['login', 'register', 'refresh', 'password-reset/request', 'password-reset/confirm', 'admin-login', 'logout', 'invitations/lookup', 'invitations/accept'])(
     'ADR-UI-11: /auth/%s 401 verince yenileme denenmez',
     async (name) => {
       const { client, calls } = setup(() => unauthorized())

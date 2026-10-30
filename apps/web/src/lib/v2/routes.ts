@@ -71,7 +71,7 @@ export const SITE_ONLY_PATHS: readonly string[] = [
   '/dis-hekimi',
 ]
 
-const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password']
+const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password', '/invite']
 
 const invert = (map: Record<string, string>) => Object.fromEntries(Object.entries(map).map(([legacy, next]) => [next, legacy]))
 const PANEL_TO_LEGACY = invert(LEGACY_PANEL_MAP)

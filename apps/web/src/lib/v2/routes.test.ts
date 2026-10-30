@@ -45,7 +45,7 @@ describe('bayrak açık: yüzey yüzey eşleme', () => {
     expect(resolveRoute('/ozellikler', parseSurfaces('site'))).toEqual(NEXT)
   })
 
-  it.each(['/login', '/signup', '/forgot-password', '/reset-password'])('K2: auth -> %s yeniden yazılır', (path) => {
+  it.each(['/login', '/signup', '/forgot-password', '/reset-password', '/invite'])('K2: auth -> %s yeniden yazılır', (path) => {
     expect(resolveRoute(path, parseSurfaces('auth'))).toEqual({ kind: 'rewrite', pathname: '/v2' + path })
   })
 
