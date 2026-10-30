@@ -33,6 +33,8 @@ export default function ServicesPage(props: PageProps) {
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const isStaff = user?.role === 'staff'
+  // Reçete (stok ürünleri) yalnız sahip ve müdüre görünür; uzman ve resepsiyonun stok okuma izni yok (S-stok-okuma-2).
+  const canSeeRecipes = user?.role === 'owner' || user?.role === 'manager'
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Service | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<Service | undefined>()
@@ -166,7 +168,7 @@ export default function ServicesPage(props: PageProps) {
                           </div>
                         )}
                       </div>
-                      {expanded && (
+                      {expanded && canSeeRecipes && (
                         <div className="px-4 pb-4 pt-1 bg-salon-bg/40">
                           <ServiceRecipesSection
                             tenantSlug={params.slug}
