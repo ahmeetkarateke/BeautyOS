@@ -11,6 +11,8 @@ const tenantSchema = z.object({
   whatsappNumber: z.string().nullish(),
   brandColor: z.string().nullish(),
   aboutText: z.string().nullish(),
+  email: z.string().nullish(),
+  privacyText: z.string().nullish(),
   bookingMode: z.enum(['verified', 'approval_required']),
   isHealthRegulated: z.boolean().optional(),
 })

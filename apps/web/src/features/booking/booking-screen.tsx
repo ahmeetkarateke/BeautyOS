@@ -18,6 +18,7 @@ import { TimeSlots } from '@/ui/time-slots'
 import { book, confirmCode, fetchServices, fetchSlots, fetchStaff, fetchTenant, sendCode } from './api'
 import type { Booked, PublicService, PublicSlot, PublicTenant } from './api'
 import { bookFailure, doneCopy, shareMessage, slotDate, slotLabel, validateCode, validateInfo } from './logic'
+import { PrivacyNoticeSheet } from './privacy-notice'
 import { brandStyle, PublicShell } from './public-shell'
 import { Turnstile } from './turnstile'
 
@@ -40,7 +41,7 @@ function CallSalon({ tenant, lead }: { tenant: PublicTenant; lead: string }) {
   )
 }
 
-export function BookingScreen({ slug }: { slug: string }) {
+export function BookingScreen({ slug, turnstileSiteKey = TURNSTILE_SITE_KEY }: { slug: string; turnstileSiteKey?: string }) {
   const client = useApiClient()
   const tenantQuery = useApiQuery(`tenant:${slug}`, (c, signal) => fetchTenant(c, slug, signal))
   const [step, setStep] = useState<Step>('service')
@@ -55,6 +56,9 @@ export function BookingScreen({ slug }: { slug: string }) {
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [captcha, setCaptcha] = useState('')
+  // Turnstile belirteci tek kullanımlıktır: her başarısız istekten sonra bileşen yeniden kurulur, yeni belirteç alınır.
+  const [captchaEpoch, setCaptchaEpoch] = useState(0)
+  const [noticeOpen, setNoticeOpen] = useState(false)
   const [booked, setBooked] = useState<Booked | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -111,6 +115,7 @@ export function BookingScreen({ slug }: { slug: string }) {
       setStep('done')
     } catch (error) {
       setCaptcha('')
+      setCaptchaEpoch((n) => n + 1)
       const next = error instanceof ApiError ? bookFailure(error.code) : { step: 'stay' as const, clearSlot: false }
       if (next.clearSlot) setSlot(null)
       setFailure(errorText(error))
@@ -302,12 +307,12 @@ export function BookingScreen({ slug }: { slug: string }) {
           <InputField label="Ad soyad" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} error={errors.fullName} />
           <PhoneField label="Telefon" value={phone} onValueChange={setPhone} error={errors.phone} />
           <p className="text-sm text-text-secondary">
-            Bilgileriniz yalnızca randevunuz için kullanılır.{' '}
-            <a href="/kvkk" target="_blank" rel="noopener noreferrer">
-              Aydınlatma metni
-            </a>
+            Kişisel verileriniz, randevunuzu oluşturmak ve size hatırlatma göndermek amacıyla {tenant?.name ?? 'salon'} tarafından işlenir. Ayrıntılar için{' '}
+            <button type="button" onClick={() => setNoticeOpen(true)} className="inline-flex min-h-11 cursor-pointer items-center text-primary underline underline-offset-2">
+              Aydınlatma Metni
+            </button>’ni inceleyebilirsiniz.
           </p>
-          {TURNSTILE_SITE_KEY ? <Turnstile siteKey={TURNSTILE_SITE_KEY} onToken={setCaptcha} /> : null}
+          {turnstileSiteKey ? <Turnstile key={captchaEpoch} siteKey={turnstileSiteKey} onToken={setCaptcha} /> : null}
           <Button type="submit" fullWidth loading={pending} loadingText={verified ? 'Kod gönderiliyor…' : 'Gönderiliyor…'}>
             {verified ? 'Kod gönder' : 'Randevu talebi gönder'}
           </Button>
@@ -315,6 +320,7 @@ export function BookingScreen({ slug }: { slug: string }) {
             Geri dön
           </Button>
         </form>
+        {tenant ? <PrivacyNoticeSheet open={noticeOpen} onOpenChange={setNoticeOpen} tenant={tenant} /> : null}
       </PublicShell>
     )
   }
