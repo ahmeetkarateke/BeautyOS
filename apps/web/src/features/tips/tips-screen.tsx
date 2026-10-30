@@ -112,8 +112,8 @@ function TipsBody() {
               <dd className="m-0 text-lg font-semibold">{formatMoney(summary.data.totalAmount)}</dd>
             </div>
             <div>
-              <dt className="text-sm text-text-muted">Dağıtılmamış</dt>
-              <dd className="m-0 text-lg font-semibold">{formatMoney(summary.data.undistributedTotal)}</dd>
+              <dt className="text-sm text-text-muted">Havuz</dt>
+              <dd className="m-0 text-lg font-semibold">{formatMoney(pool.total)}</dd>
             </div>
           </dl>
         </Card>
