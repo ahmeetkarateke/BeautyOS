@@ -126,7 +126,7 @@ describe('SignupScreen', () => {
     fillStep2()
     fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
     fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/bugun'))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/kurulum'))
     expect(registerCalls()[0].body).toMatchObject({ businessType: 'hair_transplant', slug: 'defne-spa', salonName: 'Defne Spa' })
   })
 
@@ -140,7 +140,7 @@ describe('SignupScreen', () => {
     fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
     fireEvent.click(screen.getByLabelText(/duyurularını e-postayla/))
     fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/bugun'))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/kurulum'))
     expect(registerCalls()[0]).toEqual({
       path: '/api/v1/auth/register',
       body: {
@@ -200,6 +200,25 @@ describe('SignupScreen', () => {
     expect((await screen.findByText(/Belgeler güncellendi/)).textContent).toContain('yeniden işaretleyin')
     expect((screen.getByLabelText(/okudum, kabul ediyorum/) as HTMLInputElement).checked).toBe(false)
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('W30: ikinci LEGAL_VERSION_MISMATCH döngüye girmez; sayfayı yenileme yönergesi verilir', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path.includes('legal-versions')) return versions
+      throw new ApiError({ status: 400, code: 'LEGAL_VERSION_MISMATCH' })
+    })
+    mount(<SignupScreen navigate={navigate} />)
+    await waitFor(() => expect(request).toHaveBeenCalled())
+    fillStep1()
+    fireEvent.click(screen.getByRole('button', { name: 'Devam et' }))
+    fillStep2()
+    fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
+    fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
+    await screen.findByText(/Belgeler güncellendi/)
+    fireEvent.click(screen.getByLabelText(/okudum, kabul ediyorum/))
+    fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
+    expect((await screen.findByText(/Sayfayı yenileyip tekrar deneyin/)).textContent).not.toContain('yeniden işaretleyin')
+    expect(registerCalls()).toHaveLength(2)
   })
 
   it('K6: sürümler alınamadıysa hesap oluşturulmaz; anlaşılır uyarı verilir', async () => {

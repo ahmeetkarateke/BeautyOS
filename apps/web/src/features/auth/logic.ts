@@ -147,3 +147,8 @@ export function toRegisterBody(step1: Step1, step2: Step2, legal: LegalVersions)
 export function panelPathFor(slug: string): string {
   return `/panel/${encodeURIComponent(slug)}/bugun`
 }
+
+/** Kayıttan sonra iniş yolu: yeni salon önce kurulum sihirbazını görür. */
+export function setupPathFor(slug: string): string {
+  return `/panel/${encodeURIComponent(slug)}/kurulum`
+}
