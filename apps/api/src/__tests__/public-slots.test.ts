@@ -93,8 +93,20 @@ describe('Public Slots & Services endpointleri', () => {
     expect(res.body.data.length).toBeGreaterThan(0)
     expect(res.body.data[0]).toHaveProperty('id')
     expect(res.body.data[0]).toHaveProperty('durationMinutes')
-    // Fiyat online rezervasyon yanıtında bilerek yoktur (45e7d2e); sızmadığını sabitle.
-    expect(res.body.data[0]).not.toHaveProperty('price')
+    // A7 / ADR-0043: sağlık düzenlemesine tabi olmayan işletmede fiyat varsayılan açıktır.
+    expect(res.body.data[0]).toHaveProperty('price', expect.any(Number))
+  })
+
+  it('GET /public/services showPricesOnline=false iken price alani hic donmez', async () => {
+    await db.tenant.update({ where: { id: tenantId }, data: { settings: { publicBookingEnabled: true, showPricesOnline: false } } })
+    try {
+      const res = await request(app).get(`/api/v1/tenants/${tenantSlug}/public/services`)
+      expect(res.status).toBe(200)
+      expect(res.body.data.length).toBeGreaterThan(0)
+      expect(res.body.data[0]).not.toHaveProperty('price')
+    } finally {
+      await db.tenant.update({ where: { id: tenantId }, data: { settings: { publicBookingEnabled: true } } })
+    }
   })
 
   it('GET /public/services auth header olmadan → 200 (public)', async () => {
