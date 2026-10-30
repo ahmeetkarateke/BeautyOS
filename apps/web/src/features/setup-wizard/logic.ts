@@ -1,13 +1,15 @@
-import type { ServiceValues } from '@/features/services/logic'
+import { toCreateBody, type ServiceValues } from '@/features/services/logic'
+import { isClinicMode } from '@/lib/v2/business-type'
 
 // Kurulum sihirbazı saf mantığı (W31, tasarim.md §8.3). Adım sırası ve atlanabilirlik burada; ağ çağrıları api/ekranda.
-export type StepId = 'type' | 'salon' | 'hours' | 'services' | 'staff' | 'legal' | 'ready'
+export type StepId = 'type' | 'clinic' | 'salon' | 'hours' | 'services' | 'staff' | 'legal' | 'ready'
 export type Step = { id: StepId; label: string; skippable: boolean }
 export type PickedService = { name: string; category: string; durationText: string; priceText: string }
 export type InviteValues = { fullName: string; email: string; role: 'manager' | 'receptionist' | 'staff' }
 
 const STEPS: readonly Step[] = [
   { id: 'type', label: 'İşletme türü', skippable: false },
+  { id: 'clinic', label: 'Sağlık kuruluşu bilgileri', skippable: true },
   { id: 'salon', label: 'Salon bilgileri', skippable: false },
   { id: 'hours', label: 'Çalışma saatleri', skippable: true },
   { id: 'services', label: 'Hizmetler', skippable: true },
@@ -30,14 +32,23 @@ export const BUSINESS_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'other', label: 'Diğer' },
 ]
 
-/** Adımlar her türde aynı sıradadır; tür yalnız öneri ve metinleri değiştirir. */
-export const stepsFor = (_businessType: string): Step[] => STEPS.map((s) => ({ ...s }))
+/** Sağlık kuruluşu adımı yalnız klinik modunda (diş, estetik) vardır; kural tek yerde: lib/v2/business-type. */
+export const stepsFor = (businessType: string): Step[] => STEPS.filter((s) => s.id !== 'clinic' || isClinicMode(businessType)).map((s) => ({ ...s }))
 
-const ids = STEPS.map((s) => s.id)
-export const nextStep = (id: StepId, _t?: string): StepId => ids[Math.min(ids.indexOf(id) + 1, ids.length - 1)]
-export const prevStep = (id: StepId, _t?: string): StepId => ids[Math.max(ids.indexOf(id) - 1, 0)]
-export const serviceCreateBody = (_p: PickedService): Record<string, unknown> => ({})
-export const stepProgress = (id: StepId, _t?: string) => ({ index: ids.indexOf(id) + 1, total: ids.length })
+const idsFor = (businessType: string): StepId[] => stepsFor(businessType).map((s) => s.id)
+export const nextStep = (id: StepId, businessType: string): StepId => {
+  const ids = idsFor(businessType)
+  return ids[Math.min(ids.indexOf(id) + 1, ids.length - 1)]
+}
+export const prevStep = (id: StepId, businessType: string): StepId => {
+  const ids = idsFor(businessType)
+  return ids[Math.max(ids.indexOf(id) - 1, 0)]
+}
+
+/** POST /services gövdesi: fiyat ve süre hizmetler ekranıyla aynı çeviriden geçer (850.50, 1.250,50, 850,5). */
+export const serviceCreateBody = (pick: PickedService): Record<string, unknown> => toCreateBody(pickToServiceValues(pick))
+
+export const stepProgress = (id: StepId, businessType: string) => ({ index: idsFor(businessType).indexOf(id) + 1, total: idsFor(businessType).length })
 
 type Suggestion = { name: string; category: string; durationText: string }
 const SUGGESTIONS: Record<string, Suggestion[]> = {

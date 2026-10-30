@@ -27,6 +27,7 @@ import {
   pickToServiceValues,
   prevStep,
   readyTasks,
+  serviceCreateBody,
   stepProgress,
   stepsFor,
   suggestionsFor,
@@ -39,7 +40,7 @@ import {
 // Kurulum sihirbazı (W31, tasarim.md §8.3). Yalnız sahip ve müdür; her adım kendi isteğini atar, atlanan adım hiçbir şey yazmaz.
 const failureText = (err: unknown) => (err instanceof ApiError ? err : new ApiError({ status: 0, code: 'NETWORK' })).text()
 
-type StepProps = { settings: SalonSettings; onDone: () => void; onSkip: () => void; onBack: () => void }
+type StepProps = { settings: SalonSettings; businessType: string; onTypeSaved: (type: string) => void; onDone: () => void; onSkip: () => void; onBack: () => void }
 
 function Actions({
   busy,
@@ -92,10 +93,10 @@ function useStepSave() {
   return { busy, failure, run }
 }
 
-function TypeStep({ onDone }: StepProps) {
+function TypeStep({ businessType, onTypeSaved, onDone }: StepProps) {
   const client = useApiClient()
   const me = useMe()
-  const [value, setValue] = useState(me.tenant.businessType)
+  const [value, setValue] = useState(businessType)
   const { busy, failure, run } = useStepSave()
   const canChange = me.role === 'owner'
   return (
@@ -119,8 +120,11 @@ function TypeStep({ onDone }: StepProps) {
         submitLabel="Devam et"
         onSubmit={() =>
           void run(async () => {
-            if (canChange && value !== me.tenant.businessType) await patchSettings(client, me.tenant.slug, { businessType: value })
-          }, onDone)
+            if (canChange && value !== businessType) await patchSettings(client, me.tenant.slug, { businessType: value })
+          }, () => {
+            if (canChange) onTypeSaved(value)
+            onDone()
+          })
         }
       />
     </div>
@@ -211,10 +215,10 @@ function HoursStep({ settings, onDone, onSkip, onBack }: StepProps) {
   )
 }
 
-function ServicesStep({ onDone, onSkip, onBack }: StepProps) {
+function ServicesStep({ businessType, onDone, onSkip, onBack }: StepProps) {
   const client = useApiClient()
   const me = useMe()
-  const suggestions = suggestionsFor(me.tenant.businessType)
+  const suggestions = suggestionsFor(businessType)
   const [picked, setPicked] = useState<Record<string, PickedService>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { busy, failure, run } = useStepSave()
@@ -272,15 +276,7 @@ function ServicesStep({ onDone, onSkip, onBack }: StepProps) {
           if (Object.keys(found).length > 0) return
           void run(async () => {
             for (const pick of list) {
-              const v = pickToServiceValues(pick)
-              await createService(client, me.tenant.slug, {
-                name: v.name,
-                category: v.category,
-                durationMinutes: Number(v.durationText),
-                price: Number(v.priceText.replace(/\./g, '').replace(',', '.')),
-                bufferMinutes: 0,
-                isOnlineBookable: true,
-              })
+              await createService(client, me.tenant.slug, serviceCreateBody(pick))
               // Yazılan öneri listeden düşer: hata sonrası yeniden denemede çift kayıt oluşmaz.
               setPicked((c) => {
                 const next = { ...c }
@@ -298,31 +294,70 @@ function ServicesStep({ onDone, onSkip, onBack }: StepProps) {
 function StaffStep({ onDone, onSkip, onBack }: StepProps) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
+  const toast = useToast()
+  // staff.invite yalnız sahipte (ADR-0042); sunucu müdüre 403 döner, form hiç gösterilmez.
+  const canInvite = useMe().role === 'owner'
   const [values, setValues] = useState<InviteValues>({ fullName: '', email: '', role: 'staff' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [sent, setSent] = useState<string[]>([])
+  const [manualLink, setManualLink] = useState<string | null>(null)
   const { busy, failure, run } = useStepSave()
   const set = (change: Partial<InviteValues>) => {
     setValues((v) => ({ ...v, ...change }))
     setErrors({})
   }
+  if (!canInvite)
+    return (
+      <div className="grid gap-3">
+        <Banner tone="info">Personel davetini salon sahibi gönderir.</Banner>
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <Button onClick={onDone}>Devam et</Button>
+          <Button variant="secondary" onClick={onBack}>
+            Geri
+          </Button>
+        </div>
+      </div>
+    )
   function send() {
     const found = validateInvite(values)
     setErrors(found)
     if (Object.keys(found).length > 0) return
+    const name = values.fullName.trim()
     void run(
-      () => inviteStaff(client, slug, values),
-      () => {
-        setSent((s) => [...s, values.fullName.trim()])
-        setValues({ fullName: '', email: '', role: 'staff' })
+      async () => {
+        const result = await inviteStaff(client, slug, values)
+        if (result.emailSent) {
+          setManualLink(null)
+          setSent((s) => [...s, name])
+        } else setManualLink(result.link ?? '')
       },
+      () => setValues({ fullName: '', email: '', role: 'staff' }),
     )
+  }
+  async function copy(link: string) {
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.show({ message: 'Bağlantı kopyalandı.' })
+    } catch {
+      toast.show({ message: 'Bağlantıyı seçip elle kopyalayın.' })
+    }
   }
   return (
     <div className="grid gap-3">
       {failure ? <Banner tone="error">{failure}</Banner> : null}
       <p className="text-sm text-text-muted">Çalışanlarınıza e-posta ile davet gönderin. Tek başınıza çalışıyorsanız bu adımı atlayın.</p>
       {sent.length > 0 ? <Banner tone="success">{`Davet gönderildi: ${sent.join(', ')}.`}</Banner> : null}
+      {manualLink !== null ? (
+        <div className="grid gap-2">
+          <Banner tone="warning">E-posta gönderilemedi. Aşağıdaki bağlantıyı çalışanınıza kendiniz iletin.</Banner>
+          <InputField label="Davet bağlantısı" readOnly value={manualLink} onFocus={(e) => e.currentTarget.select()} />
+          <div>
+            <Button variant="secondary" onClick={() => void copy(manualLink)}>
+              Bağlantıyı kopyala
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <InputField label="Ad soyad" value={values.fullName} onChange={(e) => set({ fullName: e.target.value })} error={errors.fullName} />
       <InputField label="E-posta" type="email" value={values.email} onChange={(e) => set({ email: e.target.value })} error={errors.email} autoComplete="off" />
       <SelectField label="Rol" value={values.role} onChange={(e) => set({ role: e.target.value as InviteValues['role'] })}>
@@ -343,6 +378,23 @@ function StaffStep({ onDone, onSkip, onBack }: StepProps) {
           Sadece ben
         </Button>
         <Button variant="secondary" onClick={onBack} disabled={busy}>
+          Geri
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ClinicStep({ onDone, onSkip, onBack }: StepProps) {
+  return (
+    <div className="grid gap-3">
+      <Banner tone="info">Ruhsat, sorumlu hekim ve sağlık bilgi sistemi (HBYS) bilgileri ile iki adımlı doğrulama kurulumu henüz hazır değil. Hazır olunca sizi uyaracağız.</Banner>
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        <Button onClick={onDone}>Devam et</Button>
+        <Button variant="text" onClick={onSkip}>
+          Şimdilik atla
+        </Button>
+        <Button variant="secondary" onClick={onBack}>
           Geri
         </Button>
       </div>
@@ -388,6 +440,7 @@ function ReadyStep({ onBack }: StepProps) {
     setFailure(null)
     try {
       await completeOnboarding(client, slug)
+      // Tam yeniden yükleme bilinçli: oturum bilgisi (tür, kurulum durumu) panelde baştan okunur.
       window.location.assign(`/panel/${encodeURIComponent(slug)}/bugun`)
     } catch (err) {
       setFailure(failureText(err))
@@ -427,6 +480,7 @@ function ReadyStep({ onBack }: StepProps) {
 
 const BODIES: Record<StepId, (props: StepProps) => ReactNode> = {
   type: (p) => <TypeStep {...p} />,
+  clinic: (p) => <ClinicStep {...p} />,
   salon: (p) => <SalonStep {...p} />,
   hours: (p) => <HoursStep {...p} />,
   services: (p) => <ServicesStep {...p} />,
@@ -440,6 +494,8 @@ export function SetupWizard() {
   const allowed = me.role === 'owner' || me.role === 'manager'
   const query = useApiQuery(allowed ? 'settings:wizard' : null, (c, signal) => fetchSettings(c, me.tenant.slug, signal))
   const [step, setStep] = useState<StepId>('type')
+  // Kaydedilen tür yerel tutulur: oturum bilgisi (useMe) sayfa yenilenene dek eskidir.
+  const [businessType, setBusinessType] = useState(me.tenant.businessType)
   const heading = useRef<HTMLHeadingElement>(null)
   const first = useRef(true)
   useEffect(() => {
@@ -459,14 +515,16 @@ export function SetupWizard() {
       </SkeletonGroup>
     )
 
-  const steps = stepsFor(me.tenant.businessType)
+  const steps = stepsFor(businessType)
   const current = steps.find((s) => s.id === step) ?? steps[0]
-  const { index, total } = stepProgress(step)
+  const { index, total } = stepProgress(step, businessType)
   const props: StepProps = {
     settings: query.data,
-    onDone: () => setStep(nextStep(step)),
-    onSkip: () => setStep(nextStep(step)),
-    onBack: () => setStep(prevStep(step)),
+    businessType,
+    onTypeSaved: setBusinessType,
+    onDone: () => setStep(nextStep(step, businessType)),
+    onSkip: () => setStep(nextStep(step, businessType)),
+    onBack: () => setStep(prevStep(step, businessType)),
   }
   return (
     <div className="mx-auto grid w-full max-w-xl grid-cols-[minmax(0,1fr)] gap-4">
