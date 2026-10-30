@@ -505,6 +505,7 @@ export function createStockRouter(): Router {
 
   router.get('/services/:serviceId/inventory-recipes', async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!requireOwnerOrManager(req, res)) return
       const tenantId = req.tenantId!
       const { serviceId } = req.params
       const service = await db.service.findFirst({ where: { id: serviceId, tenantId } })
