@@ -237,7 +237,7 @@ describe('S2 Kritik 2: dogrulanmamis talep ve onayda musteri eslestirme (gercek 
       .send({
         serviceId,
         staffId,
-        startAt: new Date(Date.now() + (40 * 24 + 3) * H).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        startAt: gridSlot(12),
         customerName: 'Baska Kisi',
         customerPhone: '0555 111 00 99',
       })

@@ -140,17 +140,27 @@ describe('W15 sürükle-bırak', () => {
     expect((await eventOf('a4')).dataset.movable).toBeUndefined()
   })
 
-  it('K2: uzman (saat değiştirme izni yok) hiçbir randevuyu sürükleyemez', async () => {
+  it('K2: uzman (R3: appointment.reschedule var) kendi ileri tarihli randevusunu sürükleyebilir; yalnız saat değişir', async () => {
     mount({ ...makeMe('staff'), staffId: 'p1' })
-    expect((await eventOf('a1')).dataset.movable).toBeUndefined()
-    fireEvent.mouseDown(await eventOf('a1'), {
-      clientX: 10,
-      clientY: 200,
-      button: 0,
-    })
-    fireEvent.mouseMove(document, { clientX: 10, clientY: 272 })
-    fireEvent.mouseUp(document, { clientX: 10, clientY: 272 })
-    expect(patches()).toHaveLength(0)
+    expect((await eventOf('a1')).dataset.movable).toBe('true')
+    // Kapanmış randevu uzmanda da sürüklenemez (kural rolden bağımsız).
+    expect((await eventOf('a3')).dataset.movable).toBeUndefined()
+    drag(await eventOf('a1'), 72)
+    await waitFor(() => expect(patches()).toHaveLength(1))
+    expect(patches()[0][0]).toMatch(/appointments\/a1\/reschedule$/)
+    expect(Object.keys(patches()[0][1].body)).toEqual(['startAt'])
+  })
+
+  it('K2: uzman başkasının randevusunu sürükleyemez (p2 uzmanı p1 randevularını taşıyamaz)', async () => {
+    mount({ ...makeMe('staff'), staffId: 'p2' })
+    await waitFor(() => expect(request).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    const el = document.querySelector('[data-event-id="a1"]') as HTMLElement | null
+    expect(el?.dataset.movable).toBeUndefined()
+    if (el) {
+      drag(el, 72)
+      expect(patches()).toHaveLength(0)
+    }
   })
 
   it('K3: sürüklerken hedef dilim 15 dk adımla görünür; bırakınca yeni saat sunucuya gider ve "Geri al" bildirimi çıkar', async () => {
