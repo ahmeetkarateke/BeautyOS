@@ -9,7 +9,8 @@ const m = vi.hoisted(() => ({
     customer: { findFirst: vi.fn() },
     service: { findFirst: vi.fn() },
     staffServiceAssignment: { findFirst: vi.fn() },
-    appointment: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    appointment: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    $transaction: vi.fn(),
   },
   scheduleReminders: vi.fn(),
   cancelReminders: vi.fn(),
@@ -45,6 +46,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   m.scheduleReminders.mockResolvedValue(undefined)
   m.cancelReminders.mockResolvedValue(undefined)
+  // A6b: durum gecisi $transaction icinde kosullu updateMany ile yapilir (count 1 = gecis kazanildi).
+  m.db.$transaction.mockImplementation(async (fn: (tx: typeof m.db) => unknown) => fn(m.db))
+  m.db.appointment.updateMany.mockResolvedValue({ count: 1 })
 })
 
 describe('ADR-0045: baslangic durumu tablosu', () => {
