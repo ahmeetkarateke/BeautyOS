@@ -9,6 +9,7 @@ import {
   genislikAyarla,
   girisYap,
   yatayTasma,
+  hataBandi,
   yeniOturum,
   type Oturum,
 } from '../yardimcilar/panel'
@@ -135,7 +136,7 @@ test('W15 SLOT_TAKEN: dolu saate (12:00) bırakınca randevu yerine döner ve ha
   const goreceli = async () => Math.round(((await olay(page, 'Müşteri Taşı').boundingBox())?.y ?? -1) - ((await izgara(page).boundingBox())?.y ?? 0))
   const once = await goreceli()
   await surukle(page, 'Müşteri Taşı', 120)
-  await expect(page.getByRole('alert').first(), 'hata bandı').toBeVisible({ timeout: 15_000 })
+  await expect(hataBandi(page), 'hata bandı').toBeVisible({ timeout: 15_000 })
   expect(await baslangic('tasi'), 'sunucuda saat değişmedi').toBe(saat('10:00'))
   await expect.poll(goreceli, { message: 'randevu eski yerine döndü' }).toBe(once)
   await ekranGoruntusu(page, 'w15-slot-dolu-1440')

@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
-import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { expect, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test'
 
 // Yeni panel (v2) görsel kabul testlerinin ortak yardımcıları (W6, W10, W11).
 // Yenileme çerezi SameSite=Lax'tır: web ve API aynı kayıtlı alanda olmalıdır (E2E_ALAN=bostest.test, bkz. tests/sunucu/e2e-test.sh).
@@ -53,6 +53,14 @@ export async function girisYap(page: Page, email: string, password: string, hede
   await page.getByPlaceholder('••••••••').fill(password)
   await page.getByRole('button', { name: /Giriş Yap/ }).click()
   await page.waitForURL(hedef)
+}
+
+/**
+ * Ekrandaki hata bandı (role=alert). Next'in görünmez yol duyurucusu (#__next-route-announcer__) da role=alert taşır;
+ * `getByRole('alert').first()` onu yakalar ve bekleme gerçek bant gelmeden geçer (H1). Bu yüzden duyurucu hariç tutulur.
+ */
+export function hataBandi(page: Page): Locator {
+  return page.locator('[role="alert"]:not(#__next-route-announcer__)').first()
 }
 
 /** Belge genişliği pencereyi aşıyorsa pozitif (px). */
