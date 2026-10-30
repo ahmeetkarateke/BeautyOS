@@ -1342,7 +1342,8 @@ export function createTenantRouter(): Router {
   // PATCH /api/v1/tenants/:slug/settings
   const settingsSchema = z.object({
     name: z.string().trim().min(2).max(100).optional(),
-    phone: z.string().trim().min(7).max(20).optional(),
+    // null = kayıtlı telefonu temizle; doluysa 7-20 kuralı sürer.
+    phone: z.string().trim().min(7).max(20).nullable().optional(),
     address: z.string().trim().min(5).max(255).optional(),
     workingHours: z.union([
       z.string().trim().min(1).max(200),
@@ -1414,6 +1415,7 @@ export function createTenantRouter(): Router {
         ...(existing.settings as object),
         ...settingsPatch,
       }
+      if (settingsPatch.phone === null) delete (mergedSettings as { phone?: unknown }).phone
 
       const updated = await db.tenant.update({
         where: { id: tenantId },
