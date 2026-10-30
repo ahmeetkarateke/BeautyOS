@@ -23,18 +23,25 @@ export function versionsMatch(c: Pick<RegistrationConsents, 'termsVersion' | 'dp
   return c.termsVersion === LEGAL_VERSIONS.termsVersion && c.dpaVersion === LEGAL_VERSIONS.dpaVersion && c.labelVersion === LEGAL_VERSIONS.labelVersion
 }
 
+// Kayıt anının anlık görüntüsü: kiracı ya da kullanıcı silinse de kabul kaydı kanıt olarak okunabilir kalır (ADR-0048, SET NULL).
+export interface RecordSnapshot {
+  tenantSlug: string
+  tenantName: string
+  userEmail: string
+}
+
 // Kullanım Şartları ve DPA tek kutuyla kabul edilir ama kayıt belge başına ayrı satırdır.
-export function acceptanceRows(tenantId: string, userId: string, c: RegistrationConsents, ev: RequestEvidence) {
+export function acceptanceRows(tenantId: string, userId: string, c: RegistrationConsents, ev: RequestEvidence, snap: RecordSnapshot) {
   return [
     { documentType: 'terms', documentVersion: c.termsVersion },
     { documentType: 'dpa', documentVersion: c.dpaVersion },
-  ].map((d) => ({ tenantId, userId, ...d, channel: 'signup', labelVersion: c.labelVersion, ...ev }))
+  ].map((d) => ({ tenantId, userId, ...d, channel: 'signup', labelVersion: c.labelVersion, ...ev, ...snap }))
 }
 
 // K3: yalnız kutu işaretliyse satır yazılır; varsayılan "izin yok".
-export function marketingRows(tenantId: string, userId: string, c: RegistrationConsents, ev: RequestEvidence) {
+export function marketingRows(tenantId: string, userId: string, c: RegistrationConsents, ev: RequestEvidence, snap: RecordSnapshot) {
   if (!c.marketingEmail) return []
-  return [{ tenantId, userId, channel: 'email', status: 'granted', source: 'signup_form', consentTextVersion: LEGAL_VERSIONS.marketingTextVersion, ...ev }]
+  return [{ tenantId, userId, channel: 'email', status: 'granted', source: 'signup_form', consentTextVersion: LEGAL_VERSIONS.marketingTextVersion, ...ev, ...snap }]
 }
 
 export function requestEvidence(req: { ip?: string; get(name: string): string | undefined }): RequestEvidence {

@@ -204,6 +204,8 @@ describe('K1/K3: kayitta rizalar (ADR-0048, hukuk-uyum W30-1)', () => {
     for (const a of state.acceptances) {
       expect(a).toMatchObject({ tenantId: state.tenants[1].id, userId: state.users[1].id, documentVersion: V.termsVersion, channel: 'signup', labelVersion: V.labelVersion, userAgent: 'TestAgent/1.0' })
       expect(typeof a.ipAddress).toBe('string')
+      // ADR-0048 (SET NULL): kiraci/kullanici silinse de kanit okunur kalsin diye anlik goruntu satirla birlikte yazilir.
+      expect(a).toMatchObject({ tenantSlug: 'yeni-salon', tenantName: 'Yeni Salon', userEmail: 'yeni@test.local' })
     }
   })
 
@@ -211,7 +213,7 @@ describe('K1/K3: kayitta rizalar (ADR-0048, hukuk-uyum W30-1)', () => {
     const res = await register(consentsOf({ marketingEmail: true }))
     expect(res.status).toBe(201)
     expect(state.marketing).toHaveLength(1)
-    expect(state.marketing[0]).toMatchObject({ userId: state.users[1].id, channel: 'email', status: 'granted', source: 'signup_form', userAgent: 'TestAgent/1.0' })
+    expect(state.marketing[0]).toMatchObject({ userId: state.users[1].id, channel: 'email', status: 'granted', source: 'signup_form', userAgent: 'TestAgent/1.0', tenantSlug: 'yeni-salon', tenantName: 'Yeni Salon', userEmail: 'yeni@test.local' })
     expect(typeof state.marketing[0].consentTextVersion).toBe('string')
     expect(state.acceptances.map((a) => a.documentType)).not.toContain('marketing_email')
   })

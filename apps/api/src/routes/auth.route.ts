@@ -172,8 +172,9 @@ export function createAuthRouter(options?: { registerLimitMax?: number; resetLim
         })
         if (consents) {
           const ev = requestEvidence(req)
-          await tx.legalAcceptance.createMany({ data: acceptanceRows(tenant.id, user.id, consents, ev) })
-          const marketing = marketingRows(tenant.id, user.id, consents, ev)
+          const snap = { tenantSlug: tenant.slug, tenantName: tenant.name, userEmail: user.email }
+          await tx.legalAcceptance.createMany({ data: acceptanceRows(tenant.id, user.id, consents, ev, snap) })
+          const marketing = marketingRows(tenant.id, user.id, consents, ev, snap)
           if (marketing.length) await tx.marketingConsent.createMany({ data: marketing })
         }
         return { tenant, user }
