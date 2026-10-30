@@ -127,10 +127,16 @@ export function createApiClient(config: ApiClientConfig) {
     })
   }
 
+  /** Şifre değiştirme ucundaki 401 oturum bitti değil, yanlış mevcut şifredir: yenileme ve tekrar deneme (çift bcrypt) yapılmaz. */
+  async function isWrongPassword(res: Response): Promise<boolean> {
+    const body = (await res.clone().json().catch(() => null)) as { error?: { code?: unknown } } | null
+    return body?.error?.code === 'INVALID_PASSWORD'
+  }
+
   async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
     let res = await send(path, options)
 
-    if (res.status === 401 && !isAuthPath(path)) {
+    if (res.status === 401 && !isAuthPath(path) && !(await isWrongPassword(res))) {
       if (await refreshToken()) {
         res = await send(path, options)
       } else {
