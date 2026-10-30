@@ -7,10 +7,10 @@ import { Avatar, personTone } from '@/ui/avatar'
 import { Card } from '@/ui/card'
 import { Skeleton, SkeletonGroup } from '@/ui/skeleton'
 import { EmptyState, ErrorState, Forbidden } from '@/ui/states'
-import { StatusBadge } from '@/ui/status-badge'
 import { fetchStaffProfiles } from './api'
+import { InviteSection } from './invite-section'
 
-// Personel (tasarim.md §8.1 `personel`): liste; ayrıntı personel-detay/<id>. Yalnız sahip ve müdür. Davet (A3) henüz yok: "Yakında".
+// Personel (tasarim.md §8.1 `personel`): liste; ayrıntı personel-detay/<id>. Yalnız sahip ve müdür. Davet (A3) yalnız sahipte: bekleyen davetler + gönderme.
 export function StaffScreen() {
   const me = useMe()
   if (me.role !== 'owner' && me.role !== 'manager') return <Forbidden />
@@ -18,7 +18,9 @@ export function StaffScreen() {
 }
 
 function StaffList() {
-  const slug = useMe().tenant.slug
+  const me = useMe()
+  const slug = me.tenant.slug
+  const isOwner = me.role === 'owner'
   const query = useApiQuery('staff:profiles', (c, signal) => fetchStaffProfiles(c, slug, signal))
   const base = `/panel/${encodeURIComponent(slug)}`
 
@@ -73,10 +75,8 @@ function StaffList() {
     <div className="grid max-w-3xl grid-cols-[minmax(0,1fr)] gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-xl leading-7 font-semibold">Personel</h1>
-        <p className="flex items-center gap-2 text-sm text-text-secondary">
-          Personel daveti <StatusBadge status="soon" />
-        </p>
       </div>
+      {isOwner ? <InviteSection /> : null}
       {body}
     </div>
   )
