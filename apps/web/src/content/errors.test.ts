@@ -98,3 +98,10 @@ describe('W16/W19 kasa hata kodları', () => {
     expect(errorText('DAY_CLOSED')).toBe('Bu günün kasası kapatılmış. Sahip ya da müdür günü yeniden açtıktan sonra işlem yapılabilir.')
   })
 })
+
+describe('W26 paket hata kodu', () => {
+  it('K6: PACKAGE_IN_USE tablodadır ve genel hata metnine düşmez', () => {
+    expect(KNOWN_ERROR_CODES).toContain('PACKAGE_IN_USE')
+    expect(errorText('PACKAGE_IN_USE')).toBe('Bu paketi kullanan etkin müşteri paketi var. Önce onları tamamlayın ya da iptal edin.')
+  })
+})

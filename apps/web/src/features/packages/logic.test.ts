@@ -1,8 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import { emptyPackage, packageBody, packageMeta, perSession, sortPackages, toPackageValues, validatePackage, type PackageRow, type PackageValues } from './logic'
+import {
+  emptyPackage,
+  packageBody,
+  packageMeta,
+  perSession,
+  sortPackages,
+  toPackageValues,
+  validatePackage,
+  type PackageRow,
+  type PackageValues,
+} from './logic'
 
-const pkg = (over: Partial<PackageRow> = {}): PackageRow => ({ id: 'p1', name: 'Cilt bakımı 6 seans', serviceId: 's1', serviceName: 'Cilt bakımı', totalSessions: 6, price: 3000, validityDays: 180, description: null, isActive: true, ...over })
-const valid: PackageValues = { serviceId: 's1', name: 'Cilt bakımı 6 seans', sessionsText: '6', priceText: '3.000', validityText: '180', description: '', isActive: true }
+const pkg = (over: Partial<PackageRow> = {}): PackageRow => ({
+  id: 'p1',
+  name: 'Cilt bakımı 6 seans',
+  serviceId: 's1',
+  serviceName: 'Cilt bakımı',
+  totalSessions: 6,
+  price: 3000,
+  validityDays: 180,
+  description: null,
+  isActive: true,
+  ...over,
+})
+const valid: PackageValues = {
+  serviceId: 's1',
+  name: 'Cilt bakımı 6 seans',
+  sessionsText: '6',
+  priceText: '3.000',
+  validityText: '180',
+  description: '',
+  isActive: true,
+}
 
 describe('W26 perSession / packageMeta', () => {
   it('K1: seans başı fiyat kuruşa yuvarlanır; sıfır seansta 0 (bölme hatası yok)', () => {
