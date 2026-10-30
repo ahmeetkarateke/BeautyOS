@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { randomBytes } from 'node:crypto'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
+import { isHealthRegulated } from '@beautyos/shared'
 import { db } from '../lib/db'
 import { getSlots } from '../lib/slots'
 import { sendVerificationCode, verifyCode } from '../lib/phone-verification'
@@ -147,6 +148,8 @@ export function createPublicRouter(): Router {
         coverUrl: settings.coverUrl ?? null,
         aboutText: settings.aboutText ?? null,
         bookingMode: resolveBookingMode().bookingMode,
+        // Ham işletme türü açılmaz; arayüz yalnız bu bayrakla hazır mesajda hizmet adını gizler.
+        isHealthRegulated: isHealthRegulated(tenant.businessType),
       })
     } catch (err) {
       next(err)

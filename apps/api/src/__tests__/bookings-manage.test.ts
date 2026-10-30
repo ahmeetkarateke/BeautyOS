@@ -68,7 +68,7 @@ describe('POST /public/bookings/lookup', () => {
   it('gecerli token: randevu ozeti, canModify ve modifyDeadline (baslangic - 2 saat) doner; sorgu ozet olarak yapilir', async () => {
     const res = await post('lookup')
     expect(res.status).toBe(200)
-    expect(res.body.tenant).toEqual({ name: 'Salon X', slug: 'salon-x', phone: '05320000000', address: 'Moda Cd. 5' })
+    expect(res.body.tenant).toEqual({ name: 'Salon X', slug: 'salon-x', phone: '05320000000', address: 'Moda Cd. 5', isHealthRegulated: false })
     expect(res.body.appointment).toMatchObject({ referenceCode: 'RDV-1', status: 'confirmed', serviceName: 'Sac Boyama', staffName: 'Uzman Ali' })
     expect(res.body.canModify).toBe(true)
     const start = new Date(res.body.appointment.startAt).getTime()
