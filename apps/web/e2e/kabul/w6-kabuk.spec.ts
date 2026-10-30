@@ -67,18 +67,18 @@ test('W6 K4: yabancı salon kısaltması kendi paneline yönlenir, yabancı salo
 
 test('W6 K6: hazır olmayan ekranda "Eski ekranda açın" ?eski=1 ile eski ekrana gider ve yeni panele geri yönlenmez', async () => {
   const { page } = o
-  // Bugün ve Takvim gerçek ekran olduğundan "hazır olmayan" örnek olarak Müşteriler kullanılır (henüz yeni arayüzde yok).
-  await page.goto(`/panel/${a.slug}/musteriler`)
+  // Bugün ve Takvim gerçek ekran olduğundan "hazır olmayan" örnek olarak Tedarikçiler kullanılır (ekran klasörü henüz yok; hazır olunca başka bir hazırlanmakta olan ekrana geçilir).
+  await page.goto(`/panel/${a.slug}/tedarikciler`)
   await expect(page.getByRole('heading', { name: 'Bu ekran yeni arayüzde hazırlanıyor.' })).toBeVisible()
   const baglanti = page.getByRole('link', { name: 'Eski ekranda açın' })
-  await expect(baglanti).toHaveAttribute('href', `/tenant/${a.slug}/customers?eski=1`)
+  await expect(baglanti).toHaveAttribute('href', `/tenant/${a.slug}/suppliers?eski=1`)
   const konsolOnce = o.konsol.length
   await baglanti.click()
-  await page.waitForURL(`**/tenant/${a.slug}/customers?eski=1`)
+  await page.waitForURL(`**/tenant/${a.slug}/suppliers?eski=1`)
   // Eski ekran sürekli ağ isteği atar (networkidle gelmez): içeriğin çizilmesi koşul olarak beklenir, sonra adresin sabit kaldığı doğrulanır.
   // Yönlendirme sürüyorsa /panel'e düşerdi; eski ekranın kendi menüsü çizildikten sonra adres hâlâ ?eski=1 olmalı.
   await expect(page.locator('a[href*="/dashboard"]').first()).toBeAttached()
-  await expect(page).toHaveURL(new RegExp(`/tenant/${a.slug}/customers\\?eski=1$`))
+  await expect(page).toHaveURL(new RegExp(`/tenant/${a.slug}/suppliers\\?eski=1$`))
   await expect(page.getByText('Bu ekran yeni arayüzde hazırlanıyor.')).toHaveCount(0)
   // Eski arayüz bu kabulün kapsamı dışındadır: konsol denetimi yalnız yeni panel gezintisini kapsar.
   o.konsol.length = konsolOnce
