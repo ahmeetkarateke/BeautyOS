@@ -85,6 +85,8 @@ const TEXTS: Record<string, Entry> = {
   PACKAGE_NOT_ACTIVE: 'Bu paket aktif değil.',
   NO_SESSIONS_LEFT: 'Bu pakette kalan seans yok. Yeni paket satabilirsiniz.',
   PACKAGE_EXPIRED: 'Paketin süresi dolmuş.',
+  NO_POOL: 'Dağıtılacak bahşiş bulunamadı. Sayfayı yenileyin.',
+  AMOUNT_MISMATCH: 'Dağıtım toplamı bahşiş toplamına eşit değil. Yeniden deneyin.',
   ALREADY_POSTED: 'Bu fatura zaten işlenmiş. Değiştirilemez.',
   ALREADY_PAID: 'Bu ödeme zaten alınmış.',
   CANCELLED: 'İptal edilen kayıt için ödeme alınamaz.',

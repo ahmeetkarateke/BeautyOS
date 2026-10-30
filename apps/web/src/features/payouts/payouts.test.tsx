@@ -105,6 +105,18 @@ describe('W26 Personel ödemeleri', () => {
     expect(await screen.findByText('Ödeme kaydı eklendi.')).toBeTruthy()
   })
 
+  it('K3b: kesinti hak ediş + ekten büyükse alan hatası çıkar ve POST gitmez', async () => {
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Ödeme ekle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Ödeme ekle' })
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Personel' }), { target: { value: 'p1' } })
+    await waitFor(() => expect(within(dialog).getByRole('status').textContent).toContain('₺1.000'))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /Kesinti/ }), { target: { value: '1100' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ödeme kaydı ekle' }))
+    expect(await within(dialog).findByText('Kesinti, hak ediş ve ek ödemenin toplamından fazla olamaz.')).toBeTruthy()
+    expect(writes()).toHaveLength(0)
+  })
+
   it('K4: hak ediş hesaplanamazsa hata yazılır ve net tutar uydurulmaz ("—")', async () => {
     calcError = new ApiError({ status: 500, code: 'INTERNAL_ERROR' })
     mount()
