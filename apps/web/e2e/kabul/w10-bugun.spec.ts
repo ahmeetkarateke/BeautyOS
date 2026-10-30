@@ -75,7 +75,9 @@ test.beforeAll(async ({ browser }, info) => {
   // Üç online talep (herkese açık uç, giriş yok). Saatler artan: banner sırası = bu sıra. Hepsi 3 saatten uzak ve 14 gün içinde.
   anon = await request.newContext({ baseURL: API })
   const talep = async (saatSonra: number, ad: string, telefon: string) => {
-    const baslangic = new Date(Date.now() + saatSonra * 3_600_000)
+    // Mesai içi sabit saatler (yarın 10:00, 12:00, 14:00 İstanbul): günün saatinden bağımsız, A7 çalışma saati denetimi geçer. saatSonra yalnız sıralama için.
+    const yarin = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+    const baslangic = new Date(Date.parse(`${yarin}T07:00:00Z`) + (saatSonra - 26) / 2 * 3_600_000)
     const r = await anon.post(`/api/v1/tenants/${k.slug}/public/book`, {
       data: { serviceId: hizmet.id, staffId: uzman.id, startAt: `${baslangic.toISOString().slice(0, 19)}Z`, customerName: ad, customerPhone: telefon },
     })
