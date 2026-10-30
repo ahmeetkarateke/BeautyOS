@@ -10,7 +10,7 @@ import { seedDefaultAnamnesisQuestions } from '../lib/anamnesis-seeder'
 import crypto from 'crypto'
 import { comparePassword, normalizeEmail } from '../lib/credentials'
 import { strongPassword } from '../lib/password-policy'
-import { acceptanceRows } from '../lib/legal-acceptance'
+import { LEGAL_VERSIONS, acceptanceRows, marketingRows, requestEvidence, versionsMatch } from '../lib/legal-acceptance'
 import { createSession, rotateSession, revokeByToken, revokeFamily, revokeUserSessions, SESSION_TTL_MS } from '../lib/sessions'
 
 // E-posta şemada küçük harfe çevrilir ve TAM eşitlikle aranır. 'insensitive' (ILIKE) kullanılmaz: '_' ve '%' joker olur,
@@ -26,6 +26,9 @@ const slugField = z.string().trim().regex(/^[a-z0-9-]{3,30}$/, 'Slug sadece kü�
 
 // Yeni arayüz rızaları (ADR-0048). Alan yoksa eski arayüz yoludur ve kabul kaydı oluşmaz; varsa terms true olmalıdır (K1).
 const consentsSchema = z.object({
+  termsVersion: z.string().max(40),
+  dpaVersion: z.string().max(40),
+  labelVersion: z.string().max(40),
   terms: z.literal(true, { errorMap: () => ({ message: "Devam etmek için Kullanım Şartları'nı ve Veri İşleme Sözleşmesi'ni kabul etmeniz gerekir." }) }),
   marketingEmail: z.boolean().optional(),
 })
@@ -125,6 +128,10 @@ export function createAuthRouter(options?: { registerLimitMax?: number; resetLim
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Geçersiz kayıt verisi.' } })
       }
 
+      if (parsed.data.consents && !versionsMatch(parsed.data.consents)) {
+        return res.status(400).json({ error: { code: 'LEGAL_VERSION_MISMATCH', message: 'Sözleşme metinleri güncellendi. Sayfayı yenileyip tekrar deneyin.' } })
+      }
+
       const { salonName, slug, ownerFullName, phone, email, password, businessType, consents } = parsed.data
 
       const slugExists = await db.tenant.findUnique({ where: { slug }, select: { id: true } })
@@ -164,7 +171,10 @@ export function createAuthRouter(options?: { registerLimitMax?: number; resetLim
           },
         })
         if (consents) {
-          await tx.legalAcceptance.createMany({ data: acceptanceRows(tenant.id, user.id, consents) })
+          const ev = requestEvidence(req)
+          await tx.legalAcceptance.createMany({ data: acceptanceRows(tenant.id, user.id, consents, ev) })
+          const marketing = marketingRows(tenant.id, user.id, consents, ev)
+          if (marketing.length) await tx.marketingConsent.createMany({ data: marketing })
         }
         return { tenant, user }
       })
@@ -405,8 +415,10 @@ export function createAuthRouter(options?: { registerLimitMax?: number; resetLim
   router.post('/forgot-password', handleForgot((base, raw) => `${base}/reset-password?token=${raw}`))
   router.post('/reset-password', handleReset)
   // Yeni arayüz: token URL'nin # parçasında gider (sunucu günlüklerine ve Referer'a düşmez), API'ye gövdede gelir.
-  router.post('/password-reset/request', resetRequestLimiter, handleForgot((base, raw) => `${base}/reset-password#token=${raw}`))
+  router.post('/password-reset/request', resetRequestLimiter, handleForgot((base, raw) => `${base}/reset-password#${raw}`))
   router.post('/password-reset/confirm', resetConfirmLimiter, handleReset)
+
+  router.get('/legal-versions', (_req: Request, res: Response) => res.json(LEGAL_VERSIONS))
 
   // Kimliksiz uygunluk kontrolü (kayıt formu önizlemesi). Yalnız var/yok döner; başka alan sızdırmaz.
   router.get('/slug-available', slugLimiter, async (req: Request, res: Response, next: NextFunction) => {
