@@ -80,12 +80,12 @@ describe('A1: buildMeProfile', () => {
   it('A1-K6: termSet gecerliyse settings\'ten, degilse salon; terms yalniz string-string ciftleri', () => {
     const ok = buildMeProfile({
       user: baseUser,
-      tenant: { ...baseTenant, settings: { termSet: 'clinic_patient', termOverrides: { client: 'Hasta', n: 3, o: { a: 1 } } } },
+      tenant: { ...baseTenant, settings: { termSet: 'clinic_patient', termOverrides: { client: 'Hasta', 'client.acc': 'Hastayi', foo: 'x', n: 3, o: { a: 1 } } } },
       staffId: null,
       bookingMode: 'verified',
     })
     expect(ok.tenant.termSet).toBe('clinic_patient')
-    expect(ok.tenant.terms).toEqual({ client: 'Hasta' })
+    expect(ok.tenant.terms).toEqual({ client: 'Hasta', 'client.acc': 'Hastayi' })
 
     const bad = buildMeProfile({
       user: baseUser,

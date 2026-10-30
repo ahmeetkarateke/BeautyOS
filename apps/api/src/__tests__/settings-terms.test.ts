@@ -31,16 +31,24 @@ beforeEach(() => {
   dbMock.tenant.update.mockResolvedValue({ id: 't1', name: 'S', slug: 'salon', settings: {}, onboardingCompleted: true, businessType: 'dentist' })
 })
 
+// Web resolveTerm yalin anahtari (nom) ve `anahtar.bicim` anahtarlarini okur; bir terim girildiyse bes bicim de gerekir.
+const clientForms = (word: string) => ({ client: word, 'client.plural': `${word}ler`, 'client.acc': `${word}i`, 'client.dat': `${word}e`, 'client.gen': `${word}in` })
+
 describe('PATCH /settings termSet ve termOverrides', () => {
-  it('owner terim setini ve ozellestirmeleri kaydeder; digerleri korunur', async () => {
-    const res = await patch('owner', { termSet: 'clinic_patient', termOverrides: { client: 'Hasta', appointment: 'Muayene' } })
+  it('owner terim setini ve bes bicimli ozellestirmeyi kaydeder; digerleri korunur', async () => {
+    const res = await patch('owner', { termSet: 'clinic_patient', termOverrides: clientForms('Hasta') })
     expect(res.status).toBe(200)
     expect(dbMock.tenant.update.mock.calls[0][0].data.settings).toMatchObject({
-      termSet: 'clinic_patient', termOverrides: { client: 'Hasta', appointment: 'Muayene' }, phone: '05321234567',
+      termSet: 'clinic_patient', termOverrides: clientForms('Hasta'), phone: '05321234567',
     })
   })
 
-  it.each([{ termSet: 'clinic_client' }, { termOverrides: { client: 'Danisan' } }])('manager %j gonderirse 403, yazilmaz (yalniz sahip)', async (body) => {
+  it('anahtar.nom yazimi da yalin bicim sayilir (bes bicim tamam)', async () => {
+    const { client, ...rest } = clientForms('Hasta')
+    expect((await patch('owner', { termOverrides: { ...rest, 'client.nom': client } })).status).toBe(200)
+  })
+
+  it.each([{ termSet: 'clinic_client' }, { termOverrides: clientForms('Danisan') }])('manager %j gonderirse 403, yazilmaz (yalniz sahip)', async (body) => {
     const res = await patch('manager', body)
     expect(res.status).toBe(403)
     expect(dbMock.tenant.update).not.toHaveBeenCalled()
@@ -56,22 +64,41 @@ describe('PATCH /settings termSet ve termOverrides', () => {
     expect(dbMock.tenant.update).not.toHaveBeenCalled()
   })
 
-  it('termOverrides deger string degilse 400', async () => {
-    expect((await patch('owner', { termOverrides: { client: 5 } })).status).toBe(400)
+  it('termOverrides deger string degilse 400 (yalniz bu kural bozuk)', async () => {
+    expect((await patch('owner', { termOverrides: { ...clientForms('Hasta'), 'client.acc': 5 } })).status).toBe(400)
   })
 
   it('termOverrides degeri 60 karakteri asarsa 400, 60 kabul', async () => {
-    expect((await patch('owner', { termOverrides: { client: 'a'.repeat(61) } })).status).toBe(400)
-    expect((await patch('owner', { termOverrides: { client: 'a'.repeat(60) } })).status).toBe(200)
+    expect((await patch('owner', { termOverrides: { ...clientForms('Hasta'), client: 'a'.repeat(61) } })).status).toBe(400)
+    expect((await patch('owner', { termOverrides: { ...clientForms('Hasta'), client: 'a'.repeat(60) } })).status).toBe(200)
+  })
+
+  it('bosluktan ibaret deger 400 (yalniz bu kural bozuk)', async () => {
+    expect((await patch('owner', { termOverrides: { ...clientForms('Hasta'), 'client.dat': '   ' } })).status).toBe(400)
+  })
+
+  it('terim degerinde HTML isareti reddedilir (XSS); yalniz deger bozuk', async () => {
+    expect((await patch('owner', { termOverrides: { ...clientForms('Hasta'), client: '<script>x</script>' } })).status).toBe(400)
+  })
+
+  it('sozluk disi anahtar 400 (anahtar adi gecerli harf/rakam, deger gecerli)', async () => {
+    const res = await patch('owner', { termOverrides: { ...clientForms('Hasta'), foo: 'Deger' } })
+    expect(res.status).toBe(400)
+    expect(dbMock.tenant.update).not.toHaveBeenCalled()
+  })
+
+  it('bilinmeyen bicim anahtari 400 (client.xyz)', async () => {
+    expect((await patch('owner', { termOverrides: { ...clientForms('Hasta'), 'client.xyz': 'Deger' } })).status).toBe(400)
+  })
+
+  it('bicim eksikse 400: yalniz yalin hal girilmis', async () => {
+    const res = await patch('owner', { termOverrides: { client: 'Hasta' } })
+    expect(res.status).toBe(400)
+    expect(dbMock.tenant.update).not.toHaveBeenCalled()
   })
 
   it('termOverrides en cok 30 anahtar', async () => {
     const many = Object.fromEntries(Array.from({ length: 31 }, (_, i) => [`k${i}`, 'v']))
     expect((await patch('owner', { termOverrides: many })).status).toBe(400)
-  })
-
-  it('terim degerinde HTML isareti reddedilir (XSS), anahtar adi da harf/rakam/alt cizgi', async () => {
-    expect((await patch('owner', { termOverrides: { client: '<script>x</script>' } })).status).toBe(400)
-    expect((await patch('owner', { termOverrides: { 'a b<': 'Hasta' } })).status).toBe(400)
   })
 })
