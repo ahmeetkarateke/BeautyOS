@@ -89,11 +89,12 @@ describe('W20 validateService', () => {
 
 describe('W20 gövdeler', () => {
   it('K4: oluşturma gövdesi sayıları sayıya çevirir; boş kategori gönderilmez', () => {
-    expect(toCreateBody({ ...valid, category: '' })).toEqual({ name: 'Fön', durationMinutes: 45, price: 850, bufferMinutes: 0 })
-    expect(toCreateBody(valid)).toEqual({ name: 'Fön', category: 'Saç', durationMinutes: 45, price: 850, bufferMinutes: 0 })
+    expect(toCreateBody({ ...valid, category: '' })).toEqual({ name: 'Fön', durationMinutes: 45, price: 850, bufferMinutes: 0, isOnlineBookable: true })
+    expect(toCreateBody(valid)).toEqual({ name: 'Fön', category: 'Saç', durationMinutes: 45, price: 850, bufferMinutes: 0, isOnlineBookable: true })
   })
-  it('K4: oluşturmada online açık değilse sunucu varsayılanı bilinmediği için ayrıca PATCH gerekir: gövde isOnlineBookable taşımaz', () => {
-    expect('isOnlineBookable' in toCreateBody({ ...valid, isOnlineBookable: false })).toBe(false)
+  it('K4: oluşturma gövdesi isOnlineBookable bayrağını taşır (sunucu POST /services artık alır)', () => {
+    expect(toCreateBody({ ...valid, isOnlineBookable: false }).isOnlineBookable).toBe(false)
+    expect(toCreateBody(valid).isOnlineBookable).toBe(true)
   })
   it('K5: sunucu kaydı forma çevrilir', () => {
     expect(toFormValues(row({ price: 99.9, category: null }))).toEqual({

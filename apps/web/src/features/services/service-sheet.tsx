@@ -34,10 +34,7 @@ export function ServiceSheet({
   const t = useTerm()
   const word = t('service')
   const listId = useId()
-  const [created, setCreated] = useState<ServiceRow | null>(null)
-  // Oluşturma sonrası ikinci istek düşerse kayıt vardır: katman düzenleme kipine geçer, yeniden basış ikinci kayıt açmaz.
-  const current = service ?? created
-  const isEdit = current !== null
+  const isEdit = service !== null
   const [values, setValues] = useState<ServiceValues>(() => (service ? toFormValues(service) : emptyService()))
   const [errors, setErrors] = useState<ServiceErrors>({})
   const [busy, setBusy] = useState(false)
@@ -45,8 +42,8 @@ export function ServiceSheet({
   const [confirmRemove, setConfirmRemove] = useState(false)
 
   const set = <K extends keyof ServiceValues>(key: K, value: ServiceValues[K]) => {
-    setValues((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
+    setValues((service) => ({ ...service, [key]: value }))
+    setErrors((service) => ({ ...service, [key]: undefined }))
   }
 
   async function run(action: () => Promise<void>, doneMessage: string) {
@@ -68,36 +65,18 @@ export function ServiceSheet({
     const found = validateService(values)
     setErrors(found)
     if (Object.values(found).some(Boolean)) return
-    if (current) {
-      const body = toUpdateBody(values, current)
+    if (service) {
+      const body = toUpdateBody(values, service)
       if (Object.keys(body).length === 0) {
         toast.show({ message: 'Değişiklik yapmadınız.' })
         return
       }
-      void run(() => updateService(client, slug, current.id, body), `${capitalize(word)} kaydedildi.`)
+      void run(() => updateService(client, slug, service.id, body), `${capitalize(word)} kaydedildi.`)
     } else {
+      // Çevrimiçi görünürlük oluşturma isteğinde gider (tek istek): yarım kalan kayıt durumu yoktur.
       void run(
         async () => {
-          const body = toCreateBody(values)
-          const made = await createService(client, slug, body)
-          // Oluşturma ucu çevrimiçi görünürlüğü almaz: kapalı istenmişse ikinci istekle kapatılır.
-          if (!values.isOnlineBookable) {
-            try {
-              await updateService(client, slug, made.id, { isOnlineBookable: false })
-            } catch (err) {
-              setCreated({
-                id: made.id,
-                name: String(body.name),
-                category: typeof body.category === 'string' ? body.category : null,
-                durationMinutes: Number(body.durationMinutes),
-                price: Number(body.price),
-                bufferMinutes: Number(body.bufferMinutes),
-                isActive: true,
-                isOnlineBookable: true,
-              })
-              throw err
-            }
-          }
+          await createService(client, slug, toCreateBody(values))
         },
         `${capitalize(word)} eklendi.`,
       )
@@ -182,24 +161,24 @@ export function ServiceSheet({
             onCheckedChange={(checked) => set('isActive', checked)}
           />
         ) : null}
-        {isEdit && current?.isActive ? (
+        {isEdit && service?.isActive ? (
           <Button variant="danger" disabled={busy} onClick={() => setConfirmRemove(true)}>
             {capitalize(word)} kaldır
           </Button>
         ) : null}
       </div>
-      {confirmRemove && current ? (
+      {confirmRemove && service ? (
         <ConfirmDialog
           open
           onOpenChange={(open) => {
             if (!open) setConfirmRemove(false)
           }}
           title={`${capitalize(word)} kaldırılsın mı?`}
-          description={`“${current.name}” listeden kalkar ve yeni randevuda seçilemez. Geçmiş randevular etkilenmez; sonra Etkin ayarıyla geri açabilirsiniz.`}
+          description={`“${service.name}” listeden kalkar ve yeni randevuda seçilemez. Geçmiş randevular etkilenmez; sonra Etkin ayarıyla geri açabilirsiniz.`}
           actionLabel={`${capitalize(word)} kaldır`}
           loading={busy}
           loadingText="Kaldırılıyor…"
-          onConfirm={() => void run(() => removeService(client, slug, current.id), `${capitalize(word)} kaldırıldı.`)}
+          onConfirm={() => void run(() => removeService(client, slug, service.id), `${capitalize(word)} kaldırıldı.`)}
         />
       ) : null}
     </Sheet>

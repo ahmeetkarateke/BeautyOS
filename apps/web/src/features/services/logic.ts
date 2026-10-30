@@ -114,7 +114,7 @@ function numbers(values: ServiceValues) {
 
 export function toCreateBody(values: ServiceValues): Record<string, unknown> {
   const category = values.category.trim()
-  return { name: values.name.trim(), ...(category ? { category } : {}), ...numbers(values) }
+  return { name: values.name.trim(), ...(category ? { category } : {}), ...numbers(values), isOnlineBookable: values.isOnlineBookable }
 }
 
 /** Yalnız değişen alanlar gider. */
