@@ -23,7 +23,8 @@ export function validateSalon(values: SalonValues): Record<string, string> {
   const name = values.name.trim()
   if (name.length < 2 || name.length > 100) errors.name = 'Salon adı 2 ile 100 karakter arasında olmalı.'
   const phone = values.phone.trim()
-  if (phone.length < 7 || phone.length > 20) errors.phone = 'Telefonu 7 ile 20 karakter arasında yazın.'
+  // Telefon isteğe bağlıdır; doluysa sunucu şemasındaki 7-20 kuralı geçerlidir.
+  if (phone !== '' && (phone.length < 7 || phone.length > 20)) errors.phone = 'Telefonu 7 ile 20 karakter arasında yazın.'
   const address = values.address.trim()
   if (address.length < 5 || address.length > 255) errors.address = 'Adresi en az 5 karakterle yazın.'
   return errors
@@ -32,7 +33,10 @@ export function validateSalon(values: SalonValues): Record<string, string> {
 export function salonPatch(values: SalonValues, original: SalonValues): Record<string, unknown> {
   const patch: Record<string, unknown> = {}
   for (const key of ['name', 'phone', 'address'] as const) {
-    if (values[key].trim() !== original[key].trim()) patch[key] = values[key].trim()
+    const next = values[key].trim()
+    // Sunucu telefonu en az 7 karakter ister: boş telefon gönderilmez (yeni salonlarda zaten boştur).
+    if (key === 'phone' && next === '') continue
+    if (next !== original[key].trim()) patch[key] = next
   }
   return patch
 }
