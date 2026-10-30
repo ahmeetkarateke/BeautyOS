@@ -23,10 +23,12 @@ export function LoginScreen({ navigate = defaultNavigate }: { navigate?: Navigat
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  // Aynı anda tek istek: durum değişkeni değil ref'e bakılır, böylece başarısız denemeden sonraki gönderim eski bir kapanıştan etkilenmez.
+  const inFlight = useRef(false)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (pending) return
+    if (inFlight.current) return
     const found = validateLogin({ email, password })
     setErrors(found)
     setFailure(null)
@@ -35,12 +37,14 @@ export function LoginScreen({ navigate = defaultNavigate }: { navigate?: Navigat
       requestAnimationFrame(() => formRef.current && focusFirstInvalid(formRef.current))
       return
     }
+    inFlight.current = true
     setPending(true)
     try {
       const session = await login(client, { email, password })
       navigate(panelPathFor(session.tenantSlug))
     } catch (error) {
       setFailure(error instanceof ApiError ? error.text({ context: 'login' }) : 'Beklenmeyen bir sorun oluştu. Birkaç dakika sonra tekrar deneyin.')
+      inFlight.current = false
       setPending(false)
     }
   }
