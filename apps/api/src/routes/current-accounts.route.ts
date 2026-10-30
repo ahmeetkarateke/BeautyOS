@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Prisma, CurrentAccountPartyType, CurrentAccountEntryRefType, FinancialTransactionType } from '@prisma/client'
 import { db } from '../lib/db'
 import { ensurePermission } from '../middleware/permission'
+import { escapeLike, phoneSearchPattern } from '../lib/customer-privacy'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
 const XSS_PATTERN = /<[^>]*>|javascript:/i
@@ -54,7 +55,7 @@ export function createCurrentAccountsRouter(): Router {
             where: {
               tenantId,
               ...(search
-                ? { OR: [{ fullName: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] }
+                ? { OR: [{ fullName: { contains: escapeLike(search), mode: 'insensitive' } }, { phone: { contains: phoneSearchPattern(search) } }] }
                 : {}),
             },
             select: { id: true, fullName: true, phone: true },

@@ -8,6 +8,7 @@ import type { Role } from './roles'
 const OWNER_MANAGER = ['owner', 'manager'] as const
 const OWNER_MANAGER_RECEPTION = ['owner', 'manager', 'receptionist'] as const
 const OWNER_MANAGER_STAFF = ['owner', 'manager', 'staff'] as const
+const ALL_STAFF_ROLES = ['owner', 'manager', 'receptionist', 'staff'] as const
 
 export const PERMISSIONS = {
   'dashboard.revenue': OWNER_MANAGER, // 2
@@ -26,8 +27,10 @@ export const PERMISSIONS = {
   'customer.view_all': OWNER_MANAGER_RECEPTION, // 13 (uzman yalniz kendi musterilerini gorur)
   'customer.write': OWNER_MANAGER_RECEPTION, // 15 (uzman duzenleyemez; kendi musterisinde not duzenleme acilirsa kapsam + alan beyaz listesi gerekir)
   'appointment.approve': OWNER_MANAGER_RECEPTION, // online talep onay/ret
-  'appointment.reschedule': OWNER_MANAGER_RECEPTION, // 6
   'staff.invite': ['owner'], // 31 (personel daveti, ADR-0042)
+  'appointment.reschedule': ALL_STAFF_ROLES, // 6 (kurucu karari R3: uzman yalniz kendi randevusunu ve yalniz saat/gun; kapsam rotada)
+  'appointment.reassign_staff': OWNER_MANAGER_RECEPTION, // 6 (randevuyu baska personele tasima; bu izni olmayan rol yalniz kendi randevusunu tasir)
+  'finance.correction': OWNER_MANAGER, // R5 (tamamlanmis odeme duzeltmesi, gunu yeniden acma ve duzeltme gecmisi; resepsiyon yapamaz)
   'tip.record': OWNER_MANAGER_RECEPTION, // 33
   'tip.view': OWNER_MANAGER_STAFF, // 35 (bahsis listesi ve ozeti; uzman yalniz kendi bahsisini gorur, resepsiyon gormez)
   'waitlist.view': OWNER_MANAGER_RECEPTION, // 11 (liste musteri adi ve telefonu tasir)

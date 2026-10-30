@@ -51,9 +51,9 @@ describe('izin tablosu', () => {
     }
   })
 
-  it('permissionsFor: staff yalnizca saglik ve fotograf izinlerini alir', () => {
+  it('permissionsFor: staff saglik, fotograf ve (kurucu karari R3) kendi randevusunu tasima izinlerini alir', () => {
     expect(shared.permissionsFor('staff').sort()).toEqual(
-      ['customer.photo.view', 'customer.photo.write', 'health.view', 'health.write'],
+      ['appointment.reschedule', 'customer.photo.view', 'customer.photo.write', 'health.view', 'health.write', 'tip.view'],
     )
   })
 })

@@ -244,6 +244,8 @@ model Tenant {
   appointments                Appointment[]
   transactions                Transaction[]
   expenses                    Expense[]
+  cashDayClosures             CashDayClosure[]
+  corrections                 Correction[]
   inventory                   InventoryItem[]
   notificationLogs            NotificationLog[]
   staffServiceAssignments     StaffServiceAssignment[]
@@ -496,6 +498,54 @@ model Expense {
 
   @@index([tenantId])
   @@map("expenses")
+}
+
+// ─── Kasa kapanisi ve duzeltme kaydi (A6b, R5) ────────────────────────────────
+
+enum CorrectionKind {
+  payment
+  day_reopen
+}
+
+model CashDayClosure {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  date         DateTime  @db.Date
+  isClosed     Boolean   @default(true)
+  closedById   String?   @db.Uuid
+  closedAt     DateTime?
+  expectedCash Decimal?  @db.Decimal(10, 2)
+  countedCash  Decimal?  @db.Decimal(10, 2)
+  note         String?
+  reopenedById String?   @db.Uuid
+  reopenedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date])
+  @@map("cash_day_closures")
+}
+
+model Correction {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @db.Uuid
+  kind          CorrectionKind
+  transactionId String?        @db.Uuid
+  appointmentId String?        @db.Uuid
+  date          DateTime?      @db.Date
+  oldValue      Json
+  newValue      Json
+  reason        String
+  createdById   String         @db.Uuid
+  createdAt     DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, date])
+  @@map("corrections")
 }
 
 // ─── Inventory (Stok) ─────────────────────────────────────────────────────────
