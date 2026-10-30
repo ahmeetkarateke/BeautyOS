@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
+import { isHealthRegulated } from '@beautyos/shared'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import { db } from '../lib/db'
@@ -73,12 +74,15 @@ export function createBookingManageRouter(options?: { limitMax?: number }): Rout
           slug: booking.tenant.slug,
           phone: settingText(booking.tenant.settings, 'phone'),
           address: settingText(booking.tenant.settings, 'address'),
+          isHealthRegulated: isHealthRegulated(booking.tenant.businessType),
         },
         appointment: {
           referenceCode: booking.referenceCode,
           status: booking.status,
           startAt: booking.startAt,
           endAt: booking.endAt,
+          serviceId: booking.serviceId,
+          staffId: booking.staffId,
           serviceName: booking.service.name,
           staffName: booking.staff.user.fullName,
           // Kapalıyken alan hiç bulunmaz (null da dönmez).
