@@ -73,6 +73,16 @@ describe('W26 Bahşiş', () => {
     expect(await screen.findByText('Bu ay toplam')).toBeTruthy()
   })
 
+  it('K1b: özet kartı sunucunun "dağıtılmamış" toplamını değil havuz tutarını gösterir (kişiye bırakılan bahşiş havuz değildir)', async () => {
+    undistributed = 350
+    tips = [tip('1'), tip('3', { amount: 250, staffId: 'p1', staffName: 'Derya Aksoy' })]
+    mount()
+    const label = await screen.findByText('Havuz')
+    expect(label.nextElementSibling?.textContent).toMatch(/100/)
+    expect(label.nextElementSibling?.textContent).not.toMatch(/350/)
+    expect(screen.queryByText('Dağıtılmamış')).toBeNull()
+  })
+
   it('K2: yetkisiz rol ekranı görür ve istek atılmaz', () => {
     mount(makeMe('receptionist'))
     expect(screen.getByText('Bu sayfayı görme yetkiniz yok.')).toBeTruthy()
