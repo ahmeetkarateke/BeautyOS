@@ -2744,7 +2744,8 @@ export function createTenantRouter(): Router {
       ])
 
       return res.json({
-        data: conversations,
+        // Ham telefon / sohbet no yanıta çıkmaz (veri en azda tutulur); eski arayüz alan adını kullandığı için alan kalır, değer maskelidir.
+        data: conversations.map((c) => ({ ...c, customerRef: maskPhone(c.customerRef) })),
         meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       })
     } catch (err) {
@@ -2769,7 +2770,7 @@ export function createTenantRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Konuşma bulunamadı.' } })
       }
 
-      return res.json({ data: convo })
+      return res.json({ data: { ...convo, customerRef: maskPhone(convo.customerRef) } })
     } catch (err) {
       next(err)
     }
