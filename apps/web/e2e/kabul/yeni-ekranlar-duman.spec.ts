@@ -236,10 +236,17 @@ test('duman sahip: Ayarlar bölümleri gelir, Salon bilgileri kaydedilir', async
   await expect(page.getByText(YETKI_YOK), 'sahipte Ayarlar yetki yok göstermez').toHaveCount(0)
   await expect(page.getByRole('list', { name: 'Ayar bölümleri' }).getByText('Salon bilgileri')).toBeVisible()
   await ac(page, 'ayarlar/salon')
-  await page.getByLabel('Telefon').fill('02121234567')
   await page.getByLabel('Adres').fill(`Duman Sokak No ${Date.now().toString(36)}`)
   await page.getByRole('button', { name: 'Kaydet', exact: true }).click()
   await toast(page, 'Salon bilgileri kaydedildi.')
+})
+
+test('duman sahip (H2): takvim?randevu= bağlantısı Randevu ayrıntısını açar', async () => {
+  const { page } = o
+  await page.goto(`/panel/${k.slug}/takvim?randevu=${tamamlanacakId}`)
+  await expect(page.getByRole('dialog', { name: 'Randevu ayrıntısı' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Randevu ayrıntısı' })).toHaveCount(0)
 })
 
 test('duman sahip: Tamamla ve ödeme al, başlamış randevuyu tamamlar', async () => {
