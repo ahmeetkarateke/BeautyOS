@@ -356,10 +356,12 @@ describe('ADR-0047: hatirlatma teslim kaydi govde tasimaz', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
     await processReminderJob({ type: 'nightly_noshow' })
-    expect(m.messageDelivery.updateMany).toHaveBeenCalledTimes(1)
-    const args = m.messageDelivery.updateMany.mock.calls[0][0]
-    expect(args.where.createdAt.lt.getTime()).toBe(NOW.getTime() - 365 * 24 * 3600_000)
-    expect(args.data).toEqual({ phone: null, email: null, body: null })
+    expect(m.messageDelivery.updateMany).toHaveBeenCalledTimes(2)
+    const cutoff = NOW.getTime() - 365 * 24 * 3600_000
+    for (const [args] of m.messageDelivery.updateMany.mock.calls) expect(args.where.createdAt.lt.getTime()).toBe(cutoff)
+    const datas = m.messageDelivery.updateMany.mock.calls.map((c: unknown[]) => (c[0] as { data: unknown }).data)
+    expect(datas).toContainEqual({ phone: null, email: null, body: null })
+    expect(datas).toContainEqual({ phone: null, email: null, body: null, templateKey: 'legacy', templateVersion: 0 })
   })
 
   it('e-posta yolu: teslim kaydinda body null, templateKey ve templateVersion dolu', async () => {
