@@ -44,6 +44,13 @@ BeautyOS'un rolü: Salonların müşterileri ve personeli bakımından **veri i�
 | E13 | Trafik / ağ verisi | IP, user agent, çerez, Turnstile sinyalleri | Hayır | Caddy/Docker log (sunucu), Cloudflare | Cloudflare (proxy + Turnstile) |
 | E14 | Doğrulanmamış online randevu talebi (2026-10-29, S2 `d9b44a7`) | `appointments.requestedName`, `appointments.requestedPhone` (`customerId` boş; SMS doğrulaması olmayan modda) | Hayır. Klinikte talebin varlığı ve işlem adı sağlık verisine dair çıkarım sağlayabilir | DO FRA1 + B2 | Cloudflare (geçiş + Turnstile), Sentry (hata olursa, maskeli) |
 
+| E15 | Telegram kanal kimliği (2026-10-30, ADR-0039, `47b4855`) | `customers.telegramChatId` (işletme içinde tekil; telefon ya da chatId'den biri dolu olmalı), `appointments.requestedChatId` (müşteriye bağlanmamış bot talebi) | Hayır. Bir kişiye ulaşmayı sağlayan tekil kimlik, yani kişisel veri | DO FRA1 + B2 | Telegram (mesajlaşma; yurt dışı, E8 ile aynı). Log'a yazılmıyor |
+
+**E15 ayrıntısı:**
+- **Amaç ve hukuki sebep:** Bot üzerinden randevu ve bilgilendirme (salon veri sorumlusu; m.5/2-c).
+- **Saklama:** `telegramChatId`, müşteri kaydıyla aynı süre tutulur. Müşteri silinir ya da anonimleştirilirse o da temizlenir.
+- **`requestedChatId`:** E14 kuralına tabidir; reddedilen ya da süresi dolan talepte 30 gün sonra anonimleştirilir. **Açık madde:** Bugün `anonymizeStaleRequests` bu alanı kapsamıyor. gelistirici bir sonraki turda düzeltecek. Bot canlıda açılmadan önce düzeltilmiş olmalı (denetçi maddesi).
+
 **E14 ayrıntısı:** Talebi giren kişi, numaranın sahibi olmayabilir.
 - **Amaç:** Salonun talebi değerlendirmesi ve onaylaması. Rol: salon veri sorumlusu, BeautyOS veri işleyen.
 - **Hukuki sebep (salon için):** Sözleşmenin kurulması için gerekli olması (m.5/2-c).
