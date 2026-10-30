@@ -57,6 +57,32 @@ describe('S6: durumlu oturum (gercek PG)', () => {
     expect((await request(app).get(`/api/v1/tenants/${tenant.slug}/settings`).set('Authorization', `Bearer ${second.body.token}`)).status).toBe(401)
   })
 
+  it('S6b: ayni eski cerezle tolerans icinde ucuncu kullanim 401 ve tum aile iptal; reissuedAt tek satirda dolu', async () => {
+    const first = await login(`owner-${suffix}@test.local`, owner.password)
+    expect(first.status).toBe(200)
+    const c1 = refreshCookie(first)
+    expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)).status).toBe(200) // asil dondurme
+    expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)).status).toBe(200) // tek yeniden basim
+    const marked = await db.session.findMany({ where: { userId: owner.user.id, reissuedAt: { not: null } } })
+    expect(marked.length).toBeGreaterThanOrEqual(1)
+    const third = await request(app).post('/api/v1/auth/refresh').set('Cookie', c1)
+    expect(third.status).toBe(401)
+    const family = await db.session.findMany({ where: { familyId: marked[marked.length - 1].familyId } })
+    expect(family.length).toBeGreaterThanOrEqual(3)
+    expect(family.every((s) => s.revokedAt !== null)).toBe(true)
+  })
+
+  it('S6b: uc eszamanli yenileme ayni eski cerezle: en fazla iki basari, kalani 401', async () => {
+    const first = await login(`owner-${suffix}@test.local`, owner.password)
+    const c1 = refreshCookie(first)
+    const results = await Promise.all([1, 2, 3].map(() => request(app).post('/api/v1/auth/refresh').set('Cookie', c1)))
+    // Siralama yarisa baglidir (kaybeden aileyi iptal ederken gec gelen 'invalid' de 401 verir); degismez olan: en fazla iki basari ve ucuncunun reddi.
+    const ok = results.filter((r) => r.status === 200).length
+    expect(ok).toBeGreaterThanOrEqual(1)
+    expect(ok).toBeLessThanOrEqual(2)
+    expect(results.filter((r) => r.status === 401).length).toBe(3 - ok)
+  })
+
   it('K2/K3: personel pasiflestirilince acik erisim token\'i ve yenilemesi aninda 401', async () => {
     const res = await login(`staff-${suffix}@test.local`, staff.password)
     expect(res.status).toBe(200)
