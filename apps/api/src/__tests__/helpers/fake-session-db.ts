@@ -9,6 +9,7 @@ export interface SessionRow {
   expiresAt: Date
   usedAt: Date | null
   revokedAt: Date | null
+  reissuedAt: Date | null
   createdAt: Date
 }
 
@@ -38,7 +39,7 @@ export function createFakeSessionDb() {
     create: async ({ data }: { data: Partial<SessionRow> & { userId: string; familyId: string; tokenHash: string; expiresAt: Date } }) => {
       if (rows.some((r) => r.tokenHash === data.tokenHash)) throw new Error('unique tokenHash')
       const row: SessionRow = {
-        id: `s${++seq}`, tenantId: null, usedAt: null, revokedAt: null, createdAt: new Date(), ...data,
+        id: `s${++seq}`, tenantId: null, usedAt: null, revokedAt: null, reissuedAt: null, createdAt: new Date(), ...data,
       } as SessionRow
       rows.push(row)
       return row

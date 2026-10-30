@@ -80,9 +80,13 @@ type SessionRow = NonNullable<Awaited<ReturnType<typeof db.session.findUnique>>>
  */
 async function reuseOrRevoke(row: SessionRow): Promise<RotateResult> {
   if (row.revokedAt) return { ok: false, reason: 'invalid' }
-  // Yeniden basım bir kezle sınırlıdır: kullanım anından beri ailede yalnız asıl döndürmenin çocuğu varsa (1 satır) ikincisi verilir.
-  const issuedSinceUse = row.usedAt ? await db.session.count({ where: { familyId: row.familyId, id: { not: row.id }, createdAt: { gte: row.usedAt } } }) : 0
-  if (row.usedAt && Date.now() - row.usedAt.getTime() <= REUSE_GRACE_MS && issuedSinceUse <= 1) {
+  if (row.usedAt && Date.now() - row.usedAt.getTime() <= REUSE_GRACE_MS) {
+    // Yeniden basım tek seferdir: işaret koşullu UPDATE ile (reissuedAt IS NULL) alınır; eş zamanlı iki istekten yalnız biri kazanır.
+    const marked = await db.session.updateMany({ where: { id: row.id, reissuedAt: null, revokedAt: null }, data: { reissuedAt: new Date() } })
+    if (marked.count !== 1) {
+      await revokeFamily(row.familyId)
+      return { ok: false, reason: 'reused' }
+    }
     const next = newRefreshToken()
     await db.session.create({
       data: { userId: row.userId, tenantId: row.tenantId, familyId: row.familyId, tokenHash: hashToken(next), expiresAt: new Date(Date.now() + SESSION_TTL_MS) },
