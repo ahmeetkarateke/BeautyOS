@@ -65,6 +65,12 @@ beforeEach(() => {
 })
 
 describe('POST /public/bookings/lookup', () => {
+  it('yanit randevunun serviceId ve staffId kimliklerini tasir (saat degistirme ekrani slot sorgusu icin)', async () => {
+    const res = await post('lookup')
+    expect(res.status).toBe(200)
+    expect(res.body.appointment).toMatchObject({ serviceId: 'sv1', staffId: 's1' })
+  })
+
   it('gecerli token: randevu ozeti, canModify ve modifyDeadline (baslangic - 2 saat) doner; sorgu ozet olarak yapilir', async () => {
     const res = await post('lookup')
     expect(res.status).toBe(200)
