@@ -47,6 +47,14 @@ describe('paket hizmet kilidi', () => {
     expect(dbMock.servicePackage.update).not.toHaveBeenCalled()
   })
 
+  it('sinir: tam 1 aktif musteri paketi bile kilitler (inUse > 0, > 1 degil)', async () => {
+    dbMock.customerPackage.count.mockResolvedValue(1)
+    const res = await patch({ serviceId: S_NEW })
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('PACKAGE_IN_USE')
+    expect(dbMock.servicePackage.update).not.toHaveBeenCalled()
+  })
+
   it('satilmamis pakette serviceId degisir', async () => {
     dbMock.customerPackage.count.mockResolvedValue(0)
     const res = await patch({ serviceId: S_NEW })
