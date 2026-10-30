@@ -223,6 +223,8 @@ export default function CustomerDetailPage(props: PageProps) {
           </CardContent>
         </Card>
 
+        {/* Uzmana sunucu tutar göndermez (müşteri kartı kuralı): alan yoksa kart çizilmez, "₺NaN" olmaz. */}
+        {(isLoading || data?.lifetimeValue != null) && (
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
@@ -238,6 +240,7 @@ export default function CustomerDetailPage(props: PageProps) {
             </div>
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardContent className="pt-4">
@@ -528,7 +531,7 @@ export default function CustomerDetailPage(props: PageProps) {
                           {st.label}
                         </span>
                         <span className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(apt.priceCharged)}
+                          {apt.priceCharged != null ? formatCurrency(apt.priceCharged) : null}
                         </span>
                       </div>
                     </li>

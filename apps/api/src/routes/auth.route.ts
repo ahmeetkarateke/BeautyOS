@@ -35,7 +35,7 @@ const registerSchema = z.object({
 const ACCESS_EXPIRY = '15m'
 const COOKIE_MAX_AGE = SESSION_TTL_MS
 
-function requireJwtSecret(): string {
+export function requireJwtSecret(): string {
   const s = process.env.JWT_SECRET
   if (!s || s.length < 32) {
     throw new Error('JWT_SECRET env variable is missing or too short (min 32 chars). Refusing to sign tokens.')
@@ -58,11 +58,11 @@ function refreshCookieOptions() {
   return { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api/v1/auth' }
 }
 
-function setRefreshCookie(res: Response, token: string) {
+export function setRefreshCookie(res: Response, token: string) {
   res.cookie('refreshToken', token, { ...refreshCookieOptions(), maxAge: COOKIE_MAX_AGE })
 }
 
-function signAccessToken(secret: string, claims: { userId: string; tenantId?: string; tenantSlug?: string; role: string }, sid: string): string {
+export function signAccessToken(secret: string, claims: { userId: string; tenantId?: string; tenantSlug?: string; role: string }, sid: string): string {
   return jwt.sign({ ...claims, sid }, secret, { expiresIn: ACCESS_EXPIRY })
 }
 

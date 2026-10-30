@@ -35,6 +35,11 @@ export const GATES: Gate[] = [
   { file: 'customer-enrichment', method: 'post', route: '/customers/:customerId/photos', url: `/customers/${ID}/photos`, permission: 'customer.photo.write' },
   { file: 'customer-enrichment', method: 'delete', route: '/photos/:id', url: `/photos/${ID}`, permission: 'customer.photo.write' },
 
+  { file: 'invitations', method: 'post', route: '/invitations', url: '/invitations', permission: 'staff.invite' },
+  { file: 'invitations', method: 'get', route: '/invitations', url: '/invitations', permission: 'staff.invite' },
+  { file: 'invitations', method: 'post', route: '/invitations/:id/resend', url: `/invitations/${ID}/resend`, permission: 'staff.invite' },
+  { file: 'invitations', method: 'delete', route: '/invitations/:id', url: `/invitations/${ID}`, permission: 'staff.invite' },
+
   { file: 'financial-accounts', method: 'get', route: '/accounts', url: '/accounts', permission: 'finance.account.read' },
   { file: 'financial-accounts', method: 'get', route: '/accounts/:id', url: `/accounts/${ID}`, permission: 'finance.account.read' },
   { file: 'financial-accounts', method: 'post', route: '/accounts', url: '/accounts', permission: 'finance.account.write' },

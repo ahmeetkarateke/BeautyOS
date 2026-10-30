@@ -88,3 +88,13 @@ describe('hata kodu -> metin (W5-K4, metin-rehberi §6)', () => {
     expect(errorText('TENANT_DAILY_LIMIT')).toBe('Online randevu şu an alınamıyor. Salonu arayarak randevu alın.')
   })
 })
+
+describe('W16/W19 kasa hata kodları', () => {
+  it.each(['DAY_CLOSED', 'DAY_NOT_CLOSED', 'NOT_COMPLETED'])('K5: %s tablodadır ve genel hata metnine düşmez', (code) => {
+    expect(KNOWN_ERROR_CODES).toContain(code)
+    expect(errorText(code)).not.toBe(GENERIC_ERROR)
+  })
+  it('K5: DAY_CLOSED nedeni ve çıkış yolunu söyler', () => {
+    expect(errorText('DAY_CLOSED')).toBe('Bu günün kasası kapatılmış. Sahip ya da müdür günü yeniden açtıktan sonra işlem yapılabilir.')
+  })
+})

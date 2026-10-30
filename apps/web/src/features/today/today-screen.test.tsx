@@ -160,6 +160,15 @@ describe('W10 Bugün ekranı', () => {
     expect(screen.queryByRole('button', { name: 'Gözden geçir' })).toBeNull()
   })
 
+  it('W16b-1 Ö: Randevusuz işlem düğmesi yalnız finance.revenue.create izni olanda çıkar', async () => {
+    mount()
+    await screen.findByTestId('doluluk-seridi')
+    expect(screen.getByRole('button', { name: 'Randevusuz işlem' })).toBeTruthy()
+    cleanup()
+    mount({ ...makeMe('owner'), permissions: permissionsFor('owner').filter((p) => p !== 'finance.revenue.create') })
+    await screen.findByTestId('doluluk-seridi')
+    expect(screen.queryByRole('button', { name: 'Randevusuz işlem' })).toBeNull()
+  })
   it('K-başlat: onaylı randevuda Başlat durumu devam ediyor yapar ve listeyi yeniler', async () => {
     mount()
     const next = await screen.findByRole('region', { name: 'Şimdi ve sırada' })
@@ -272,5 +281,17 @@ describe('W10 Bugün ekranı', () => {
     mount(makeMe('staff'))
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/panel/defne/gunum'))
     expect(callTo('/appointments')).toBeUndefined()
+  })
+})
+
+describe('ADR-0045: panel randevusu onay listesine girmez', () => {
+  it('K-adr45: manual pending randevuda Gözden geçir/onay şeridi yok; web pending talepte var', async () => {
+    const manual = row('m1', 'p1', 'Derya Aksoy', '14:00', '14:45', 'pending', { bookingChannel: 'manual' })
+    appointments = [manual]
+    pendingRows = [manual]
+    mount()
+    await screen.findByTestId('doluluk-seridi')
+    expect(screen.queryByTestId('bugun-bulgu')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Gözden geçir' })).toBeNull()
   })
 })

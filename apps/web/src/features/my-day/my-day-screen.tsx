@@ -20,6 +20,7 @@ import { EmptyState, ErrorState } from '@/ui/states'
 import { StatusBadge } from '@/ui/status-badge'
 import { SummaryStrip } from '@/ui/summary-strip'
 import { useToast } from '@/ui/toast'
+import { CompleteSheet } from '@/features/payment/complete-sheet'
 
 // Günüm (tasarim.md §8.1 `gunum`, uzman): "Sıradaki kim?" Yalnız kendi randevuları (sunucu da kapsamı zorlar).
 // İzinlerim için uç yok: "Yakında". Fiyat alanı uzmanda salt okunurdur (R3); bu ekran fiyat göstermez/değiştirmez.
@@ -56,6 +57,7 @@ export function MyDayScreen({ now: fixedNow }: { now?: Date }) {
   const nowMin = istanbulMinutes(clock)
   const base = `/panel/${encodeURIComponent(slug)}`
   const [startingId, setStartingId] = useState<string | null>(null)
+  const [completing, setCompleting] = useState<DayAppointment | null>(null)
 
   const day = useApiQuery(staffId ? `my-day:${staffId}:${today}` : null, (c, signal) => fetchDayAppointments(c, slug, today, signal, staffId ?? undefined))
 
@@ -187,6 +189,10 @@ export function MyDayScreen({ now: fixedNow }: { now?: Date }) {
                   <Button className="flex-1" loading={startingId === next.id} loadingText="Başlatılıyor…" onClick={() => void start(next)}>
                     Başlat
                   </Button>
+                ) : next.status === 'in_progress' ? (
+                  <Button className="flex-1" onClick={() => setCompleting(next)}>
+                    Tamamla
+                  </Button>
                 ) : null}
                 {next.customerPhone ? (
                   <a href={telHref(next.customerPhone)} aria-label={`Ara: ${next.customerName}`} className={cn(buttonClassName({ variant: 'secondary' }), next.status !== 'confirmed' && 'flex-1')}>
@@ -237,6 +243,17 @@ export function MyDayScreen({ now: fixedNow }: { now?: Date }) {
           </Card>
         </div>
       </div>
+      {completing ? (
+        <CompleteSheet
+          appointment={completing}
+          onClose={() => setCompleting(null)}
+          onStale={day.refetch}
+          onDone={() => {
+            setCompleting(null)
+            day.refetch()
+          }}
+        />
+      ) : null}
     </div>
   )
 }

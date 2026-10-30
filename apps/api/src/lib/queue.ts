@@ -9,6 +9,7 @@ import { anonymizeStaleRequests, expireOnlineRequest, sweepExpiredOnlineRequests
 import { purgeExpiredSessions } from './sessions'
 import { isHealthRegulated } from '@beautyos/shared'
 import { istanbulDayBounds } from './time'
+import { purgeStaleInvitations } from './invitations'
 
 // tenantId yeni işlerde bulunur; kuyrukta bekleyen eski işlerde yoktur (okuma filtresi o zaman yalnız id'dir).
 export type ReminderJobData =
@@ -98,6 +99,7 @@ export async function processReminderJob(data: ReminderJobData): Promise<void> {
     await sweepExpiredOnlineRequests()
     await anonymizeStaleRequests()
     await purgeExpiredSessions()
+    await purgeStaleInvitations()
     await processNightlyNoShow()
     await reconcileReminders()
     return

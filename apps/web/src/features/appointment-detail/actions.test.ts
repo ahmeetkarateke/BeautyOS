@@ -14,8 +14,8 @@ describe('availableActions', () => {
     expect(availableActions(status, all)).toEqual([])
     expect(isLocked(status)).toBe(true)
   })
-  it('K-devam-eden: eylem yok (tamamlama W16)', () => {
-    expect(availableActions('in_progress', all)).toEqual([])
+  it('K-devam-eden: yalnız Tamamla ve ödeme al (W16)', () => {
+    expect(availableActions('in_progress', all)).toEqual(['complete'])
   })
   it('K-yetki: saat değiştirme izni yoksa ya da hizmet kimliği yoksa saati değiştir çıkmaz; silme yalnız yetkiliye', () => {
     expect(availableActions('confirmed', { ...all, canReschedule: false })).not.toContain('reschedule')
