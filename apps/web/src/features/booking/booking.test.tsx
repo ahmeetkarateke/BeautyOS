@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/v2/api-client'
 import type { ApiClient } from '@/lib/v2/api-client'
@@ -256,8 +256,10 @@ describe('BookingScreen: bot koruması ve aydınlatma', () => {
     mount(<BookingScreen slug="defne" turnstileSiteKey="site-key" />)
     await toInfo()
     fireEvent.click(screen.getByRole('button', { name: 'Randevu talebi gönder' }))
-    await screen.findByLabelText('Ad soyad')
+    // Hata görünür, yeni belirteç verilmiş ve düğme serbest kalmış olmalı; yoksa ikinci tıklama bekleyen isteğe takılıp kararsızlaşır.
     await screen.findByRole('alert')
+    await waitFor(() => expect(issued).toBe(2))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Randevu talebi gönder' }).getAttribute('aria-busy')).not.toBe('true'))
     fireEvent.click(screen.getByRole('button', { name: 'Randevu talebi gönder' }))
     expect(await screen.findByRole('heading', { name: 'Randevu talebiniz alındı' })).toBeTruthy()
     const tokens = request.mock.calls.filter(([p]: [string]) => p.endsWith('/public/book')).map(([, init]) => init.body.captchaToken)
