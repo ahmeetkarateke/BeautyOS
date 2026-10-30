@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { benzersiz, kiraciKur, type TestKiraci } from '../yardimcilar/api'
-import { ATLAMA_NEDENI, PANEL_ACIK, ayniSiteHazir, genislikAyarla, yeniOturum, type Oturum } from '../yardimcilar/panel'
+import { ATLAMA_NEDENI, PANEL_ACIK, ayniSiteHazir, genislikAyarla, hataBandi, yeniOturum, type Oturum } from '../yardimcilar/panel'
 
 // Giriş, kayıt ve davet kabul dumanı (yeni auth yüzeyi). E-posta gönderimi test yığınında yoktur: davet bağlantısı arayüzde gösterilir.
 // Çalıştırma: E2E_UI_V2=auth,panel (eski /login yeni ekrana yönlenir).
@@ -119,7 +119,7 @@ test('auth duman: yanlış şifre hata gösterir, ardından doğru şifre panele
     await page.getByLabel('E-posta', { exact: true }).fill(k.email)
     await page.getByLabel('Şifre', { exact: true }).fill('YanlisPass99!')
     await page.getByRole('button', { name: 'Giriş yap' }).click()
-    await expect(page.getByRole('alert').first(), 'yanlış şifrede hata bandı').toBeVisible()
+    await expect(hataBandi(page), 'yanlış şifrede hata bandı').toBeVisible()
     await expect(page).toHaveURL(/\/(v2\/)?login/)
     await page.getByLabel('Şifre', { exact: true }).fill(k.password)
     await page.getByRole('button', { name: 'Giriş yap' }).click()
