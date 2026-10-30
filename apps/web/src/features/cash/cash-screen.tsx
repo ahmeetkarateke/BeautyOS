@@ -81,13 +81,13 @@ function CashBody() {
   } else if (!day) {
     dayBlock = <Skeleton className="w-1/2" />
   } else if (day.isClosed) {
-    const diff = day.countedCash != null ? differenceView(day.expectedCash, day.countedCash) : null
+    const diff = day.countedCash != null && day.expectedCash != null ? differenceView(day.expectedCash, day.countedCash) : null
     dayBlock = (
       <div className="grid gap-3">
         <Banner tone="info">Gün kapatıldı{day.closedAt ? ` · ${formatTime(day.closedAt)}` : ''}. Yeni ödeme yazılamaz.</Banner>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-base">
           <dt className="text-text-muted">Beklenen nakit</dt>
-          <dd className="m-0 tabular-nums">{formatMoney(day.expectedCash)}</dd>
+          <dd className="m-0 tabular-nums">{day.expectedCash != null ? formatMoney(day.expectedCash) : 'Hesaplanamadı'}</dd>
           <dt className="text-text-muted">Sayılan nakit</dt>
           <dd className="m-0 tabular-nums">{day.countedCash != null ? formatMoney(day.countedCash) : 'Sayım yapılmadı'}</dd>
           {diff ? (
@@ -112,7 +112,13 @@ function CashBody() {
     dayBlock = (
       <div className="grid gap-3">
         <p className="text-base text-text-secondary">
-          Gün açık. Beklenen nakit: <strong className="tabular-nums">{formatMoney(day.expectedCash)}</strong>
+          Gün açık.
+          {day.expectedCash != null ? (
+            <>
+              {' '}
+              Beklenen nakit: <strong className="tabular-nums">{formatMoney(day.expectedCash)}</strong>
+            </>
+          ) : null}
         </p>
         {canClose ? (
           <div>
@@ -170,7 +176,8 @@ function CashBody() {
       {closing && day ? (
         <CloseDaySheet
           date={date}
-          expectedCash={day.expectedCash}
+          expectedCash={day.expectedCash ?? null}
+          onStale={refresh}
           onClose={() => setClosing(false)}
           onDone={() => {
             setClosing(false)

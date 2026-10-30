@@ -15,7 +15,19 @@ import { closeBody, differenceView, validateCount } from './logic'
 
 // Günü kapat (tasarim.md gün sonu): beklenen nakit sunucudan gelir; sayım isteğe bağlı, fark canlı gösterilir.
 // Kapanıştan sonra o güne tamamlama ve gelir yazılamaz (DAY_CLOSED); yalnız sahip/müdür yeniden açar.
-export function CloseDaySheet({ date, expectedCash, onClose, onDone }: { date: string; expectedCash: number; onClose: () => void; onDone: () => void }) {
+export function CloseDaySheet({
+  date,
+  expectedCash,
+  onClose,
+  onDone,
+  onStale,
+}: {
+  date: string
+  expectedCash: number | null
+  onClose: () => void
+  onDone: () => void
+  onStale?: () => void
+}) {
   const client = useApiClient()
   const slug = useMe().tenant.slug
   const toast = useToast()
@@ -26,7 +38,7 @@ export function CloseDaySheet({ date, expectedCash, onClose, onDone }: { date: s
   const [countError, setCountError] = useState<string | null>(null)
 
   const count = validateCount(countText)
-  const diff = count.ok && count.value !== null ? differenceView(expectedCash, count.value) : null
+  const diff = count.ok && count.value !== null && expectedCash !== null ? differenceView(expectedCash, count.value) : null
 
   async function save() {
     if (busy) return
@@ -41,7 +53,10 @@ export function CloseDaySheet({ date, expectedCash, onClose, onDone }: { date: s
       toast.show({ message: 'Gün sonu kaydedildi.' })
       onDone()
     } catch (err) {
-      setFailure((err instanceof ApiError ? err : new ApiError({ status: 0, code: 'NETWORK' })).text())
+      const apiError = err instanceof ApiError ? err : new ApiError({ status: 0, code: 'NETWORK' })
+      setFailure(apiError.text())
+      // Gün başka yerden kapanmış olabilir: ekran gerçeğe dönsün.
+      if (apiError.code === 'DAY_CLOSED') onStale?.()
     } finally {
       setBusy(false)
     }
@@ -63,9 +78,11 @@ export function CloseDaySheet({ date, expectedCash, onClose, onDone }: { date: s
     >
       <div className="grid gap-4 pb-2">
         {failure ? <Banner tone="error">{failure}</Banner> : null}
-        <p className="text-base">
-          Beklenen nakit: <strong className="tabular-nums">{formatMoney(expectedCash)}</strong>
-        </p>
+        {expectedCash !== null ? (
+          <p className="text-base">
+            Beklenen nakit: <strong className="tabular-nums">{formatMoney(expectedCash)}</strong>
+          </p>
+        ) : null}
         <InputField
           label="Sayılan nakit (₺)"
           optional
@@ -79,11 +96,10 @@ export function CloseDaySheet({ date, expectedCash, onClose, onDone }: { date: s
           }}
           error={countError ?? undefined}
         />
-        {diff ? (
-          <p role="status" data-tone={diff.tone} className="text-base font-medium">
-            {diff.text}
-          </p>
-        ) : null}
+        {/* Canlı bölge her zaman DOM'da: ekran okuyucu içerik değişimini yakalar (sonradan eklenen bölge duyurulmayabilir). */}
+        <p role="status" data-tone={diff?.tone} className="min-h-6 text-base font-medium">
+          {diff?.text}
+        </p>
         <TextareaField label="Not" optional maxLength={300} hint="Fark varsa nedenini yazın." value={note} onChange={(event) => setNote(event.target.value)} />
       </div>
     </Sheet>

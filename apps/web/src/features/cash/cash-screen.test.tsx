@@ -180,3 +180,40 @@ describe('W19 Kasa', () => {
     expect(screen.getByLabelText('Tarih')).toBeTruthy()
   })
 })
+
+describe('W19-1 öneriler', () => {
+  it('K12: close-day DAY_CLOSED dönerse hata yazılır ve gün durumu yeniden okunur', async () => {
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Günü kapat' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Günü kapat' })
+    const before = request.mock.calls.filter(([p]) => String(p).endsWith('/day-status')).length
+    writeError = new ApiError({ status: 409, code: 'DAY_CLOSED' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Günü kapat' }))
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('Bu günün kasası kapatılmış')
+    await waitFor(() => expect(request.mock.calls.filter(([p]) => String(p).endsWith('/day-status')).length).toBeGreaterThan(before))
+  })
+
+  it('K13: resepsiyonda düzeltme kayıtları isteği hiç atılmaz', async () => {
+    mount(reception())
+    await screen.findByText('Gün açık.', { exact: false })
+    expect(request.mock.calls.some(([p]) => String(p).endsWith('/corrections'))).toBe(false)
+  })
+
+  it('K14: sunucu expectedCash göndermezse ekran çökmez, beklenen nakit uydurulmaz, kapanış yine yapılabilir', async () => {
+    status = { date: '2026-10-29', isClosed: false, closedAt: null, expectedCash: null, countedCash: null, difference: null }
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Günü kapat' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Günü kapat' })
+    expect(within(dialog).queryByText(/Beklenen nakit/)).toBeNull()
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /Sayılan nakit/ }), { target: { value: '100' } })
+    expect(within(dialog).queryByText(/eksik|fazla|Fark yok/)).toBeNull()
+    expect(document.body.textContent).not.toContain('NaN')
+  })
+
+  it('K15: fark satırının canlı bölgesi sayım yazılmadan da DOM’dadır', async () => {
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Günü kapat' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Günü kapat' })
+    expect(within(dialog).getByRole('status')).toBeTruthy()
+  })
+})
