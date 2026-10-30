@@ -48,6 +48,20 @@ describe('LoginScreen', () => {
     expect(calls()[0]).toEqual({ path: '/api/v1/auth/login', body: { email: 'defne@ornek.com', password: 'sifre1234' } })
   })
 
+  it('H1: yanlış şifreden sonra doğru şifreyle ikinci gönderim de gider ve panele yönlenir', async () => {
+    request.mockRejectedValueOnce(new ApiError({ status: 401, code: 'INVALID_CREDENTIALS' })).mockResolvedValueOnce(session)
+    mount(<LoginScreen navigate={navigate} />)
+    type('E-posta', 'defne@ornek.com')
+    type('Şifre', 'yanlis123')
+    fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' }))
+    await screen.findByText(/E-posta veya şifre hatalı/)
+    type('Şifre', 'dogru1234')
+    fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' }))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/panel/defne/bugun'))
+    expect(calls()).toHaveLength(2)
+    expect(calls()[1].body).toEqual({ email: 'defne@ornek.com', password: 'dogru1234' })
+  })
+
   it('K4: yanlış bilgide "E-posta veya şifre hatalı." gösterilir, yönlenilmez ve düğme yeniden açılır', async () => {
     request.mockRejectedValue(new ApiError({ status: 401, code: 'INVALID_CREDENTIALS' }))
     mount(<LoginScreen navigate={navigate} />)

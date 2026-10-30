@@ -200,6 +200,19 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
     return `${base}?${q.toString()}`
   }
 
+  // Bugün ve Günüm'den gelen ?randevu=<id> bağlantısı: randevu yüklenen listedeyse ayrıntı (online talepse onay) penceresi açılır.
+  // Kapatılan bağlantı bir daha açılmaz; adres temizlenir. Listede olmayan kimlik sessizce yok sayılır.
+  const linkedId = params.get('randevu')
+  const [closedLink, setClosedLink] = useState<string | null>(null)
+  const linked = linkedId && closedLink !== linkedId ? (appointments.find((a) => a.id === linkedId) ?? null) : null
+  const linkedIsReview = linked !== null && isOnlineRequest(linked) && canApprove
+  const closeLinked = () => {
+    setClosedLink(linkedId)
+    const q = new URLSearchParams(params.toString())
+    q.delete('randevu')
+    router.replace(q.size > 0 ? `${base}?${q.toString()}` : base, { scroll: false })
+  }
+
   const openAppointment = (id: string) => {
     const found = appointments.find((a) => a.id === id)
     if (!found) return
@@ -421,7 +434,14 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
       {header}
       {navigation}
       {body}
-      <ApprovalSheet request={reviewing} onClose={() => setReviewing(null)} onChanged={list.refetch} />
+      <ApprovalSheet
+        request={reviewing ?? (linkedIsReview ? linked : null)}
+        onClose={() => {
+          if (reviewing) setReviewing(null)
+          else closeLinked()
+        }}
+        onChanged={list.refetch}
+      />
       <CreateAppointmentSheet
         open={params.get('yeni') === '1'}
         onOpenChange={(open) => {
@@ -436,7 +456,16 @@ export function CalendarScreen({ now: fixedNow }: { now?: Date }) {
           date: params.get('tarih') ? date : undefined,
         }}
       />
-      <AppointmentDetailSheet appointment={peeking} today={today} now={clock} onClose={() => setPeeking(null)} onChanged={list.refetch} />
+      <AppointmentDetailSheet
+        appointment={peeking ?? (linkedIsReview ? null : linked)}
+        today={today}
+        now={clock}
+        onClose={() => {
+          if (peeking) setPeeking(null)
+          else closeLinked()
+        }}
+        onChanged={list.refetch}
+      />
     </div>
   )
 }

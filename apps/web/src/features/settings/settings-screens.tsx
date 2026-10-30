@@ -175,7 +175,7 @@ function SalonForm({ data, onSaved }: { data: SalonSettings; onSaved: () => void
             loading={busy}
             loadingText="Kaydediliyor…"
             onClick={() => {
-              const found = validateSalon(values)
+              const found = validateSalon(values, original)
               setErrors(found)
               if (Object.keys(found).length === 0) void save(salonPatch(values, original), 'Salon bilgileri kaydedildi.')
             }}
