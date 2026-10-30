@@ -27,3 +27,11 @@ export function istanbulDayRange(dateFrom: string, dateTo: string): DayRange {
   if (days > MAX_RANGE_DAYS) return { ok: false, reason: 'RANGE_TOO_LARGE' }
   return { ok: true, gte: new Date(from), lt: new Date(to + DAY_MS) }
 }
+
+/** Prim dönemi gibi 31 günü aşabilen aralıklar için: tavan yok, [from 00:00, to ertesi gün 00:00) (Istanbul). */
+export function istanbulPeriodBounds(dateFrom: string, dateTo: string): { gte: Date; lt: Date } | null {
+  const from = istanbulMidnightUtc(dateFrom)
+  const to = istanbulMidnightUtc(dateTo)
+  if (from === null || to === null || from > to) return null
+  return { gte: new Date(from), lt: new Date(to + DAY_MS) }
+}

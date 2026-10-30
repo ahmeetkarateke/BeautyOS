@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import { Prisma, type StaffPayoutStatus, type PaymentMethod } from '@prisma/client'
 import { db } from '../lib/db'
+import { istanbulPeriodBounds } from '../lib/time'
 import { authenticateJWT, requireTenantAccess, checkTenantActive } from '../middleware/auth.middleware'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -20,29 +21,39 @@ function parseDateEndOfDay(value: string): Date {
 }
 
 async function sumStaffCommissions(
+  client: Pick<Prisma.TransactionClient, 'transaction'>,
   tenantId: string,
   staffId: string,
-  periodStart: Date,
-  periodEnd: Date,
-): Promise<{ grossEarned: number; transactionCount: number }> {
-  const start = new Date(`${periodStart.toISOString().slice(0, 10)}T00:00:00.000Z`)
-  const end = new Date(`${periodEnd.toISOString().slice(0, 10)}T23:59:59.999Z`)
+  periodStart: string,
+  periodEnd: string,
+): Promise<{ grossEarned: Prisma.Decimal; transactionCount: number }> {
+  // Gün sınırı Europe/Istanbul: 00:00-03:00 arası tamamlanan işlem kendi gününün primine girer.
+  const bounds = istanbulPeriodBounds(periodStart, periodEnd)
+  if (!bounds) throw new Error('invalid period')
 
-  const result = await db.transaction.aggregate({
+  const result = await client.transaction.aggregate({
     where: {
       tenantId,
       staffId,
       status: 'completed',
-      completedAt: { gte: start, lte: end },
+      completedAt: { gte: bounds.gte, lt: bounds.lt },
     },
     _sum: { commissionAmount: true },
     _count: { _all: true },
   })
 
   return {
-    grossEarned: Number(result._sum.commissionAmount ?? 0),
+    grossEarned: new Prisma.Decimal(result._sum.commissionAmount ?? 0),
     transactionCount: result._count._all,
   }
+}
+
+function toMoney(value: number): Prisma.Decimal {
+  return new Prisma.Decimal(value).toDecimalPlaces(2)
+}
+
+const NEGATIVE_NET = {
+  error: { code: 'NEGATIVE_NET', message: 'Kesinti, hak ediş ile ek ödemenin toplamını aşamaz.' },
 }
 
 async function getMyStaffProfileId(tenantId: string, userId: string): Promise<string | null> {
@@ -226,9 +237,14 @@ export function createStaffPayoutsRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
       }
 
+      if (!istanbulPeriodBounds(from, to)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih.' } })
+      }
       const periodStart = parseDateOnly(from)
       const periodEnd = parseDateOnly(to)
-      const { grossEarned, transactionCount } = await sumStaffCommissions(tenantId, staffId, periodStart, periodEnd)
+      const sum = await sumStaffCommissions(db, tenantId, staffId, from, to)
+      const grossEarned = Number(sum.grossEarned)
+      const transactionCount = sum.transactionCount
 
       return res.json({
         staffId,
@@ -270,30 +286,56 @@ export function createStaffPayoutsRouter(): Router {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Personel bulunamadı.' } })
       }
 
+      if (!istanbulPeriodBounds(periodStart, periodEnd)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Geçersiz tarih.' } })
+      }
       const startDate = parseDateOnly(periodStart)
       const endDate = parseDateOnly(periodEnd)
+      const bonusVal = toMoney(bonus ?? 0)
+      const deductionsVal = toMoney(deductions ?? 0)
 
-      const { grossEarned } = await sumStaffCommissions(tenantId, staffId, startDate, endDate)
-      const bonusVal = bonus ?? 0
-      const deductionsVal = deductions ?? 0
-      const netAmount = grossEarned + bonusVal - deductionsVal
+      // Aynı personel için kontrol + yazma tek işlemde ve personel başına kilit altında: yarışan ikinci istek bekler, çakışmayı görür.
+      const outcome = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`staff-payout:${tenantId}:${staffId}`}))) AS l`
+        const overlap = await tx.staffPayout.findFirst({
+          where: {
+            tenantId,
+            staffId,
+            status: { not: 'cancelled' },
+            periodStart: { lte: endDate },
+            periodEnd: { gte: startDate },
+          },
+          select: { id: true },
+        })
+        if (overlap) return { kind: 'overlap' as const }
 
-      const created = await db.staffPayout.create({
-        data: {
-          tenantId,
-          staffId,
-          periodStart: startDate,
-          periodEnd: endDate,
-          grossEarned: new Prisma.Decimal(grossEarned),
-          bonus: new Prisma.Decimal(bonusVal),
-          deductions: new Prisma.Decimal(deductionsVal),
-          netAmount: new Prisma.Decimal(netAmount),
-          paymentMethod: paymentMethod ?? 'cash',
-          notes: notes ?? null,
-        },
+        const { grossEarned } = await sumStaffCommissions(tx, tenantId, staffId, periodStart, periodEnd)
+        const netAmount = grossEarned.plus(bonusVal).minus(deductionsVal)
+        if (netAmount.isNegative()) return { kind: 'negative' as const }
+
+        const created = await tx.staffPayout.create({
+          data: {
+            tenantId,
+            staffId,
+            periodStart: startDate,
+            periodEnd: endDate,
+            grossEarned,
+            bonus: bonusVal,
+            deductions: deductionsVal,
+            netAmount,
+            paymentMethod: paymentMethod ?? 'cash',
+            notes: notes ?? null,
+          },
+        })
+        return { kind: 'ok' as const, created }
       })
 
-      return res.status(201).json(serializePayout(created, staff.user.fullName))
+      if (outcome.kind === 'overlap') {
+        return res.status(409).json({ error: { code: 'PAYOUT_OVERLAP', message: 'Bu personel için çakışan dönemde ödeme kaydı zaten var.' } })
+      }
+      if (outcome.kind === 'negative') return res.status(400).json(NEGATIVE_NET)
+
+      return res.status(201).json(serializePayout(outcome.created, staff.user.fullName))
     } catch (err) {
       next(err)
     }
@@ -371,19 +413,17 @@ export function createStaffPayoutsRouter(): Router {
       }
 
       const { bonus, deductions, notes } = parsed.data
-      const newBonus = bonus !== undefined ? new Prisma.Decimal(bonus) : existing.bonus
-      const newDeductions = deductions !== undefined ? new Prisma.Decimal(deductions) : existing.deductions
-      const grossNum = Number(existing.grossEarned)
-      const bonusNum = Number(newBonus)
-      const deductionsNum = Number(newDeductions)
-      const newNet = grossNum + bonusNum - deductionsNum
+      const newBonus = bonus !== undefined ? toMoney(bonus) : existing.bonus
+      const newDeductions = deductions !== undefined ? toMoney(deductions) : existing.deductions
+      const newNet = existing.grossEarned.plus(newBonus).minus(newDeductions)
+      if (newNet.isNegative()) return res.status(400).json(NEGATIVE_NET)
 
       const updated = await db.staffPayout.update({
         where: { id },
         data: {
           bonus: newBonus,
           deductions: newDeductions,
-          netAmount: new Prisma.Decimal(newNet),
+          netAmount: newNet,
           ...(notes !== undefined ? { notes } : {}),
         },
       })
