@@ -35,7 +35,7 @@ describe('staff-payouts (gercek PG)', () => {
     })
     await db.transaction.create({
       data: {
-        tenantId: tenant.id, appointmentId: appt.id, staffId, grossAmount: 100, commissionRate: 10, commissionAmount: commission,
+        tenantId: tenant.id, appointmentId: appt.id, staffId, grossAmount: 100, commissionRate: 0.1, commissionAmount: commission,
         paymentMethod: 'cash', cashAmount: 100, cardAmount: 0, status: 'completed', completedAt,
       },
     })
