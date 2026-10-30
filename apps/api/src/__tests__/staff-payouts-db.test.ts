@@ -8,6 +8,7 @@ import {
   createTestOwner,
   createTestStaff,
   createTestService,
+  createTestCustomer,
   cleanupTenant,
 } from './helpers/setup'
 
@@ -20,12 +21,13 @@ describe('staff-payouts (gercek PG)', () => {
   let ownerToken: string
   let staffId: string
   let serviceId: string
+  let customerId: string
   let base: string
 
   async function addTx(completedAt: Date, commission: string) {
     const appt = await db.appointment.create({
       data: {
-        tenantId: tenant.id, customerId: null, requestedName: 'Prim', requestedPhone: '+905320000077', staffId, serviceId,
+        tenantId: tenant.id, customerId, requestedName: 'Prim', requestedPhone: '+905320000077', staffId, serviceId,
         referenceCode: `P-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
         startAt: completedAt, endAt: new Date(completedAt.getTime() + 3600 * 1000),
         priceCharged: 100, status: 'pending', bookingChannel: 'web', phoneVerified: false,
@@ -48,6 +50,7 @@ describe('staff-payouts (gercek PG)', () => {
     const staff = await createTestStaff(tenant.id, tenant.slug, suffix)
     staffId = staff.profile.id
     serviceId = (await createTestService(tenant.id, suffix)).id
+    customerId = (await createTestCustomer(tenant.id, '+905320000078', suffix)).id
     base = `/api/v1/tenants/${tenant.slug}/staff-payouts`
     // 2026-03-31 23:30 UTC = 2026-04-01 02:30 Istanbul -> Nisan'a ait
     await addTx(new Date('2026-03-31T23:30:00.000Z'), '10.10')
